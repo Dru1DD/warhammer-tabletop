@@ -28,7 +28,7 @@ const f = (c: string, o = 0.22) => `fill="${c}" fill-opacity="${o}"`
 
 // ---------------------------------------------------------------- Space Marines
 
-type MarineGear = 'rifle' | 'rifleGL' | 'swordPistol'
+type MarineGear = 'rifle' | 'rifleGL' | 'swordPistol' | 'chainPistol'
 
 function marine(gear: MarineGear, opts: { sergeant?: boolean; officer?: boolean } = {}): string {
   const c = BLUEPRINT_LINE.marines
@@ -46,8 +46,48 @@ function marine(gear: MarineGear, opts: { sergeant?: boolean; officer?: boolean 
   const gl = `<rect x="58" y="63" width="21" height="7.5" rx="3.5" ${f(c, 0.3)}/><circle cx="79" cy="66.75" r="3.8" ${f(c, 0.4)}/>`
   const sword = `<line x1="54" y1="32" x2="90" y2="22" stroke-width="2.6"/><line x1="55" y1="27" x2="58" y2="37" stroke-width="2"/>`
   const pistol = `<rect x="57" y="61" width="15" height="5" rx="1.5" ${f(c, 0.3)}/>`
-  const weapon = gear === 'rifle' ? rifle : gear === 'rifleGL' ? rifle + gl : sword + pistol
+  const chainsword = `<line x1="54" y1="32" x2="86" y2="24" stroke-width="4"/><line x1="58" y1="31" x2="84" y2="24.5" stroke-width="1" stroke-dasharray="1.5 1.5" stroke="${PAPER}"/>`
+  const weapon = { rifle, rifleGL: rifle + gl, swordPistol: sword + pistol, chainPistol: chainsword + pistol }[gear]
   return base(c, cape + backpack + torso + pauldron(30) + pauldron(70) + chevron + head + weapon, false)
+}
+
+// ---------------------------------------------------------------- vehicles
+
+/** Redemptor Dreadnought from above: sarcophagus hull, fist arm, macro plasma arm, shoulder launchers. */
+function redemptor(): string {
+  const c = BLUEPRINT_LINE.marines
+  return base(c, `
+    <rect x="20" y="30" width="14" height="12" rx="3" ${f(c, 0.15)}/><rect x="20" y="58" width="14" height="12" rx="3" ${f(c, 0.15)}/>
+    <rect x="28" y="26" width="38" height="48" rx="9" ${f(c)}/>
+    <line x1="34" y1="34" x2="34" y2="66" opacity="0.6"/><line x1="40" y1="34" x2="40" y2="66" opacity="0.6"/>
+    <rect x="46" y="38" width="14" height="24" rx="3" ${f(c, 0.3)}/>
+    <rect x="60" y="43" width="11" height="14" rx="3" ${f(c, 0.35)}/><line x1="68" y1="46" x2="68" y2="54" stroke-width="2.6"/>
+    <rect x="33" y="28" width="9" height="7" ${f(c, 0.35)}/><rect x="33" y="65" width="9" height="7" ${f(c, 0.35)}/>
+    <rect x="42" y="12" width="20" height="12" rx="3" ${f(c, 0.25)}/>
+    <rect x="60" y="9" width="16" height="18" rx="3" ${f(c, 0.35)}/><line x1="64" y1="11" x2="64" y2="25" opacity="0.7"/><line x1="68" y1="11" x2="68" y2="25" opacity="0.7"/><line x1="72" y1="11" x2="72" y2="25" opacity="0.7"/>
+    <rect x="42" y="74" width="20" height="14" rx="3" ${f(c, 0.25)}/>
+    <rect x="60" y="76" width="31" height="9" rx="2" ${f(c, 0.3)}/><circle cx="66" cy="80.5" r="3" fill="none"/><circle cx="74" cy="80.5" r="3" fill="none"/>
+    <rect x="70" y="58" width="13" height="5" rx="2" ${f(c, 0.4)}/>
+  `, false)
+}
+
+/** Deff Dread from above: riveted barrel body, pilot hatch, klaw, big shoota, skorcha, exhaust stacks. */
+function deffDread(): string {
+  const c = BLUEPRINT_LINE.orks
+  const rivets = Array.from({ length: 10 }, (_, i) => {
+    const a = (i / 10) * Math.PI * 2
+    return `<circle cx="${46 + Math.cos(a) * 17}" cy="${50 + Math.sin(a) * 17}" r="1.1" fill="${c}" stroke="none"/>`
+  }).join('')
+  return base(c, `
+    <circle cx="24" cy="38" r="4.5" ${f(c, 0.3)}/><circle cx="24" cy="62" r="4.5" ${f(c, 0.3)}/>
+    <circle cx="46" cy="50" r="21" ${f(c)}/>${rivets}
+    <circle cx="48" cy="50" r="9" ${f(c, 0.3)}/><line x1="44" y1="50" x2="54" y2="50"/>
+    <path d="M52 32 L66 22 L72 26 L60 36 Z" ${f(c, 0.25)}/>
+    <path d="M70 20 L86 14 L82 20 L90 22 L80 27 L72 26 Z" ${f(c, 0.4)}/>
+    <path d="M52 68 L64 76 L60 80 L50 74 Z" ${f(c, 0.25)}/>
+    <rect x="60" y="74" width="30" height="9" rx="2" ${f(c, 0.3)}/><line x1="82" y1="76.5" x2="93" y2="76.5"/><line x1="82" y1="80.5" x2="93" y2="80.5"/>
+    <rect x="64" y="46" width="14" height="8" rx="3" ${f(c, 0.35)}/><path d="M78 46 L86 43 L86 57 L78 54 Z" ${f(c, 0.5)}/>
+  `, true)
 }
 
 // ---------------------------------------------------------------- Orks
@@ -82,6 +122,10 @@ const SVGS: Record<string, string> = {
   intercessorSergeant: marine('rifle', { sergeant: true }),
   intercessor: marine('rifle'),
   intercessorGL: marine('rifleGL'),
+  assaultSergeant: marine('chainPistol', { sergeant: true }),
+  assaultIntercessor: marine('chainPistol'),
+  redemptor: redemptor(),
+  deffDread: deffDread(),
   nob: ork('bigChoppa', { nob: true }),
   boy: ork('sluggaChoppa'),
   boyBigShoota: ork('bigShoota'),

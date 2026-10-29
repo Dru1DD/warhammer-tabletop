@@ -2,11 +2,11 @@
 // validate(state, cmd) never mutates; apply(state, cmd, roller) returns a new state.
 
 import { FACTION_NAME } from './data/datasheets'
-import { rollMany, type Roller } from './dice/dice'
+import { rollDie, rollMany, type Roller } from './dice/dice'
 import { dist, withinRange, EPS, add, sub, scale, len } from './geometry/geometry'
 import {
   addLog, alive, atHalfStrength, CHARGE_RANGE, checkCoherency, CONSOLIDATE, engagedUnits, ENGAGEMENT_RANGE,
-  enemiesOf, findUnit, fmt, hasAbility, isDestroyed, isEngaged, modelDistance, modelEngagedWith,
+  enemiesOf, findUnit, fmt, hasAbility, isDestroyed, isEngaged, isMV, modelDistance, modelEngagedWith,
   other, PILE_IN, profileOf, radiusOf, unitDistance, unitNearObjective, unitsOf,
   updateObjectiveControl, weaponsOf, OBJECTIVE_MARKER_MM,
 } from './gameState'
@@ -14,7 +14,7 @@ import { applyMortalWounds, resolveGroup, type AttackContext, type AttackGroup }
 import { moveProblem, planMove } from './rules/movement'
 import { hasCover, visibleTargets } from './rules/visibility'
 import { baseRadius } from './geometry/geometry'
-import type { Command, DiceEntry, GameState, ModelState, Phase, PlayerId, UnitState, Validation, Vec } from './types'
+import type { Command, DiceEntry, GameState, ModelState, Phase, PlayerId, UnitState, Validation, Vec, WeaponProfile } from './types'
 import { PHASES } from './types'
 
 export const PHASE_NAME: Record<Phase, string> = {
@@ -38,6 +38,24 @@ export function actor(s: GameState): PlayerId {
 
 const riled = (s: GameState, u: UnitState) => hasAbility(u, 'waaagh') && s.players[u.owner].riledTurns > 0
 
+/** Lethal Hits marked "non-MONSTER/VEHICLE" (and Tactical Precision) don't work against M/V targets. */
+const lethalVs = (p: WeaponProfile, attacker: UnitState, target: UnitState) => {
+  const k = p.keywords.lethalHits
+  const kw = k === true || (k === 'nonMV' && !isMV(target))
+  return kw || (hasAbility(attacker, 'tacticalPrecision') && !isMV(target))
+}
+
+/** Defensive abilities of the target that modify the wound roll / damage. */
+function defenceMods(p: WeaponProfile, target: UnitState) {
+  const t = Math.max(...alive(target).map((m) => profileOf(m).t))
+  const duty = hasAbility(target, 'dutyEternal') && p.s > t
+  return {
+    woundMod: duty ? -1 : 0,
+    woundModNote: duty ? 'Duty Eternal: сила больше стойкости' : undefined,
+    damageMod: hasAbility(target, 'dreadArd') ? -1 : 0,
+  }
+}
+
 // ---------------------------------------------------------------- shooting
 
 export interface ShootPlan {
@@ -59,9 +77,12 @@ export function shootPlan(
   const engaged = isEngaged(s, unit)
   const advanced = unit.move === 'advance'
   const assaultAll = riled(s, unit)
+  const mv = isMV(unit)
   if (engaged && advanced) return { ...plan, problem: 'Отряд продвинулся (Advance) и находится в контакте — стрелять нельзя.' }
   if (engaged && !engagedUnits(s, unit).some((e) => e.id === target.id))
-    return { ...plan, problem: 'Отряд в контакте с врагом: стрелять можно только из оружия ближнего боя (Close-quarters) и только по отряду, с которым он в контакте.' }
+    return { ...plan, problem: mv
+      ? 'Техника в контакте с врагом стреляет только по отряду, с которым она в контакте.'
+      : 'Отряд в контакте с врагом: стрелять можно только из оружия ближнего боя (Close-quarters) и только по отряду, с которым он в контакте.' }
 
   const byKey = new Map<string, AttackGroup & { ctx: AttackContext }>()
   let anyVisible = false
@@ -70,7 +91,10 @@ export function shootPlan(
     const ranged = weaponsOf(m).filter((w) => w.profiles[0].range !== 'melee')
     const cq = ranged.filter((w) => w.profiles[0].keywords.closeQuarters)
     const main = ranged.filter((w) => !w.profiles[0].keywords.closeQuarters)
-    let chosen = engaged || opts.usePistols || main.length === 0 ? cq : main
+    // close-quarters shooting (10.06): MONSTER/VEHICLE may use any non-Blast ranged weapon
+    let chosen = engaged && mv
+      ? ranged.filter((w) => !w.profiles[Math.min(opts.profiles?.[w.id] ?? 0, w.profiles.length - 1)].keywords.blast)
+      : engaged || opts.usePistols || main.length === 0 ? cq : main
     if (advanced && !engaged) {
       const before = chosen.length
       chosen = chosen.filter((w) => assaultAll || w.profiles[opts.profiles?.[w.id] ?? 0].keywords.assault)
@@ -98,10 +122,11 @@ export function shootPlan(
       const key = `${w.id}:${idx}`
       let g = byKey.get(key)
       if (!g) {
-        g = { weaponName: w.name, profile: p, models: 0, attacks: 0, notes: [], ctx: { hitMod: 0, hitModNotes: [], skillWorsen: 0, lethalHits: false } }
+        g = { weaponName: w.name, profile: p, models: 0, attacks: 0, randomAttacks: 0, notes: [], ctx: { hitMod: 0, hitModNotes: [], skillWorsen: 0, lethalHits: false } }
         byKey.set(key, g)
       }
       g.models++
+      if (p.randomA) g.randomAttacks = (g.randomAttacks ?? 0) + 1
       let a = p.attacks
       if (p.keywords.rapidFire && withinRange(d, range / 2)) {
         a += p.keywords.rapidFire
@@ -126,15 +151,18 @@ export function shootPlan(
   const runts = !!opts.useAmmoRunts && hasAbility(unit, 'ammoRunts') && !unit.ammoRuntsUsed
   for (const g of byKey.values()) {
     const notes: string[] = []
-    if (g.profile.keywords.heavy && !engaged && unit.movedDistance <= 3 + EPS) notes.push('Heavy +1')
-    if (bolter) notes.push('Болтерная дисциплина +1')
-    if (runts) notes.push('Гроты-подносчики +1')
+    let hitMod = 0
+    if (g.profile.keywords.heavy && !engaged && unit.movedDistance <= 3 + EPS) { notes.push('Heavy +1'); hitMod++ }
+    if (bolter) { notes.push('Болтерная дисциплина +1'); hitMod++ }
+    if (runts) { notes.push('Гроты-подносчики +1'); hitMod++ }
+    if (engaged && mv && !g.profile.keywords.closeQuarters) { notes.push('техника в контакте −1'); hitMod-- }
     g.ctx = {
-      hitMod: notes.length,
+      hitMod,
       hitModNotes: notes,
       skillWorsen: plan.cover ? 1 : 0,
-      lethalHits: !!g.profile.keywords.lethalHits || hasAbility(unit, 'tacticalPrecision'),
+      lethalHits: lethalVs(g.profile, unit, target),
       invulnOverride: riled(s, target) ? 5 : undefined,
+      ...defenceMods(g.profile, target),
     }
     plan.groups.push(g)
   }
@@ -150,21 +178,25 @@ export function meleePlan(s: GameState, unit: UnitState, target: UnitState) {
     if (!modelEngagedWith(m, target)) continue
     const w = weaponsOf(m).find((x) => x.profiles[0].range === 'melee')
     if (!w) continue
-    const p = w.profiles[0]
+    // Targeted Intercession: +1 S and +1 AP after charging
+    const boost = hasAbility(unit, 'targetedIntercession') && unit.charged
+    const p = boost ? { ...w.profiles[0], s: w.profiles[0].s + 1, ap: w.profiles[0].ap - 1 } : w.profiles[0]
     let g = byKey.get(w.id)
     if (!g) {
       g = {
-        weaponName: w.name, profile: p, models: 0, attacks: 0, notes: [],
+        weaponName: w.name, profile: p, models: 0, attacks: 0, randomAttacks: 0, notes: boost ? ['Targeted Intercession +1 S/AP'] : [],
         ctx: {
           hitMod: 0, hitModNotes: [], skillWorsen: 0,
-          lethalHits: hasAbility(unit, 'tacticalPrecision') || (hasAbility(unit, 'tideOfMuscle') && unit.charged),
+          lethalHits: lethalVs(p, unit, target) || (hasAbility(unit, 'tideOfMuscle') && unit.charged),
           invulnOverride: riled(s, target) ? 5 : undefined,
+          ...defenceMods(p, target),
         },
       }
       byKey.set(w.id, g)
       groups.push(g)
     }
     g.models++
+    if (p.randomA) g.randomAttacks = (g.randomAttacks ?? 0) + 1
     g.attacks += p.attacks + (p.keywords.cleave ? p.keywords.cleave * Math.floor(alive(target).length / 5) : 0)
   }
   return groups
@@ -486,6 +518,29 @@ function pushDice(s: GameState, title: string, steps: DiceEntry['steps'], summar
   if (s.diceLog.length > 200) s.diceLog.splice(0, s.diceLog.length - 200)
 }
 
+const aliveIds = (s: GameState) => new Set(s.units.flatMap((u) => alive(u).map((m) => m.id)))
+
+/** Deadly Demise X (24.08): each model with it that was destroyed since `before` rolls a D6;
+ * on a 6 every unit within 6″ of it suffers X mortal wounds. No chain reactions. */
+function deadlyDemise(s: GameState, before: Set<string>, r: Roller) {
+  for (const u of s.units) {
+    const x = hasAbility(u, 'deadlyDemiseD3') ? 'D3' : hasAbility(u, 'deadlyDemise1') ? 1 : null
+    if (!x) continue
+    for (const m of u.models) {
+      if (!m.destroyed || !before.has(m.id)) continue
+      const v = r.d6()
+      if (v !== 6) {
+        pushDice(s, `Deadly Demise: ${u.name}`, [{ label: 'D6', target: '6', dice: [{ value: v, success: false }], note: 'Только на 6 подбитая техника взрывается.' }], `${u.name}: обломки не взорвались.`)
+        continue
+      }
+      const n = x === 'D3' ? rollDie(r, 'D3') : x
+      const victims = s.units.filter((o) => !isDestroyed(o) && alive(o).some((om) => withinRange(modelDistance(m, om), 6)))
+      pushDice(s, `Deadly Demise: ${u.name}`, [{ label: 'D6', target: '6', dice: [{ value: v, success: true }], note: `Взрыв: ${n} смертельн. ран каждому отряду в 6″.` }], `${u.name} взрывается: ${victims.map((o) => o.name).join(', ') || 'рядом никого'}.`)
+      for (const o of victims) applyMortalWounds(s, o, n, `взрыв ${u.name} (Deadly Demise)`)
+    }
+  }
+}
+
 function hazard(s: GameState, u: UnitState, n: number, r: Roller, why: string) {
   if (n <= 0) return
   const dice = rollMany(r, n)
@@ -554,6 +609,7 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
     case 'shoot': {
       const u = findUnit(s, cmd.unitId)!
       const t = findUnit(s, cmd.targetId)!
+      const before = aliveIds(s)
       const plan = shootPlan(s, u, t, cmd)
       u.shot = true
       if (cmd.useAmmoRunts && hasAbility(u, 'ammoRunts') && !u.ammoRuntsUsed) u.ammoRuntsUsed = true
@@ -566,6 +622,7 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
         addLog(s, res.summary, 'standard')
       }
       hazard(s, u, plan.hazardousModels, r, 'Перегрузка плазмы (Hazardous)')
+      deadlyDemise(s, before, r)
       if (isDestroyed(t)) addLog(s, `Отряд «${t.name}» уничтожен!`, 'minimal')
       checkWinner(s)
       break
@@ -604,6 +661,7 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
     case 'fight': {
       const u = findUnit(s, cmd.unitId)!
       const t = findUnit(s, cmd.targetId)!
+      const before = aliveIds(s)
       u.fought = true
       const groups = meleePlan(s, u, t)
       addLog(s, `${u.name} сражается с отрядом «${t.name}».`, 'minimal')
@@ -614,6 +672,7 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
         addLog(s, res.summary, 'standard')
       }
       if (!groups.length) addLog(s, `${u.name}: ни одна модель не в зоне контакта (${ENGAGEMENT_RANGE}").`, 'standard')
+      deadlyDemise(s, before, r)
       if (isDestroyed(t)) addLog(s, `Отряд «${t.name}» уничтожен!`, 'minimal')
       checkWinner(s)
       s.fight!.selecting = other(s.fight!.selecting)

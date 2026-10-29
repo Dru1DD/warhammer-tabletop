@@ -10,8 +10,9 @@ describe('deployment', () => {
     for (const sc of SCENARIOS) {
       const s = sc.build()
       for (const u of s.units) expect(deploymentProblem(s, u, {}), `${sc.id}/${u.id}`).toBeNull()
-      expect(deploymentIssues(s, 'marines', ['lt', 'int'])).toEqual([])
-      expect(deploymentIssues(s, 'orks', ['boyz'])).toEqual([])
+      const ids = s.units.map((u) => u.id)
+      expect(deploymentIssues(s, 'marines', ids)).toEqual([])
+      expect(deploymentIssues(s, 'orks', ids)).toEqual([])
     }
   })
   it('requires the whole base inside the zone', () => {

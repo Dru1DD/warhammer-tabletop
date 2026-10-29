@@ -1,5 +1,5 @@
 import { basePoints, circlePolygonDistance, segmentCrossesPolygon } from '../geometry/geometry'
-import { alive, modelInTerrain, radiusOf } from '../gameState'
+import { alive, isInfantry, modelInTerrain, radiusOf } from '../gameState'
 import type { GameState, ModelState, Terrain, UnitState, Vec } from '../types'
 
 // Line of sight approximation: a line between sample points on both bases
@@ -34,10 +34,11 @@ export const visibleTargets = (s: GameState, m: ModelState, target: UnitState) =
 export const unitCanSee = (s: GameState, shooter: UnitState, target: UnitState) =>
   alive(shooter).some((m) => visibleTargets(s, m, target).length > 0)
 
-/** Benefit of cover vs a ranged attack: every target model is (INFANTRY) within a
+/** Benefit of cover vs a ranged attack: every target model is INFANTRY within a
  * terrain area, or not fully visible to any shooting model due to terrain. */
 export function hasCover(s: GameState, shooters: ModelState[], target: UnitState): boolean {
+  const inf = isInfantry(target)
   return alive(target).every(
-    (t) => modelInTerrain(s, t) || !shooters.some((sm) => modelFullyVisible(s, sm, t)),
+    (t) => (inf && modelInTerrain(s, t)) || !shooters.some((sm) => modelFullyVisible(s, sm, t)),
   )
 }

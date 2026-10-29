@@ -16,7 +16,7 @@ No explicit licence was found that would allow embedding official product images
 
 | Asset | Source | Licence |
 |---|---|---|
-| Blueprint tokens: top-down technical drawings of each model on its base (rim with ticks, facing arrow, silhouette, weapon). Marines: backpack, pauldrons, bolt rifle / grenade launcher / officer's cape, sword and pistol. Orks (mirrored to face the Marines): armour plates, tusks, slugga and choppa / big shoota / rokkit / Nob's horns and big choppa | Hand-written SVG in `src/assets/tokenArt.ts` | Original, part of this project. No GW logos, icons or traced artwork. |
+| Blueprint tokens: top-down technical drawings of each model on its base (rim with ticks, facing arrow, silhouette, weapon). Marines: backpack, pauldrons, bolt rifle / grenade launcher / officer's cape, sword and pistol. Orks (mirrored to face the Marines): armour plates, tusks, slugga and choppa / big shoota / rokkit / Nob's horns and big choppa. Assault Intercessors (chainsword, pistol), Redemptor Dreadnought (hull, fist, macro plasma, launchers), Deff Dread (riveted body, klaw, big shoota, skorcha, exhausts) | Hand-written SVG in `src/assets/tokenArt.ts` | Original, part of this project. No GW logos, icons or traced artwork. |
 | Fallback tokens: Cyrillic abbreviations Лт / Сж / И / Гр / Нб / Б / БШ / Р | Drawn in code (Konva) | Original |
 | Blueprint board: grid with inch rulers, ruins as hatched floor plans with walls and pillars, craters as contour lines, objectives as crosshairs | Drawn in code (Konva, `src/ui/Board.tsx`) | Original |
 | `public/favicon.svg` | Vite project template | MIT (Vite) |

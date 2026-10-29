@@ -75,6 +75,11 @@ A search snippet gave the Lieutenant **T4**, but the datasheet page itself says 
 | Abilities: Bolter Discipline, Tactical Precision, Ammo Runts, Tide of Muscle; Waaagh! army rule (advance re-roll; once-per-battle War Cry: riled up until end of next turn: 5+ invuln, ranged gain Assault, charge after advance) | Implemented |
 | Combat Doctrines (Space Marine army rule) | **Not implemented.** The doctrines' text wasn't available. Extension point. |
 | Stratagems (Insane Bravery, Heroic Intervention, Fire Overwatch, Crushing Impact…), Hidden, attached units, vertical terrain, reserves/Ingress | Not implemented (extension points) |
+| Random characteristics (D3/D6 attacks and damage) | **Approximation.** Rule 02.02.03 wasn't readable. Random attacks are rolled once per model per weapon; random damage once per unsaved attack. D3 = D6 halved, rounding up (01.05). |
+| MONSTER/VEHICLE: Lethal Hits "non-M/V" (also Tactical Precision) don't apply against them; benefit of cover from standing in terrain is INFANTRY-only (13.08); move through non-M/V models in normal/advance moves (17.01); close-quarters shooting with any non-Blast ranged weapon at −1 to hit vs the engaged unit (10.06) | Implemented |
+| Duty Eternal (−1 to wound if S > T), Dread 'Ard (−1 damage, min 1), Deadly Demise X (D6 = 6: X mortal wounds to every unit within 6″), Targeted Intercession (+1 S/AP in melee after charging) | Implemented. Deadly Demise doesn't chain. |
+| Damaged X (Redemptor: Damaged 4) | **Not implemented.** The rule text wasn't readable. |
+| Terrain categories (13.03–13.11): crater = exposed, barricade = light, ruin / woods / container = dense, container also solid. Light and dense areas are obscuring. Only INFANTRY move through dense features (all assumed taller than 2″). No model ends a move inside a solid feature. Same limits when deploying. | Implemented with those assumptions. Hidden and vertical movement are not modelled. |
 | Mission / VP scoring | **Unofficial training rule** (labelled in the UI): from round 2, 5 VP per controlled objective in your Command phase. Win on VP after round 5, or by wiping out the enemy. Official mission rules were not used. |
 
 ## Balance note
@@ -87,6 +92,9 @@ Standard AI vs standard AI, 40 seeds per scenario (2026-10-18):
 |---|---|---|---|
 | Учебная стычка у аванпоста | 40 | 0 | 1.7 |
 | Переулок в руинах | 35 | 5 | 1.6 |
+| Боевой патруль (8 seeds, 2026-10-29) | 8 | 0 | 4.75 |
+
+«Боевой патруль» (44″×30″; Lieutenant, 2× Intercessors, Assault Intercessors, Redemptor vs 3× Boyz (10), Deff Dread) makes games last 4–5 rounds instead of 1–2, but the Space Marines still win AI-vs-AI. Army sizes are a training choice, not a points-matched list. The slowest AI decision on this board took ~0.8 s.
 
 Varying the Ork AI's `damageTaken` weight (0.2 → 3) changes its behaviour: charges across the 40 games ranged from 41 down to 0 in the ruins scenario. It does not change the overall result. So the imbalance comes mainly from the profiles and board size, not from the AI ignoring cover. Each attack step is unit-tested. A fairer training mode would need the handbook's own scenarios.
 
@@ -96,6 +104,7 @@ Varying the Ork AI's `damageTaken` weight (0.2 → 3) changes its behaviour: cha
 - Official: https://warhammer40000.com/ (rules hub, referenced)
 - Official: https://www.warhammer-community.com/en-gb/terms-of-use/ and https://www.warhammer.com/en-GB/legal (IP/terms)
 - Core rules transcription: https://wahapedia.ru/wh40k11ed/the-rules/core-rules/
+- Datasheets (2026-10-29): https://wahapedia.ru/wh40k11ed/factions/space-marines/Redemptor-Dreadnought · https://wahapedia.ru/wh40k11ed/factions/orks/Deff-Dread · https://wahapedia.ru/wh40k11ed/factions/space-marines/Assault-Intercessor-Squad. Loadouts: Redemptor with Macro Plasma Incinerator (option), Heavy Flamer, Fragstorm Grenade Launchers, Redemptor Fist; Deff Dread default (Big Shoota, Skorcha, Dread Klaws); Assault Intercessors default (Heavy Bolt Pistol, Chainsword).
 - Datasheets: https://www.wahapedia.ru/wh40k11ed/factions/space-marines/Lieutenant · https://www.wahapedia.ru/wh40k11ed/factions/space-marines/Intercessor-Squad · https://wahapedia.ru/wh40k11ed/factions/orks/Boyz
 - Rules overview: https://spruesandbrews.com/2026/06/01/warhammer-40000-11th-edition-core-rules-deep-dive/
 - Box contents: https://spruesandbrews.com/2026/07/11/warhammer-40000-introductory-set-unboxing-review-40k-11th-edition/ · https://taleofpainters.com/2026/07/every-11th-edition-warhammer-40k-starter-set-unboxed-reviewed/ · https://www.fairgamestore.com/warhammer-40k-introductory-set-11e.html · https://www.loadeddice.uk/blogs/blog/warhammer-40k-11th-edition-starter-sets

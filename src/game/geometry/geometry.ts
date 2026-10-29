@@ -72,6 +72,16 @@ export function circlePolygonDistance(c: Vec, r: number, poly: Vec[]): number {
   return Math.max(0, d - r)
 }
 
+const segmentDistance = (a: Vec, b: Vec, c: Vec, d: Vec) =>
+  segmentsIntersect(a, b, c, d) ? 0 : Math.min(pointSegmentDistance(a, c, d), pointSegmentDistance(b, c, d), pointSegmentDistance(c, a, b), pointSegmentDistance(d, a, b))
+
+/** Does a base of radius r moving in a straight line from a to b touch the polygon's area? */
+export function sweptCircleHitsPolygon(a: Vec, b: Vec, r: number, poly: Vec[]): boolean {
+  if (pointInPolygon(a, poly) || pointInPolygon(b, poly)) return true
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) if (segmentDistance(a, b, poly[j], poly[i]) < r - EPS) return true
+  return false
+}
+
 /** Sample points: centre plus n points on the base edge (for line-of-sight checks). */
 export function basePoints(c: Vec, r: number, n = 8): Vec[] {
   const pts = [c]

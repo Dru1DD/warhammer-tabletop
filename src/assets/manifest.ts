@@ -27,12 +27,19 @@ export const TOKENS: Record<string, TokenStyle> = {
   boy: { fill: '#4d8f33', stroke: '#d7e5c3', text: '#ffffff', label: 'Б' },
   boyBigShoota: { fill: '#4d8f33', stroke: '#d7e5c3', text: '#ffffff', label: 'БШ' },
   boyRokkit: { fill: '#4d8f33', stroke: '#d7e5c3', text: '#ffffff', label: 'Р' },
+  assaultSergeant: { fill: '#1f4e9c', stroke: '#c9d6ee', text: '#ffffff', label: 'ШС' },
+  assaultIntercessor: { fill: '#2b5fb5', stroke: '#c9d6ee', text: '#ffffff', label: 'Ш' },
+  redemptor: { fill: '#1f4e9c', stroke: '#e4b33a', text: '#ffffff', label: 'Дрд' },
+  deffDread: { fill: '#3f7a2a', stroke: '#b83a2b', text: '#ffffff', label: 'ДД' },
 }
 
 // Blueprint look: dark drafting paper, light line work.
 export const TERRAIN_STYLE: Record<TerrainKind, { fill: string; stroke: string; label: string }> = {
   ruin: { fill: 'rgba(207,233,255,0.10)', stroke: '#cfe9ff', label: 'Руины: блокируют обзор, укрытие' },
   crater: { fill: 'rgba(255,214,140,0.06)', stroke: '#f5d08a', label: 'Воронка: укрытие для пехоты' },
+  woods: { fill: 'rgba(150,230,170,0.08)', stroke: '#9fe3b0', label: 'Лес: закрывает обзор, укрытие; техника не проходит' },
+  barricade: { fill: 'rgba(207,233,255,0.10)', stroke: '#cfe9ff', label: 'Баррикада: закрывает обзор, укрытие' },
+  container: { fill: 'rgba(255,180,150,0.10)', stroke: '#ffb49a', label: 'Контейнер: закрывает обзор; внутри нельзя стоять' },
 }
 
 export const BOARD_STYLE = {

@@ -4,6 +4,7 @@ import { ABILITY_TEXT, FACTION_NAME, PROFILES } from '../game/data/datasheets'
 import { actor, maxMove, moveModeFor, PHASE_NAME, shootPlan, unitActions, validate } from '../game/engine'
 import { alive, datasheetOf, engagedUnits, fmt, isDestroyed, profileOf, unitsOf, weaponsOf } from '../game/gameState'
 import { hitRoll, saveTarget, toughness, woundTarget } from '../game/combat/attack'
+import { fmtRandom } from '../game/dice/dice'
 import { deploymentIssues, deploymentZone } from '../game/rules/deployment'
 import { boxOf, fitBox, newPiece, TERRAIN_PRESETS, withBox, type TerrainPreset } from '../game/terrainLayout'
 import { scenarioById } from '../game/scenarios/scenarios'
@@ -163,7 +164,7 @@ function UnitDetails({ u }: { u: UnitState }) {
           {weapons.flatMap((w) => w.profiles.map((p, i) => (
             <tr key={w.id + i} title={keywordText(p.keywords)}>
               <td className="text-left">{w.name}{p.name ? ` — ${p.name}` : ''}{keywordText(p.keywords) && <span className="block text-[10px] text-sky-300">{keywordText(p.keywords)}</span>}</td>
-              <td>{p.range === 'melee' ? 'ближ.' : `${p.range}″`}</td><td>{p.attacks}</td><td>{p.skill ? `${p.skill}+` : 'авто'}</td><td>{p.s}</td><td>{p.ap}</td><td>{p.d}</td>
+              <td>{p.range === 'melee' ? 'ближ.' : `${p.range}″`}</td><td>{fmtRandom(p.attacks, p.randomA)}</td><td>{p.skill ? `${p.skill}+` : 'авто'}</td><td>{p.s}</td><td>{p.ap}</td><td>{fmtRandom(p.d, p.randomD)}</td>
             </tr>
           )))}
         </tbody>
@@ -177,7 +178,7 @@ function UnitDetails({ u }: { u: UnitState }) {
         <p className="my-1 text-[11px] text-stone-400">Сфотографируйте свои миниатюры из набора сверху или спереди — фото заменят нарисованные фишки. Хранится только в этом браузере.</p>
         {profiles.map((p) => <PhotoUpload key={p.id} profileId={p.id} name={p.name} />)}
       </details>
-      {(u.datasheetId === 'boyz') && (
+      {u.datasheetId === 'boyz' && u.startingModels < 10 && (
         <p className="mt-1 text-[11px] text-amber-400">Учебная конфигурация Introductory Set: в официальном datasheet Бойз минимум 10 моделей и 1 спецоружие на 10 моделей.</p>
       )}
     </section>
@@ -542,7 +543,7 @@ function AttackPreview({ plan, attacker, target }: { plan: ReturnType<typeof sho
   return (
     <details className={`mt-0.5 rounded px-2 py-1 text-[11px] ${aimed ? 'border border-yellow-400 bg-stone-900' : 'bg-stone-900/70'}`} open={beginner || aimed}>
       <summary className="cursor-pointer text-stone-300">
-        Разбор: {plan.groups.reduce((a, g) => a + g.attacks, 0)} атак · стреляют {plan.firingModels.length} из {alive(attacker).length} мод.{plan.cover ? ' · цель в укрытии (−1 к навыку)' : ''}
+        Разбор: {plan.groups.reduce((a, g) => a + g.attacks, 0)}{plan.groups.some((g) => g.randomAttacks) ? '+' : ''} атак · стреляют {plan.firingModels.length} из {alive(attacker).length} мод.{plan.cover ? ' · цель в укрытии (−1 к навыку)' : ''}
       </summary>
       {plan.groups.map((g) => {
         const hr = hitRoll(g.profile, g.ctx)
@@ -550,12 +551,12 @@ function AttackPreview({ plan, attacker, target }: { plan: ReturnType<typeof sho
         const save = new Set(needs.map((x) => x.need)).size === 1 ? `${needs[0].need}+` : needs.map((x) => `${x.need}+ (${x.name})`).join(', ')
         return (
           <div key={g.weaponName + g.profile.name} className="mt-1 border-t border-stone-700 pt-1">
-            <b>{g.weaponName}{g.profile.name ? ` — ${g.profile.name}` : ''}</b> ×{g.models} мод.: {g.attacks} атак{g.notes.length ? ` (${g.notes.join(', ')})` : ''}
+            <b>{g.weaponName}{g.profile.name ? ` — ${g.profile.name}` : ''}</b> ×{g.models} мод.: {g.attacks}{g.randomAttacks ? ` + ${g.randomAttacks}×${g.profile.randomA}` : ''} атак{g.notes.length ? ` (${g.notes.join(', ')})` : ''}
             <ol className="list-decimal pl-4 text-stone-300">
               <li>Попадание: {hr.skill === null ? 'автоматически (Torrent)' : `${hr.skill}+${hr.mod ? `, модификатор ${hr.mod > 0 ? '+' : ''}${hr.mod} (${g.ctx.hitModNotes.join(', ')}) — фактически ${Math.min(6, Math.max(2, hr.skill - hr.mod))}+` : ''}`}{g.ctx.lethalHits ? '; 6 — сразу рана (Lethal Hits)' : ''}</li>
-              <li>Ранение: {woundTarget(g.profile.s, t)}+ (Сила {g.profile.s} против Стойкости {t})</li>
+              <li>Ранение: {woundTarget(g.profile.s, t)}+ (Сила {g.profile.s} против Стойкости {t}){g.ctx.woundMod ? `, модификатор ${g.ctx.woundMod} (${g.ctx.woundModNote})` : ''}</li>
               <li>Спасбросок цели: {save} (AP {g.profile.ap})</li>
-              <li>Урон: {g.profile.d} за каждую непрошедшую рану</li>
+              <li>Урон: {fmtRandom(g.profile.d, g.profile.randomD)} за каждую непрошедшую рану{g.ctx.damageMod ? ` (${g.ctx.damageMod}, Dread 'Ard; не меньше 1)` : ''}</li>
             </ol>
           </div>
         )
@@ -635,7 +636,7 @@ function LastAttack() {
           {d.steps.map((x, i) => (
             <details key={i} className="mt-0.5">
               <summary className="cursor-pointer">
-                {i + 1}. {x.label}{x.target !== '—' ? ` (${x.target})` : ''}: {x.dice.length ? `${succ(x)} из ${x.dice.length}${x.label === 'Спасбросок' ? ' спасено' : ' успешно'}` : x.note}
+                {i + 1}. {x.label}{x.target !== '—' ? ` (${x.target})` : ''}: {x.label === 'Атаки' || x.label === 'Урон' ? x.note : x.dice.length ? `${succ(x)} из ${x.dice.length}${x.label === 'Спасбросок' ? ' спасено' : ' успешно'}` : x.note}
               </summary>
               <div className="ml-3 mt-0.5 flex flex-wrap gap-1">
                 {x.dice.map((die, j) => <span key={j} className={`die ${die.success ? 'die-ok' : 'die-fail'} ${die.critical ? 'die-crit' : ''}`}>{die.value}</span>)}

@@ -4,13 +4,14 @@
 import { FACTION_NAME } from '../data/datasheets'
 import { dist, withinRange } from '../geometry/geometry'
 import {
-  alive, CHARGE_RANGE, engagedUnits, enemiesOf, modelInTerrain, objectiveLevels, profileOf,
+  alive, CHARGE_RANGE, engagedUnits, enemiesOf, hasAbility, isMV, modelInTerrain, objectiveLevels, profileOf,
   unitDistance, unitNearObjective, unitsOf, fmt,
 } from '../gameState'
 import { actor, maxMove, meleePlan, shootPlan, validate, moveModeFor } from '../engine'
 import { moveProblem, planMove } from '../rules/movement'
 import type { AttackContext, AttackGroup } from '../combat/attack'
 import { woundTarget } from '../combat/attack'
+import { avgDie } from '../dice/dice'
 import type { Command, GameState, PlayerId, UnitState, Vec } from '../types'
 import { WEAPONS } from '../data/datasheets'
 
@@ -44,7 +45,8 @@ export function expectedGroupDamage(g: AttackGroup & { ctx: AttackContext }, tar
   const p = g.profile
   const t = Math.max(...alive(target).map((m) => profileOf(m).t))
   const wt = woundTarget(p.s, t)
-  const pw = pFace((v) => v !== 1 && (v === 6 || v >= wt))
+  const wmod = g.ctx.woundMod ?? 0
+  const pw = pFace((v) => v !== 1 && (v === 6 || v + wmod >= wt))
   let pHitNormal: number, pCrit: number
   if (p.skill === null) { pHitNormal = 1; pCrit = 0 } else {
     const skill = Math.min(6, Math.max(2, p.skill + g.ctx.skillWorsen))
@@ -58,7 +60,9 @@ export function expectedGroupDamage(g: AttackGroup & { ctx: AttackContext }, tar
   const need = Math.min(pr.sv - p.ap, pr.invuln ?? 99, g.ctx.invulnOverride ?? 99)
   const pFail = pFace((v) => v === 1 || v < need)
   const avgW = alive(target).reduce((a, x) => a + profileOf(x).w, 0) / alive(target).length
-  return g.attacks * woundsPerAttack * pFail * Math.min(p.d, avgW)
+  const attacks = g.attacks + (g.randomAttacks ?? 0) * avgDie(p.randomA)
+  const dmg = Math.max(1, p.d + avgDie(p.randomD) + (g.ctx.damageMod ?? 0))
+  return attacks * woundsPerAttack * pFail * Math.min(dmg, avgW)
 }
 
 const shootValue = (s: GameState, u: UnitState, t: UnitState, opts: Parameters<typeof shootPlan>[3] = {}) => {
@@ -77,10 +81,12 @@ function meleePotential(s: GameState, u: UnitState, t: UnitState, charged: boole
     const g = {
       weaponName: w.name, profile: p, models: 1, notes: [],
       attacks: p.attacks + (p.keywords.cleave ? p.keywords.cleave * Math.floor(alive(t).length / 5) : 0),
+      randomAttacks: p.randomA ? 1 : 0,
       ctx: {
         hitMod: 0, hitModNotes: [], skillWorsen: 0,
-        lethalHits: u.datasheetId === 'lieutenant' || (u.datasheetId === 'boyz' && charged),
+        lethalHits: (hasAbility(u, 'tacticalPrecision') && !isMV(t)) || (hasAbility(u, 'tideOfMuscle') && charged),
         invulnOverride: t.owner === 'orks' && s.players.orks.riledTurns > 0 ? 5 : undefined,
+        damageMod: hasAbility(t, 'dreadArd') ? -1 : 0,
       },
     }
     total += expectedGroupDamage(g, t)
@@ -321,7 +327,7 @@ function shootOptions(u: UnitState, level: AiLevel) {
   for (const c of combos) {
     out.push({ profiles: c })
     out.push({ profiles: c, usePistols: true })
-    if (level === 'standard' && u.datasheetId === 'boyz' && !u.ammoRuntsUsed) out.push({ profiles: c, useAmmoRunts: true })
+    if (level === 'standard' && hasAbility(u, 'ammoRunts') && !u.ammoRuntsUsed) out.push({ profiles: c, useAmmoRunts: true })
   }
   return out
 }

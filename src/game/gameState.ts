@@ -1,6 +1,6 @@
 import { DATASHEETS, PROFILES, WEAPONS } from './data/datasheets'
 import { baseRadius, edgeDistance, withinRange, circlePolygonDistance } from './geometry/geometry'
-import type { GameState, ModelProfile, ModelState, Objective, PlayerId, UnitState, Vec } from './types'
+import type { GameState, ModelProfile, ModelState, Objective, PlayerId, TerrainKind, UnitState, Vec } from './types'
 
 export const SCHEMA_VERSION = 1
 export const ENGAGEMENT_RANGE = 2
@@ -19,6 +19,22 @@ export const radiusOf = (m: ModelState) => baseRadius(profileOf(m).baseMm)
 export const datasheetOf = (u: UnitState) => DATASHEETS[u.datasheetId]
 export const hasAbility = (u: UnitState, a: string) => datasheetOf(u).abilities.includes(a as never)
 export const alive = (u: UnitState) => u.models.filter((m) => !m.destroyed)
+
+const hasKeyword = (u: UnitState, ...k: string[]) => datasheetOf(u).keywords.some((x) => k.includes(x))
+/** MONSTER or VEHICLE: Lethal Hits "non-M/V", cover, engaged shooting and movement differ. */
+export const isMV = (u: UnitState) => hasKeyword(u, 'MONSTER', 'VEHICLE')
+export const isInfantry = (u: UnitState) => hasKeyword(u, 'INFANTRY')
+
+/** 11th-ed terrain categories (13.03–13.06, 13.11). Light and dense make an area obscuring;
+ * only INFANTRY may move through dense features (they are assumed taller than 2″);
+ * no model may end a move inside a solid feature. */
+export const TERRAIN_CATEGORY: Record<TerrainKind, { category: 'exposed' | 'light' | 'dense'; solid?: boolean }> = {
+  crater: { category: 'exposed' },
+  barricade: { category: 'light' },
+  ruin: { category: 'dense' },
+  woods: { category: 'dense' },
+  container: { category: 'dense', solid: true },
+}
 export const isDestroyed = (u: UnitState) => alive(u).length === 0
 export const weaponsOf = (m: ModelState) => profileOf(m).weapons.map((id) => WEAPONS[id])
 

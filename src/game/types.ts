@@ -28,14 +28,20 @@ export interface WeaponProfile {
   name: string
   /** inches, or 'melee' */
   range: number | 'melee'
+  /** fixed part of A; with `randomA` the total is randomA + attacks (e.g. D3+3) */
   attacks: number
+  randomA?: RandomDie
   /** BS/WS target number; null = no roll (Torrent) */
   skill: number | null
   s: number
   ap: number
+  /** fixed part of D; with `randomD` the total is randomD + d */
   d: number
+  randomD?: RandomDie
   keywords: WeaponKeywords
 }
+
+export type RandomDie = 'D3' | 'D6'
 
 /** A weapon with one or more profiles; the player picks one profile per attack. */
 export interface Weapon {
@@ -65,6 +71,11 @@ export type AbilityId =
   | 'ammoRunts'
   | 'tideOfMuscle'
   | 'waaagh'
+  | 'dutyEternal'
+  | 'dreadArd'
+  | 'deadlyDemise1'
+  | 'deadlyDemiseD3'
+  | 'targetedIntercession'
 
 export interface Datasheet {
   id: string
@@ -106,7 +117,8 @@ export interface UnitState {
   ammoRuntsUsed: boolean
 }
 
-export type TerrainKind = 'ruin' | 'crater'
+/** crater = exposed; barricade = light; ruin / woods / container = dense (container is also solid) */
+export type TerrainKind = 'ruin' | 'crater' | 'woods' | 'barricade' | 'container'
 
 export interface Terrain {
   id: string

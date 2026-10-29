@@ -33,3 +33,11 @@ export function scriptedRoller(values: number[], seed = 1): Roller {
 }
 
 export const rollMany = (r: Roller, n: number) => Array.from({ length: n }, () => r.d6())
+
+/** D3 = D6 halved, rounded up. */
+export const rollDie = (r: Roller, die: 'D3' | 'D6') => (die === 'D3' ? Math.ceil(r.d6() / 2) : r.d6())
+
+export const avgDie = (die: 'D3' | 'D6' | undefined) => (die === 'D3' ? 2 : die === 'D6' ? 3.5 : 0)
+
+/** "D3+3", "D6", "4" */
+export const fmtRandom = (fixed: number, die?: 'D3' | 'D6') => (die ? (fixed ? `${die}+${fixed}` : die) : `${fixed}`)

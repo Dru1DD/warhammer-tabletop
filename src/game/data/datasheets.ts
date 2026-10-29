@@ -1,7 +1,7 @@
 import type { Datasheet, ModelProfile, Weapon } from '../types'
 
 // Profiles from 11th-edition datasheets as transcribed by Wahapedia (checked
-// 2026-10-18). Loadouts follow the Introductory Set miniatures. See
+// 2026-10-18; Redemptor, Deff Dread, Assault Intercessors 2026-10-29). Loadouts follow the Introductory Set miniatures. See
 // docs/research.md for sources and deviations (unit sizes / special weapons).
 
 const nonMV = 'nonMV' as const
@@ -84,6 +84,57 @@ export const WEAPONS: Record<string, Weapon> = {
       { name: 'Баста (Busta)', range: 24, attacks: 2, skill: 5, s: 10, ap: -2, d: 3, keywords: {} },
     ],
   },
+  // ---- Assault Intercessors
+  heavyBoltPistol: {
+    id: 'heavyBoltPistol',
+    name: 'Тяжёлый болт-пистолет (Heavy Bolt Pistol)',
+    profiles: [{ name: '', range: 18, attacks: 1, skill: 3, s: 5, ap: -1, d: 1, keywords: { closeQuarters: true } }],
+  },
+  chainsword: {
+    id: 'chainsword',
+    name: 'Цепной меч (Chainsword)',
+    profiles: [{ name: '', range: 'melee', attacks: 4, skill: 3, s: 5, ap: -1, d: 1, keywords: {} }],
+  },
+  // ---- Redemptor Dreadnought (Macro Plasma Incinerator loadout)
+  macroPlasma: {
+    id: 'macroPlasma',
+    name: 'Макроплазменный испепелитель (Macro Plasma Incinerator)',
+    profiles: [
+      { name: 'Стандарт', range: 36, attacks: 3, randomA: 'D3', skill: 3, s: 9, ap: -3, d: 2, keywords: { blast: 1 } },
+      { name: 'Перегрузка (Supercharge)', range: 36, attacks: 3, randomA: 'D3', skill: 3, s: 10, ap: -4, d: 3, keywords: { blast: 1, hazardous: true } },
+    ],
+  },
+  heavyFlamer: {
+    id: 'heavyFlamer',
+    name: 'Тяжёлый огнемёт (Heavy Flamer)',
+    profiles: [{ name: '', range: 12, attacks: 3, skill: null, s: 5, ap: -1, d: 1, keywords: { torrent: true, blast: 2 } }],
+  },
+  fragstorm: {
+    id: 'fragstorm',
+    name: 'Гранатомёты «Фрагшторм» (Fragstorm Grenade Launchers)',
+    profiles: [{ name: '', range: 18, attacks: 6, skill: 3, s: 4, ap: -1, d: 1, keywords: { blast: 2 } }],
+  },
+  redemptorFist: {
+    id: 'redemptorFist',
+    name: 'Кулак Редемптора (Redemptor Fist)',
+    profiles: [{ name: '', range: 'melee', attacks: 5, skill: 3, s: 12, ap: -3, d: 3, randomD: 'D3', keywords: {} }],
+  },
+  // ---- Deff Dread (default loadout)
+  dreadBigShoota: {
+    id: 'dreadBigShoota',
+    name: 'Большая шута дреда (Big Shoota)',
+    profiles: [{ name: '', range: 36, attacks: 3, skill: 5, s: 5, ap: 0, d: 1, keywords: { lethalHits: nonMV, rapidFire: 2 } }],
+  },
+  skorcha: {
+    id: 'skorcha',
+    name: 'Скорча (Skorcha)',
+    profiles: [{ name: '', range: 12, attacks: 3, skill: null, s: 5, ap: 0, d: 1, keywords: { torrent: true, blast: 1 } }],
+  },
+  dreadKlaws: {
+    id: 'dreadKlaws',
+    name: 'Клешни дреда (Dread Klaws)',
+    profiles: [{ name: '', range: 'melee', attacks: 5, skill: 3, s: 12, ap: -2, d: 3, keywords: { cleave: 1 } }],
+  },
 }
 
 export const PROFILES: Record<string, ModelProfile> = {
@@ -115,6 +166,22 @@ export const PROFILES: Record<string, ModelProfile> = {
     id: 'boyBigShoota', name: 'Бой с большой шутой', m: 6, t: 5, sv: 5, w: 1, ld: 7, oc: 2, baseMm: 32,
     weapons: ['bigShoota', 'slugga', 'choppa'],
   },
+  assaultSergeant: {
+    id: 'assaultSergeant', name: 'Сержант штурмовых интерсессоров', m: 6, t: 5, sv: 3, w: 2, ld: 6, oc: 2, baseMm: 32,
+    weapons: ['heavyBoltPistol', 'chainsword'],
+  },
+  assaultIntercessor: {
+    id: 'assaultIntercessor', name: 'Штурмовой интерсессор', m: 6, t: 5, sv: 3, w: 2, ld: 6, oc: 2, baseMm: 32,
+    weapons: ['heavyBoltPistol', 'chainsword'],
+  },
+  redemptor: {
+    id: 'redemptor', name: 'Дредноут «Редемптор»', m: 8, t: 10, sv: 2, w: 12, ld: 6, oc: 4, baseMm: 90,
+    weapons: ['macroPlasma', 'heavyFlamer', 'fragstorm', 'redemptorFist'],
+  },
+  deffDread: {
+    id: 'deffDread', name: 'Дэфф-дред', m: 8, t: 9, sv: 2, w: 8, ld: 7, oc: 3, invuln: 6, baseMm: 60,
+    weapons: ['dreadBigShoota', 'skorcha', 'dreadKlaws'],
+  },
   boyRokkit: {
     id: 'boyRokkit', name: 'Бой с рокетницей', m: 6, t: 5, sv: 5, w: 1, ld: 7, oc: 2, baseMm: 32,
     weapons: ['rokkitLauncha', 'slugga', 'choppa'],
@@ -130,6 +197,18 @@ export const DATASHEETS: Record<string, Datasheet> = {
     id: 'intercessors', name: 'Отделение интерсессоров (Intercessor Squad)', faction: 'marines',
     keywords: ['INFANTRY', 'BATTLELINE', 'IMPERIUM', 'TACTICUS'], abilities: ['boltDiscipline'],
   },
+  assaultIntercessors: {
+    id: 'assaultIntercessors', name: 'Штурмовые интерсессоры (Assault Intercessor Squad)', faction: 'marines',
+    keywords: ['INFANTRY', 'BATTLELINE', 'IMPERIUM', 'TACTICUS'], abilities: ['targetedIntercession'],
+  },
+  redemptor: {
+    id: 'redemptor', name: 'Дредноут «Редемптор» (Redemptor Dreadnought)', faction: 'marines',
+    keywords: ['VEHICLE', 'WALKER', 'DREADNOUGHT', 'IMPERIUM'], abilities: ['dutyEternal', 'deadlyDemiseD3'],
+  },
+  deffDread: {
+    id: 'deffDread', name: 'Дэфф-дред (Deff Dread)', faction: 'orks',
+    keywords: ['VEHICLE', 'WALKER', 'ORKS'], abilities: ['dreadArd', 'deadlyDemise1', 'waaagh'],
+  },
   boyz: {
     id: 'boyz', name: 'Бойз (Boyz)', faction: 'orks',
     keywords: ['INFANTRY', 'BATTLELINE', 'MOB'], abilities: ['ammoRunts', 'tideOfMuscle', 'waaagh'],
@@ -141,6 +220,11 @@ export const ABILITY_TEXT: Record<string, string> = {
   tacticalPrecision: 'Тактическая точность (Tactical Precision): атаки отряда имеют Lethal Hits против целей не MONSTER/VEHICLE.',
   ammoRunts: 'Гроты-подносчики (Ammo Runts): раз за битву +1 к броску на попадание при стрельбе.',
   tideOfMuscle: 'Волна мускулов (Tide of Muscle): если отряд совершил атаку (charge) в этот ход, его рукопашные атаки имеют Lethal Hits.',
+  dutyEternal: 'Вечный долг (Duty Eternal): атаки по отряду с Силой больше его Стойкости получают −1 к броску на ранение.',
+  dreadArd: "Броня дреда (Dread 'Ard): атаки по отряду получают −1 к урону (не меньше 1).",
+  deadlyDemise1: 'Смертельная гибель 1 (Deadly Demise 1): при уничтожении бросьте D6; на 6 каждый отряд в 6″ получает 1 смертельную рану.',
+  deadlyDemiseD3: 'Смертельная гибель D3 (Deadly Demise D3): при уничтожении бросьте D6; на 6 каждый отряд в 6″ получает D3 смертельных ран.',
+  targetedIntercession: 'Прицельный перехват (Targeted Intercession): если отряд совершил атаку (charge) в этот ход, его рукопашные атаки получают +1 к Силе и AP.',
   waaagh: 'Waaagh! (правило армии): переброс броска продвижения; раз за битву — «Боевой клич»: до конца следующего хода отряд «разъярён» — 5+ непробиваемый спас, оружие дальнего боя получает Assault, можно атаковать после продвижения.',
 }
 

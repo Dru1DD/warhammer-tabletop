@@ -1,4 +1,4 @@
-import type { Roller } from '../dice/dice'
+import { fmtRandom, rollDie, type Roller } from '../dice/dice'
 import { addLog, alive, isDestroyed, profileOf } from '../gameState'
 import type { AttackStep, DieRoll, GameState, ModelState, UnitState, WeaponProfile } from '../types'
 
@@ -7,8 +7,10 @@ export interface AttackGroup {
   profile: WeaponProfile
   /** number of models firing / swinging this weapon */
   models: number
-  /** total attacks after Rapid Fire / Blast / Cleave */
+  /** fixed attacks after Rapid Fire / Blast / Cleave */
   attacks: number
+  /** models whose weapon adds a random number of attacks (profile.randomA), rolled at resolution */
+  randomAttacks?: number
   notes: string[]
 }
 
@@ -20,6 +22,11 @@ export interface AttackContext {
   skillWorsen: number
   lethalHits: boolean
   invulnOverride?: number
+  /** wound-roll modifier (e.g. Duty Eternal −1) */
+  woundMod?: number
+  woundModNote?: string
+  /** damage modifier per attack, result never below 1 (e.g. Dread 'Ard −1) */
+  damageMod?: number
 }
 
 export function woundTarget(s: number, t: number): number {
@@ -94,15 +101,23 @@ export function resolveGroup(
   let hits = 0
   let autoWounds = 0
 
+  // 0. Random number of attacks (e.g. D3+3): one roll per model with that weapon
+  let attacks = group.attacks
+  if (p.randomA && group.randomAttacks) {
+    const rolls = Array.from({ length: group.randomAttacks }, () => rollDie(roller, p.randomA!))
+    attacks += rolls.reduce((a, b) => a + b, 0)
+    steps.push({ label: 'Атаки', target: fmtRandom(p.attacks, p.randomA), dice: rolls.map((v) => ({ value: v, success: true })), note: `Случайное число атак (${fmtRandom(p.attacks, p.randomA)}): итого ${attacks}.` })
+  }
+
   // 1. Hit roll
   if (p.skill === null) {
-    hits = group.attacks
-    steps.push({ label: 'Попадание', target: 'авто', dice: [], note: `Torrent: все ${group.attacks} атак попадают автоматически.` })
+    hits = attacks
+    steps.push({ label: 'Попадание', target: 'авто', dice: [], note: `Torrent: все ${attacks} атак попадают автоматически.` })
   } else {
     const { mod } = hitRoll(p, ctx)
     const skill = hitRoll(p, ctx).skill as number
     const dice: DieRoll[] = []
-    for (let i = 0; i < group.attacks; i++) {
+    for (let i = 0; i < attacks; i++) {
       const v = roller.d6()
       const crit = v === 6
       const success = v !== 1 && (crit || v + mod >= skill)
@@ -122,11 +137,12 @@ export function resolveGroup(
   // 2. Wound roll
   const t = toughness(target)
   const wt = woundTarget(p.s, t)
+  const wmod = ctx.woundMod ?? 0
   let wounds = autoWounds
   const wdice: DieRoll[] = []
   for (let i = 0; i < hits; i++) {
     const v = roller.d6()
-    const success = v !== 1 && (v === 6 || v >= wt)
+    const success = v !== 1 && (v === 6 || v + wmod >= wt)
     if (success) wounds++
     wdice.push({ value: v, success, critical: v === 6 })
   }
@@ -134,13 +150,14 @@ export function resolveGroup(
     label: 'Ранение',
     target: `${wt}+`,
     dice: wdice,
-    note: `Сила ${p.s} против Стойкости ${t}${autoWounds ? `; +${autoWounds} авто-ран.` : ''}`,
+    note: `Сила ${p.s} против Стойкости ${t}${wmod ? `; модификатор ${wmod} (${ctx.woundModNote})` : ''}${autoWounds ? `; +${autoWounds} авто-ран.` : ''}`,
   })
 
   // 3. Saves & 4. damage, one at a time (allocation can change between saves)
   let killed = 0
   let damage = 0
   const sdice: DieRoll[] = []
+  const ddice: DieRoll[] = []
   let saveNote = ''
   for (let i = 0; i < wounds && !isDestroyed(target); i++) {
     const m = pickModelForDamage(target)!
@@ -151,7 +168,14 @@ export function resolveGroup(
     sdice.push({ value: v, success: saved })
     if (!saved) {
       const before = m.wounds
-      killed += applyDamage(target, p.d, m)
+      let dmg = p.d
+      if (p.randomD) {
+        const v = rollDie(roller, p.randomD)
+        ddice.push({ value: v, success: true })
+        dmg += v
+      }
+      dmg = Math.max(1, dmg + (ctx.damageMod ?? 0))
+      killed += applyDamage(target, dmg, m)
       damage += before - m.wounds
     }
   }
@@ -159,8 +183,13 @@ export function resolveGroup(
 
   const failed = sdice.filter((d) => !d.success).length
   const summary =
-    `${attackerName} — ${group.weaponName}${p.name ? ` (${p.name})` : ''}: ${group.attacks} атак → ${hits + autoWounds} попаданий → ` +
-    `${wounds} ран → ${failed} проваленных спасбросков → ${damage} урона (D${p.d}), уничтожено моделей: ${killed}.`
-  steps.push({ label: 'Урон', target: `D${p.d}`, dice: [], note: `${damage} урона; уничтожено: ${killed}; в отряде осталось моделей: ${alive(target).length}` })
+    `${attackerName} — ${group.weaponName}${p.name ? ` (${p.name})` : ''}: ${attacks} атак → ${hits + autoWounds} попаданий → ` +
+    `${wounds} ран → ${failed} проваленных спасбросков → ${damage} урона (D${fmtRandom(p.d, p.randomD)}), уничтожено моделей: ${killed}.`
+  steps.push({
+    label: 'Урон',
+    target: `D${fmtRandom(p.d, p.randomD)}`,
+    dice: ddice,
+    note: `${ctx.damageMod ? `урон ${ctx.damageMod} (Dread 'Ard), не меньше 1; ` : ''}${damage} урона; уничтожено: ${killed}; в отряде осталось моделей: ${alive(target).length}`,
+  })
   return { steps, summary, killed, damage }
 }

@@ -5,7 +5,7 @@ import { BOARD_STYLE, FACTION_LINE, FACTION_STYLE, TERRAIN_STYLE, TOKENS, tokenI
 import { boxOf, fitBox, withBox, type Box } from '../game/terrainLayout'
 import { actor, maxMove, moveModeFor, shootPlan, validate } from '../game/engine'
 import { baseRadius, dist, edgeDistance, withinRange } from '../game/geometry/geometry'
-import { alive, CHARGE_RANGE, findUnit, fmt, modelDistance, OBJECTIVE_MARKER_MM, OBJECTIVE_RANGE, profileOf, radiusOf, weaponsOf } from '../game/gameState'
+import { alive, CHARGE_RANGE, findUnit, fmt, hasAbility, modelDistance, OBJECTIVE_MARKER_MM, OBJECTIVE_RANGE, profileOf, radiusOf, weaponsOf } from '../game/gameState'
 import { scenarioById } from '../game/scenarios/scenarios'
 import type { Command, GameState, ModelState, Terrain, UnitState, Vec } from '../game/types'
 import { useStore } from '../store'
@@ -154,7 +154,11 @@ function TerrainShape({ t, editable, selected, onClick, onMove }: { t: Terrain; 
   const thin = Math.min(b.w, b.h) < 1.2
   const hatch: number[][] = []
   for (let k = -b.h; k < b.w; k += 0.4) hatch.push([k, 0, k + b.h, b.h])
-  const dims = `${fmt(b.w)}×${fmt(b.h)}″${t.obscuring ? ' · закрывает обзор' : ' · укрытие'}`
+  const effect: Record<Terrain['kind'], string> = {
+    ruin: 'закрывает обзор · технике не пройти', woods: 'закрывает обзор · технике не пройти', container: 'закрывает обзор · внутри не встать',
+    barricade: 'закрывает обзор · укрытие', crater: 'укрытие',
+  }
+  const dims = `${fmt(b.w)}×${fmt(b.h)}″ · ${effect[t.kind] ?? (t.obscuring ? 'закрывает обзор' : 'укрытие')}`
   return (
     <Group
       x={b.x}
@@ -178,6 +182,40 @@ function TerrainShape({ t, editable, selected, onClick, onMove }: { t: Terrain; 
           {!thin && [[0, 0], [b.w, 0], [0, b.h], [b.w, b.h]].map(([x, y], i) => (
             <Rect key={i} x={x - 0.2} y={y - 0.2} width={0.4} height={0.4} fill={ink} listening={false} />
           ))}
+        </>
+      ) : t.kind === 'woods' ? (
+        <>
+          <Rect width={b.w} height={b.h} stroke={ink} strokeWidth={0.05} dash={[0.25, 0.12]} cornerRadius={0.4} listening={false} />
+          {Array.from({ length: Math.max(1, Math.floor(b.w / 1.2)) * Math.max(1, Math.floor(b.h / 1.2)) }, (_, i) => {
+            const cols = Math.max(1, Math.floor(b.w / 1.2))
+            const x = ((i % cols) + 0.5) * (b.w / cols) + (Math.floor(i / cols) % 2 ? 0.25 : -0.25)
+            const y = (Math.floor(i / cols) + 0.5) * (b.h / Math.max(1, Math.floor(b.h / 1.2)))
+            return (
+              <Group key={i} x={x} y={y} listening={false}>
+                <Circle radius={0.45} stroke={ink} strokeWidth={0.04} fill={ink} opacity={0.5} />
+                <Circle radius={0.08} fill={ink} />
+              </Group>
+            )
+          })}
+        </>
+      ) : t.kind === 'barricade' ? (
+        <>
+          <Rect width={b.w} height={b.h} stroke={ink} strokeWidth={0.06} listening={false} />
+          <Line
+            points={b.w >= b.h
+              ? Array.from({ length: Math.floor(b.w / 0.4) + 1 }, (_, i) => [i * 0.4, i % 2 ? b.h : 0]).flat()
+              : Array.from({ length: Math.floor(b.h / 0.4) + 1 }, (_, i) => [i % 2 ? b.w : 0, i * 0.4]).flat()}
+            stroke={ink} strokeWidth={0.04} listening={false}
+          />
+        </>
+      ) : t.kind === 'container' ? (
+        <>
+          <Rect width={b.w} height={b.h} stroke={ink} strokeWidth={0.14} listening={false} />
+          {Array.from({ length: Math.floor((b.w >= b.h ? b.w : b.h) / 0.3) }, (_, i) => (
+            <Line key={i} points={b.w >= b.h ? [(i + 1) * 0.3, 0.1, (i + 1) * 0.3, b.h - 0.1] : [0.1, (i + 1) * 0.3, b.w - 0.1, (i + 1) * 0.3]} stroke={ink} strokeWidth={0.02} opacity={0.5} listening={false} />
+          ))}
+          <Line points={[0, 0, b.w, b.h]} stroke={ink} strokeWidth={0.03} listening={false} />
+          <Line points={[b.w, 0, 0, b.h]} stroke={ink} strokeWidth={0.03} listening={false} />
         </>
       ) : (
         <>
@@ -249,7 +287,7 @@ function ActionBar() {
     } else if (mine.advanceRoll === null && mode === 'normal') {
       btn('advance', { type: 'declareAdvance', unitId: mine.id }, '⚡ Продвинуться (+D6″)')
     }
-    if (mine.advanceRoll !== null && !mine.advanceRerolled && mine.datasheetId === 'boyz') btn('reroll', { type: 'rerollAdvance', unitId: mine.id }, '🎲 Перебросить (Waaagh!)')
+    if (mine.advanceRoll !== null && !mine.advanceRerolled && hasAbility(mine, 'waaagh')) btn('reroll', { type: 'rerollAdvance', unitId: mine.id }, '🎲 Перебросить (Waaagh!)')
     buttons.push(<DragModeToggle key="group" />)
   }
   if (game.phase === 'shooting' && mine && st.aimTargetId) {

@@ -1,4 +1,5 @@
 import { rect } from './geometry/geometry'
+import { TERRAIN_CATEGORY } from './gameState'
 import type { GameState, Terrain, TerrainKind } from './types'
 
 // Terrain editing before the battle. Pieces are axis-aligned rectangles (as in
@@ -8,6 +9,9 @@ export const TERRAIN_PRESETS = {
   ruin: { name: 'Руины', kind: 'ruin', w: 4, h: 3 },
   wall: { name: 'Обломки стены', kind: 'ruin', w: 3, h: 0.8 },
   crater: { name: 'Воронка', kind: 'crater', w: 3, h: 3 },
+  woods: { name: 'Лес', kind: 'woods', w: 4, h: 4 },
+  barricade: { name: 'Баррикада', kind: 'barricade', w: 4, h: 0.6 },
+  container: { name: 'Контейнер', kind: 'container', w: 3, h: 1.5 },
 } as const satisfies Record<string, { name: string; kind: TerrainKind; w: number; h: number }>
 
 export type TerrainPreset = keyof typeof TERRAIN_PRESETS
@@ -38,14 +42,14 @@ export function newPiece(s: GameState, preset: TerrainPreset): Terrain {
   let n = s.terrain.length + 1
   while (s.terrain.some((t) => t.id === `c${n}`)) n++
   const b = fitBox({ x: s.board.width / 2 - p.w / 2, y: s.board.height / 2 - p.h / 2, w: p.w, h: p.h }, s.board)
-  return { id: `c${n}`, name: p.name, kind: p.kind, obscuring: p.kind === 'ruin', poly: rect(b.x, b.y, b.w, b.h) }
+  return { id: `c${n}`, name: p.name, kind: p.kind, obscuring: TERRAIN_CATEGORY[p.kind].category !== 'exposed', poly: rect(b.x, b.y, b.w, b.h) }
 }
 
 /** Validate a layout read from localStorage; null if anything is off. */
 export function parseLayout(v: unknown): Terrain[] | null {
   if (!Array.isArray(v)) return null
   const ok = v.every((t) =>
-    t && typeof t.id === 'string' && typeof t.name === 'string' && (t.kind === 'ruin' || t.kind === 'crater') && typeof t.obscuring === 'boolean' &&
+    t && typeof t.id === 'string' && typeof t.name === 'string' && Object.hasOwn(TERRAIN_CATEGORY, t.kind) && typeof t.obscuring === 'boolean' &&
     Array.isArray(t.poly) && t.poly.length >= 3 && t.poly.every((p: { x: unknown; y: unknown }) => Number.isFinite(p?.x) && Number.isFinite(p?.y)))
   return ok ? (v as Terrain[]) : null
 }

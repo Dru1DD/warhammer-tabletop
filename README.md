@@ -4,6 +4,8 @@ This is a browser tabletop trainer for **Warhammer 40,000 (11th edition)**, buil
 - Space Marines: a Lieutenant and 5 Intercessors
 - Orks: a Nob and 5 Boyz
 
+The «Боевой патруль» scenario adds a bigger battle on a 44″×30″ board: two Intercessor squads, Assault Intercessors and a Redemptor Dreadnought against three mobs of 10 Boyz and a Deff Dread, with ruins, woods, containers, barricades and craters.
+
 You pick a faction and a rules-driven AI plays the other. The interface is entirely in Russian.
 
 It is a private hobby and learning project, not a Games Workshop product, and it ships no official images or rules text.
