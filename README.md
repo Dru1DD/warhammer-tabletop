@@ -26,17 +26,18 @@ Requires Node 20 or newer. Runs entirely in the browser: no backend, no external
 The board tells you what to do next. The banner at the top shows the next step, or the exact rule that blocks what you're trying. Units that can still act have a **green dashed ring**. Hover any model to see its stats and, against an enemy, its distance and whether you can attack it. Buttons for the current step sit **under the board**. Keys: **Enter** confirms a move, **Esc** cancels, **R** toggles the ruler.
 
 
-1. On the start screen, choose a faction, scenario, AI level (Новичок / Стандарт), explanation level (Новичок / Стандарт / Минимум) and whether to turn on the step-by-step tutorial.
-2. **Movement:** select your unit and drag a model.
+1. On the start screen, choose a faction, scenario, AI level (Новичок / Стандарт) and a learning style: Пошагово (lessons), С подсказками (contextual help) or Самостоятельно (minimal text). Lesson progress is kept in this browser.
+2. **Deployment:** «Начать новую битву» first opens the setup step. Optionally rearrange the battlefield in «0. Поле боя»: add ruins, walls or craters, drag them, change their size, rotate or delete them. The layout is remembered per scenario in this browser; «Вернуть тиррейн как в сценарии» restores the original. Drag your units inside the highlighted zone at your table edge and press «✓ Поставить» for each one, then «Начать битву ▶». The right panel shows your army, the placement rules, progress and anything still blocking the start. «Быстрый старт» skips this step.
+3. **Movement:** select your unit and drag a model.
    - By default the whole unit moves together; turn off «Двигать отрядом целиком» to place models one at a time.
    - The dashed circle shows how far the model can go. Red highlighting plus a reason means the position is illegal.
    - Press «Подтвердить движение» to commit.
-3. **Shooting / Charge / Fight:** with your unit selected, **click an enemy model**. Green highlight = legal target, red = hover to see why not.
+4. **Shooting / Charge / Fight:** with your unit selected, **click an enemy model**. Green highlight = legal target, red = hover to see why not.
    - Charge: press «🎲 Объявить атаку», then click a highlighted target.
    - Weapon profile choices (e.g. Focused Fire vs Saturation) are in the right panel.
-4. **Dice:** every die appears in the «Кубики» tab at the bottom: hits, wounds, saves, damage and casualties, each with its target number and modifiers.
-5. **Measuring:** «📏 Линейка» measures between two points or two models. Model-to-model distance is base edge to base edge. Enter a range to check whether a target is within it.
-6. **Saving:** the game autosaves after every action and «Продолжить» on the start screen resumes it after a refresh. «Сохранить» / «Загрузить» use a separate manual slot. «Отменить» undoes actions that rolled no dice.
+5. **Dice:** every die appears in the «Кубики» tab at the bottom: hits, wounds, saves, damage and casualties, each with its target number and modifiers.
+6. **Measuring:** «📏 Линейка» measures between two points or two models. Model-to-model distance is base edge to base edge. Enter a range to check whether a target is within it.
+7. **Saving:** the game autosaves after every action and «Продолжить» on the start screen resumes it after a refresh. «Сохранить» / «Загрузить» use a separate manual slot. «Отменить» undoes actions that rolled no dice.
 
 ## Miniature art
 
@@ -51,7 +52,7 @@ src/game/            pure TypeScript rules engine (no React)
   geometry/          distances, base overlap, polygons, LOS sampling helpers
   dice/              seeded mulberry32 roller + scripted roller for tests
   combat/attack.ts   hit → wound → save → damage sequence with a full dice record
-  rules/             movement validation and auto-placement, visibility and cover
+  rules/             movement validation and auto-placement, deployment, visibility and cover
   engine.ts          validate(state, cmd) / apply(state, cmd, roller), phase flow
   ai/ai.ts           utility AI: proposes commands, which still go through validate/apply
   scenarios/         scenario registry (2 scenarios)

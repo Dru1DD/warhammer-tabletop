@@ -16,9 +16,9 @@ No explicit licence was found that would allow embedding official product images
 
 | Asset | Source | Licence |
 |---|---|---|
-| Token portraits: Space Marine busts in blue armour with gold trim (Lieutenant with crest, laurel and sword; Sergeant with helmet stripe; grenade launcher variant) and Ork heads (Nob with horned helmet and big choppa; Boyz with big shoota / rokkit variants) | Hand-written SVG in `src/assets/tokenArt.ts` | Original, part of this project. Generic colour scheme; no GW logos, icons or traced artwork. |
+| Blueprint tokens: top-down technical drawings of each model on its base (rim with ticks, facing arrow, silhouette, weapon). Marines: backpack, pauldrons, bolt rifle / grenade launcher / officer's cape, sword and pistol. Orks (mirrored to face the Marines): armour plates, tusks, slugga and choppa / big shoota / rokkit / Nob's horns and big choppa | Hand-written SVG in `src/assets/tokenArt.ts` | Original, part of this project. No GW logos, icons or traced artwork. |
 | Fallback tokens: Cyrillic abbreviations Лт / Сж / И / Гр / Нб / Б / БШ / Р | Drawn in code (Konva) | Original |
-| Terrain polygons, objective markers, board mat and grid | Drawn in code | Original |
+| Blueprint board: grid with inch rulers, ruins as hatched floor plans with walls and pillars, craters as contour lines, objectives as crosshairs | Drawn in code (Konva, `src/ui/Board.tsx`) | Original |
 | `public/favicon.svg` | Vite project template | MIT (Vite) |
 
 ## Using photos of your own miniatures (in the app)

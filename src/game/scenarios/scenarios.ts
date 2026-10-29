@@ -28,7 +28,7 @@ const fillWounds = (s: GameState) => {
   return s
 }
 
-function makeState(id: string, terrain: Terrain[], objectives: Vec[], mx = 4, ox = 26): GameState {
+function makeState(id: string, terrain: Terrain[], objectives: Vec[], mx = 4, ox = 26.5): GameState {
   return fillWounds({
     schemaVersion: SCHEMA_VERSION,
     scenarioId: id,

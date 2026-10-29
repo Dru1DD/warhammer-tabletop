@@ -30,7 +30,13 @@ export function woundTarget(s: number, t: number): number {
   return 5
 }
 
-const toughness = (u: UnitState) => Math.max(...alive(u).map((m) => profileOf(m).t))
+export const toughness = (u: UnitState) => Math.max(...alive(u).map((m) => profileOf(m).t))
+
+/** Hit roll target after cover, and the hit modifier capped to ±1. */
+export const hitRoll = (p: WeaponProfile, ctx: AttackContext) => ({
+  skill: p.skill === null ? null : Math.min(6, Math.max(2, p.skill + ctx.skillWorsen)),
+  mod: Math.max(-1, Math.min(1, ctx.hitMod)),
+})
 
 /** Allocation order: wounded non-characters first, then lowest-W non-characters, characters last. */
 export function pickModelForDamage(u: UnitState): ModelState | undefined {
@@ -93,8 +99,8 @@ export function resolveGroup(
     hits = group.attacks
     steps.push({ label: 'Попадание', target: 'авто', dice: [], note: `Torrent: все ${group.attacks} атак попадают автоматически.` })
   } else {
-    const skill = Math.min(6, Math.max(2, p.skill + ctx.skillWorsen))
-    const mod = Math.max(-1, Math.min(1, ctx.hitMod))
+    const { mod } = hitRoll(p, ctx)
+    const skill = hitRoll(p, ctx).skill as number
     const dice: DieRoll[] = []
     for (let i = 0; i < group.attacks; i++) {
       const v = roller.d6()

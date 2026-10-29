@@ -48,6 +48,7 @@ A search snippet gave the Lieutenant **T4**, but the datasheet page itself says 
 
 | Mechanic | Status |
 |---|---|
+| Deployment: the human sets up each unit with every base wholly within their deployment zone, on the board, no overlapping bases, unit in coherency (`src/game/rules/deployment.ts`) | **Simplified.** No alternating deployment: the AI army stands at the scenario's default positions before the human deploys. No terrain or objective restrictions are applied. The default Ork positions in «Учебная стычка у аванпоста» were shifted 0.5″ right (`ox` 26 → 26.5) so every base is wholly within the zone. «Быстрый старт» skips the step and uses the default positions for both sides. |
 | Turn structure: 5 rounds, Command → Movement → Shooting → Charge → Fight, roll-off for first turn | Implemented |
 | Command phase: +1 CP each player; battle-shock test (2D6 ≥ Ld) for units at or below half strength or already shocked; shock persists until passed (11th change); OC becomes 0 | Implemented. CP accrue but no stratagems exist to spend them on (extension point). |
 | Half-strength | **Approximation.** The exact rule (01.02.01) wasn't readable. Used: models ≤ half of starting strength, or for single models, wounds ≤ half of W. |
