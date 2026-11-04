@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { SCHEMA_VERSION } from '../../gameState'
 import { seededRoller } from '../../dice/dice'
 import { apply } from '../../engine'
-import { REPORT } from '../config'
+import { LUCK, REPORT } from '../config'
 import { partialReportSample, reportSample, shortGameReportSample } from '../__fixtures__/report.sample'
 import { recordSample, recordSampleFinalState } from '../__fixtures__/record.sample'
 import { ALL_FINDING_KINDS, COACH_RECORD_VERSION, COACH_REPORT_VERSION, FINDING_TOPIC } from '../types'
@@ -40,7 +40,8 @@ describe('coach contract fixtures', () => {
     expect(r.timeline.map((t) => t.round)).toEqual(Array.from({ length: r.timeline.length }, (_, i) => r.timeline[0].round + i))
     for (const x of allFindings(r)) {
       if (x.confidence === 'heuristic') expect(x.severity).toBe('info')
-      expect(x.frameIndex).toBeGreaterThanOrEqual(0)
+      expect(x.frameIndex).toBeGreaterThanOrEqual(-1)
+      if (x.frameIndex === -1) expect(['result.summary', 'luck.summary']).toContain(x.kind)
       expect(x.round).toBeGreaterThanOrEqual(1)
       expect(Object.values(x.metrics).every(Number.isFinite)).toBe(true)
       expect(x.id.startsWith(`${x.kind}:r${x.round}:f${x.frameIndex}`)).toBe(true)
@@ -48,6 +49,18 @@ describe('coach contract fixtures', () => {
     expect(r.mistakes.every((x) => x.confidence !== 'heuristic' && x.severity !== 'info')).toBe(true)
     expect(r.totals.luckIndex).toBeGreaterThanOrEqual(-1)
     expect(r.totals.luckIndex).toBeLessThanOrEqual(1)
+  })
+
+  it.each(Object.entries(samples))('%s: luckIndex follows the documented formula; totals match the timeline', (_n, r) => {
+    const t = r.totals
+    const raw = (t.damageDealt - t.expectedDealt - (t.damageTaken - t.expectedTaken)) / Math.max(t.expectedDealt + t.expectedTaken, LUCK.MIN_NORMALISER)
+    expect(r.totals.luckIndex).toBeCloseTo(Math.max(-1, Math.min(1, raw)), 2)
+    const me = r.timeline.map((x) => x.stats[r.battle.human])
+    expect(me.reduce((a, x) => a + x.damageDealt, 0)).toBe(t.damageDealt)
+    expect(me.reduce((a, x) => a + x.damageTaken, 0)).toBe(t.damageTaken)
+    expect(r.timeline.length).toBe(r.battle.rounds)
+    expect(r.headline.metrics.damageDealt).toBe(t.damageDealt)
+    expect(r.headline.metrics.damageTaken).toBe(t.damageTaken)
   })
 
   it('placement: capped lists hold their own kind family; leftovers sit in their topical list', () => {

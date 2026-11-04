@@ -67,6 +67,9 @@ export interface RecordStep {
  * DETERMINISM: dice come from a mulberry32 PRNG whose entire state is `GameState.rng`. To
  * re-apply a step, create `seededRoller(stateBefore.rng)` — the roller continues the exact
  * sequence that produced the original result. (`apply()` writes `r.state()` back into `rng`.)
+ * This is exactly what the live store does (`apply(game, cmd, seededRoller(game.rng))`, src/store.ts).
+ * NOTE for the recorder: the store has UNDO (human, dice-free commands only: `rng` unchanged).
+ * An undone step must be removed from `steps` (and `tip` updated), otherwise replay desyncs.
  */
 export interface BattleRecord {
   /** Must equal {@link COACH_RECORD_VERSION}; see its doc for the tie to SCHEMA_VERSION. */
@@ -255,11 +258,21 @@ export interface Finding {
   round: number
   /** Phase in which the decision/event happened. */
   phase: Phase
-  /** Player whose decision this is. Report findings are about the human unless stated by kind (luck/loss may mention the AI's units in `unitIds`). */
+  /**
+   * Player whose decision this is. In a real {@link CoachReport} `actor === battle.human` for every
+   * finding (the coach never criticises the AI); `luck.*` and `loss.attribution` may reference the
+   * AI's units, but only via `unitIds`. Analyzers return findings for the human only.
+   * Faction-gated kinds (so no single real report can contain every kind): `missed.waaagh`,
+   * `missed.ammoRunts` (Orks human only); `shoot.hazardLoss` (needs a Hazardous weapon: currently
+   * only the Marines' plasma pistol).
+   */
   actor: PlayerId
   /** Ids (`UnitState.id`) of the units involved, primary unit first (e.g. [shooter, chosenTarget, betterTarget]). May be empty for battle-wide findings. */
   unitIds: string[]
-  /** `Frame.index` of the decision point (for "show me this moment" navigation). 0 for battle-wide findings. */
+  /**
+   * `Frame.index` of the decision point (for "show me this moment" navigation). `-1` = battle-wide
+   * finding with no navigation target (`result.summary`, `luck.summary`); every other kind is >= 0.
+   */
   frameIndex: number
   /**
    * Numeric facts the UI text interpolates. Numbers only. Conventions: expected damage and
@@ -422,6 +435,7 @@ export interface CoachReport {
      * Signed, normalised dice luck of the human, in -1..+1 (positive = dice favoured the human):
      *   luckIndex = clamp( ((damageDealt - expectedDealt) - (damageTaken - expectedTaken))
      *                      / max(expectedDealt + expectedTaken, LUCK.MIN_NORMALISER), -1, +1 )
+     * Always computed with this formula, also for `lowData` games (that note only suppresses luck findings).
      * i.e. the luck surplus on offence minus the luck surplus the opponent enjoyed, relative to
      * the total expected damage in the game. 0 = average luck. The formula is a convention for
      * display, not a statistical test; swings use exact per-attack probabilities instead.

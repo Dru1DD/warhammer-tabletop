@@ -1,6 +1,11 @@
 // Hand-written CoachReport fixtures for UI work and ranker tests. Deterministic: no Date/Math.random.
 // Story: human = marines vs standard AI in 'training-outpost'; unit ids match that scenario
-// (marines: 'lt', 'int'; orks: 'boyz', ...). Numbers are plausible, not computed from a real replay.
+// (marines: 'lt', 'int'; orks: 'boyz', ...). Numbers are plausible, not computed from a real replay,
+// but internally consistent: luckIndex follows the documented formula and totals equal the human's
+// timeline sums (checked in fixtures.test.ts).
+// NOTE: `missed.waaagh` and `missed.ammoRunts` are Orks-only kinds, so their `actor: 'orks'` breaks
+// faction realism for a marines human; they are here only so every FindingKind is covered. A real
+// report has `actor === battle.human` on every finding.
 
 import { COACH_REPORT_VERSION } from '../types'
 import type { CoachReport, Finding, FindingKind, ReportNote, RoundSummary } from '../types'
@@ -26,7 +31,7 @@ const timeline: RoundSummary[] = [
 ]
 
 const headline = f('result.summary', {
-  severity: 'info', confidence: 'exact', round: 5, phase: 'fight', unitIds: [], frameIndex: 0,
+  severity: 'info', confidence: 'exact', round: 5, phase: 'fight', unitIds: [], frameIndex: -1,
   metrics: { rounds: 5, vpHuman: 15, vpAi: 35, damageDealt: 16, damageTaken: 26 },
 })
 
@@ -35,7 +40,7 @@ export const reportSample: CoachReport = {
   version: COACH_REPORT_VERSION,
   battle: { scenarioId: 'training-outpost', human: 'marines', aiLevel: 'standard', rounds: 5, winner: 'orks', vp: { marines: 15, orks: 35 }, partial: false },
   headline,
-  totals: { damageDealt: 16, damageTaken: 26, expectedDealt: 19.5, expectedTaken: 22.4, luckIndex: -0.02 },
+  totals: { damageDealt: 16, damageTaken: 26, expectedDealt: 19.5, expectedTaken: 22.4, luckIndex: -0.17 },
   // mistakes: 5 (cap)
   mistakes: [
     f('loss.attribution', { severity: 'critical', confidence: 'estimate', round: 3, phase: 'shooting', unitIds: ['lt', 'boyz'], frameIndex: 31, metrics: { woundsLost: 4, expectedTakenFromExposure: 5.2, supportingUnits: 1 }, lessonId: 'keep-leader-covered' }),
@@ -51,7 +56,7 @@ export const reportSample: CoachReport = {
     f('missed.waaagh', { severity: 'info', confidence: 'heuristic', round: 3, phase: 'command', unitIds: [], frameIndex: 27, actor: 'orks', metrics: { roundReached: 5, riledTurnsAvailable: 2 } }),
   ],
   luck: [
-    f('luck.summary', { severity: 'info', confidence: 'exact', round: 5, phase: 'fight', unitIds: [], frameIndex: 0, metrics: { luckIndex: -0.02, damageDealt: 16, expectedDealt: 19.5, damageTaken: 26, expectedTaken: 22.4 } }),
+    f('luck.summary', { severity: 'info', confidence: 'exact', round: 5, phase: 'fight', unitIds: [], frameIndex: -1, metrics: { luckIndex: -0.17, damageDealt: 16, expectedDealt: 19.5, damageTaken: 26, expectedTaken: 22.4 } }),
     f('luck.swing', { severity: 'minor', confidence: 'exact', round: 2, phase: 'shooting', unitIds: ['int', 'boyz'], frameIndex: 19, metrics: { probability: 0.06, actualWounds: 0, expectedWounds: 3.1, attacks: 10 } }),
   ],
   shooting: [
@@ -95,6 +100,9 @@ const partialNote: ReportNote = { kind: 'partial', metrics: { firstRound: 3 } }
 export const partialReportSample: CoachReport = {
   ...reportSample,
   battle: { ...reportSample.battle, rounds: 3, partial: true },
+  // Totals/headline cover rounds 3-5 only (= the timeline rows below).
+  headline: { ...headline, metrics: { rounds: 3, vpHuman: 15, vpAi: 35, damageDealt: 10, damageTaken: 17 } },
+  totals: { damageDealt: 10, damageTaken: 17, expectedDealt: 12, expectedTaken: 14.5, luckIndex: -0.17 },
   mistakes: reportSample.mistakes.filter((x) => x.round >= 3).slice(0, 2),
   missed: reportSample.missed.filter((x) => x.round >= 3),
   luck: [],
@@ -110,8 +118,8 @@ export const partialReportSample: CoachReport = {
 export const shortGameReportSample: CoachReport = {
   version: COACH_REPORT_VERSION,
   battle: { scenarioId: 'training-outpost', human: 'marines', aiLevel: 'beginner', rounds: 1, winner: null, vp: { marines: 0, orks: 0 }, partial: false },
-  headline: f('result.summary', { severity: 'info', confidence: 'exact', round: 1, phase: 'movement', unitIds: [], frameIndex: 0, metrics: { rounds: 1, vpHuman: 0, vpAi: 0, damageDealt: 0, damageTaken: 1 } }),
-  totals: { damageDealt: 0, damageTaken: 1, expectedDealt: 0.8, expectedTaken: 0.5, luckIndex: 0 },
+  headline: f('result.summary', { severity: 'info', confidence: 'exact', round: 1, phase: 'movement', unitIds: [], frameIndex: -1, metrics: { rounds: 1, vpHuman: 0, vpAi: 0, damageDealt: 0, damageTaken: 1 } }),
+  totals: { damageDealt: 0, damageTaken: 1, expectedDealt: 0.8, expectedTaken: 0.5, luckIndex: -0.43 },
   mistakes: [],
   missed: [f('missed.shot', { severity: 'minor', confidence: 'exact', round: 1, phase: 'shooting', unitIds: ['int'], frameIndex: 3, metrics: { expectedWoundsAvailable: 1.6, targetsInRange: 1 } })],
   luck: [],
@@ -119,6 +127,6 @@ export const shortGameReportSample: CoachReport = {
   movement: [],
   positives: [],
   plan: [{ kind: 'missed.shot' }],
-  timeline: [timeline[0]],
+  timeline: [{ round: 1, stats: { marines: { vp: 0, damageDealt: 0, damageTaken: 1, unitsLost: 0 }, orks: { vp: 0, damageDealt: 1, damageTaken: 0, unitsLost: 0 } } }],
   notes: [{ kind: 'lowData', metrics: { rounds: 1, humanAttacks: 0 } }],
 }
