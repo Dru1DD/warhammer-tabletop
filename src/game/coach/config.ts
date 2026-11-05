@@ -7,7 +7,10 @@
 // triggers). Severity bands: see `Severity` in types.ts (lower edge inclusive: impact >= MINOR_WOUNDS
 // is 'minor', >= MAJOR_WOUNDS 'major', >= CRITICAL_WOUNDS 'critical', below MINOR_WOUNDS 'info').
 
-/** Dice-luck analyzer (+ the luckIndex in CoachReport.totals). Luck terms use ATTACK damage only (see CoachReport.totals). */
+/**
+ * Dice-luck analyzer (+ the luckIndex in CoachReport.totals). Luck terms use ATTACK damage only: shoot + fight
+ * attack groups; NON-ATTACK damage (Hazardous, Desperate Escape, Deadly Demise) is excluded (see CoachReport.totals).
+ */
 export const LUCK = {
   /**
    * luck.swing needs tailProbability <= this (p, inclusive). tailProbability is a ONE-SIDED TAIL
@@ -41,7 +44,10 @@ export const SHOOT = {
   OVERKILL_MIN_WASTED_WOUNDS: 1.0,
   /** shoot.advanceCost: expected wounds lost by advancing (Assault-only) vs a normal move (>=). */
   ADVANCE_COST_MIN_WOUNDS: 1.0,
-  /** shoot.coverIgnored: expected wounds saved by picking the equally valuable uncovered target / uncovered position (>=). */
+  /**
+   * shoot.coverIgnored: expected wounds gained by shooting the equally valuable alternative target that had NO cover
+   * instead of the chosen target that HAD cover (>=; cover = rules/visibility.ts `hasCover`).
+   */
   COVER_IGNORED_MIN_WOUNDS: 0.75,
   /** shoot.hazardLoss: expected self-damage must exceed expected benefit by this many wounds (>=). */
   HAZARD_MIN_NET_LOSS_WOUNDS: 0.5,
@@ -57,7 +63,7 @@ export const SHOOT = {
 export const MOVE = {
   /** move.exposed: expected wounds the enemy's next turn deals to the unit at its end position (>=; estimate; enemy movement ignored). */
   EXPOSED_MIN_EXPECTED_WOUNDS: 3,
-  /** move.noCover: expected wounds saved if a reachable covered spot had been used (>=). */
+  /** move.noCover: expected wounds saved if the human's OWN unit had ended in a reachable covered spot instead of the open (>=). */
   NO_COVER_MIN_SAVED_WOUNDS: 1.0,
   /** move.objectiveNeglect: consecutive own turns (>=) with an objective neither held nor contested while reachable. */
   OBJECTIVE_NEGLECT_MIN_TURNS: 2,
@@ -75,8 +81,10 @@ export const MOVE = {
 
 /** Charge / melee analyzer. */
 export const CHARGE = {
-  /** charge.badOdds: declared charge with success probability <= this (p, inclusive). */
+  /** charge.badOdds: declared charge with success probability <= this (p, inclusive; probability definition: METRIC_UNITS in types.ts). */
   BAD_ODDS_MAX_P: 0.15,
+  /** charge.badOdds `impact` (wounds-equivalent, fixed: no wounds metric exists; see IMPACT_SOURCE). 1.5 = always 'minor'. */
+  BAD_ODDS_IMPACT_WOUNDS: 1.5,
   /** charge.failedByLuck: a failed charge whose success probability was >= this (p, inclusive). */
   FAILED_BY_LUCK_MIN_P: 0.5,
   /** fight.targetChoice: same two-part test as SHOOT.TARGET_* (both inclusive). */
@@ -98,6 +106,8 @@ export const MISSED = {
   CHARGE_MIN_EXPECTED_WOUNDS: 2,
   /** missed.waaagh: Orks never called WAAAGH! although the battle reached at least this round (>=). */
   WAAAGH_MIN_ROUND: 3,
+  /** missed.waaagh: an own unit within this `unitDistance` of an enemy = the Waaagh! condition (ai.ts: `6 + 3.5 + 7`, M + D6 + 2D6; inclusive). */
+  WAAAGH_REACH_INCHES: 16.5,
   /** missed.ammoRunts: unused Ammo Runts would have added >= this many expected wounds in some shot. */
   AMMO_RUNTS_MIN_GAIN_WOUNDS: 0.5,
   /** missed.objective: VP forgone by not taking a free objective (>=; 5 VP per objective-turn in the current scenarios). */
@@ -120,6 +130,7 @@ export const OBJECTIVE = {
 export const REPORT = {
   MAX_MISTAKES: 5,
   MAX_MISSED: 3,
+  /** Cap of `luck` WITHOUT the reserved `luck.summary` slot (summary is always first and not counted): `luck.length <= MAX_LUCK + 1`. */
   MAX_LUCK: 3,
   MIN_POSITIVES: 2,
   MAX_POSITIVES: 3,

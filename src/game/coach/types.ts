@@ -1,4 +1,4 @@
-// Post-Battle Tactical Coach: CONTRACT TYPES (revision 2, frozen after review).
+// Post-Battle Tactical Coach: CONTRACT TYPES (revision 3, frozen after review).
 //
 // Data flow (each arrow is a pure function, entirely client-side):
 //   store ──records──▶ BattleRecord ──ReplayFn──▶ Frame[] ──StatsFn / Analyzer[]──▶ Finding[] ──ranker──▶ CoachReport ──▶ React
@@ -25,6 +25,7 @@
 // every "MAX" threshold is INCLUSIVE too (value <= MAX triggers) unless its doc says "below".
 
 import type { AiLevel } from '../ai/ai'
+import { CHARGE } from './config'
 import type { CoachConfig } from './config'
 import type { Command, DiceEntry, GameState, LogEntry, Phase, PlayerId } from '../types'
 
@@ -44,8 +45,13 @@ import type { Command, DiceEntry, GameState, LogEntry, Phase, PlayerId } from '.
  */
 export const COACH_RECORD_VERSION = 2
 
-/** Format version of a {@link CoachReport}. Bump when the report shape or Finding semantics change. */
-export const COACH_REPORT_VERSION = 2
+/**
+ * Format version of a {@link CoachReport}. Bump when the report shape or Finding semantics change.
+ * r3 = 3: `luck.summary` / `good.efficiency` metric keys renamed (`attackDealtWounds`, `attackTakenWounds`),
+ * `luck.summary` lives in a reserved slot of `luck`, `missed.waaagh` carries a unit, `PlanItem.findingIds`
+ * may point into any list, damage accounting redefined (see CoachReport.totals).
+ */
+export const COACH_REPORT_VERSION = 3
 
 // ──────────────────────────────────────────────────────────────────────────────────────────────
 // Recording
@@ -81,14 +87,19 @@ export interface RecordStep {
  * step(s) and refresh `tip`, otherwise replay desyncs. Because undo never covers dice-rolling
  * commands, the popped step never contains dice and the remaining prefix stays valid.
  *
- * SAVE / LOAD / RESUME (recorder):
- *  - A manual save `load` ALWAYS rebases the record: `initial` = the loaded state, `steps` = [],
- *    `partial = true`. The save file has no record, and the loaded state may belong to any battle,
- *    so no earlier decisions are known and `tip` must NOT be used to try to stitch records.
- *  - Only an AUTOSAVE RESUME (the page reloaded during the same battle; the autosave and the
- *    stored record come from the same session) may compare the stored record's `tip` with the
- *    autosaved state (`nextId`, `rng` AND `digest`). If all three match, keep the record as is
- *    (still `partial` if it was); on any mismatch, rebase exactly like a manual load.
+ * SAVE / LOAD / RESUME (recorder). Both paths go through `store.load(key)` (src/store.ts):
+ *  - `load(MANUAL_KEY)` (App.tsx: the "Загрузить сохранение" button and the in-game load button, which
+ *    calls `load()` with the default key) ALWAYS rebases the record: `initial` = the loaded state,
+ *    `steps` = [], `partial = true`. The save file has no record, and the loaded state may belong to
+ *    any battle, so no earlier decisions are known and `tip` must NOT be used to try to stitch records.
+ *  - `load(AUTOSAVE_KEY)` (App.tsx StartScreen "Продолжить битву" = the autosave RESUME: the page was
+ *    reloaded during the same battle, so autosave and stored record come from the same session) may
+ *    compare the stored record's `tip` with the autosaved state (`nextId`, `rng` AND `digest`). If all
+ *    three match, keep the record as is (still `partial` if it was); on any mismatch, rebase exactly like
+ *    a manual load.
+ *  - `load` may CHANGE `settings.human` (store.ts takes `file.human` when the file has one). The recorder
+ *    must therefore read `human` AFTER the load (from the store's settings), for kept and rebased
+ *    records alike; a kept record whose `human` differs from the post-load `human` must be rebased.
  */
 export interface BattleRecord {
   /** Must equal {@link COACH_RECORD_VERSION}; see its doc for the tie to SCHEMA_VERSION. */
@@ -251,20 +262,30 @@ export type Severity = 'critical' | 'major' | 'minor' | 'info'
  * of each kind are frozen in {@link METRIC_KEYS} and {@link REF_KEYS}.
  *
  * result / metrics
- *  - `result.summary`      Headline: who won, VP and damage totals. Exactly one per report; stored in `CoachReport.headline`.
+ *  - `result.summary`      Headline: who won, VP and all-source damage totals. Exactly one per report; stored in
+ *                          `CoachReport.headline`. Produced by the metrics/stats analyzer (task A1). Battle-wide:
+ *                          `frameIndex` null; `round` / `phase` = `round` / `phase` of `frames[frames.length - 1].after`.
  *  - `loss.attribution`    Why a human unit was lost: which decision(s) exposed it. Anchored at the frame where the unit was destroyed.
  * objectives
  *  - `objective.swing`     An objective changed hands against the human because of a decision.
  *  - `objective.battleShock` An objective was lost / not counted because a human unit was Battle-shocked (OC 0).
  * luck
- *  - `luck.summary`        Overall dice luck for the battle (actual vs expected attack damage); explains, does not blame.
+ *  - `luck.summary`        Overall dice luck for the battle (actual vs expected ATTACK damage); explains, does not blame.
+ *                          Produced by the luck analyzer (task A2). Battle-wide like `result.summary` (same `round` / `phase`
+ *                          rule). Lives in the RESERVED first slot of `CoachReport.luck` (see the PLACEMENT RULE).
  *  - `luck.swing`          A single attack sequence whose one-sided tail probability is at most LUCK.SWING_MAX_P.
  * shooting
  *  - `shoot.targetChoice`  A different legal target had clearly higher expected damage.
  *  - `shoot.profileChoice` A different weapon profile (e.g. plasma supercharge vs standard) had higher expected value.
  *  - `shoot.overkill`      Expected damage mostly wasted on a unit that needed far less (excess/lost damage).
  *  - `shoot.advanceCost`   Advancing cost expected shooting damage (Assault-only) vs a normal move.
- *  - `shoot.coverIgnored`  Shot a target in cover while an equal alternative without cover existed (or moved out of cover first).
+ *  - `shoot.coverIgnored`  A shot was taken at a target that HAD cover while an equally valuable alternative target
+ *                          without cover existed (`refs.betterTargetUnitId`). "Had cover" is exactly the engine's
+ *                          `hasCover(state, shooters, target)` (rules/visibility.ts): every target model is INFANTRY in
+ *                          terrain, or not fully visible from the firing models. This is about the TARGET's cover; the
+ *                          human's own unit standing in the open is `move.noCover`. (A different firing position could
+ *                          only remove the "not fully visible" branch, never the INFANTRY-in-terrain one; that case is
+ *                          `shoot.firingPosition` / `shoot.targetChoice`, not this kind.)
  *  - `shoot.hazardLoss`    Hazardous self-damage outweighed the expected gain of using that weapon.
  *  - `shoot.firingPosition` The unit's end position cost it a bonus: lost Rapid Fire half-range, lost Heavy
  *                          (moved), or line of sight lost because of the move.
@@ -274,7 +295,10 @@ export type Severity = 'critical' | 'major' | 'minor' | 'info'
  *  - `fight.targetChoice`  A different melee target had clearly higher expected damage.
  * movement
  *  - `move.exposed`        Ended movement where enemies' expected next-turn damage was high (estimate).
- *  - `move.noCover`        Ended movement in the open when cover was reachable (estimate).
+ *  - `move.noCover`        The human's OWN unit ended its move in the open (no cover against the enemy's ranged
+ *                          attacks per the same `hasCover` semantics, seen from the enemy's models) while a reachable
+ *                          covered spot existed (estimate). It is about the unit's defence, not about the target of
+ *                          its own shots; `shoot.coverIgnored` is a different lesson and does not supersede it.
  *  - `move.objectiveNeglect` Left objectives uncontested for rounds while able to take/hold them.
  *  - `move.chargeExposure` Ended inside enemy charge reach with high charge probability and a costly melee matchup.
  *  - `move.fallBackDecision` Fell back (or did not) with a materially different expected outcome.
@@ -283,7 +307,13 @@ export type Severity = 'critical' | 'major' | 'minor' | 'info'
  *  - `missed.shot`         A unit with a decent expected shot did not shoot.
  *  - `missed.charge`       A unit with a good charge did not charge (replaces the old `charge.forgone`;
  *                          usually confidence 'estimate' or 'heuristic').
- *  - `missed.waaagh`       Orks finished the battle (or a decisive turn) without calling WAAAGH!.
+ *  - `missed.waaagh`       Orks finished the battle (or a decisive turn) without calling WAAAGH!. `frameIndex` = the
+ *                          `endPhase` frame that ended an OWN (human) Command phase at which the Waaagh! condition first
+ *                          held while `players.orks.waaaghUsed` was still false, where the condition = some Ork unit of
+ *                          the human within the AI's reach of an enemy (`unitDistance <= MISSED.WAAAGH_REACH_INCHES`, the
+ *                          AI's `6 + 3.5 + 7` in ai.ts). If it never held, the first own Command-phase `endPhase` frame
+ *                          with `round >= MISSED.WAAAGH_MIN_ROUND`. `unitIds[0]` = the first human unit (state order)
+ *                          within reach at that frame (the first Ork unit if the condition never held).
  *  - `missed.ammoRunts`    The Ammo Runts ability was never used though it would have added expected damage.
  *  - `missed.objective`    An objective could have been reached/held at no cost and was not.
  * positives
@@ -361,23 +391,23 @@ export interface Finding {
   actor: PlayerId
   /**
    * Ids (`UnitState.id`) of the HUMAN's units involved, primary unit first. Never contains an
-   * enemy unit: enemy ids go to {@link Finding.refs} (`targetUnitId`, `enemyUnitId`, …). May be
-   * empty for battle-wide findings (`result.summary`, `luck.summary`, `missed.waaagh`).
+   * enemy unit: enemy ids go to {@link Finding.refs} (`targetUnitId`, `enemyUnitId`, …). Empty ONLY for the
+   * battle-wide findings ({@link BATTLE_WIDE_KINDS}: `result.summary`, `luck.summary`); every other kind
+   * has at least one unit (`missed.waaagh`: the unit within Waaagh! reach, see that kind).
    * For `luck.swing` / `loss.attribution` the primary unit is the human unit involved
    * (attacker of an own attack, defender of an enemy attack).
    */
   unitIds: string[]
   /**
    * `Frame.index` of the decision point (for "show me this moment" navigation), or `null` for a
-   * battle-wide finding with no navigation target (`result.summary`, `luck.summary`). Every other
+   * battle-wide finding with no navigation target ({@link BATTLE_WIDE_KINDS}). Every other
    * kind has a non-null index >= 0 into THIS report's frames (for a partial record: its rebased frames).
    */
   frameIndex: number | null
   /**
    * Wounds-EQUIVALENT size of the finding, >= 0, finite; bigger = matters more. EVERY analyzer
-   * fills it (0 for pure context kinds: `result.summary`, `luck.summary`, `charge.failedByLuck`).
-   * Expected-wounds kinds: the wounds difference (`deltaWounds`) or the wounds at stake. VP kinds:
-   * `lostVp * REPORT.VP_TO_WOUNDS` (`swingVp * VP_TO_WOUNDS` for `objective.swing`). Severity is
+   * fills it, and it is a PURE FUNCTION of `kind` + `metrics`: exactly the formula in
+   * {@link IMPACT_SOURCE} (computed by `impactFromMetrics`, shape.ts; tolerance 1e-9). Severity is
    * derived from it (see {@link Severity}); the RANKER sorts by severity, then `impact` descending,
    * then `id` ascending (stable) — see {@link FINDING_CLASS}.
    */
@@ -405,7 +435,28 @@ export type MetricUnit = 'wounds' | 'probability' | 'inches' | 'vp' | 'count' | 
  * UNIT OF EVERY METRIC KEY (one canonical name per concept; the suffix tells the unit):
  *  - `*Wounds`       wounds, >= 0. Prefix tells which: `chosen`/`best`/`alternative`/`self`/`gain`/
  *                    `enemy`/`available`/`expected` = expected values (averages over all dice);
- *                    `dealt`/`taken`/`actual`/`wasted`/`delta` = see below.
+ *                    `actual`/`wasted`/`delta` = see below. ONE KEY NAME, ONE MEANING:
+ *                      `dealtWounds` / `takenWounds`          ALL-source wounds (damage accounting of
+ *                                                              CoachReport.totals.damageDealt / damageTaken),
+ *                                                              scoped to the finding's subject (a player, a unit);
+ *                      `attackDealtWounds` / `attackTakenWounds`  ATTACK-only wounds (totals.attackDealt / attackTaken),
+ *                                                              the basis of every luck term;
+ *                      `expectedDealtWounds` / `expectedTakenWounds`  expected ATTACK wounds (totals.expectedDealt / Taken).
+ *                    RATIO-TYPE METRICS (`ratio`, `*Share`, and the best/chosen quotient behind SHOOT.PROFILE_MIN_RATIO)
+ *                    are emitted only when their DENOMINATOR > 0 (chosenExpectedWounds for `ratio`, the attack's expected
+ *                    wounds for `wastedShare`). When it is 0 the analyzer MUST skip the finding; never emit Infinity/NaN.
+ *                    CHARGE METRICS (charge.*, missed.charge, move.chargeExposure) have ONE definition:
+ *                      `distanceInches`  = `unitDistance` (edge to edge between the closest models of the two units,
+ *                                          engine.ts `chargeTargetsFor`); for move.chargeExposure the distance from the
+ *                                          threatening enemy unit to the human unit.
+ *                      reach             a roll `roll` (2D6 total) reaches iff `roll > 2 && distance <= roll + EPS`
+ *                                          (`withinRange`, geometry.ts, EPS = 1e-3; also `distance <= CHARGE_RANGE` = 12),
+ *                                          i.e. roll >= max(3, ceil(distance - EPS)). NOTE: ai.ts uses `ceil(d)` without EPS;
+ *                                          the coach does NOT.
+ *                      `chargeProbability` = P(2D6 reaches) = `p2d6AtLeast(max(3, ceil(distance - EPS)))` semantics
+ *                                          (ai.ts: P(2D6 >= n), 0 when distance > 12). It is an UPPER BOUND: whether
+ *                                          `planCharge` (engine.ts) can find a legal path / base placement is NOT part of it.
+ *                      `rollInches`      = the 2D6 total actually rolled (charge.badOdds / charge.failedByLuck only).
  *  - `*Probability`  probability, 0..1 (never a percentage).
  *  - `*Inches`       board distance or dice distance in inches, >= 0.
  *  - `*Vp`           victory points (integer-valued, >= 0).
@@ -422,8 +473,7 @@ export type MetricUnit = 'wounds' | 'probability' | 'inches' | 'vp' | 'count' | 
  *                           best OTHER option),
  *   `deltaWounds`           |best - chosen| (the size of the difference; never negative — the sign is the kind).
  * For damage the human DEALS, higher is better; for damage the human TAKES (move.*), the EV is the
- * wounds taken, so "best" is the lower one. `impact` of these kinds equals `deltaWounds` unless the
- * analyzer documents another conversion.
+ * wounds taken, so "best" is the lower one. `impact` of every kind: see {@link IMPACT_SOURCE}.
  */
 export const METRIC_UNITS: Readonly<Record<string, MetricUnit>> = {
   // alternatives
@@ -436,6 +486,8 @@ export const METRIC_UNITS: Readonly<Record<string, MetricUnit>> = {
   // actual / expected accounting
   dealtWounds: 'wounds',
   takenWounds: 'wounds',
+  attackDealtWounds: 'wounds',
+  attackTakenWounds: 'wounds',
   actualWounds: 'wounds',
   expectedWounds: 'wounds',
   expectedDealtWounds: 'wounds',
@@ -478,11 +530,11 @@ export const METRIC_UNITS: Readonly<Record<string, MetricUnit>> = {
  * EXACT numeric metric keys per kind. Every Finding of a kind has precisely these keys in
  * `metrics` (all required, no extras); fixtures.test.ts enforces it. Semantics:
  *
- *  result.summary    roundCount, humanVp, enemyVp, dealtWounds (= totals.damageDealt), takenWounds (= totals.damageTaken)
- *  luck.summary      luckIndex, dealtWounds (= totals.attackDealt), expectedDealtWounds, takenWounds (= totals.attackTaken), expectedTakenWounds
+ *  result.summary    roundCount, humanVp, enemyVp, dealtWounds (= totals.damageDealt), takenWounds (= totals.damageTaken)  [all sources]
+ *  luck.summary      luckIndex, attackDealtWounds (= totals.attackDealt), expectedDealtWounds, attackTakenWounds (= totals.attackTaken), expectedTakenWounds
  *  luck.swing        tailProbability, actualWounds, expectedWounds, attackCount, isOwnAttack
  *                    (`isOwnAttack` = 1 if the sequence is the human's own attack, 0 if it is an enemy attack on the human)
- *  loss.attribution  takenWounds (the wounds the lost unit had taken in the decisive enemy turn), enemyExpectedWounds, decisionCount
+ *  loss.attribution  takenWounds (all-source wounds the lost unit took in the decisive enemy turn), enemyExpectedWounds, decisionCount
  *  objective.swing   swingVp (human VP not scored + enemy VP gained because of the flip), humanOc, enemyOc
  *  objective.battleShock  lostVp, lostOc (OC zeroed by Battle-shock), enemyOc
  *  shoot.targetChoice, shoot.profileChoice, shoot.advanceCost, shoot.coverIgnored,
@@ -494,7 +546,7 @@ export const METRIC_UNITS: Readonly<Record<string, MetricUnit>> = {
  *  shoot.overkill    wastedWounds, wastedShare
  *  shoot.hazardLoss  selfExpectedWounds, gainExpectedWounds, deltaWounds (self - gain)
  *  charge.badOdds, charge.failedByLuck
- *                    chargeProbability, distanceInches, rollInches (the 2D6 result actually rolled)
+ *                    chargeProbability, distanceInches, rollInches (the 2D6 result actually rolled; definitions in METRIC_UNITS)
  *  missed.charge     chargeProbability, expectedMeleeWounds, distanceInches
  *  move.exposed      enemyExpectedWounds (next enemy turn, enemy movement ignored), shooterCount, distanceInches (to nearest enemy)
  *  move.chargeExposure  chargeProbability (enemy charge success), expectedMeleeWounds, distanceInches (to the threatening enemy)
@@ -505,7 +557,7 @@ export const METRIC_UNITS: Readonly<Record<string, MetricUnit>> = {
  *  missed.ammoRunts  chosenExpectedWounds (as shot), bestExpectedWounds (with Ammo Runts), deltaWounds
  *  good.targetChoice chosenExpectedWounds, alternativeExpectedWounds (best other target), alternativeCount
  *  good.objectiveHeld  turnCount, scoredVp
- *  good.efficiency   dealtWounds, expectedDealtWounds, attackCount
+ *  good.efficiency   attackDealtWounds, expectedDealtWounds, attackCount   (attack wounds only: compared with expected attack wounds)
  *  good.cover        chosenExpectedWounds (at the covered position), alternativeExpectedWounds (uncovered), deltaWounds
  */
 export const METRIC_KEYS: Readonly<Record<FindingKind, readonly string[]>> = {
@@ -513,7 +565,7 @@ export const METRIC_KEYS: Readonly<Record<FindingKind, readonly string[]>> = {
   'loss.attribution': ['takenWounds', 'enemyExpectedWounds', 'decisionCount'],
   'objective.swing': ['swingVp', 'humanOc', 'enemyOc'],
   'objective.battleShock': ['lostVp', 'lostOc', 'enemyOc'],
-  'luck.summary': ['luckIndex', 'dealtWounds', 'expectedDealtWounds', 'takenWounds', 'expectedTakenWounds'],
+  'luck.summary': ['luckIndex', 'attackDealtWounds', 'expectedDealtWounds', 'attackTakenWounds', 'expectedTakenWounds'],
   'luck.swing': ['tailProbability', 'actualWounds', 'expectedWounds', 'attackCount', 'isOwnAttack'],
   'shoot.targetChoice': ['chosenExpectedWounds', 'bestExpectedWounds', 'deltaWounds', 'ratio'],
   'shoot.profileChoice': ['chosenExpectedWounds', 'bestExpectedWounds', 'deltaWounds'],
@@ -538,8 +590,57 @@ export const METRIC_KEYS: Readonly<Record<FindingKind, readonly string[]>> = {
   'missed.objective': ['lostVp', 'distanceInches'],
   'good.targetChoice': ['chosenExpectedWounds', 'alternativeExpectedWounds', 'alternativeCount'],
   'good.objectiveHeld': ['turnCount', 'scoredVp'],
-  'good.efficiency': ['dealtWounds', 'expectedDealtWounds', 'attackCount'],
+  'good.efficiency': ['attackDealtWounds', 'expectedDealtWounds', 'attackCount'],
   'good.cover': ['chosenExpectedWounds', 'alternativeExpectedWounds', 'deltaWounds'],
+}
+
+/**
+ * HOW `Finding.impact` IS COMPUTED, per kind (frozen; machine-checkable). `impactFromMetrics(kind, metrics)`
+ * (shape.ts) evaluates it; `findingShapeErrors` and fixtures.test.ts assert `impact` equals it within 1e-9.
+ *  - `metric`  impact = metrics[key]
+ *  - `vp`      impact = metrics[key] * REPORT.VP_TO_WOUNDS   (key is a `*Vp` metric)
+ *  - `absDiff` impact = |metrics[a] - metrics[b]|
+ *  - `fixed`   impact = value (kinds whose size has no measured wounds metric)
+ * Every key named here is in METRIC_KEYS[kind] (tested). Severity is then derived from the impact bands.
+ */
+export type ImpactSource =
+  | { from: 'metric'; key: string }
+  | { from: 'vp'; key: string }
+  | { from: 'absDiff'; a: string; b: string }
+  | { from: 'fixed'; value: number }
+
+export const IMPACT_SOURCE: Readonly<Record<FindingKind, ImpactSource>> = {
+  'result.summary': { from: 'fixed', value: 0 }, // headline context, never ranked
+  'loss.attribution': { from: 'metric', key: 'enemyExpectedWounds' }, // expected wounds the enemy turn should deal (rule 1: expectation, not the rolled wounds)
+  'objective.swing': { from: 'vp', key: 'swingVp' }, // VP swing converted at VP_TO_WOUNDS
+  'objective.battleShock': { from: 'vp', key: 'lostVp' }, // VP lost to OC 0, converted
+  'luck.summary': { from: 'fixed', value: 0 }, // explains, does not rank
+  'luck.swing': { from: 'absDiff', a: 'actualWounds', b: 'expectedWounds' }, // how far the dice were from the average
+  'shoot.targetChoice': { from: 'metric', key: 'deltaWounds' }, // best EV - chosen EV
+  'shoot.profileChoice': { from: 'metric', key: 'deltaWounds' }, // best profile EV - chosen profile EV
+  'shoot.overkill': { from: 'metric', key: 'wastedWounds' }, // expected wounds thrown away
+  'shoot.advanceCost': { from: 'metric', key: 'deltaWounds' }, // EV lost by advancing
+  'shoot.coverIgnored': { from: 'metric', key: 'deltaWounds' }, // EV gained by the uncovered equal target
+  'shoot.hazardLoss': { from: 'metric', key: 'deltaWounds' }, // self EV - gain EV (net loss)
+  'shoot.firingPosition': { from: 'metric', key: 'deltaWounds' }, // EV lost to the lost bonus / line of sight
+  'charge.badOdds': { from: 'fixed', value: CHARGE.BAD_ODDS_IMPACT_WOUNDS }, // no wounds metric: a wasted turn, fixed (config)
+  'charge.failedByLuck': { from: 'fixed', value: 0 }, // explanation, not a mistake
+  'fight.targetChoice': { from: 'metric', key: 'deltaWounds' }, // best melee EV - chosen EV
+  'move.exposed': { from: 'metric', key: 'enemyExpectedWounds' }, // expected next-turn damage at the end position
+  'move.noCover': { from: 'metric', key: 'deltaWounds' }, // EV taken in the open - EV in the reachable cover
+  'move.objectiveNeglect': { from: 'vp', key: 'lostVp' }, // VP left on the table, converted
+  'move.chargeExposure': { from: 'metric', key: 'expectedMeleeWounds' }, // expected melee wounds of the matchup
+  'move.fallBackDecision': { from: 'metric', key: 'deltaWounds' }, // EV difference vs the alternative
+  'move.advanceDecision': { from: 'metric', key: 'deltaWounds' }, // EV difference vs the alternative
+  'missed.shot': { from: 'metric', key: 'bestExpectedWounds' }, // the best shot not taken
+  'missed.charge': { from: 'metric', key: 'expectedMeleeWounds' }, // the melee not fought
+  'missed.waaagh': { from: 'fixed', value: 0 }, // heuristic only (always 'info'): no measurable wounds
+  'missed.ammoRunts': { from: 'metric', key: 'deltaWounds' }, // EV with Ammo Runts - EV as shot
+  'missed.objective': { from: 'vp', key: 'lostVp' }, // VP forgone, converted
+  'good.targetChoice': { from: 'absDiff', a: 'chosenExpectedWounds', b: 'alternativeExpectedWounds' }, // margin over the best other target
+  'good.objectiveHeld': { from: 'vp', key: 'scoredVp' }, // VP scored, converted
+  'good.efficiency': { from: 'absDiff', a: 'attackDealtWounds', b: 'expectedDealtWounds' }, // surplus over the expected damage
+  'good.cover': { from: 'metric', key: 'deltaWounds' }, // EV saved by the covered position
 }
 
 /**
@@ -550,7 +651,8 @@ export const METRIC_KEYS: Readonly<Record<FindingKind, readonly string[]>> = {
  *  - `weaponId`            `Weapon.id` (e.g. 'boltRifle', 'macroPlasma', 'plasmaPistol').
  *  - `profileIndex`        index of the profile the human used, as a string ('0', '1').
  *  - `betterProfileIndex`  index of the better profile, as a string.
- *  - `objectiveId`         `Objective.id` ('o1', 'o2', 'o3').
+ *  - `objectiveId`         `Objective.id` ('o1', 'o2', 'o3'). REQUIRED (see {@link REQUIRED_REFS}) on the four kinds of the
+ *                          objective supersession group: it is part of their SUPERSEDES match key.
  *  - `terrainId`           `Terrain.id` (cover / ruin involved).
  *  - `cause`               short code: for `shoot.firingPosition` one of 'rapidFire' | 'heavy' | 'lineOfSight'.
  */
@@ -587,6 +689,23 @@ export const REF_KEYS: Readonly<Record<FindingKind, readonly string[]>> = {
   'good.efficiency': ['targetUnitId'],
   'good.cover': ['terrainId'],
 }
+
+/**
+ * Refs that are NOT optional for a kind (a subset of {@link REF_KEYS}; `findingShapeErrors` enforces it).
+ * The objective group matches SUPERSEDES on `(actor, round, refs.objectiveId)`, so each of its kinds must carry it.
+ */
+export const REQUIRED_REFS: Readonly<Partial<Record<FindingKind, readonly string[]>>> = {
+  'objective.swing': ['objectiveId'],
+  'objective.battleShock': ['objectiveId'],
+  'move.objectiveNeglect': ['objectiveId'],
+  'missed.objective': ['objectiveId'],
+}
+
+/**
+ * Battle-wide kinds: `frameIndex` is `null` and `unitIds` is empty for exactly these (and for no other
+ * kind: every other kind has a frame index >= 0 and >= 1 unit). They are outside every SUPERSEDES pair.
+ */
+export const BATTLE_WIDE_KINDS: readonly FindingKind[] = ['result.summary', 'luck.summary']
 
 /**
  * Faction gating (`Finding.actor`'s faction): a real report never contains these kinds for the
@@ -695,12 +814,20 @@ export const ALL_FINDING_KINDS = Object.keys(FINDING_TOPIC) as FindingKind[]
 /**
  * PRECEDENCE: `SUPERSEDES[winner]` lists the kinds that `winner` makes redundant. Applied by the
  * ranker BEFORE placement, to the full set of findings at once (order-independent; every loser is
- * listed under EVERY winner that should beat it, so no transitive closure is needed): a finding is
- * dropped when another finding of a superseding kind has the same `actor`, the same `round` and
- * the same `unitIds[0]`. (`frameIndex` is deliberately NOT part of the key: a pair such as a
- * movement finding and a shooting finding about the same unit-turn sit in different frames.)
- * One unit makes at most one move/shoot/charge per own turn, so (round, actor, unitIds[0])
- * identifies the unit-turn.
+ * listed under EVERY winner that should beat it, so no transitive closure is needed). A finding is
+ * dropped when some OTHER finding of a superseding kind MATCHES it. The match key depends on the group:
+ *  - OBJECTIVE GROUP (`objective.swing`, `objective.battleShock`, `missed.objective`, `move.objectiveNeglect`):
+ *      same `actor`, same `round` and same `refs.objectiveId`. (The same objective on the same round is the
+ *      same story whichever unit was involved; `objectiveId` is REQUIRED on these kinds, see
+ *      {@link REQUIRED_REFS}.) A side without `refs.objectiveId` matches nothing.
+ *  - EVERY OTHER PAIR: same `actor`, same `round` and same `unitIds[0]`, and ONLY when `unitIds[0]` is
+ *      defined on BOTH sides (empty `unitIds` never matches). `frameIndex` is deliberately NOT part of any
+ *      key: a movement finding and a shooting finding about the same unit-turn sit in different frames.
+ *      One unit makes at most one move/shoot/charge per own turn, so (round, actor, unitIds[0]) identifies
+ *      the unit-turn.
+ * Both keys are equivalence relations within a group, and the table is acyclic (checked), so the result
+ * does not depend on input order even for 3-way matches (e.g. battleShock + swing + neglect on one
+ * objective keeps only the battleShock).
  *
  *  - objective.battleShock > objective.swing, missed.objective, move.objectiveNeglect:
  *      the shock is the specific CAUSE (OC 0); the flip, the unreached objective and the neglect
@@ -709,14 +836,13 @@ export const ALL_FINDING_KINDS = Object.keys(FINDING_TOPIC) as FindingKind[]
  *      an actual flip (VP already lost) is a harder fact than a possible one or a pattern.
  *  - missed.objective > move.objectiveNeglect:
  *      the concrete one-turn "you could have taken it free" is more actionable than the multi-turn pattern.
- *  - shoot.coverIgnored > move.noCover:
- *      when the shot already happened, the shooting finding carries the real damage difference;
- *      if no shoot finding exists for that unit-turn, move.noCover stays (nothing supersedes it).
  *  - shoot.advanceCost > shoot.firingPosition:
  *      advancing's expected loss already includes every lost bonus (Rapid Fire, Heavy, LoS).
  *  - shoot.targetChoice > shoot.overkill:
  *      overkill is a symptom of the wrong target; the target finding names the cure.
  *
+ * NOT superseded: `shoot.coverIgnored` vs `move.noCover` are different lessons (offence: the TARGET had
+ * cover; defence: the human's OWN unit stood in the open) and both stay.
  * `missed.charge` vs `charge.badOdds` needs NO entry: they are mutually exclusive for one unit-turn
  * (the unit either declared a charge or it did not). `charge.failedByLuck` (p >= 0.5) and
  * `charge.badOdds` (p <= 0.15) are exclusive by their thresholds.
@@ -725,7 +851,6 @@ export const SUPERSEDES: Readonly<Partial<Record<FindingKind, readonly FindingKi
   'objective.battleShock': ['objective.swing', 'missed.objective', 'move.objectiveNeglect'],
   'objective.swing': ['missed.objective', 'move.objectiveNeglect'],
   'missed.objective': ['move.objectiveNeglect'],
-  'shoot.coverIgnored': ['move.noCover'],
   'shoot.advanceCost': ['shoot.firingPosition'],
   'shoot.targetChoice': ['shoot.overkill'],
 }
@@ -750,23 +875,44 @@ export const LOW_DATA_SUPPRESSED_KINDS: readonly FindingKind[] = ALL_FINDING_KIN
 //     Every other `mistake` finding (ineligible, over the per-kind cap, or list full) overflows to
 //     its topical list (`FINDING_TOPIC`: `shooting` / `movement`).
 //  3. class `missed` → `missed` (top `REPORT.MAX_MISSED`); overflow → topical list.
-//  4. class `luck` → `luck` (top `REPORT.MAX_LUCK`, shared with class `explain`); OVERFLOW DROPPED.
-//     class `explain` (`charge.failedByLuck`) → NEVER in `mistakes`; competes for the same `luck`
-//     list; its overflow goes to its topical list.
+//  4. `luck.summary` → ALWAYS the FIRST entry of `luck`, in a RESERVED slot that does NOT count toward
+//     `REPORT.MAX_LUCK` (so `luck.length <= MAX_LUCK + 1`; absent only when `lowData` suppressed it).
+//     The other class `luck` kinds (`luck.swing`) → the rest of `luck` in rank order (top `REPORT.MAX_LUCK`,
+//     shared with class `explain`); OVERFLOW DROPPED. So `luck` is NOT globally rank-sorted: summary first,
+//     then rank order. class `explain` (`charge.failedByLuck`) → NEVER in `mistakes`; competes for the
+//     same `MAX_LUCK` slots; its overflow goes to its topical list.
 //  5. class `positive` → `positives` (top `REPORT.MAX_POSITIVES`, at least `REPORT.MIN_POSITIVES`
 //     when that many qualify); overflow → topical list.
 //  6. Each topical list is sorted by rank and capped at `REPORT.MAX_TOPICAL` (the rest is dropped).
 // Every finding therefore appears in exactly ONE list (or is dropped by steps 0, 4 or 6).
+//
+// PLAN RULE (ONE deterministic rule; the executable spec is `planOf` in __tests__/fixtures.test.ts, every
+// report sample follows it). Runs on the FINAL report lists, after steps 0-6:
+//  P1. Pool = every finding of class `mistake` or `missed` present in ANY list of the report (`mistakes`,
+//      `missed`, `shooting`, `movement`, wherever overflow put it). NO severity or confidence filter here:
+//      the eligibility filter of step 2 applies to the `mistakes` list only, not to the plan.
+//      Classes `luck`, `explain`, `positive`, `summary` NEVER enter the plan.
+//  P2. Rank the pool (severity, impact desc, id asc). A KIND's rank = the rank of its first finding.
+//  P3. Select, in this order: the top 2 DISTINCT kinds of class `mistake`; then the top distinct kind of
+//      class `missed`; then, if fewer than `REPORT.MAX_PLAN` (3) are selected, fill with the next ranked
+//      distinct kinds not yet selected, from `mistake` and `missed` TOGETHER (merged rank order), until 3 or
+//      the pool is exhausted. Never more than 3; a kind appears once.
+//  P4. `plan` keeps the SELECTION order (mistake 1, mistake 2, missed 1, fills...), not a re-sorted order.
+//  P5. `PlanItem.findingIds` = ALL findings of that kind present in the pool, in rank order (so it can point
+//      into `mistakes`, `missed`, `shooting` or `movement`).
 
 // ──────────────────────────────────────────────────────────────────────────────────────────────
 // Report
 // ──────────────────────────────────────────────────────────────────────────────────────────────
 
-/** A suggested focus for the next battle (at most 3 per report). The UI maps `kind` to advice text and a tutorial lesson. */
+/** A suggested focus for the next battle (at most 3 per report, chosen by the PLAN RULE). The UI maps `kind` to advice text and a tutorial lesson. */
 export interface PlanItem {
   /** Which kind of mistake/opportunity to work on. Must be a `mistake` or `missed` class kind. */
   kind: FindingKind
-  /** Ids of the report findings (in `mistakes` / `missed`) this item is derived from; non-empty, all exist in the report. */
+  /**
+   * Ids of ALL report findings of this `kind` (in any list: `mistakes`, `missed`, `shooting`, `movement`),
+   * in rank order; non-empty, all exist in the report. Selection: see the PLAN RULE above.
+   */
   findingIds: string[]
 }
 
@@ -774,9 +920,12 @@ export interface PlanItem {
 export interface PlayerRoundStats {
   /** VP of this player at the END of the round. */
   vp: number
-  /** Wounds this player's units removed from enemy models during the round (all sources). */
+  /**
+   * Wounds removed from the OPPONENT's models during the round by this player's actions or models, from
+   * ANY source (attacks and non-attack damage). Own-side victims never count (see CoachReport.totals).
+   */
   damageDealt: number
-  /** Wounds this player's models lost during the round (all sources, incl. self-inflicted Hazardous / Desperate Escape). */
+  /** Wounds this player's own models lost during the round from ANY source, caused by anyone, including the player's own Hazardous / Desperate Escape / Deadly Demise. */
   damageTaken: number
   /** Number of this player's units destroyed during the round. */
   unitsLost: number
@@ -819,7 +968,7 @@ export interface ReportNote {
  * The finished coach report. All lists are sorted by rank (severity, impact desc, id).
  *
  * CAPS (enforced by the ranker; values live in config.ts `REPORT`): mistakes <= 5 (<= 2 per kind),
- * missed <= 3, luck <= 3, positives 2–3 (fewer only when fewer qualify; none when `lowData`),
+ * missed <= 3, luck <= 3 PLUS the reserved `luck.summary` slot (so <= 4 entries, summary first), positives 2–3 (fewer only when fewer qualify; none when `lowData`),
  * plan <= 3, shooting / movement <= `REPORT.MAX_TOPICAL` each. Placement: see the PLACEMENT RULE
  * above (FINDING_CLASS decides the list, FINDING_TOPIC the overflow).
  */
@@ -846,14 +995,33 @@ export interface CoachReport {
    */
   headline: Finding
   /**
-   * DAMAGE ACCOUNTING. Two views:
-   *  - `damageDealt` / `damageTaken`: ALL wounds (every source, incl. Hazardous, Desperate Escape,
-   *    Deadly Demise, friendly fire). They equal the human's timeline sums.
+   * DAMAGE ACCOUNTING. Unit: wounds actually removed from models (mortal wounds included; excess damage
+   * on a model is lost and not counted, as in the engine). Removing a model for broken coherency at the
+   * end of a turn (engine.ts `endTurn`) is NOT damage. Every wound-loss event has a VICTIM side V (owner
+   * of the wounded model) and a CAUSE side C (owner of the attacking unit / hazardous weapon / fleeing
+   * unit / exploding vehicle):
+   *   damageTaken[V] += w   for EVERY event, whatever the source or the cause side;
+   *   damageDealt[C] += w   only when C != V (the victim is on the OPPONENT's side).
+   * So damage a player's own sources do to the player's own models (Hazardous, Desperate Escape, a Deadly
+   * Demise of the player's own vehicle on the player's own units) counts as `damageTaken[owner]` ONLY and is
+   * NOT `damageDealt` of the opponent. A Deadly Demise explosion (engine.ts `deadlyDemise`: it hits units of
+   * EITHER side within 6") is credited as `damageDealt` to the OWNER OF THE EXPLODING VEHICLE for every victim
+   * on the other side; so an exploding enemy vehicle hurting human units is `damageTaken[human]` AND
+   * `damageDealt[enemy]`, but it is non-attack damage (below).
+   * Consequence, per round and per player p with o = the opponent:
+   *   damageDealt[p] + ownSource[o] == damageTaken[o],   ownSource[o] = wounds o's models lost to o's OWN sources;
+   * i.e. `dealt[p] == taken[o]` holds exactly when o suffered no own-source damage that round, and only
+   * OPPONENT-caused damage obeys it. (The report does not carry `ownSource`; fixtures.test.ts keeps it
+   * per fixture and tests the identity.)
+   *
+   * Two views:
+   *  - `damageDealt` / `damageTaken`: the all-source accounting above. They equal the human's timeline sums.
    *  - `attackDealt` / `attackTaken`: wounds from ATTACKS only, i.e. shoot + fight attack groups
-   *    resolved via `resolveGroup` — the ONE shared event set for every luck term. Self-inflicted
-   *    damage (Hazardous, Desperate Escape, Deadly Demise, friendly fire) is excluded from
+   *    resolved via `resolveGroup` — the ONE shared event set for every luck term. NON-ATTACK DAMAGE
+   *    (Hazardous, Desperate Escape, Deadly Demise — whichever side's vehicle explodes) is excluded from
    *    `attack*`, from `expectedDealt` / `expectedTaken` and from `luckIndex`; it is reported
    *    separately (`shoot.hazardLoss`). Always `attackDealt <= damageDealt`, `attackTaken <= damageTaken`.
+   *    `luck.summary` / `good.efficiency` use the `attack*Wounds` metric keys for exactly these.
    *
    * EXPECTED DAMAGE of one attack = sum over its unsaved wounds of min(D, remaining wounds of the
    * model the wound is allocated to), additionally capped by the target unit's remaining wounds
@@ -861,9 +1029,9 @@ export interface CoachReport {
    * definition of "wounds removed".
    */
   totals: {
-    /** Wounds the human's units removed from enemy models, all sources (actual). */
+    /** Wounds removed from the opponent's models by the human, all sources (actual); see DAMAGE ACCOUNTING. */
     damageDealt: number
-    /** Wounds the human's models lost, all sources (actual, incl. self-inflicted). */
+    /** Wounds the human's models lost, all sources (actual, incl. the human's own Hazardous / Desperate Escape and any Deadly Demise). */
     damageTaken: number
     /** Wounds removed by the human's ATTACKS only (actual). */
     attackDealt: number
@@ -889,7 +1057,10 @@ export interface CoachReport {
   mistakes: Finding[]
   /** Top missed opportunities (cap 3). */
   missed: Finding[]
-  /** Dice-luck explanations (cap 3): class `luck` and `explain`. */
+  /**
+   * Dice-luck explanations: `luck.summary` FIRST (reserved slot, not counted), then up to `REPORT.MAX_LUCK`
+   * (3) of class `luck` / `explain` in rank order. Not globally rank-sorted.
+   */
   luck: Finding[]
   /** Remaining shooting-topic findings (see FINDING_TOPIC), incl. mistakes/missed/positives that overflowed. */
   shooting: Finding[]
@@ -897,7 +1068,7 @@ export interface CoachReport {
   movement: Finding[]
   /** What the human did well (2–3). */
   positives: Finding[]
-  /** Up to 3 focus items for the next battle, derived from the mistakes/missed. */
+  /** Up to 3 focus items for the next battle: the PLAN RULE (selection order, not re-sorted). */
   plan: PlanItem[]
   /** One entry per recorded round. */
   timeline: RoundSummary[]
@@ -928,3 +1099,22 @@ export interface AnalyzerContext {
  * and lowData suppression are the ranker's job.
  */
 export type Analyzer = (frames: Frame[], ctx: AnalyzerContext) => Finding[]
+
+/**
+ * The ranker: all raw findings of all analyzers + the stats -> everything of the report except `battle`
+ * (the caller fills `battle` from the record and the final state). Applies SUPERSEDES, lowData suppression,
+ * the PLACEMENT RULE, the PLAN RULE and the `notes`. Pure and deterministic. `config` overrides
+ * `ctx.config` when given (same thresholds, tests only).
+ *
+ * PRODUCERS of the two battle-wide findings (not the ranker's job to create them): `result.summary` is
+ * produced by the metrics/stats analyzer (task A1) from the StatsResult totals; `luck.summary` by the
+ * luck analyzer (task A2). Both are battle-wide: `frameIndex` null, `unitIds` empty, and
+ * `round` / `phase` = `round` / `phase` of `frames[frames.length - 1].after` (the last frame's AFTER state).
+ * The ranker moves `result.summary` into `headline` and `luck.summary` into the reserved `luck` slot.
+ */
+export type RankFn = (
+  findings: Finding[],
+  stats: StatsResult,
+  ctx: AnalyzerContext,
+  config?: CoachConfig,
+) => Omit<CoachReport, 'battle'>

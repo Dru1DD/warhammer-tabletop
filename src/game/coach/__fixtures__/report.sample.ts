@@ -10,9 +10,11 @@
 //                         third shoot.targetChoice kept OUT of `mistakes` by MAX_PER_KIND_IN_MISTAKES.
 // INVARIANTS (fixtures.test.ts): every finding has `actor === battle.human`, every `unitIds` entry is a
 // unit of the human's side in the sample's scenario (enemy unit ids appear only in `refs`), metric keys are
-// exactly METRIC_KEYS[kind], and no pair of findings is covered by SUPERSEDES. Numbers are plausible, not
-// computed from a real replay, but internally consistent (luckIndex follows the documented formula; totals
-// equal the human's timeline sums; severity follows the impact bands).
+// exactly METRIC_KEYS[kind], impact equals its IMPACT_SOURCE formula, and no pair of findings is covered by
+// SUPERSEDES. Numbers are plausible, not computed from a real replay, but internally consistent (luckIndex
+// follows the documented formula; totals equal the human's timeline sums; severity follows the impact bands;
+// charge probabilities follow the documented charge rule; every `plan` follows the PLAN RULE; the timeline
+// obeys the damage-accounting identity, see `ownSourceDamage`).
 
 import { COACH_REPORT_VERSION, FINDING_TOPIC } from '../types'
 import type { CoachReport, Finding, FindingKind, PlanItem, PlayerRoundStats, ReportNote, RoundSummary, Severity } from '../types'
@@ -35,6 +37,13 @@ const SEVERITY_ORDER: Record<Severity, number> = { critical: 0, major: 1, minor:
 const rank = (list: Finding[]): Finding[] =>
   [...list].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || b.impact - a.impact || (a.id < b.id ? -1 : 1))
 
+/**
+ * Wounds a player's OWN models lost to the player's OWN sources (Hazardous, Desperate Escape, own Deadly Demise)
+ * per round, per sample: `ownSourceDamage[sample][round][player]`. With it the damage-accounting identity holds
+ * exactly in every round: `damageDealt[p] + ownSource[other] == damageTaken[other]` (types.ts, CoachReport.totals).
+ */
+export type OwnSource = Record<number, Partial<Record<PlayerId, number>>>
+
 const round = (r: number, marines: PlayerRoundStats, orks: PlayerRoundStats): RoundSummary => ({ round: r, stats: { marines, orks } })
 const st = (vp: number, damageDealt: number, damageTaken: number, unitsLost: number): PlayerRoundStats => ({ vp, damageDealt, damageTaken, unitsLost })
 
@@ -46,7 +55,8 @@ const m = (kind: FindingKind, p: FindingInput) => makeFinding('marines', kind, p
 
 const timeline: RoundSummary[] = [
   round(1, st(0, 2, 3, 0), st(0, 3, 2, 0)),
-  round(2, st(5, 4, 6, 0), st(5, 6, 4, 0)), // marines damageTaken 6 includes 1 wound of Hazardous self-damage (red, f21)
+  // marines damageTaken 6 includes 1 wound of their OWN Hazardous (red, f21): taken[marines] only, so orks damageDealt is 5, not 6
+  round(2, st(5, 4, 6, 0), st(5, 5, 4, 0)),
   round(3, st(10, 5, 8, 1), st(15, 8, 5, 0)),
   round(4, st(10, 2, 5, 0), st(25, 5, 2, 1)),
   round(5, st(15, 3, 4, 0), st(35, 4, 3, 0)),
@@ -63,7 +73,7 @@ const swing = m('objective.swing', {
   metrics: { swingVp: 10, humanOc: 2, enemyOc: 5 }, refs: { objectiveId: 'o3', enemyUnitId: 'boyz3' },
 })
 const lossAttribution = m('loss.attribution', {
-  severity: 'critical', confidence: 'estimate', round: 3, phase: 'shooting', unitIds: ['red'], frameIndex: 31, impact: 8,
+  severity: 'critical', confidence: 'estimate', round: 3, phase: 'shooting', unitIds: ['red'], frameIndex: 31, impact: 9.8,
   metrics: { takenWounds: 12, enemyExpectedWounds: 9.8, decisionCount: 2 }, refs: { enemyUnitId: 'boyz2' },
 })
 const neglect = m('move.objectiveNeglect', {
@@ -120,7 +130,7 @@ const firingPosition = m('shoot.firingPosition', {
 })
 const badOdds = m('charge.badOdds', {
   severity: 'minor', confidence: 'exact', round: 2, phase: 'charge', unitIds: ['aint'], frameIndex: 16, impact: 1.5,
-  metrics: { chargeProbability: 0.08, distanceInches: 11.2, rollInches: 5 }, refs: { targetUnitId: 'boyz2' },
+  metrics: { chargeProbability: 3 / 36, distanceInches: 10.8, rollInches: 5 }, refs: { targetUnitId: 'boyz2' }, // needs 11+ on 2D6
 })
 const fightTarget = m('fight.targetChoice', {
   severity: 'minor', confidence: 'exact', round: 4, phase: 'fight', unitIds: ['aint'], frameIndex: 64, impact: 1.7,
@@ -133,7 +143,7 @@ const noCover = m('move.noCover', {
 })
 const chargeExposure = m('move.chargeExposure', {
   severity: 'minor', confidence: 'estimate', round: 3, phase: 'movement', unitIds: ['lt'], frameIndex: 29, impact: 2.8,
-  metrics: { chargeProbability: 0.64, expectedMeleeWounds: 2.8, distanceInches: 8.2 }, refs: { enemyUnitId: 'boyz2' },
+  metrics: { chargeProbability: 21 / 36, expectedMeleeWounds: 2.8, distanceInches: 6.5 }, refs: { enemyUnitId: 'boyz2' }, // needs 7+
 })
 const fallBack = m('move.fallBackDecision', {
   severity: 'minor', confidence: 'estimate', round: 4, phase: 'movement', unitIds: ['int'], frameIndex: 53, impact: 1.5,
@@ -155,23 +165,31 @@ const missedShot = m('missed.shot', {
 })
 const missedCharge = m('missed.charge', {
   severity: 'minor', confidence: 'estimate', round: 4, phase: 'charge', unitIds: ['aint'], frameIndex: 60, impact: 2.6,
-  metrics: { chargeProbability: 0.58, expectedMeleeWounds: 2.6, distanceInches: 7.5 }, refs: { targetUnitId: 'boyz3' },
+  metrics: { chargeProbability: 15 / 36, expectedMeleeWounds: 2.6, distanceInches: 7.5 }, refs: { targetUnitId: 'boyz3' }, // needs 8+
 })
 
 // ---- luck (class 'luck' / 'explain'): exactly MAX_LUCK
 const luckSummary = m('luck.summary', {
   severity: 'info', confidence: 'exact', round: 5, phase: 'fight', unitIds: [], frameIndex: null, impact: 0,
-  metrics: { luckIndex: -0.19, dealtWounds: 16, expectedDealtWounds: 19.5, takenWounds: 25, expectedTakenWounds: 20.9 },
+  metrics: { luckIndex: -0.19, attackDealtWounds: 16, expectedDealtWounds: 19.5, attackTakenWounds: 25, expectedTakenWounds: 20.9 },
 })
 const luckSwing = m('luck.swing', {
   severity: 'minor', confidence: 'exact', round: 2, phase: 'shooting', unitIds: ['int'], frameIndex: 19, impact: 3.1,
   metrics: { tailProbability: 0.06, actualWounds: 0, expectedWounds: 3.1, attackCount: 10, isOwnAttack: 1 },
   refs: { targetUnitId: 'boyz', weaponId: 'boltRifle', profileIndex: '0' },
 })
+// an enemy attack on the human (isOwnAttack 0): primary unit = the defender; luck.swing costs a luck slot, like failedByLuck
+const luckSwing2 = m('luck.swing', {
+  severity: 'minor', confidence: 'exact', round: 3, phase: 'shooting', unitIds: ['aint'], frameIndex: 43, impact: 4.4,
+  metrics: { tailProbability: 0.04, actualWounds: 9, expectedWounds: 4.6, attackCount: 14, isOwnAttack: 0 }, refs: { enemyUnitId: 'boyz2' },
+})
 const failedByLuck = m('charge.failedByLuck', {
   severity: 'info', confidence: 'exact', round: 3, phase: 'charge', unitIds: ['int2'], frameIndex: 38, impact: 0,
-  metrics: { chargeProbability: 0.58, distanceInches: 7.4, rollInches: 5 }, refs: { targetUnitId: 'boyz3' },
+  metrics: { chargeProbability: 21 / 36, distanceInches: 6.6, rollInches: 5 }, refs: { targetUnitId: 'boyz3' }, // needs 7+, rolled 5
 })
+
+/** `luck`: luck.summary FIRST (reserved slot, not counted toward MAX_LUCK), then the rest in rank order. */
+const luckList = (summary: Finding, ...rest: Finding[]): Finding[] => [summary, ...rank(rest)]
 
 // ---- positives (class 'positive'): top MAX_POSITIVES; the fourth overflows to `shooting`
 const objectiveHeld = m('good.objectiveHeld', {
@@ -184,7 +202,7 @@ const goodCover = m('good.cover', {
 })
 const goodEfficiency = m('good.efficiency', {
   severity: 'info', confidence: 'exact', round: 4, phase: 'shooting', unitIds: ['int'], frameIndex: 57, impact: 1.1,
-  metrics: { dealtWounds: 4, expectedDealtWounds: 2.9, attackCount: 12 }, refs: { targetUnitId: 'boyz2' },
+  metrics: { attackDealtWounds: 4, expectedDealtWounds: 2.9, attackCount: 12 }, refs: { targetUnitId: 'boyz2' },
 })
 const goodTarget = m('good.targetChoice', {
   severity: 'info', confidence: 'exact', round: 1, phase: 'shooting', unitIds: ['int'], frameIndex: 8, impact: 0.9,
@@ -202,11 +220,12 @@ export const reportSample: CoachReport = {
   totals: { damageDealt: 16, damageTaken: 26, attackDealt: 16, attackTaken: 25, expectedDealt: 19.5, expectedTaken: 20.9, luckIndex: -0.19 },
   mistakes: rank([swing, lossAttribution, neglect, battleShock, exposed]),
   missed: rank([missedObjective, missedShot, missedCharge]),
-  luck: rank([luckSummary, luckSwing, failedByLuck]),
+  luck: luckList(luckSummary, luckSwing, luckSwing2, failedByLuck),
   shooting: rank([targetChoice1, targetChoice2, profileChoice, overkill, advanceCost, coverIgnored, hazardLoss, firingPosition, goodTarget]),
   movement: rank([badOdds, fightTarget, noCover, chargeExposure, fallBack, advanceDecision]),
   positives: rank([objectiveHeld, goodCover, goodEfficiency]),
-  plan: [planItem('objective.swing', swing), planItem('move.exposed', exposed), planItem('missed.objective', missedObjective)],
+  // PLAN RULE: top 2 distinct mistake kinds (objective.swing 12, loss.attribution 9.8), then the top missed kind (missed.objective)
+  plan: [planItem('objective.swing', swing), planItem('loss.attribution', lossAttribution), planItem('missed.objective', missedObjective)],
   timeline,
   notes: [],
 }
@@ -215,7 +234,7 @@ export const reportSample: CoachReport = {
 // Sample 2: the same battle, record rebased at round 3 (frames renumbered; rounds 3–5 only)
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 
-const FRAME_OFFSET = 25 // first frame of round 3 in the full battle is 26 -> 1 in the rebased record
+const FRAME_OFFSET = 26 // first frame of round 3 in the full battle is 26 -> 0 in the rebased record (the first recorded frame after a rebase has index 0)
 const inPartial = (x: Finding) => x.round >= 3
 const rebase = (x: Finding): Finding => {
   const frameIndex = x.frameIndex === null ? null : x.frameIndex - FRAME_OFFSET
@@ -228,11 +247,11 @@ const partialMistakes = rank([...reportSample.mistakes.filter(inPartial).map(reb
 const partialMissed = rb(reportSample.missed)
 
 // Round 3-5 luck: luck.summary recomputed for the recorded rounds (it is NOT dropped: the game is not lowData);
-// luck.swing (r2) is outside the record, charge.failedByLuck (r3) stays.
+// luck.swing (r2) is outside the record; luck.swing r3 and charge.failedByLuck (r3) stay.
 // luckIndex = ((10 - 12) - (17 - 15)) / max(12 + 15, 3) = -4 / 27 = -0.148 -> -0.15
 const partialLuckSummary = m('luck.summary', {
   severity: 'info', confidence: 'exact', round: 5, phase: 'fight', unitIds: [], frameIndex: null, impact: 0,
-  metrics: { luckIndex: -0.15, dealtWounds: 10, expectedDealtWounds: 12, takenWounds: 17, expectedTakenWounds: 15 },
+  metrics: { luckIndex: -0.15, attackDealtWounds: 10, expectedDealtWounds: 12, attackTakenWounds: 17, expectedTakenWounds: 15 },
 })
 const partialNotes: ReportNote[] = [{ kind: 'partial', metrics: { firstRound: 3 } }]
 // Overflow lists: what remains of the topical lists in rounds 3-5 (targetChoice2 moved up into `mistakes`).
@@ -248,10 +267,11 @@ export const partialReportSample: CoachReport = {
   totals: { damageDealt: 10, damageTaken: 17, attackDealt: 10, attackTaken: 17, expectedDealt: 12, expectedTaken: 15, luckIndex: -0.15 },
   mistakes: partialMistakes,
   missed: partialMissed,
-  luck: rank([partialLuckSummary, rebase(failedByLuck)]),
+  luck: luckList(partialLuckSummary, rebase(luckSwing2), rebase(failedByLuck)),
   shooting: topical('shooting'),
   movement: topical('movement'),
   positives: rb(reportSample.positives),
+  // PLAN RULE on the rebased lists: same top kinds as the full battle (move.exposed is outside the record)
   plan: [
     planItem('objective.swing', rebase(swing)),
     planItem('loss.attribution', rebase(lossAttribution)),
@@ -286,7 +306,7 @@ export const shortGameReportSample: CoachReport = {
   shooting: [],
   movement: [],
   positives: [],
-  plan: [planItem('missed.shot', shortMissedShot)],
+  plan: [planItem('missed.shot', shortMissedShot)], // PLAN RULE: no mistakes; the top missed kind; nothing to fill with
   timeline: [round(1, st(0, 0, 1, 0), st(0, 1, 0, 0))],
   notes: [{ kind: 'lowData', metrics: { rounds: 1, humanAttackActions: 2, humanAttackDice: 6 } }],
 }
@@ -320,7 +340,7 @@ const oTarget2 = o('shoot.targetChoice', {
 })
 const oBadOdds = o('charge.badOdds', {
   severity: 'minor', confidence: 'exact', round: 3, phase: 'charge', unitIds: ['dread'], frameIndex: 29, impact: 1.5,
-  metrics: { chargeProbability: 0.06, distanceInches: 12.5, rollInches: 4 }, refs: { targetUnitId: 'red' },
+  metrics: { chargeProbability: 1 / 36, distanceInches: 11.5, rollInches: 4 }, refs: { targetUnitId: 'red' }, // needs 12
 })
 // third shoot.targetChoice: would outrank charge.badOdds, but MAX_PER_KIND_IN_MISTAKES (2) keeps it out of `mistakes`
 // although the list is not full -> it overflows to `shooting`.
@@ -329,8 +349,9 @@ const oTarget3 = o('shoot.targetChoice', {
   metrics: { chosenExpectedWounds: 1.4, bestExpectedWounds: 3, deltaWounds: 1.6, ratio: 2.14 },
   refs: { targetUnitId: 'lt', betterTargetUnitId: 'int2', weaponId: 'bigShoota' },
 })
+// frameIndex = the endPhase frame of the own Command phase where an Ork unit (boyz) was within reach and Waaagh! unused
 const oWaaagh = o('missed.waaagh', {
-  severity: 'info', confidence: 'heuristic', round: 3, phase: 'command', unitIds: [], frameIndex: 20, impact: 0,
+  severity: 'info', confidence: 'heuristic', round: 3, phase: 'command', unitIds: ['boyz'], frameIndex: 20, impact: 0,
   metrics: { unusedTurnCount: 2 },
 })
 const oRunts = o('missed.ammoRunts', {
@@ -339,7 +360,7 @@ const oRunts = o('missed.ammoRunts', {
 })
 const oLuckSummary = o('luck.summary', {
   severity: 'info', confidence: 'exact', round: 4, phase: 'fight', unitIds: [], frameIndex: null, impact: 0,
-  metrics: { luckIndex: -0.17, dealtWounds: 14, expectedDealtWounds: 16.5, takenWounds: 26, expectedTakenWounds: 22 },
+  metrics: { luckIndex: -0.17, attackDealtWounds: 14, expectedDealtWounds: 16.5, attackTakenWounds: 26, expectedTakenWounds: 22 },
 })
 const oLuckSwing = o('luck.swing', {
   severity: 'minor', confidence: 'exact', round: 3, phase: 'shooting', unitIds: ['boyz2'], frameIndex: 26, impact: 4,
@@ -347,7 +368,7 @@ const oLuckSwing = o('luck.swing', {
 })
 const oEfficiency = o('good.efficiency', {
   severity: 'info', confidence: 'exact', round: 4, phase: 'shooting', unitIds: ['boyz3'], frameIndex: 38, impact: 1.6,
-  metrics: { dealtWounds: 5, expectedDealtWounds: 3.4, attackCount: 14 }, refs: { targetUnitId: 'int' },
+  metrics: { attackDealtWounds: 5, expectedDealtWounds: 3.4, attackCount: 14 }, refs: { targetUnitId: 'int' },
 })
 const oGoodTarget = o('good.targetChoice', {
   severity: 'info', confidence: 'exact', round: 1, phase: 'shooting', unitIds: ['boyz'], frameIndex: 6, impact: 0.8,
@@ -366,11 +387,22 @@ export const orksReportSample: CoachReport = {
   totals: { damageDealt: 14, damageTaken: 26, attackDealt: 14, attackTaken: 26, expectedDealt: 16.5, expectedTaken: 22, luckIndex: -0.17 },
   mistakes: rank([oTarget1, oExposed, oTarget2, oBadOdds]),
   missed: rank([oWaaagh, oRunts]),
-  luck: rank([oLuckSummary, oLuckSwing]),
+  luck: luckList(oLuckSummary, oLuckSwing),
   shooting: rank([oTarget3]),
   movement: [],
   positives: rank([oEfficiency, oGoodTarget]),
-  plan: [planItem('shoot.targetChoice', oTarget1, oTarget2), planItem('move.exposed', oExposed), planItem('missed.waaagh', oWaaagh)],
+  // PLAN RULE: top 2 distinct mistake kinds (shoot.targetChoice, move.exposed; charge.badOdds is 3rd); the top missed kind by
+  // rank is missed.ammoRunts (info, impact 0.6) ahead of missed.waaagh (info, impact 0). findingIds = ALL targetChoice
+  // findings, incl. oTarget3 which sits in `shooting`.
+  plan: [planItem('shoot.targetChoice', oTarget1, oTarget2, oTarget3), planItem('move.exposed', oExposed), planItem('missed.ammoRunts', oRunts)],
   timeline: orksTimeline,
   notes: [],
+}
+
+/** Own-source damage per sample, round and player (see {@link OwnSource}); the only non-zero entry is the Marines' Hazardous wound of round 2. */
+export const ownSourceDamage: Record<'reportSample' | 'partialReportSample' | 'shortGameReportSample' | 'orksReportSample', OwnSource> = {
+  reportSample: { 2: { marines: 1 } },
+  partialReportSample: {}, // rounds 3-5 only: the Hazardous wound is outside the record
+  shortGameReportSample: {},
+  orksReportSample: {},
 }
