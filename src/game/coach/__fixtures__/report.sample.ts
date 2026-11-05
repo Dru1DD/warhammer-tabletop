@@ -391,10 +391,11 @@ export const orksReportSample: CoachReport = {
   shooting: rank([oTarget3]),
   movement: [],
   positives: rank([oEfficiency, oGoodTarget]),
-  // PLAN RULE: top 2 distinct mistake kinds (shoot.targetChoice, move.exposed; charge.badOdds is 3rd); the top missed kind by
-  // rank is missed.ammoRunts (info, impact 0.6) ahead of missed.waaagh (info, impact 0). findingIds = ALL targetChoice
-  // findings, incl. oTarget3 which sits in `shooting`.
-  plan: [planItem('shoot.targetChoice', oTarget1, oTarget2, oTarget3), planItem('move.exposed', oExposed), planItem('missed.ammoRunts', oRunts)],
+  // PLAN RULE: top 2 distinct mistake kinds (shoot.targetChoice, move.exposed); the only `missed` findings here
+  // (missed.ammoRunts, missed.waaagh) are 'info' (heuristic) and are excluded from the pool, so the third slot is
+  // filled with the next ranked mistake kind, charge.badOdds. findingIds = ALL targetChoice findings, incl.
+  // oTarget3 which sits in `shooting`.
+  plan: [planItem('shoot.targetChoice', oTarget1, oTarget2, oTarget3), planItem('move.exposed', oExposed), planItem('charge.badOdds', oBadOdds)],
   timeline: orksTimeline,
   notes: [],
 }

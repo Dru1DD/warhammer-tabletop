@@ -892,9 +892,11 @@ export const LOW_DATA_SUPPRESSED_KINDS: readonly FindingKind[] = ALL_FINDING_KIN
 // PLAN RULE (ONE deterministic rule; the executable spec is `planOf` in __tests__/fixtures.test.ts, every
 // report sample follows it). Runs on the FINAL report lists, after steps 0-6:
 //  P1. Pool = every finding of class `mistake` or `missed` present in ANY list of the report (`mistakes`,
-//      `missed`, `shooting`, `movement`, wherever overflow put it). NO severity or confidence filter here:
-//      the eligibility filter of step 2 applies to the `mistakes` list only, not to the plan.
-//      Classes `luck`, `explain`, `positive`, `summary` NEVER enter the plan.
+//      `missed`, `shooting`, `movement`, wherever overflow put it) whose severity is NOT 'info'. Because
+//      every `heuristic` finding is capped at 'info' (see `Severity`), this also keeps heuristic advice out
+//      of the plan: the plan only ever recommends practising things that are measured, not guessed.
+//      (Step 2's per-kind and list-size caps do not apply: a finding that overflowed to a topical list is
+//      still eligible.) Classes `luck`, `explain`, `positive`, `summary` NEVER enter the plan.
 //  P2. Rank the pool (severity, impact desc, id asc). A KIND's rank = the rank of its first finding.
 //  P3. Select, in this order: the top 2 DISTINCT kinds of class `mistake`; then the top distinct kind of
 //      class `missed`; then, if fewer than `REPORT.MAX_PLAN` (3) are selected, fill with the next ranked

@@ -110,7 +110,7 @@ function chargeReaches(roll: number, distance: number): boolean {
 }
 
 /**
- * EXECUTABLE SPEC of the PLAN RULE (types.ts): pool = every `mistake`/`missed` class finding in ANY list, no filters;
+ * EXECUTABLE SPEC of the PLAN RULE (types.ts): pool = every `mistake`/`missed` class finding in ANY list with severity != 'info' (heuristic findings are always 'info');
  * rank it; top 2 distinct mistake kinds, then the top distinct missed kind, then fill (merged rank order) up to
  * REPORT.MAX_PLAN; selection order is kept; findingIds = all findings of the kind, in rank order.
  */
@@ -118,7 +118,7 @@ function planOf(r: CoachReport): PlanItem[] {
   const rankCmp = (a: Finding, b: Finding) => SEV[a.severity] - SEV[b.severity] || b.impact - a.impact || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
   const pool = [r.mistakes, r.missed, r.shooting, r.movement, r.luck, r.positives]
     .flat()
-    .filter((x) => FINDING_CLASS[x.kind] === 'mistake' || FINDING_CLASS[x.kind] === 'missed')
+    .filter((x) => (FINDING_CLASS[x.kind] === 'mistake' || FINDING_CLASS[x.kind] === 'missed') && x.severity !== 'info')
     .sort(rankCmp)
   const kinds = [...new Set(pool.map((x) => x.kind))] // distinct kinds, ranked by their first finding
   const ofClass = (c: string) => kinds.filter((k) => FINDING_CLASS[k] === c)
