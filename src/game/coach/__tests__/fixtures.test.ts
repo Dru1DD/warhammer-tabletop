@@ -523,6 +523,11 @@ describe('coach contract: report samples', () => {
     expect(planOf({ ...base, luck: reportSample.luck })).toEqual([])
     // never more than MAX_PLAN
     expect(planOf({ ...base, mistakes: reportSample.mistakes, missed: reportSample.missed })).toHaveLength(REPORT.MAX_PLAN)
+    // one kind with a measured (non-info) and a heuristic ('info') finding: only the non-info id is in findingIds
+    const info = { ...swing, id: swing.id + '#2', severity: 'info' as const, confidence: 'heuristic' as const, impact: 0.1 }
+    expect(planOf({ ...base, mistakes: [swing], movement: [info] })).toEqual([{ kind: swing.kind, findingIds: [swing.id] }])
+    // a kind whose only findings are 'info' never enters the plan
+    expect(planOf({ ...base, mistakes: [info] })).toEqual([])
   })
 
   it('IMPACT_SOURCE: every referenced key is a metric of its kind, in the right unit; VP keys convert through VP_TO_WOUNDS', () => {

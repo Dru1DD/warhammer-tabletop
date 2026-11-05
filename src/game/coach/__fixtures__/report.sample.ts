@@ -115,7 +115,7 @@ const advanceCost = m('shoot.advanceCost', {
 })
 const coverIgnored = m('shoot.coverIgnored', {
   severity: 'minor', confidence: 'estimate', round: 4, phase: 'shooting', unitIds: ['int'], frameIndex: 59, impact: 1.2,
-  metrics: { chosenExpectedWounds: 1.6, bestExpectedWounds: 2.8, deltaWounds: 1.2 },
+  metrics: { chosenExpectedWounds: 3.0, bestExpectedWounds: 4.2, deltaWounds: 1.2 }, // ratio 1.4 < TARGET_MIN_RATIO: NOT also a shoot.targetChoice
   refs: { targetUnitId: 'boyz3', betterTargetUnitId: 'boyz2', terrainId: 't4' },
 })
 const hazardLoss = m('shoot.hazardLoss', {

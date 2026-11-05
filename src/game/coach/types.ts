@@ -261,6 +261,13 @@ export type Severity = 'critical' | 'major' | 'minor' | 'info'
  * over all dice outcomes (see rule 1 at the top of this file). The exact metric keys and ref keys
  * of each kind are frozen in {@link METRIC_KEYS} and {@link REF_KEYS}.
  *
+ * PRODUCERS (one task per kind, so ids never collide): A1 metrics → `result.summary`, `loss.attribution`,
+ * `objective.*`, `good.objectiveHeld`; A2 luck → `luck.*`, `good.efficiency`; A3 shooting → `shoot.*`,
+ * `good.targetChoice`; A4 movement → `move.*`, `good.cover`; A5 charge/melee → `charge.*`, `fight.targetChoice`;
+ * A6 missed opportunities → `missed.*`. Ids are `kind:rROUND:fFRAME[:unit+unit]` plus `#N` (N >= 2) to disambiguate
+ * duplicates (exact format: shape.ts); because each kind has ONE producer, ids never collide across analyzers.
+ * Id order (rank tie-break) compares UTF-16 code units (`<`), never `localeCompare`.
+ *
  * result / metrics
  *  - `result.summary`      Headline: who won, VP and all-source damage totals. Exactly one per report; stored in
  *                          `CoachReport.headline`. Produced by the metrics/stats analyzer (task A1). Battle-wide:
@@ -273,7 +280,9 @@ export type Severity = 'critical' | 'major' | 'minor' | 'info'
  *  - `luck.summary`        Overall dice luck for the battle (actual vs expected ATTACK damage); explains, does not blame.
  *                          Produced by the luck analyzer (task A2). Battle-wide like `result.summary` (same `round` / `phase`
  *                          rule). Lives in the RESERVED first slot of `CoachReport.luck` (see the PLACEMENT RULE).
- *  - `luck.swing`          A single attack sequence whose one-sided tail probability is at most LUCK.SWING_MAX_P.
+ *  - `luck.swing`          A single attack sequence (= one weapon group, i.e. one attack `DiceEntry` from one `resolveGroup`
+ *                          call) whose one-sided tail probability is at most LUCK.SWING_MAX_P. Needs the structured
+ *                          `DiceEntry.meta` (task E3) to separate attack damage from Deadly Demise / Hazardous damage.
  * shooting
  *  - `shoot.targetChoice`  A different legal target had clearly higher expected damage.
  *  - `shoot.profileChoice` A different weapon profile (e.g. plasma supercharge vs standard) had higher expected value.
@@ -286,6 +295,10 @@ export type Severity = 'critical' | 'major' | 'minor' | 'info'
  *                          human's own unit standing in the open is `move.noCover`. (A different firing position could
  *                          only remove the "not fully visible" branch, never the INFANTRY-in-terrain one; that case is
  *                          `shoot.firingPosition` / `shoot.targetChoice`, not this kind.)
+ *                          EXCLUSIVITY: emitted only when the same shot does NOT also qualify as
+ *                          `shoot.targetChoice` (i.e. NOT both best/chosen >= SHOOT.TARGET_MIN_RATIO and
+ *                          best - chosen >= SHOOT.TARGET_MIN_ABS_WOUNDS); a shot that qualifies for both is
+ *                          reported as `shoot.targetChoice` only.
  *  - `shoot.hazardLoss`    Hazardous self-damage outweighed the expected gain of using that weapon.
  *  - `shoot.firingPosition` The unit's end position cost it a bonus: lost Rapid Fire half-range, lost Heavy
  *                          (moved), or line of sight lost because of the move.
@@ -460,6 +473,14 @@ export type MetricUnit = 'wounds' | 'probability' | 'inches' | 'vp' | 'count' | 
  *                                          (ai.ts: P(2D6 >= n), 0 when distance > 12). It is an UPPER BOUND: whether
  *                                          `planCharge` (engine.ts) can find a legal path / base placement is NOT part of it.
  *                      `rollInches`      = the 2D6 total actually rolled (charge.badOdds / charge.failedByLuck only).
+                      TARGET UNIT: `declareCharge` names no target (success = reaching ANY enemy, `chargeTargetsFor`).
+                          For `charge.badOdds`, `charge.failedByLuck` and `missed.charge` the distance is measured to the
+                          NEAREST enemy by `unitDistance` in the `before` state of the `declareCharge` frame (for
+                          `missed.charge`: the frame where the charge could have been declared); ties → first in
+                          `state.units` order. `refs.targetUnitId` = that unit, and `frameIndex` is that frame.
+                      `expectedMeleeWounds` = expected wounds of the melee matchup CONDITIONAL on the charge succeeding
+                          (NOT multiplied by `chargeProbability`; the probability is its own metric). It is the impact of
+                          `missed.charge` and `move.chargeExposure`, so those two always rank by the success case.
  *  - `*Probability`  probability, 0..1 (never a percentage).
  *  - `*Inches`       board distance or dice distance in inches, >= 0.
  *  - `*Vp`           victory points (integer-valued, >= 0).
@@ -537,7 +558,13 @@ export const METRIC_UNITS: Readonly<Record<string, MetricUnit>> = {
  *  luck.summary      luckIndex, attackDealtWounds (= totals.attackDealt), expectedDealtWounds, attackTakenWounds (= totals.attackTaken), expectedTakenWounds
  *  luck.swing        tailProbability, actualWounds, expectedWounds, attackCount, isOwnAttack
  *                    (`isOwnAttack` = 1 if the sequence is the human's own attack, 0 if it is an enemy attack on the human)
- *  loss.attribution  takenWounds (all-source wounds the lost unit took in the decisive enemy turn), enemyExpectedWounds, decisionCount
+ *  loss.attribution  takenWounds, enemyExpectedWounds, decisionCount. DECISIVE ENEMY TURN = the enemy player turn
+ *                    in which the unit was destroyed (frame anchor = the destroying command's frame).
+ *                    `takenWounds` = all-source wounds the unit lost in that turn; `enemyExpectedWounds` = expected
+ *                    ATTACK wounds against that unit from the enemy attacks actually made in that turn (computed
+ *                    from each attack's `before` state, expectation not rolled result); `decisionCount` = number of
+ *                    the human's own commands involving this unit (move, shoot, charge, fight) in the human's most
+ *                    recent turn before the decisive enemy turn.
  *  objective.swing   swingVp (human VP not scored + enemy VP gained because of the flip), humanOc, enemyOc
  *  objective.battleShock  lostVp, lostOc (OC zeroed by Battle-shock), enemyOc
  *  shoot.targetChoice, shoot.profileChoice, shoot.advanceCost, shoot.coverIgnored,
@@ -915,8 +942,9 @@ export interface PlanItem {
   /** Which kind of mistake/opportunity to work on. Must be a `mistake` or `missed` class kind. */
   kind: FindingKind
   /**
-   * Ids of ALL report findings of this `kind` (in any list: `mistakes`, `missed`, `shooting`, `movement`),
-   * in rank order; non-empty, all exist in the report. Selection: see the PLAN RULE above.
+   * Ids of ALL findings of this `kind` that are in the PLAN POOL (class `mistake`/`missed`, severity != 'info',
+   * in any list: `mistakes`, `missed`, `shooting`, `movement`), in rank order; non-empty, all exist in the report.
+   * Findings of the same kind with severity 'info' are NOT included. Selection: see the PLAN RULE above.
    */
   findingIds: string[]
 }
@@ -951,7 +979,8 @@ export interface RoundSummary {
  *                   `rounds < REPORT.LOW_DATA_MIN_ROUNDS` OR `humanAttackActions < REPORT.LOW_DATA_MIN_ATTACK_ACTIONS`
  *                   OR `humanAttackDice < REPORT.LOW_DATA_MIN_ATTACK_DICE` (all strict `<`; `humanAttackActions` and
  *                   `humanAttackDice` come from {@link StatsResult}). Analyzers ALWAYS emit their findings.
- *  - `estimateOnly` All findings are `estimate`/`heuristic`; nothing could be proven exactly.
+ *  - `estimateOnly` The report has at least one non-battle-wide finding (`frameIndex` not null) and none of
+ *                   them is `exact`; nothing could be proven exactly.
  */
 export type ReportNoteKind = 'partial' | 'lowData' | 'estimateOnly'
 
