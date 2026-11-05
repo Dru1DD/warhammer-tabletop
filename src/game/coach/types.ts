@@ -312,7 +312,8 @@ export type Severity = 'critical' | 'major' | 'minor' | 'info'
  *                          held while `players.orks.waaaghUsed` was still false, where the condition = some Ork unit of
  *                          the human within the AI's reach of an enemy (`unitDistance <= MISSED.WAAAGH_REACH_INCHES`, the
  *                          AI's `6 + 3.5 + 7` in ai.ts). If it never held, the first own Command-phase `endPhase` frame
- *                          with `round >= MISSED.WAAAGH_MIN_ROUND`. `unitIds[0]` = the first human unit (state order)
+ *                          with `round >= MISSED.WAAAGH_MIN_ROUND`. Emitted only when the LAST recorded round is
+ *                          `>= MISSED.WAAAGH_MIN_ROUND` (the anchor itself may be earlier, e.g. round 2). `unitIds[0]` = the first human unit (state order)
  *                          within reach at that frame (the first Ork unit if the condition never held).
  *  - `missed.ammoRunts`    The Ammo Runts ability was never used though it would have added expected damage.
  *  - `missed.objective`    An objective could have been reached/held at no cost and was not.
@@ -407,7 +408,9 @@ export interface Finding {
   /**
    * Wounds-EQUIVALENT size of the finding, >= 0, finite; bigger = matters more. EVERY analyzer
    * fills it, and it is a PURE FUNCTION of `kind` + `metrics`: exactly the formula in
-   * {@link IMPACT_SOURCE} (computed by `impactFromMetrics`, shape.ts; tolerance 1e-9). Severity is
+   * {@link IMPACT_SOURCE} (computed by `impactFromMetrics`, shape.ts; tolerance 1e-9). An analyzer therefore
+   * sets `impact = impactFromMetrics(kind, metrics)` on the FINAL metrics object, i.e. AFTER any rounding of
+   * the metrics (never from the unrounded intermediate values). Severity is
    * derived from it (see {@link Severity}); the RANKER sorts by severity, then `impact` descending,
    * then `id` ascending (stable) — see {@link FINDING_CLASS}.
    */

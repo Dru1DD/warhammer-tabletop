@@ -83,6 +83,16 @@ describe('findingShapeErrors', () => {
     expect(severityOf({ ...base, kind: 'luck.summary', impact: 0, metrics: { luckIndex: 0.39 } })).toBe('info')
   })
 
+  it('ctx.config overrides the thresholds used for severity and the vp conversion', () => {
+    const f = byKind('shoot.targetChoice') // major under defaults
+    const strict = { ...CONFIG, SHOOT: { ...CONFIG.SHOOT, MAJOR_WOUNDS: f.impact + 1, CRITICAL_WOUNDS: f.impact + 2 } }
+    expect(findingShapeErrors(f, { human: f.actor, config: strict }).join()).toContain('severity major != minor')
+    expect(errs(f)).toBe('')
+    const sw = byKind('objective.swing')
+    const cheap = { ...CONFIG, REPORT: { ...CONFIG.REPORT, VP_TO_WOUNDS: 1 } }
+    expect(findingShapeErrors(sw, { human: sw.actor, config: cheap }).join()).toContain('IMPACT_SOURCE value')
+  })
+
   it('actor: must equal ctx.human when ctx is given; ignored otherwise', () => {
     const f = byKind('shoot.targetChoice') // an Orks-or-Marines fixture finding; take its own actor
     const other = f.actor === 'marines' ? 'orks' : 'marines'

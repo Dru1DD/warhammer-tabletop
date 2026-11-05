@@ -73,7 +73,7 @@ function capViolations(r: CoachReport): string[] {
 }
 
 /** Per-kind trigger thresholds from config (inclusive); returns true when the finding respects them. */
-const THRESHOLDS: Partial<Record<FindingKind, (x: Finding) => boolean>> = {
+const THRESHOLDS: Partial<Record<FindingKind, (x: Finding, r: CoachReport) => boolean>> = {
   'luck.swing': (x) =>
     x.metrics.tailProbability <= LUCK.SWING_MAX_P && Math.abs(x.metrics.actualWounds - x.metrics.expectedWounds) >= LUCK.SWING_MIN_WOUNDS,
   'shoot.targetChoice': (x) => x.metrics.ratio >= SHOOT.TARGET_MIN_RATIO && x.metrics.deltaWounds >= SHOOT.TARGET_MIN_ABS_WOUNDS,
@@ -96,7 +96,8 @@ const THRESHOLDS: Partial<Record<FindingKind, (x: Finding) => boolean>> = {
   'move.advanceDecision': (x) => x.metrics.deltaWounds >= MOVE.DECISION_MIN_NET_WOUNDS,
   'missed.shot': (x) => x.metrics.bestExpectedWounds >= MISSED.SHOT_MIN_EXPECTED_WOUNDS,
   'missed.charge': (x) => x.metrics.chargeProbability >= MISSED.CHARGE_MIN_P && x.metrics.expectedMeleeWounds >= MISSED.CHARGE_MIN_EXPECTED_WOUNDS,
-  'missed.waaagh': (x) => x.round >= MISSED.WAAAGH_MIN_ROUND,
+  // the anchor frame may be earlier (first holding Command phase); what must hold is that the battle reached the round
+  'missed.waaagh': (_x, r) => r.timeline[r.timeline.length - 1].round >= MISSED.WAAAGH_MIN_ROUND,
   'missed.ammoRunts': (x) => x.metrics.deltaWounds >= MISSED.AMMO_RUNTS_MIN_GAIN_WOUNDS,
   'missed.objective': (x) => x.metrics.lostVp >= MISSED.OBJECTIVE_MIN_VP,
   'objective.swing': (x) => x.metrics.swingVp >= OBJECTIVE.SWING_MIN_VP,
@@ -330,7 +331,7 @@ describe('coach contract: report samples', () => {
       if (m.ratio !== undefined) expect(approx(m.ratio, m.bestExpectedWounds / m.chosenExpectedWounds, 0.02), `${x.id} ratio`).toBe(true)
       if (x.kind === 'shoot.hazardLoss') expect(approx(m.deltaWounds, m.selfExpectedWounds - m.gainExpectedWounds, 0.05)).toBe(true)
       const check = THRESHOLDS[x.kind]
-      if (check) expect(check(x), `${x.id} threshold`).toBe(true)
+      if (check) expect(check(x, r), `${x.id} threshold`).toBe(true)
     }
   })
 
