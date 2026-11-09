@@ -1,5 +1,5 @@
 import { DATASHEETS, PROFILES, WEAPONS } from './data/datasheets'
-import { baseRadius, edgeDistance, withinRange, circlePolygonDistance } from './geometry/geometry'
+import { baseRadius, edgeDistance, EPS, withinRange, circlePolygonDistance } from './geometry/geometry'
 import type { GameState, ModelProfile, ModelState, Objective, PlayerId, TerrainKind, UnitState, Vec } from './types'
 
 export const SCHEMA_VERSION = 1
@@ -12,7 +12,17 @@ export const CONSOLIDATE = 3
 export const OBJECTIVE_RANGE = 3
 export const OBJECTIVE_MARKER_MM = 40
 
-export const other = (p: PlayerId): PlayerId => (p === 'marines' ? 'orks' : 'marines')
+/** A per-side record. Only the battle's two factions exist at runtime; the type is the full Record for easy indexing. */
+export const seats = <T>(a: PlayerId, va: T, b: PlayerId, vb: T): Record<PlayerId, T> => ({ [a]: va, [b]: vb }) as Record<PlayerId, T>
+
+export const DEFAULT_SIDES: [PlayerId, PlayerId] = ['marines', 'orks']
+/** [west, east] factions of this battle. */
+export const sidesOf = (s: Pick<GameState, 'sides'>): [PlayerId, PlayerId] => s.sides ?? DEFAULT_SIDES
+/** The opponent of `p` in this battle. */
+export const other = (s: Pick<GameState, 'sides'>, p: PlayerId): PlayerId => {
+  const [a, b] = sidesOf(s)
+  return p === a ? b : a
+}
 
 export const profileOf = (m: ModelState): ModelProfile => PROFILES[m.profileId]
 export const radiusOf = (m: ModelState) => baseRadius(profileOf(m).baseMm)
@@ -20,10 +30,23 @@ export const datasheetOf = (u: UnitState) => DATASHEETS[u.datasheetId]
 export const hasAbility = (u: UnitState, a: string) => datasheetOf(u).abilities.includes(a as never)
 export const alive = (u: UnitState) => u.models.filter((m) => !m.destroyed)
 
-const hasKeyword = (u: UnitState, ...k: string[]) => datasheetOf(u).keywords.some((x) => k.includes(x))
+export const hasKeyword = (u: UnitState, ...k: string[]) => datasheetOf(u).keywords.some((x) => k.includes(x))
 /** MONSTER or VEHICLE: Lethal Hits "non-M/V", cover, engaged shooting and movement differ. */
 export const isMV = (u: UnitState) => hasKeyword(u, 'MONSTER', 'VEHICLE')
-export const isInfantry = (u: UnitState) => hasKeyword(u, 'INFANTRY')
+/** SWARM models are treated like INFANTRY for terrain and cover (13.06, 13.08). */
+export const isInfantry = (u: UnitState) => hasKeyword(u, 'INFANTRY', 'SWARM')
+export const isFlyer = (u: UnitState) => hasKeyword(u, 'FLY')
+
+// ---------------------------------------------------------------- Synapse
+
+export const SYNAPSE_RANGE = 6
+
+/** Synapse (Tyranids): a TYRANIDS unit within 6″ of a friendly SYNAPSE unit. */
+export function inSynapseRange(s: GameState, u: UnitState): boolean {
+  if (datasheetOf(u).faction !== 'tyranids' || isDestroyed(u)) return false
+  return s.units.some((x) => x.owner === u.owner && !isDestroyed(x) && hasKeyword(x, 'SYNAPSE') && (x.id === u.id || unitDistance(u, x) <= SYNAPSE_RANGE + EPS))
+}
+
 
 /** 11th-ed terrain categories (13.03–13.06, 13.11). Light and dense make an area obscuring;
  * only INFANTRY may move through dense features (they are assumed taller than 2″);
@@ -46,7 +69,7 @@ export function getUnit(s: GameState, id: string): UnitState {
 
 export const findUnit = (s: GameState, id: string) => s.units.find((x) => x.id === id)
 export const unitsOf = (s: GameState, p: PlayerId) => s.units.filter((u) => u.owner === p && !isDestroyed(u))
-export const enemiesOf = (s: GameState, u: UnitState) => unitsOf(s, other(u.owner))
+export const enemiesOf = (s: GameState, u: UnitState) => unitsOf(s, other(s, u.owner))
 
 export function modelDistance(a: ModelState, b: ModelState, aPos: Vec = a.pos, bPos: Vec = b.pos) {
   return edgeDistance(aPos, radiusOf(a), bPos, radiusOf(b))
@@ -81,19 +104,29 @@ export const modelInObjectiveRange = (m: ModelState, o: Objective, pos: Vec = m.
 
 export const unitNearObjective = (u: UnitState, o: Objective) => alive(u).some((m) => modelInObjectiveRange(m, o))
 
+/** Chittering Swarm: models of a unit engaged with an enemy swarm have OC reduced by 1 (not below 1). */
+const chittered = (s: GameState, u: UnitState) =>
+  s.units.some((e) => e.owner !== u.owner && hasAbility(e, 'chitteringSwarm') && !isDestroyed(e) && unitDistance(u, e) <= ENGAGEMENT_RANGE + EPS)
+
 export function objectiveLevels(s: GameState, o: Objective): Record<PlayerId, number> {
-  const lv: Record<PlayerId, number> = { marines: 0, orks: 0 }
+  const lv = Object.fromEntries(sidesOf(s).map((p) => [p, 0])) as Record<PlayerId, number>
   for (const u of s.units) {
     if (u.battleShocked) continue
-    for (const m of alive(u)) if (modelInObjectiveRange(m, o)) lv[u.owner] += profileOf(m).oc
+    const shaved = alive(u).some((m) => modelInObjectiveRange(m, o)) && chittered(s, u)
+    for (const m of alive(u)) {
+      if (!modelInObjectiveRange(m, o)) continue
+      const oc = profileOf(m).oc
+      lv[u.owner] += shaved && oc > 0 ? Math.max(1, oc - 1) : oc
+    }
   }
   return lv
 }
 
 export function updateObjectiveControl(s: GameState) {
+  const [a, b] = sidesOf(s)
   for (const o of s.objectives) {
     const lv = objectiveLevels(s, o)
-    o.controller = lv.marines > lv.orks ? 'marines' : lv.orks > lv.marines ? 'orks' : null
+    o.controller = lv[a] > lv[b] ? a : lv[b] > lv[a] ? b : null
   }
 }
 

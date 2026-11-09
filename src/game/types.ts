@@ -6,7 +6,9 @@ export interface Vec {
   y: number
 }
 
-export type PlayerId = 'marines' | 'orks'
+/** A side on the table is identified by its faction. A battle has exactly two distinct sides. */
+export type PlayerId = 'marines' | 'orks' | 'tyranids' | 'necrons' | 'aeldari'
+export const FACTIONS: PlayerId[] = ['marines', 'orks', 'tyranids', 'necrons', 'aeldari']
 export type Phase = 'command' | 'movement' | 'shooting' | 'charge' | 'fight'
 export const PHASES: Phase[] = ['command', 'movement', 'shooting', 'charge', 'fight']
 
@@ -22,6 +24,18 @@ export interface WeaponKeywords {
   hazardous?: boolean
   cleave?: number
   devastatingWounds?: boolean
+  /** Twin-linked: re-roll failed wound rolls */
+  twinLinked?: boolean
+  /** Extra Attacks: used in addition to the model's other melee weapon */
+  extraAttacks?: boolean
+  /** Sustained Hits X: each critical hit scores X extra hits */
+  sustainedHits?: number
+  /** Anti-X Y+: against units with keyword X an unmodified wound roll of Y+ is a critical wound */
+  anti?: { keyword: string; roll: number }
+  /** Psychic: BS/WS and hit-roll modifiers (cover, negative modifiers) may be ignored */
+  psychic?: boolean
+  /** One Shot: can be used once per battle */
+  oneShot?: boolean
 }
 
 export interface WeaponProfile {
@@ -62,6 +76,8 @@ export interface ModelProfile {
   invuln?: number
   baseMm: number
   character?: boolean
+  /** weapon platform: crew model that dies with its unit's last non-platform model (Crewed Platform) */
+  platform?: boolean
   weapons: string[]
 }
 
@@ -76,6 +92,30 @@ export type AbilityId =
   | 'deadlyDemise1'
   | 'deadlyDemiseD3'
   | 'targetedIntercession'
+  // Tyranids
+  | 'synapse'
+  | 'shadowInTheWarp'
+  | 'onslaught'
+  | 'boundingLeap'
+  | 'adaptablePredators'
+  | 'skulkingHorrors'
+  | 'willOfTheHiveMind'
+  // Necrons
+  | 'reanimation'
+  | 'legion'
+  | 'implacableResilience'
+  | 'whirlingOnslaught'
+  | 'selfDestruction'
+  | 'chitteringSwarm'
+  | 'myWillBeDone'
+  // Aeldari
+  | 'battleFocus'
+  | 'guide'
+  | 'branchingFates'
+  | 'swiftDemise'
+  | 'bladestorm'
+  | 'crewedPlatform'
+  | 'fleetOfFoot'
 
 export interface Datasheet {
   id: string
@@ -115,6 +155,10 @@ export interface UnitState {
   fought: boolean
   // per-battle
   ammoRuntsUsed: boolean
+  /** One Shot weapons already used, as `${modelId}:${weaponId}` (absent until the first use) */
+  spent?: string[]
+  /** Guide already used by this unit this turn (absent otherwise) */
+  guided?: boolean
 }
 
 /** crater = exposed; barricade = light; ruin / woods / container = dense (container is also solid) */
@@ -143,6 +187,12 @@ export interface PlayerState {
   waaaghUsed: boolean
   /** Waaagh! riled-up turns remaining (counts down at end of every turn) */
   riledTurns: number
+  /** Tyranids: Shadow in the Warp already used this battle (only present for that army) */
+  shadowUsed?: boolean
+  /** Aeldari: Battle Focus tokens left this battle round (only present for that army) */
+  focus?: number
+  /** Aeldari: enemy unit marked by Guide until this player's next Command phase */
+  guide?: string | null
 }
 
 export interface PendingCharge {
@@ -214,12 +264,23 @@ export interface GameState {
   diceLog: DiceEntry[]
   winner: PlayerId | 'draw' | null
   nextId: number
+  /** [west, east] factions. Absent = the original pair ['marines', 'orks'] (keeps old saves and states identical). */
+  sides?: [PlayerId, PlayerId]
 }
 
 export type Command =
   | { type: 'declareAdvance'; unitId: string }
   | { type: 'rerollAdvance'; unitId: string }
-  | { type: 'move'; unitId: string; mode: 'normal' | 'advance' | 'fallBack'; positions: Record<string, Vec> }
+  | {
+      type: 'move'
+      unitId: string
+      mode: 'normal' | 'advance' | 'fallBack'
+      positions: Record<string, Vec>
+      /** FLY: "take to the skies" (−2″ max, ignore models and terrain) */
+      fly?: boolean
+      /** Aeldari Battle Focus, Swift as the Wind: spend a token for +2″ */
+      swift?: boolean
+    }
   | {
       type: 'shoot'
       unitId: string
@@ -234,6 +295,8 @@ export type Command =
   | { type: 'skipCharge'; unitId: string }
   | { type: 'fight'; unitId: string; targetId: string }
   | { type: 'callWaaagh' }
+  | { type: 'callShadow' }
+  | { type: 'guide'; unitId: string; targetId: string }
   | { type: 'endPhase' }
 
 export type Validation = { ok: true } | { ok: false; reason: string }

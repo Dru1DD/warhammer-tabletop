@@ -1,0 +1,158 @@
+# Armies: Tyranids, Necrons, Aeldari
+
+Three complete armies play next to the original Space Marines and Orks on the 44″×30″ «Боевой патруль» board. Any two different armies can fight each other (10 pairings, either seating). Small 30″×22″ boards keep the two Introductory Set armies only.
+
+## Sources and edition
+
+Everything targets **11th edition**, like the rest of the project (see [research.md](research.md)). Datasheets were read from Wahapedia's 11th-edition transcription on **2026-11-09**, the same community source the project already uses. It is *not* the official PDF, so treat the numbers as unverified against GW's own files.
+
+- Tyranids: [Hive Tyrant](https://wahapedia.ru/wh40k11ed/factions/tyranids/Hive-Tyrant) · [Termagants](https://wahapedia.ru/wh40k11ed/factions/tyranids/Termagants) · [Hormagaunts](https://wahapedia.ru/wh40k11ed/factions/tyranids/Hormagaunts) · [Tyranid Warriors With Ranged Bio-weapons](https://wahapedia.ru/wh40k11ed/factions/tyranids/Tyranid-Warriors-With-Ranged-Bio-weapons)
+- Necrons: [Overlord](https://wahapedia.ru/wh40k11ed/factions/necrons/Overlord) · [Necron Warriors](https://wahapedia.ru/wh40k11ed/factions/necrons/Necron-Warriors) · [Skorpekh Destroyers](https://wahapedia.ru/wh40k11ed/factions/necrons/Skorpekh-Destroyers) · [Canoptek Scarab Swarms](https://wahapedia.ru/wh40k11ed/factions/necrons/Canoptek-Scarab-Swarms)
+- Aeldari: [Farseer](https://wahapedia.ru/wh40k11ed/factions/aeldari/Farseer) · [Guardian Defenders](https://wahapedia.ru/wh40k11ed/factions/aeldari/Guardian-Defenders) · [Dire Avengers](https://wahapedia.ru/wh40k11ed/factions/aeldari/Dire-Avengers) · [Windriders](https://wahapedia.ru/wh40k11ed/factions/aeldari/Windriders)
+- Core rules (weapon abilities §24, FLY §21.03, healing §02.02.04, battle-shock §01.07): [core rules transcription](https://wahapedia.ru/wh40k11ed/the-rules/core-rules/)
+
+`src/game/__tests__/armyData.test.ts` pins every characteristic and weapon profile below, so a typo in the data fails a test.
+
+## Training compositions and legality
+
+All four requested units exist in 11th edition. Two compositions needed a transparent adjustment; the rest are legal as listed. Points were not used (the project has no points system).
+
+| Army | Requested | Built | Legality note |
+|---|---|---|---|
+| Tyranids | 1 Hive Tyrant | 1 Hive Tyrant, default loadout (monstrous bonesword and lash whip + monstrous scything talons) | Legal. The Tyrant has no ranged weapon in the default loadout; the cannons are in the data (`heavyVenomCannon`, `stranglethornCannon`) but not equipped. |
+| | 10 Termagants | 10 Termagants: 7 fleshborers, 1 shardlauncher, 1 spike rifle, 1 strangleweb | Legal: 10 is the minimum; each special weapon is allowed once per 10 models. |
+| | 10 Hormagaunts | 10 Hormagaunts | Legal (10–20). |
+| | 3 Tyranid Warriors | 1 Tyranid Prime + 2 Warriors with Ranged Bio-weapons: devourer, venom cannon, barbed strangler | **Adjusted**: the datasheet unit is *1 Tyranid Prime + 2–5 Warriors* (3–6 models), so 3 models is the minimum legal unit. One venom cannon and one barbed strangler per 3 models are both allowed. The page gives one characteristics row for the whole unit, so Prime and Warrior share the profile. |
+| Necrons | 1 Overlord | 1 Overlord: tachyon arrow + Overlord's blade (default) | Legal. |
+| | 10 Necron Warriors | 10 Necron Warriors with gauss flayers | Legal (10–20). |
+| | 3 Skorpekh Destroyers | 3 Skorpekh Destroyers, no Plasmacyte | Legal (3–6). The optional Plasmacyte is not taken. |
+| | 3 Canoptek Scarab Swarms | 3 Canoptek Scarab Swarms | Legal (3–6). |
+| Aeldari | 1 Farseer | 1 Farseer: Eldritch Storm, shuriken pistol, witchblade (default) | Legal. |
+| | 10 Guardian Defenders | 10 Guardian Defenders **+ 1 Heavy Weapon Platform** (missile launcher) | **Adjusted**: the datasheet unit is 10 Defenders *and* 1 platform (11 models). The platform is part of the unit. |
+| | 5 Dire Avengers | 1 Dire Avenger Exarch + 4 Dire Avengers (shuriken pistol + diresword on the Exarch) | Legal: 5 models is the minimum (1 Exarch + 4–9). |
+| | 3 Windriders | 3 Windriders: twin shuriken catapult, scatter laser, shuriken cannon | Legal (3–6). |
+
+Not taken (optional wargear): Aspect Shrine token, shimmershield, Plasmacyte, singing spear, resurrection orb. Their weapon profiles are in the data where they are weapons.
+
+Leaders are separate units, as the Lieutenant already was: *attached units are not implemented*.
+
+## Datasheets as implemented
+
+M / T / Sv / W / Ld / OC (invulnerable save) · base. Full weapon profiles are in `src/game/data/{tyranids,necrons,aeldari}.ts`.
+
+| Unit | M | T | Sv | W | Ld | OC | Inv | Base |
+|---|---|---|---|---|---|---|---|---|
+| Hive Tyrant | 8″ | 10 | 2+ | 10 | 7+ | 3 | 4+ | 60 mm |
+| Termagant | 6″ | 3 | 5+ | 1 | 8+ | 2 | – | 28.5 mm |
+| Hormagaunt | 10″ | 3 | 5+ | 1 | 8+ | 2 | – | 28.5 mm |
+| Tyranid Prime / Warrior | 6″ | 5 | 4+ | 3 | 7+ | 2 | – | 50 mm |
+| Overlord | 5″ | 5 | 2+ | 6 | 6+ | 1 | 4+ | 40 mm |
+| Necron Warrior | 5″ | 4 | 4+ | 1 | 7+ | 2 | – | 32 mm |
+| Skorpekh Destroyer | 8″ | 6 | 3+ | 3 | 7+ | 2 | – | 50 mm |
+| Canoptek Scarab Swarm | 10″ | 2 | 6+ | 4 | 8+ | 0 | – | 40 mm |
+| Farseer | 7″ | 3 | 6+ | 4 | 6+ | 1 | 4+ | 25 mm |
+| Guardian Defender | 7″ | 3 | 4+ | 1 | 7+ | 2 | – | 28.5 mm |
+| Heavy Weapon Platform | 7″ | 3 | 4+ | 2 | 7+ | 0 | – | 40 mm |
+| Dire Avenger | 7″ | 3 | 4+ | 1 | 6+ | 1 | – | 28.5 mm |
+| Dire Avenger Exarch | 7″ | 3 | 4+ | 2 | 6+ | 1 | 5+ | 28.5 mm |
+| Windrider | 14″ | 4 | 4+ | 2 | 7+ | 2 | 6+ | 32 mm |
+
+## Rules abstractions
+
+The new armies needed mechanics the engine did not have. Each is a reusable rule, not a faction special case, and each has tests (`weaponAbilities.test.ts`, `factionRules.test.ts`).
+
+| Mechanic | Used by | Implementation |
+|---|---|---|
+| **Twin-linked**: re-roll failed wound rolls | Hive Tyrant bonesword, spinefists, Warriors, Windriders | `combat/attack.ts` wound step |
+| **Extra Attacks**: swing in addition to the other melee weapon | Hive Tyrant scything talons | `meleeWeaponsOf` (first normal weapon + every Extra Attacks weapon) |
+| **Devastating Wounds**: a critical wound = mortal wounds equal to D, after normal damage, no save | Overlord's blade, voidscythe, strangleweb | `attack.ts` (this keyword existed in the data but did nothing before) |
+| **Sustained Hits X**, **Lethal Hits**, **Anti-X Y+**, **Psychic** (ignore BS/hit modifiers and cover), **One Shot** | scatter laser, Bladestorm; gauss, shuriken cannon; witchblade; Farseer; tachyon arrow | `attack.ts`, `shootPlan`; One Shot is remembered per model in `UnitState.spent` |
+| **Re-roll hit rolls** (1s, or all misses) | Swift Demise (all misses vs the closest target), Whirling Onslaught (all misses after a charge) | `AttackContext.rerollHits` |
+| **FLY** ("take to the skies": −2″, pass over models and terrain) | Scarab Swarms, Windriders | `move.fly`, `moveProblem`/`planMove`; SWARM counts as INFANTRY for terrain and cover |
+| **Synapse**: 3D6 battle-shock rolls and +1 Strength on melee attacks within 6″ of a SYNAPSE unit | all Tyranids | `inSynapseRange`, `leadershipRoll`, `meleeSetup` |
+| **Shadow in the Warp**: once per battle, every enemy unit tests battle-shock (−1 within 6″ of Synapse) | Tyranids | command `callShadow`, `PlayerState.shadowUsed` |
+| **Onslaught** aura: Assault + Lethal Hits for friendly Tyranids within 6″ of the Tyrant | Hive Tyrant | `inOnslaught` in `shootPlan` |
+| Charge after Advance / shoot and charge after Fall Back | Bounding Leap / Adaptable Predators | `canChargeAfterAdvance`, `canActAfterFallBack` (Waaagh! uses the same hook) |
+| **Reanimation Protocols**: at the end of your Command phase heal D3 wounds, then revive models with 1 wound (never CHARACTER, never above starting strength) | all Necrons | `rules/heal.ts` (`healUnit`, `reviveSpot`), `reanimate`; Their Number is Legion re-rolls a D3 of 1 |
+| **Self-destruction**: at the start of the Fight phase an engaged swarm loses a model; D6 (+1 vs VEHICLE): 2–5 = D3 mortal wounds, 6+ = 3 | Scarab Swarms | `selfDestruction` in `enterPhase('fight')` |
+| **Chittering Swarm**: −1 OC (min 1) for enemy models engaged with the swarm | Scarab Swarms | `objectiveLevels` |
+| **Implacable Resilience**: −1 Damage (min 1) | Overlord | `defenceMods` |
+| **Battle Focus**: 2 tokens per battle round; **Swift as the Wind** spends one for +2″ | Aeldari | `PlayerState.focus`, `move.swift` |
+| **Guide**: mark an enemy unit within 18″ in view; friendly AELDARI get +1 to hit against it until your next Command phase | Farseer | command `guide`, `PlayerState.guide` |
+| **Bladestorm**: Sustained Hits 1 against a target within half range | Dire Avengers | per-model group in `shootPlan` |
+| **Crewed Platform**: platforms die with the last Guardian Defender | Guardian Defenders | `enforceCrews` |
+
+Interpretation choices (the transcription does not say, or the choice is the player's):
+
+- **3D6 for battle-shock** (Synapse): the rule text only says "3D6 instead of 2D6". The sum of all three dice is used.
+- **Shadow in the Warp**: a unit that passes keeps its current status (a passing roll does not cure an already shocked unit).
+- **Their Number is Legion**: the simulator re-rolls a D3 result of 1 (the player's choice, automated).
+- **Self-destruction** is optional in the rules; the simulator uses it automatically at the start of every Fight phase while the swarm has at least 2 models.
+- **Guide** may be used at any point of your Movement phase, not only at its very end.
+- **Melee weapon choice**: a model with several non-Extra-Attacks melee weapons uses the first one listed (the Exarch's diresword).
+
+## Not implemented (deliberately, never replaced by an unrelated effect)
+
+| Ability | Why |
+|---|---|
+| Skulking Horrors (Termagants), Fade Back, Opportunity Seized, Flitting Shadows, Sudden Strike, Star Engines (Battle Focus manoeuvres), Fleet of Foot | Reactive moves during the opponent's turn need an interrupt mechanism the engine does not have (same reason Fire Overwatch is missing). Swift as the Wind is a normal-turn effect and is implemented. |
+| Will of the Hive Mind, My Will Be Done | They reduce a stratagem's CP cost; there are no stratagems. |
+| Branching Fates, Leader attachments | Attached units are not implemented. |
+| Shadow in the Warp in the *opponent's* Command phase | A command from the non-active player would break the "who owns the decision" rule; it is available in your own Command phase only. |
+| Plasmacyte, Aspect Shrine tokens, shimmershield, Resurrection Orb | Optional wargear that was not taken in the training lists. |
+
+Each of these abilities is listed in the unit card with a "[не реализовано …]" note.
+
+## AI behaviour per army
+
+All armies use the same utility AI (`ai/ai.ts`) with faction weights and a few hooks. Marines and Orks keep their exact original numbers (the golden-master test pins them).
+
+| Army | Style |
+|---|---|
+| Tyranids | Swarm: aggressive (closes in, `attackOpportunity` 1.6), cares little about losses, bonus for staying in Synapse Range, calls Shadow in the Warp from round 2 when at least two healthy enemy units are on the board. Hormagaunts and the Tyrant hunt the enemy. |
+| Necrons | Methodical gunline: values objectives and survival, shoots first; Skorpekh Destroyers and Scarab Swarms are melee hunters. Reanimation makes losses cheaper (the AI does not need to retreat). |
+| Aeldari | Fragile hit-and-run shooters: high survival and cover weights, falls back from a lost melee, uses Swift as the Wind only when the move needs the extra 2″, flies when the flying path scores better, and uses Guide at the end of the Movement phase on the nearest visible enemy. |
+
+## Tests
+
+- `armyData.test.ts`: every characteristic and weapon profile, compositions and loadout limits, legal deployment of every army in either seat for all 20 ordered pairings, a token and an original portrait for every model.
+- `weaponAbilities.test.ts`, `factionRules.test.ts`: each abstraction above against scripted dice.
+- `armyBattles.test.ts`: complete AI-vs-AI battles for all 10 pairings through the real match pipeline (`aiProposal` → `submit`): every command legal, a full turn each, attacks with dice, casualties, objective VP, and replay of a saved history to a byte-identical final state.
+- `ui/armies.test.tsx`: the selection screen lists the real composition; each of the five armies is deployed and played by a human through the store for two rounds against the AI, autosaved and reloaded.
+
+## Balance observations
+
+Measured on 2026-11-09: the tactical (**«Стандарт»**) AI plays both sides, «Боевой патруль», **seeds 1–4, both seatings** of every pairing = **80 battles** (8 per pairing, 32 per army). Reproduce with
+`BALANCE_SIM=1 npx vitest run src/game/__tests__/balance.test.ts --disableConsoleIntercept` (about 11 minutes; `BALANCE_SEEDS=1,2` for a quick run). This is observation only: nothing was tuned.
+
+| Pairing (A vs B) | Wins A : B : draws | Avg end round | Avg VP (A : B) | Avg models lost (A / B) |
+|---|---|---|---|---|
+| Космодесант vs Орки | 8 : 0 : 0 | 4.4 | 22.5 : 11.9 | 3.6 / 31.0 |
+| Космодесант vs Тираниды | 7 : 1 : 0 | 3.8 | 14.4 : 10.0 | 6.0 / 23.8 |
+| Космодесант vs Некроны | 8 : 0 : 0 | 4.6 | 28.1 : 9.4 | 3.9 / 16.5 |
+| Космодесант vs Аэльдари | 8 : 0 : 0 | 4.6 | 28.1 : 11.9 | 1.8 / 19.4 |
+| Орки vs Тираниды | 3 : 5 : 0 | 4.6 | 18.8 : 13.1 | 28.3 / 22.9 |
+| Орки vs Некроны | 8 : 0 : 0 | 3.6 | 21.3 : 5.6 | 10.0 / 17.0 |
+| Орки vs Аэльдари | 6 : 1 : 1 | 4.9 | 23.1 : 11.3 | 23.8 / 18.3 |
+| Тираниды vs Некроны | 8 : 0 : 0 | 4.5 | 19.4 : 10.6 | 19.5 / 17.0 |
+| Тираниды vs Аэльдари | 6 : 1 : 1 | 5.0 | 20.0 : 13.8 | 22.9 / 18.1 |
+| Некроны vs Аэльдари | 6 : 2 : 0 | 4.6 | 21.3 : 15.0 | 8.5 / 15.9 |
+
+| Army | Wins | Games | Win rate |
+|---|---|---|---|
+| Космодесант | 31 | 32 | 97% |
+| Тираниды | 20 | 32 | 63% |
+| Орки | 17 | 32 | 53% |
+| Некроны | 6 | 32 | 19% |
+| Аэльдари | 4 | 32 | 13% |
+
+What the numbers do and do not say:
+
+- **No seat bias.** The side that took the first turn won 44 of 80 (55%) and the west seat won 44 of 80 (55%); both are close to a coin flip. East-side positions, the board flip of the art and the AI's own-edge logic do not distort results. (In the earlier one-seed smoke run the west army won every game only because seed 1 gives the west army the first turn in all ten pairings.)
+- **The order is Marines > Tyranids > Orks > Necrons > Aeldari** for *this AI, these lists and this scoring*. It is not a statement about the real game: the lists are training compositions, not points-matched armies (24 Tyranid models against 17 Marines, for example), there are no stratagems, and the reactive abilities listed above are missing.
+- **Marines** win 97% for the same reason as in the two-army setup (24″ bolt rifles with Rapid Fire kill 1-wound models efficiently on a board this size).
+- **Tyranids** are the strongest new army: numbers, 10″ Hormagaunts that charge after advancing, and Synapse (+1 Strength, safe battle-shock). They beat Orks 5–3 and take a game off the Marines.
+- **Necrons and Aeldari lose most games.** Against the Marines they lose almost their whole army (16.5 of 17 and 19.4 of 20 models on average) while the Marines lose 4 and 2. Likely causes, **not tested**: 1-wound, 4+ save infantry (Necron Warriors, Guardians, Dire Avengers) die quickly to 24″ Marine fire, and neither Reanimation (D3 wounds per turn) nor Aeldari mobility compensates with these AI weights. Between themselves the Necrons beat the Aeldari 6–2.
+- **Sample size.** Eight battles per pairing give wide error bars (a 6–2 result is compatible with a 50/50 matchup); only the army totals and the extreme pairings (8–0) are meaningful. Games end on average in round 3.6–5.0 of 5.
+
+Possible follow-ups, deliberately not done here (they change rules or AI): give Necron/Aeldari AI a sturdier opening (cover and objective play), add the missing reactive abilities (Fade Back would help the Aeldari most), and match the lists by points.

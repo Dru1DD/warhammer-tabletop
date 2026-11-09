@@ -20,6 +20,9 @@ import { COACH_REPORT_VERSION, FINDING_TOPIC } from '../types'
 import type { CoachReport, Finding, FindingKind, PlanItem, PlayerRoundStats, ReportNote, RoundSummary, Severity } from '../types'
 import type { PlayerId } from '../../types'
 
+/** A two-side record (the fixtures are Marines vs Orks). */
+const duo = <T>(marines: T, orks: T) => ({ marines, orks }) as Record<PlayerId, T>
+
 type FindingInput = Pick<Finding, 'severity' | 'confidence' | 'round' | 'phase' | 'unitIds' | 'frameIndex' | 'impact' | 'metrics'> &
   Partial<Pick<Finding, 'refs'>>
 
@@ -44,7 +47,7 @@ const rank = (list: Finding[]): Finding[] =>
  */
 export type OwnSource = Record<number, Partial<Record<PlayerId, number>>>
 
-const round = (r: number, marines: PlayerRoundStats, orks: PlayerRoundStats): RoundSummary => ({ round: r, stats: { marines, orks } })
+const round = (r: number, marines: PlayerRoundStats, orks: PlayerRoundStats): RoundSummary => ({ round: r, stats: duo(marines, orks) })
 const st = (vp: number, damageDealt: number, damageTaken: number, unitsLost: number): PlayerRoundStats => ({ vp, damageDealt, damageTaken, unitsLost })
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -214,7 +217,7 @@ const planItem = (kind: FindingKind, ...fs: Finding[]): PlanItem => ({ kind, fin
 /** Full report: at least one finding of EVERY non-faction-gated kind; caps saturated; overflow shown. */
 export const reportSample: CoachReport = {
   version: COACH_REPORT_VERSION,
-  battle: { scenarioId: 'combat-patrol', human: 'marines', aiLevel: 'standard', rounds: 5, winner: 'orks', vp: { marines: 15, orks: 35 }, partial: false },
+  battle: { scenarioId: 'combat-patrol', human: 'marines', aiLevel: 'standard', rounds: 5, winner: 'orks', vp: duo(15, 35), partial: false },
   headline,
   // luckIndex = ((16 - 19.5) - (25 - 20.9)) / max(19.5 + 20.9, 3) = -7.6 / 40.4 = -0.188 -> -0.19
   totals: { damageDealt: 16, damageTaken: 26, attackDealt: 16, attackTaken: 25, expectedDealt: 19.5, expectedTaken: 20.9, luckIndex: -0.19 },
@@ -293,7 +296,7 @@ const shortMissedShot = m('missed.shot', {
 /** One-round game: nearly nothing to say; `lowData` removed luck, efficiency and positives. */
 export const shortGameReportSample: CoachReport = {
   version: COACH_REPORT_VERSION,
-  battle: { scenarioId: 'training-outpost', human: 'marines', aiLevel: 'beginner', rounds: 1, winner: null, vp: { marines: 0, orks: 0 }, partial: false },
+  battle: { scenarioId: 'training-outpost', human: 'marines', aiLevel: 'beginner', rounds: 1, winner: null, vp: duo(0, 0), partial: false },
   headline: m('result.summary', {
     severity: 'info', confidence: 'exact', round: 1, phase: 'movement', unitIds: [], frameIndex: null, impact: 0,
     metrics: { roundCount: 1, humanVp: 0, enemyVp: 0, dealtWounds: 0, takenWounds: 1 },
@@ -378,7 +381,7 @@ const oGoodTarget = o('good.targetChoice', {
 /** Orks human: Orks-only kinds; per-kind cap keeps a third shoot.targetChoice out of `mistakes`. */
 export const orksReportSample: CoachReport = {
   version: COACH_REPORT_VERSION,
-  battle: { scenarioId: 'combat-patrol', human: 'orks', aiLevel: 'standard', rounds: 4, winner: 'marines', vp: { marines: 25, orks: 10 }, partial: false },
+  battle: { scenarioId: 'combat-patrol', human: 'orks', aiLevel: 'standard', rounds: 4, winner: 'marines', vp: duo(25, 10), partial: false },
   headline: o('result.summary', {
     severity: 'info', confidence: 'exact', round: 4, phase: 'fight', unitIds: [], frameIndex: null, impact: 0,
     metrics: { roundCount: 4, humanVp: 10, enemyVp: 25, dealtWounds: 14, takenWounds: 26 },

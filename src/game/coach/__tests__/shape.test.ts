@@ -7,7 +7,7 @@ import type { CoachReport, Finding } from '../types'
 
 const all = (r: CoachReport): Finding[] => [r.headline, ...r.mistakes, ...r.missed, ...r.luck, ...r.shooting, ...r.movement, ...r.positives]
 const byKind = (kind: Finding['kind']) => [reportSample, orksReportSample].flatMap(all).find((x) => x.kind === kind)!
-const errs = (f: Finding, human?: 'marines' | 'orks') => findingShapeErrors(f, human ? { human } : undefined).join(' | ')
+const errs = (f: Finding, human?: Finding['actor']) => findingShapeErrors(f, human ? { human } : undefined).join(' | ')
 
 describe('findingShapeErrors', () => {
   it('positive: every fixture finding of every sample is clean (with and without ctx)', () => {

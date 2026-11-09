@@ -3,9 +3,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Circle, Ellipse, Group, Image as KImage, Layer, Line, Rect, Stage, Text } from 'react-konva'
 import { BOARD_STYLE, FACTION_LINE, FACTION_STYLE, TERRAIN_STYLE, TOKENS, tokenImageFor } from '../assets/manifest'
 import { boxOf, fitBox, withBox, type Box } from '../game/terrainLayout'
-import { actor, maxMove, moveModeFor, shootPlan, validate } from '../game/engine'
+import { actor, moveAllowance, moveCommand, moveModeFor, shootPlan, validate } from '../game/engine'
 import { baseRadius, dist, edgeDistance, withinRange } from '../game/geometry/geometry'
-import { alive, CHARGE_RANGE, findUnit, fmt, hasAbility, modelDistance, OBJECTIVE_MARKER_MM, OBJECTIVE_RANGE, profileOf, radiusOf, weaponsOf } from '../game/gameState'
+import { alive, CHARGE_RANGE, findUnit, fmt, hasAbility, isFlyer, modelDistance, OBJECTIVE_MARKER_MM, OBJECTIVE_RANGE, profileOf, radiusOf, sidesOf, weaponsOf } from '../game/gameState'
 import { scenarioById } from '../game/scenarios/scenarios'
 import type { Command, GameState, ModelState, Terrain, UnitState, Vec } from '../game/types'
 import { useStore } from '../store'
@@ -110,7 +110,7 @@ function useKeyboard() {
       if (e.key === 'Enter' && st.deploying) {
         if (sel) st.placeUnit(sel.id)
       } else if (e.key === 'Enter' && sel && Object.keys(st.draft).length) {
-        st.dispatch({ type: 'move', unitId: sel.id, mode: moveModeFor(g, sel), positions: st.draft })
+        st.dispatch(moveCommand(g, sel, st.draft, st.moveOptions))
       } else if (e.key === 'Escape') {
         if (st.measuring) st.toggleMeasure()
         else if (Object.keys(st.draft).length) st.clearDraft()
@@ -279,15 +279,18 @@ function ActionBar() {
   }
 
   if (game.phase === 'command' && human === 'orks' && !game.players.orks.waaaghUsed) btn('waaagh', { type: 'callWaaagh' }, '📣 WAAAGH!')
+  if (game.phase === 'command' && game.players[human].shadowUsed === false) btn('shadow', { type: 'callShadow' }, '🌑 Тень в Варпе')
   if (game.phase === 'movement' && mine && mine.move === 'none') {
     const mode = moveModeFor(game, mine)
     if (hasDraft) {
       buttons.push(<button key="reset" className="btn" onClick={() => st.clearDraft()} title="Вернуть модели на исходные места (Esc)">↺ Вернуть</button>)
-      btn('confirm', { type: 'move', unitId: mine.id, mode, positions: st.draft }, `✓ Подтвердить ${mode === 'advance' ? 'продвижение' : mode === 'fallBack' ? 'отступление' : 'движение'}`, true)
+      btn('confirm', moveCommand(game, mine, st.draft, st.moveOptions), `✓ Подтвердить ${mode === 'advance' ? 'продвижение' : mode === 'fallBack' ? 'отступление' : 'движение'}`, true)
     } else if (mine.advanceRoll === null && mode === 'normal') {
       btn('advance', { type: 'declareAdvance', unitId: mine.id }, '⚡ Продвинуться (+D6″)')
     }
     if (mine.advanceRoll !== null && !mine.advanceRerolled && hasAbility(mine, 'waaagh')) btn('reroll', { type: 'rerollAdvance', unitId: mine.id }, '🎲 Перебросить (Waaagh!)')
+    if (isFlyer(mine)) buttons.push(<button key="fly" className={`btn ${st.moveOptions.fly ? 'btn-primary' : ''}`} aria-pressed={st.moveOptions.fly} onClick={() => st.setMoveOptions({ fly: !st.moveOptions.fly })} title="FLY: −2″ к движению, зато модели пролетают над моделями и тиррейном">🕊 Взлететь (−2″)</button>)
+    if (hasAbility(mine, 'battleFocus') && (game.players[human].focus ?? 0) > 0) buttons.push(<button key="swift" className={`btn ${st.moveOptions.swift ? 'btn-primary' : ''}`} aria-pressed={st.moveOptions.swift} onClick={() => st.setMoveOptions({ swift: !st.moveOptions.swift })} title="Боевой фокус: жетон даёт +2″ к движению">✦ Swift as the Wind (+2″) · жетонов {game.players[human].focus}</button>)
     buttons.push(<DragModeToggle key="group" />)
   }
   if (game.phase === 'shooting' && mine && st.aimTargetId) {
@@ -427,8 +430,8 @@ function BoardLayers({ game, view, stageRef, setHover }: { game: GameState; view
       const why = deploymentProblem(game, mine, st.draft)
       return why ? { ok: false as const, reason: why } : { ok: true as const }
     }
-    return validate(game, { type: 'move', unitId: mine.id, mode: moveModeFor(game, mine), positions: st.draft })
-  }, [game, mine, st.draft, deploying])
+    return validate(game, moveCommand(game, mine, st.draft, st.moveOptions))
+  }, [game, mine, st.draft, st.moveOptions, deploying])
 
   // per enemy unit: the command a click would issue and whether it's legal
   const targets = useMemo(() => {
@@ -491,7 +494,7 @@ function BoardLayers({ game, view, stageRef, setHover }: { game: GameState; view
 
   const unitsRendered = game.units.map((u) => {
     const draggable = canDrag(u)
-    const max = deploying ? Infinity : maxMove(u)
+    const max = deploying ? Infinity : moveAllowance(game, u, u.id === st.selectedUnitId ? st.moveOptions : { fly: false, swift: false })
     const unplaced = !!deploying && u.owner === human && !deploying.placed.includes(u.id)
     const actionable = unplaced || (myTurn && u.owner === human && canActNow(game, u))
     const acted = myTurn && u.owner === human && actedThisPhase(game, u)
@@ -505,6 +508,8 @@ function BoardLayers({ game, view, stageRef, setHover }: { game: GameState; view
       const moved = dist(pos, m.pos) > 0.01
       const img = images[tokenImageFor(m.profileId, st.customTokens) ?? '']
       const ring = FACTION_LINE[u.owner]
+      // built-in art faces east (+x); the army on the east side is flipped so both armies face each other (user photos are never flipped)
+      const flip = sidesOf(game)[1] === u.owner && !st.customTokens[m.profileId]
       return (
         <Group key={m.id}>
           {selected && draggable && !deploying && (
@@ -545,7 +550,7 @@ function BoardLayers({ game, view, stageRef, setHover }: { game: GameState; view
             <Circle radius={r} fill={tok.fill} shadowColor="black" shadowBlur={0.25} shadowOpacity={0.6} shadowOffsetY={0.05} />
             {img ? (
               <Group clipFunc={(ctx) => ctx.arc(0, 0, r - 0.05, 0, Math.PI * 2)} listening={false}>
-                <KImage image={img} x={-r} y={-r} width={r * 2} height={r * 2} />
+                <KImage image={img} x={flip ? r : -r} y={-r} width={r * 2} height={r * 2} scaleX={flip ? -1 : 1} />
               </Group>
             ) : (
               <Text text={tok.label} fontSize={r * 0.75} fontStyle="bold" fill={tok.text} width={r * 2} height={r * 2} x={-r} y={-r} align="center" verticalAlign="middle" listening={false} />
@@ -636,8 +641,8 @@ function BoardLayers({ game, view, stageRef, setHover }: { game: GameState; view
       <Layer>
         <Rect x={-0.3} y={-0.3} width={game.board.width + 0.6} height={game.board.height + 0.6} fill={BOARD_STYLE.edge} cornerRadius={0.2} />
         <Rect x={0} y={0} width={game.board.width} height={game.board.height} fill={BOARD_STYLE.mat} stroke={BOARD_STYLE.ink} strokeWidth={0.06} onClick={() => { onBackgroundClick(); if (deploying) st.selectTerrain(null) }} onTap={onBackgroundClick} />
-        {(['marines', 'orks'] as const).map((p) => {
-          const zone = scenario.deployment[p]
+        {sidesOf(game).map((p, i) => {
+          const zone = scenario.deployment[i === 0 ? 'west' : 'east']
           const own = p === human
           return (
             <Group key={`dz-${p}`} listening={false}>

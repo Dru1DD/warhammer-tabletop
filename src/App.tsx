@@ -1,19 +1,37 @@
 import { useEffect, useState } from 'react'
+import { OnlineBanner, OnlineHeader, OnlineScreen } from './multiplayer/OnlineScreen'
+import { joinRoom, leaveRoom, openOnlineMenu, parseRoomCode, savedGuestRoom, useMp } from './multiplayer/session'
 import { FACTION_STYLE, tokenImageFor } from './assets/manifest'
 import { FACTION_NAME } from './game/data/datasheets'
 import { actor } from './game/engine'
 import { deserialize, readStorage } from './game/persistence'
-import { SCENARIOS } from './game/scenarios/scenarios'
-import type { ExplainLevel, PlayerId } from './game/types'
+import { armyOf, SCENARIOS } from './game/scenarios/scenarios'
+import { FACTIONS, type ExplainLevel, type PlayerId } from './game/types'
 import { AI_STEP_MS, AUTOSAVE_KEY, MANUAL_KEY, useStore } from './store'
+import { BattleOverDialog } from './ui/BattleOverDialog'
 import { Board } from './ui/Board'
 import { ActionPanel, AttackReview, BottomPanel, DiceFaces, RosterPanel } from './ui/Panels'
 import { LEARNING_STYLE, learningStyleOf, type LearningStyle } from './ui/help'
+import { scoreText } from './ui/score'
 
 export default function App() {
   const game = useStore((s) => s.game)
+  const onlineScreen = useMp((s) => s.screen)
   useAiLoop()
-  return game ? <GameScreen /> : <StartScreen />
+  useInviteLink()
+  return game ? <GameScreen /> : onlineScreen !== 'none' ? <OnlineScreen /> : <StartScreen />
+}
+
+/** Opening `?room=CODE` (an invitation link) joins that room right away. */
+function useInviteLink() {
+  useEffect(() => {
+    const raw = new URLSearchParams(location.search).get('room')
+    if (!raw) return
+    history.replaceState(null, '', location.pathname)
+    const code = parseRoomCode(raw)
+    const saved = savedGuestRoom()
+    void joinRoom(raw, code && saved?.code === code ? saved.token : null)
+  }, [])
 }
 
 /** Drives the AI one decision at a time so the player can follow along. */
@@ -21,7 +39,7 @@ function useAiLoop() {
   const game = useStore((s) => s.game)
   const human = useStore((s) => s.settings.human)
   const aiStep = useStore((s) => s.aiStep)
-  const paused = useStore((s) => !!s.deploying || !!s.review)
+  const paused = useStore((s) => !!s.deploying || !!s.review || !!s.shared)
   // slower AI for beginners so each enemy action can be followed
   const delay = useStore((s) => (s.settings.explain === 'beginner' ? AI_STEP_MS * 2 : AI_STEP_MS))
   useEffect(() => {
@@ -37,17 +55,33 @@ const EXPLAIN: Record<ExplainLevel, string> = {
   minimal: 'Минимум — только результаты',
 }
 
+/** Lists the army of `faction` in the chosen scenario: unit, model count and loadout. */
+function ArmyList({ faction, scenarioId }: { faction: PlayerId; scenarioId: string }) {
+  const army = armyOf(scenarioId, faction)
+  if (!army) return <div className="text-[11px] text-amber-300">В этом сценарии нет армии — будет выбран «Боевой патруль».</div>
+  const total = army.reduce((n, u) => n + u.models.length, 0)
+  return (
+    <ul className="mt-1 space-y-0.5 text-[11px] text-stone-300" aria-label={`Состав: ${FACTION_NAME[faction]}`}>
+      {army.map((u) => (
+        <li key={u.id}>{u.name} <span className="text-stone-400">× {u.models.length}</span></li>
+      ))}
+      <li className="text-stone-400">Всего моделей: {total}</li>
+    </ul>
+  )
+}
+
 function StartScreen() {
   const st = useStore()
-  const [human, setHuman] = useState<PlayerId>(st.settings.human)
+  const { human, opponent, scenarioId } = st.settings
   const auto = deserialize(readStorage(AUTOSAVE_KEY))
   const manual = deserialize(readStorage(MANUAL_KEY))
+  const both = (s: (typeof SCENARIOS)[number]) => s.factions.includes(human) && s.factions.includes(opponent)
   return (
     <div className="min-h-full bg-stone-900 p-4 text-stone-100">
-      <div className="mx-auto max-w-2xl rounded-lg border border-stone-700 bg-stone-800 p-6 shadow-xl">
+      <div className="mx-auto max-w-4xl rounded-lg border border-stone-700 bg-stone-800 p-6 shadow-xl">
         <h1 className="text-2xl font-bold">Тренировочный стол 40K</h1>
         <p className="mt-1 text-sm text-stone-400">
-          Учебный симулятор по правилам Warhammer 40,000 (11-я редакция) для армий из Introductory Set. Неофициальный любительский проект.
+          Учебный симулятор по правилам Warhammer 40,000 (11-я редакция). Пять армий: Космодесант, Орки, Тираниды, Некроны, Аэльдари. Неофициальный любительский проект.
         </p>
 
         {auto.ok && !auto.file.state.winner && (
@@ -57,30 +91,39 @@ function StartScreen() {
         )}
 
         <h2 className="mt-5 font-semibold">Ваша армия</h2>
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          {(['marines', 'orks'] as const).map((p) => (
-            <button
-              key={p}
-              onClick={() => setHuman(p)}
-              className={`rounded-lg border-2 p-3 text-left ${human === p ? 'border-yellow-400' : 'border-stone-600'}`}
-              style={{ background: FACTION_STYLE[p].primary + '55' }}
-            >
-              <div className="mb-2 flex -space-x-3">
-                {(p === 'marines' ? ['lieutenant', 'intercessorSergeant', 'intercessor', 'intercessorGL'] : ['nob', 'boy', 'boyBigShoota', 'boyRokkit']).map((id) => (
-                  <img key={id} src={tokenImageFor(id, st.customTokens)} alt="" className="h-12 w-12 rounded-full border-2 border-stone-900" />
-                ))}
-              </div>
-              <div className="font-semibold">{FACTION_NAME[p]}</div>
-              <div className="text-xs text-stone-300">{p === 'marines' ? 'Лейтенант + 5 интерсессоров' : 'Ноб + 5 боев'}</div>
-            </button>
-          ))}
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          {FACTIONS.map((p) => {
+            const army = armyOf(scenarioId, p) ?? armyOf('combat-patrol', p)!
+            const faces = [...new Set(army.flatMap((u) => u.models.map((m) => m.profileId)))].slice(0, 4)
+            return (
+              <button
+                key={p}
+                onClick={() => st.setSettings({ human: p })}
+                aria-pressed={human === p}
+                className={`rounded-lg border-2 p-3 text-left ${human === p ? 'border-yellow-400' : 'border-stone-600'}`}
+                style={{ background: FACTION_STYLE[p].primary + '55' }}
+              >
+                <div className="mb-2 flex -space-x-3">
+                  {faces.map((id) => (
+                    <img key={id} src={tokenImageFor(id, st.customTokens)} alt="" className="h-10 w-10 rounded-full border-2 border-stone-900" />
+                  ))}
+                </div>
+                <div className="font-semibold">{FACTION_NAME[p]}</div>
+                <ArmyList faction={p} scenarioId={armyOf(scenarioId, p) ? scenarioId : 'combat-patrol'} />
+              </button>
+            )
+          })}
         </div>
-        <p className="mt-1 text-xs text-stone-400">Противником управляет компьютер.</p>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <label className="text-sm">Противник (управляет компьютер)
+            <select className="input" value={opponent} onChange={(e) => st.setSettings({ opponent: e.target.value as PlayerId })}>
+              {FACTIONS.filter((f) => f !== human).map((f) => <option key={f} value={f}>{FACTION_NAME[f]} (ИИ)</option>)}
+            </select>
+          </label>
           <label className="text-sm">Сценарий
-            <select className="input" value={st.settings.scenarioId} onChange={(e) => st.setSettings({ scenarioId: e.target.value })}>
-              {SCENARIOS.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            <select className="input" value={scenarioId} onChange={(e) => st.setSettings({ scenarioId: e.target.value })}>
+              {SCENARIOS.map((s) => <option key={s.id} value={s.id} disabled={!both(s)}>{s.name}{both(s) ? '' : ' — нет армий для этой пары'}</option>)}
             </select>
           </label>
           <label className="text-sm">Уровень ИИ
@@ -92,17 +135,18 @@ function StartScreen() {
         </div>
         <LearningStylePicker />
         <p className="mt-3 rounded bg-stone-900 p-2 text-xs text-stone-300">
-          {SCENARIOS.find((s) => s.id === st.settings.scenarioId)?.description}
+          {SCENARIOS.find((s) => s.id === scenarioId)?.description}
           <br />
-          <span className="text-amber-300">{SCENARIOS.find((s) => s.id === st.settings.scenarioId)?.victory}</span>
+          <span className="text-amber-300">{SCENARIOS.find((s) => s.id === scenarioId)?.victory}</span>
         </p>
         <div className="mt-4 flex gap-2">
-          <button className="btn btn-primary flex-1" onClick={() => st.startDeployment({ human })}>Начать новую битву</button>
+          <button className="btn btn-primary flex-1" onClick={() => st.startDeployment()}>Начать новую битву</button>
           <button className="btn" disabled={!manual.ok} onClick={() => st.load(MANUAL_KEY)} title={manual.ok ? '' : manual.reason}>Загрузить сохранение</button>
         </div>
+        <button className="btn mt-2 w-full" onClick={() => openOnlineMenu()}>🌐 Играть онлайн вдвоём</button>
         <p className="mt-2 text-xs text-stone-400">
           Сначала вы расставите армию в своей зоне, затем начнётся раунд 1.{' '}
-          <button className="text-sky-300 underline" onClick={() => st.newGame({ human })}>Быстрый старт</button> — сразу в бой, отряды на стандартных позициях.
+          <button className="text-sky-300 underline" onClick={() => st.newGame()}>Быстрый старт</button> — сразу в бой, отряды на стандартных позициях.
         </p>
         {st.message && <p className="mt-2 text-sm text-rose-300">{st.message.text}</p>}
       </div>
@@ -133,6 +177,8 @@ function GameScreen() {
   const st = useStore()
   const game = st.game!
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // dialog dismissed for this exact finished game object; any new/loaded game re-arms it
+  const [overClosedFor, setOverClosedFor] = useState<typeof game | null>(null)
   const lastDice = game.diceLog.at(-1)
   return (
     <div className="grid h-full grid-rows-[auto_1fr_auto] bg-stone-900 text-stone-100">
@@ -148,15 +194,17 @@ function GameScreen() {
             </span>
           </>
         )}
-        <span className="text-sm text-stone-300">ПО: КД {game.players.marines.vp} : {game.players.orks.vp} Орки</span>
-        {game.players.orks.riledTurns > 0 && <span className="rounded bg-red-800 px-2 py-0.5 text-xs">WAAAGH!</span>}
+        <OnlineHeader />
+        <span className="text-sm text-stone-300">ПО: {scoreText(game)}</span>
+        {game.players.orks?.riledTurns > 0 && <span className="rounded bg-red-800 px-2 py-0.5 text-xs">WAAAGH!</span>}
         <div className="ml-auto flex flex-wrap gap-1">
           {/* icons only on laptop widths; labels from 1536px */}
           <button className={`btn ${st.measuring ? 'btn-primary' : ''}`} onClick={() => st.toggleMeasure()} aria-pressed={st.measuring} title="Линейка (R)" aria-label="Линейка">📏<span className="hidden 2xl:inline"> Линейка</span></button>
           <button className="btn" disabled={!!st.deploying} onClick={() => st.save()} title="Сохранить" aria-label="Сохранить">💾<span className="hidden 2xl:inline"> Сохранить</span></button>
-          <button className="btn" onClick={() => st.load()} title="Загрузить" aria-label="Загрузить">📂<span className="hidden 2xl:inline"> Загрузить</span></button>
+          <button className="btn" disabled={!!st.shared} onClick={() => st.load()} title="Загрузить" aria-label="Загрузить">📂<span className="hidden 2xl:inline"> Загрузить</span></button>
+          {game.winner && <button className="btn" onClick={() => setOverClosedFor(null)} title="Итоги боя" aria-label="Итоги">🏆<span className="hidden 2xl:inline"> Итоги</span></button>}
           <button className="btn" onClick={() => setSettingsOpen(true)} title="Настройки" aria-label="Настройки">⚙<span className="hidden 2xl:inline"> Настройки</span></button>
-          <button className="btn" onClick={() => st.quit()} title="Главное меню" aria-label="Меню">☰<span className="hidden 2xl:inline"> Меню</span></button>
+          <button className="btn" onClick={() => (st.shared ? window.confirm('Покинуть онлайн-партию? Соперник увидит, что вы отключились.') && leaveRoom() : st.quit())} title={st.shared ? 'Покинуть партию' : 'Главное меню'} aria-label="Меню">☰<span className="hidden 2xl:inline"> Меню</span></button>
         </div>
       </header>
 
@@ -164,6 +212,7 @@ function GameScreen() {
         <aside className="order-2 border-r border-stone-700 p-2 lg:order-1 lg:overflow-y-auto"><RosterPanel /></aside>
         <section className="relative order-1 h-[60vh] min-w-0 overflow-hidden md:col-span-2 lg:order-2 lg:col-span-1 lg:h-auto">
           <Board />
+          <OnlineBanner />
           {st.measuring && <MeasureBar />}
           {lastDice && !st.review && <DiceToast key={lastDice.id} entryId={lastDice.id} />}
           <AttackReview />
@@ -177,6 +226,9 @@ function GameScreen() {
       </main>
 
       <footer className={`${st.layout.log ? 'h-48' : ''} border-t border-stone-700 p-2`}><BottomPanel /></footer>
+      {game.winner && !st.deploying && overClosedFor !== game && (
+        <BattleOverDialog game={{ ...game, winner: game.winner }} human={st.settings.human} onClose={() => setOverClosedFor(game)} onNewBattle={() => (st.shared ? leaveRoom() : st.startDeployment())} />
+      )}
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
     </div>
   )
@@ -222,12 +274,14 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
             {Object.entries(EXPLAIN).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </label>
-        <label className="mt-2 block text-sm">Уровень ИИ
-          <select className="input" value={st.settings.aiLevel} onChange={(e) => st.setSettings({ aiLevel: e.target.value as never })}>
-            <option value="beginner">Новичок</option>
-            <option value="standard">Стандарт</option>
-          </select>
-        </label>
+        {!st.shared && (
+          <label className="mt-2 block text-sm">Уровень ИИ
+            <select className="input" value={st.settings.aiLevel} onChange={(e) => st.setSettings({ aiLevel: e.target.value as never })}>
+              <option value="beginner">Новичок</option>
+              <option value="standard">Стандарт</option>
+            </select>
+          </label>
+        )}
         <LearningStylePicker />
         {st.tutorialDone.length > 0 && <button className="mt-1 text-xs text-sky-300 underline" onClick={() => st.resetTutorial()}>Пройти обучение заново</button>}
         <button className="btn btn-primary mt-3 w-full" onClick={onClose}>Готово</button>

@@ -8,13 +8,13 @@ export type MoveMode = 'normal' | 'advance' | 'fallBack' | 'charge' | 'pileIn' |
 
 /** Terrain that stops this model moving from `from` to `to` (13.06): solid features
  * can't be ended in; dense ones can only be crossed by INFANTRY. */
-export function terrainBlock(s: GameState, unit: UnitState, r: number, from: Vec, to: Vec, placing = false): string | null {
+export function terrainBlock(s: GameState, unit: UnitState, r: number, from: Vec, to: Vec, placing = false, fly = false): string | null {
   if (!placing && dist(from, to) <= EPS) return null
   const infantry = isInfantry(unit)
   for (const t of s.terrain) {
     const cat = TERRAIN_CATEGORY[t.kind] ?? { category: 'exposed' }
     if (cat.solid && circlePolygonDistance(to, r, t.poly) === 0) return `нельзя заканчивать движение внутри «${t.name}» (сплошной тиррейн).`
-    if (cat.category === 'dense' && !infantry && sweptCircleHitsPolygon(from, to, r, t.poly))
+    if (cat.category === 'dense' && !infantry && !fly && sweptCircleHitsPolygon(from, to, r, t.poly))
       return `«${t.name}» — плотный тиррейн: сквозь него проходит только пехота. Обойдите его.`
   }
   return null
@@ -32,6 +32,8 @@ export function moveProblem(
   mode: MoveMode,
   /** for charge/pile-in: units the move is allowed to end engaged with */
   allowedEngage: string[] = [],
+  /** FLY unit "taking to the skies": passes over all models and terrain (21.03) */
+  fly = false,
 ): string | null {
   const models = alive(unit)
   const enemyModels = enemiesOf(s, unit).flatMap((e) => alive(e).map((m) => ({ m, unit: e })))
@@ -50,10 +52,10 @@ export function moveProblem(
     const overModels = isMV(unit) && (mode === 'normal' || mode === 'advance')
     if (d > EPS) {
       for (const e of enemyModels)
-        if (!(overModels && !isMV(e.unit)) && sweptCircleHits(m.pos, pos, r, e.m.pos, radiusOf(e.m)))
+        if (!fly && !(overModels && !isMV(e.unit)) && sweptCircleHits(m.pos, pos, r, e.m.pos, radiusOf(e.m)))
           return `${name(m)}: нельзя проходить сквозь вражеские модели.`
     }
-    const tb = terrainBlock(s, unit, r, m.pos, pos)
+    const tb = terrainBlock(s, unit, r, m.pos, pos, false, fly)
     if (tb) return `${name(m)}: ${tb}`
     for (const o of others)
       if (basesOverlap(pos, r, o.pos, radiusOf(o))) return `${name(m)}: подставка пересекается с другой моделью.`
@@ -88,6 +90,7 @@ export function planMove(
   mode: MoveMode,
   allowedEngage: string[] = [],
   stopAt = 0,
+  fly = false,
 ): Record<string, Vec> {
   const models = [...alive(unit)].sort((a, b) => dist(a.pos, goal(a).pos) - dist(b.pos, goal(b).pos))
   const placed: Record<string, Vec> = {}
@@ -100,9 +103,9 @@ export function planMove(
     const r = radiusOf(m)
     if (pos.x - r < 0 || pos.y - r < 0 || pos.x + r > s.board.width || pos.y + r > s.board.height) return false
     if (dist(m.pos, pos) > maxDist + EPS) return false
-    if (terrainBlock(s, unit, r, m.pos, pos)) return false
+    if (terrainBlock(s, unit, r, m.pos, pos, false, fly)) return false
     for (const e of enemyModels) {
-      if (!(overModels && !isMV(e.unit)) && sweptCircleHits(m.pos, pos, r, e.m.pos, radiusOf(e.m))) return false
+      if (!fly && !(overModels && !isMV(e.unit)) && sweptCircleHits(m.pos, pos, r, e.m.pos, radiusOf(e.m))) return false
       const ed = modelDistance(m, e.m, pos)
       if (withinRange(ed, ENGAGEMENT_RANGE) && (engageLimit || !allowedEngage.includes(e.unit.id))) return false
     }

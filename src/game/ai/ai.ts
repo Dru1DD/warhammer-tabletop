@@ -4,10 +4,10 @@
 import { FACTION_NAME } from '../data/datasheets'
 import { dist, withinRange } from '../geometry/geometry'
 import {
-  alive, CHARGE_RANGE, engagedUnits, enemiesOf, hasAbility, isMV, modelInTerrain, objectiveLevels, profileOf,
-  unitDistance, unitNearObjective, unitsOf, fmt,
+  alive, CHARGE_RANGE, datasheetOf, engagedUnits, enemiesOf, hasAbility, inSynapseRange, isFlyer, isMV, modelInTerrain, objectiveLevels, other, profileOf,
+  sidesOf, unitDistance, unitNearObjective, unitsOf, fmt,
 } from '../gameState'
-import { actor, maxMove, meleePlan, shootPlan, validate, moveModeFor } from '../engine'
+import { actor, FLY_PENALTY, maxMove, meleePlan, meleeSetup, meleeWeaponsOf, shootPlan, SWIFT_BONUS, validate, moveModeFor } from '../engine'
 import { moveProblem, planMove } from '../rules/movement'
 import type { AttackContext, AttackGroup } from '../combat/attack'
 import { woundTarget } from '../combat/attack'
@@ -25,12 +25,34 @@ export interface AiWeights {
   attackOpportunity: number
   survival: number
   positioning: number
+  /** Tyranids: value of keeping a non-Synapse unit inside Synapse Range */
+  synapse?: number
 }
 
 export const AI_WEIGHTS: Record<PlayerId, AiWeights> = {
   marines: { damageDealt: 1.0, damageTaken: 0.8, objective: 1.2, distance: 0.08, attackOpportunity: 0.25, survival: 1.0, positioning: 0.5 },
   orks: { damageDealt: 0.6, damageTaken: 0.6, objective: 1.0, distance: 0.2, attackOpportunity: 1.5, survival: 0.8, positioning: 0.4 },
+  // Tyranids: a swarm that throws itself at the enemy, cares little about losses, stays inside Synapse Range
+  tyranids: { damageDealt: 0.7, damageTaken: 0.35, objective: 1.0, distance: 0.2, attackOpportunity: 1.6, survival: 0.5, positioning: 0.2, synapse: 0.6 },
+  // Necrons: methodical gunline that holds objectives and relies on Reanimation Protocols; melee cults and swarms hunt
+  necrons: { damageDealt: 0.9, damageTaken: 0.7, objective: 1.1, distance: 0.1, attackOpportunity: 0.7, survival: 0.9, positioning: 0.5 },
+  // Aeldari: fragile hit-and-run shooters: value survival and cover, avoid melee, fall back when losing a fight
+  aeldari: { damageDealt: 1.0, damageTaken: 0.9, objective: 1.0, distance: 0.1, attackOpportunity: 0.3, survival: 1.1, positioning: 0.6 },
 }
+
+/** Faction temperament: `aggressive` closes the distance to the enemy (original Orks behaviour), `retreats` falls back from a lost melee. */
+export const AI_STYLE: Record<PlayerId, { aggressive: boolean; retreats: boolean }> = {
+  marines: { aggressive: false, retreats: true },
+  orks: { aggressive: true, retreats: false },
+  tyranids: { aggressive: true, retreats: false },
+  necrons: { aggressive: false, retreats: false },
+  aeldari: { aggressive: false, retreats: true },
+}
+/** Melee-first datasheets hunt the enemy even inside a shooting army. */
+const HUNTERS = new Set(['hiveTyrant', 'skorpekhDestroyers', 'scarabSwarms', 'hormagaunts'])
+const aggressive = (u: UnitState) => HUNTERS.has(u.datasheetId) || AI_STYLE[u.owner].aggressive
+/** Marines and Orks keep the exact original melee estimate (their behaviour is pinned by the golden-master test). */
+const legacyUnit = (u: UnitState) => datasheetOf(u).faction === 'marines' || datasheetOf(u).faction === 'orks'
 
 export interface AiDecision {
   cmd: Command
@@ -46,15 +68,26 @@ export function expectedGroupDamage(g: AttackGroup & { ctx: AttackContext }, tar
   const t = Math.max(...alive(target).map((m) => profileOf(m).t))
   const wt = woundTarget(p.s, t)
   const wmod = g.ctx.woundMod ?? 0
-  const pw = pFace((v) => v !== 1 && (v === 6 || v + wmod >= wt))
+  const antiRoll = p.keywords.anti && datasheetOf(target).keywords.includes(p.keywords.anti.keyword) ? p.keywords.anti.roll : 7
+  let pw = pFace((v) => v !== 1 && (v === 6 || v >= antiRoll || v + wmod >= wt))
+  if (p.keywords.twinLinked) pw += (1 - pw) * pw // failed wound rolls are re-rolled
   let pHitNormal: number, pCrit: number
   if (p.skill === null) { pHitNormal = 1; pCrit = 0 } else {
-    const skill = Math.min(6, Math.max(2, p.skill + g.ctx.skillWorsen))
-    const mod = Math.max(-1, Math.min(1, g.ctx.hitMod))
+    const psy = !!p.keywords.psychic
+    const skill = Math.min(6, Math.max(2, p.skill + (psy ? 0 : g.ctx.skillWorsen)))
+    const mod = psy ? Math.max(0, Math.max(-1, Math.min(1, g.ctx.hitMod))) : Math.max(-1, Math.min(1, g.ctx.hitMod))
     pCrit = 1 / 6
     pHitNormal = pFace((v) => v !== 1 && v !== 6 && v + mod >= skill)
+    if (g.ctx.rerollHits) {
+      const r = g.ctx.rerollHits === 'ones' ? 1 / 6 : 1 - (pHitNormal + pCrit)
+      pHitNormal += r * pHitNormal
+      pCrit += r * (1 / 6)
+    }
   }
-  const woundsPerAttack = pHitNormal * pw + pCrit * (g.ctx.lethalHits ? 1 : pw)
+  const lethal = g.ctx.lethalHits
+  let woundsPerAttack = pHitNormal * pw + pCrit * (lethal ? 1 : pw)
+  const sustained = g.sustainedHits ?? p.keywords.sustainedHits ?? 0
+  if (sustained) woundsPerAttack += pCrit * sustained * pw
   const m = alive(target)[0]
   const pr = profileOf(m)
   const need = Math.min(pr.sv - p.ap, pr.invuln ?? 99, g.ctx.invulnOverride ?? 99)
@@ -62,6 +95,14 @@ export function expectedGroupDamage(g: AttackGroup & { ctx: AttackContext }, tar
   const avgW = alive(target).reduce((a, x) => a + profileOf(x).w, 0) / alive(target).length
   const attacks = g.attacks + (g.randomAttacks ?? 0) * avgDie(p.randomA)
   const dmg = Math.max(1, p.d + avgDie(p.randomD) + (g.ctx.damageMod ?? 0))
+  if (p.keywords.devastatingWounds) {
+    // critical wounds skip the save and deal D mortal wounds
+    let pcw = pFace((v) => v !== 1 && (v === 6 || v >= antiRoll))
+    if (p.keywords.twinLinked) pcw += (1 - pcw) * pcw
+    const share = Math.min(1, pcw / Math.max(pw, 1e-9))
+    const mortal = p.d + avgDie(p.randomD)
+    return attacks * woundsPerAttack * ((1 - share) * pFail * Math.min(dmg, avgW) + share * mortal)
+  }
   return attacks * woundsPerAttack * pFail * Math.min(dmg, avgW)
 }
 
@@ -74,22 +115,29 @@ const shootValue = (s: GameState, u: UnitState, t: UnitState, opts: Parameters<t
 /** Melee damage if every model got into combat (optimistic, used for planning). */
 function meleePotential(s: GameState, u: UnitState, t: UnitState, charged: boolean) {
   let total = 0
+  const hypo = charged === u.charged ? u : { ...u, charged }
+  const legacy = legacyUnit(u)
   for (const m of alive(u)) {
-    const w = profileOf(m).weapons.map((id) => WEAPONS[id]).find((x) => x.profiles[0].range === 'melee')
-    if (!w) continue
-    const p = w.profiles[0]
-    const g = {
-      weaponName: w.name, profile: p, models: 1, notes: [],
-      attacks: p.attacks + (p.keywords.cleave ? p.keywords.cleave * Math.floor(alive(t).length / 5) : 0),
-      randomAttacks: p.randomA ? 1 : 0,
-      ctx: {
-        hitMod: 0, hitModNotes: [], skillWorsen: 0,
-        lethalHits: (hasAbility(u, 'tacticalPrecision') && !isMV(t)) || (hasAbility(u, 'tideOfMuscle') && charged),
-        invulnOverride: t.owner === 'orks' && s.players.orks.riledTurns > 0 ? 5 : undefined,
-        damageMod: hasAbility(t, 'dreadArd') ? -1 : 0,
-      },
+    for (const w of meleeWeaponsOf(m)) {
+      const base = w.profiles[0]
+      const setup = meleeSetup(s, hypo, t, base)
+      const p = legacy ? base : setup.profile
+      const ctx: AttackContext = legacy
+        ? {
+            hitMod: 0, hitModNotes: [], skillWorsen: 0,
+            lethalHits: (hasAbility(u, 'tacticalPrecision') && !isMV(t)) || (hasAbility(u, 'tideOfMuscle') && charged),
+            invulnOverride: t.owner === 'orks' && s.players.orks.riledTurns > 0 ? 5 : undefined,
+            damageMod: hasAbility(t, 'dreadArd') || hasAbility(t, 'implacableResilience') ? -1 : 0,
+          }
+        : setup.ctx
+      const g = {
+        weaponName: w.name, profile: p, models: 1, notes: [],
+        attacks: p.attacks + (p.keywords.cleave ? p.keywords.cleave * Math.floor(alive(t).length / 5) : 0),
+        randomAttacks: p.randomA ? 1 : 0,
+        ctx,
+      }
+      total += expectedGroupDamage(g, t)
     }
-    total += expectedGroupDamage(g, t)
   }
   return total
 }
@@ -123,7 +171,7 @@ function scorePosition(s: GameState, u: UnitState, level: AiLevel, mode: 'normal
   if (mode !== 'fallBack') for (const e of enemies) dealt = Math.max(dealt, shootValue(hs, hypo, e).dmg)
 
   let charge = 0
-  if (mode !== 'fallBack' && (mode !== 'advance' || s.players[u.owner].riledTurns > 0))
+  if (mode !== 'fallBack' && (mode !== 'advance' || s.players[u.owner].riledTurns > 0 || hasAbility(u, 'boundingLeap')))
     for (const e of enemies) {
       const d = unitDistance(hypo, e)
       if (d <= CHARGE_RANGE) charge = Math.max(charge, p2d6AtLeast(Math.ceil(d)) * meleePotential(s, hypo, e, true))
@@ -141,15 +189,17 @@ function scorePosition(s: GameState, u: UnitState, level: AiLevel, mode: 'normal
   let nearestObj = Infinity
   for (const o of s.objectives) {
     const lv = objectiveLevels(hs, o)
-    const mine = lv[u.owner], theirs = lv[u.owner === 'marines' ? 'orks' : 'marines']
+    const mine = lv[u.owner], theirs = lv[other(s, u.owner)]
     if (unitNearObjective(hypo, o)) obj += mine > theirs ? 1 : 0.5
     nearestObj = Math.min(nearestObj, Math.min(...alive(hypo).map((m) => dist(m.pos, o.pos))))
   }
   const nearestEnemy = Math.min(...enemies.map((e) => unitDistance(hypo, e)))
   const cover = alive(hypo).every((m) => modelInTerrain(s, m)) ? 1 : 0
 
-  const distTerm = u.owner === 'orks' ? nearestEnemy * 0.5 + nearestObj * 0.5 : nearestObj
+  const distTerm = aggressive(u) ? nearestEnemy * 0.5 + nearestObj * 0.5 : nearestObj
+  const synapse = w.synapse && datasheetOf(u).faction === 'tyranids' && inSynapseRange(hs, hypo) ? w.synapse : 0
   const score =
+    synapse +
     w.damageDealt * dealt +
     w.attackOpportunity * charge -
     w.damageTaken * w.survival * unitValue(u) * taken +
@@ -160,6 +210,7 @@ function scorePosition(s: GameState, u: UnitState, level: AiLevel, mode: 'normal
     dealt > 0.3 ? `ожидаемый урон стрельбой ${fmt(dealt)}` : '',
     charge > 0.3 ? `шанс атаки (charge) с уроном ${fmt(charge)}` : '',
     obj ? 'контроль цели' : '',
+    synapse ? 'остаётся в зоне Synapse' : '',
     cover ? 'укрытие' : '',
     taken > 0.5 ? `риск получить ${fmt(taken)} урона` : '',
   ].filter(Boolean)
@@ -181,27 +232,38 @@ function candidateGoals(s: GameState, u: UnitState, level: AiLevel): { pos: Vec;
   return goals
 }
 
-function bestMove(s: GameState, u: UnitState, level: AiLevel, mode: 'normal' | 'advance' | 'fallBack', max = maxMove(u)) {
+interface BestMove { pos: Record<string, Vec>; score: number; why: string; label: string; fly: boolean }
+
+/** FLY units also try "taking to the skies" (−2″, ignores models and terrain); the better-scored option wins. */
+function bestMove(s: GameState, u: UnitState, level: AiLevel, mode: 'normal' | 'advance' | 'fallBack', max = maxMove(u)): BestMove | null {
   const centroid = (() => {
     const a = alive(u)
     return { x: a.reduce((t, m) => t + m.pos.x, 0) / a.length, y: a.reduce((t, m) => t + m.pos.y, 0) / a.length }
   })()
-  let best: { pos: Record<string, Vec>; score: number; why: string; label: string } | null = null
+  let best: BestMove | null = null
+  const ownEdge = sidesOf(s)[0] === u.owner ? 0 : s.board.width
   const goals = mode === 'fallBack'
-    ? [{ pos: { x: u.owner === 'marines' ? 0 : s.board.width, y: centroid.y }, label: 'назад' }]
+    ? [{ pos: { x: ownEdge, y: centroid.y }, label: 'назад' }]
     : candidateGoals(s, u, level)
-  for (const g of goals) {
-    for (const k of [1, 0.66, 0.33]) {
-      const offset = { x: g.pos.x - centroid.x, y: g.pos.y - centroid.y }
-      const pos = planMove(s, u, (m) => ({ pos: { x: m.pos.x + offset.x, y: m.pos.y + offset.y }, radius: 0 }), max * k, mode)
-      if (moveProblem(s, u, pos, max, mode)) continue
-      if (!Object.keys(pos).some((id) => dist(pos[id], alive(u).find((m) => m.id === id)!.pos) > 0.05)) continue
-      const sc = scorePosition(withPositions(s, u, pos), u, level, mode)
-      if (!best || sc.score > best.score) best = { pos, score: sc.score, why: sc.why, label: g.label }
+  for (const fly of isFlyer(u) ? [false, true] : [false]) {
+    const reach = max - (fly ? FLY_PENALTY : 0)
+    for (const g of goals) {
+      for (const k of [1, 0.66, 0.33]) {
+        const offset = { x: g.pos.x - centroid.x, y: g.pos.y - centroid.y }
+        const pos = planMove(s, u, (m) => ({ pos: { x: m.pos.x + offset.x, y: m.pos.y + offset.y }, radius: 0 }), reach * k, mode, [], 0, fly)
+        if (moveProblem(s, u, pos, reach, mode, [], fly)) continue
+        if (!Object.keys(pos).some((id) => dist(pos[id], alive(u).find((m) => m.id === id)!.pos) > 0.05)) continue
+        const sc = scorePosition(withPositions(s, u, pos), u, level, mode)
+        if (!best || sc.score > best.score) best = { pos, score: sc.score, why: sc.why, label: g.label, fly }
+      }
     }
   }
   return best
 }
+
+/** Aeldari Battle Focus: use Swift as the Wind only when the move really needs the extra 2″. */
+const swiftAvailable = (s: GameState, u: UnitState) => datasheetOf(u).faction === 'aeldari' && (s.players[u.owner].focus ?? 0) > 0
+const longestStep = (u: UnitState, pos: Record<string, Vec>) => Math.max(0, ...alive(u).map((m) => (pos[m.id] ? dist(m.pos, pos[m.id]) : 0)))
 
 // ------------------------------------------------------------ decisions
 
@@ -229,6 +291,11 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
         const close = mine.some((u) => enemiesOf(s, u).some((e) => unitDistance(u, e) <= reach))
         if (close || s.round >= 4) return { cmd: { type: 'callWaaagh' }, explanation: 'Орки: враг на дистанции рывка и атаки — время для WAAAGH!' }
       }
+      if (me === 'tyranids' && validate(s, { type: 'callShadow' }).ok) {
+        // Shadow in the Warp: worth it once there are enough healthy enemy units to threaten with battle-shock
+        const healthy = unitsOf(s, other(s, me)).filter((e) => !e.battleShocked).length
+        if (s.round >= 2 && healthy >= 2) return { cmd: { type: 'callShadow' }, explanation: 'Тираниды: Тень в Варпе — враг проходит проверку боевого шока.' }
+      }
       return end(`${fac}: фаза командования завершена.`)
     }
     case 'movement': {
@@ -242,19 +309,23 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
           const enemy = engagedUnits(s, u)[0]
           const mDealt = enemy ? meleePotential(s, u, enemy, false) : 0
           const mTaken = enemy ? meleePotential(s, enemy, u, false) : 0
-          if (fb && me === 'marines' && mTaken > mDealt * 1.5)
-            return { cmd: { type: 'move', unitId: u.id, mode: 'fallBack', positions: fb.pos }, explanation: `${fac}: отряд «${u.name}» отступает — в рукопашной противник сильнее (ожид. урон по нам ${fmt(mTaken)} против ${fmt(mDealt)}).` }
+          if (fb && AI_STYLE[me].retreats && mTaken > mDealt * 1.5)
+            return { cmd: { type: 'move', unitId: u.id, mode: 'fallBack', positions: fb.pos, ...(fb.fly ? { fly: true } : {}) }, explanation: `${fac}: отряд «${u.name}» отступает — в рукопашной противник сильнее (ожид. урон по нам ${fmt(mTaken)} против ${fmt(mDealt)}).` }
           continue
         }
+        const swiftBonus = swiftAvailable(s, u) ? SWIFT_BONUS : 0
         if (u.advanceRoll !== null) {
-          const adv = bestMove(s, u, level, 'advance')
-          if (adv && adv.score > stay.score) return { cmd: { type: 'move', unitId: u.id, mode: 'advance', positions: adv.pos }, explanation: `${fac}: отряд «${u.name}» продвигается ${adv.label}${adv.why ? ` (${adv.why})` : ''}.` }
+          const adv = bestMove(s, u, level, 'advance', maxMove(u) + swiftBonus)
+          if (adv && adv.score > stay.score) {
+            const swift = swiftBonus > 0 && longestStep(u, adv.pos) > maxMove(u) - (adv.fly ? FLY_PENALTY : 0) + 0.01
+            return { cmd: { type: 'move', unitId: u.id, mode: 'advance', positions: adv.pos, ...(adv.fly ? { fly: true } : {}), ...(swift ? { swift: true } : {}) }, explanation: `${fac}: отряд «${u.name}» продвигается ${adv.label}${adv.why ? ` (${adv.why})` : ''}${swift ? ' — Swift as the Wind' : ''}.` }
+          }
           continue
         }
-        const nm = bestMove(s, u, level, 'normal')
+        const nm = bestMove(s, u, level, 'normal', maxMove(u) + swiftBonus)
         // Advance is scored like any other option, at the average roll (M + 3.5").
         const canAdvance = validate(s, { type: 'declareAdvance', unitId: u.id }).ok
-        const adv = canAdvance ? bestMove(s, u, level, 'advance', maxMove(u) + 3.5) : null
+        const adv = canAdvance ? bestMove(s, u, level, 'advance', maxMove(u) + 3.5 + swiftBonus) : null
         const options = [
           { kind: 'stay' as const, score: stay.score },
           ...(nm ? [{ kind: 'normal' as const, score: nm.score }] : []),
@@ -263,8 +334,19 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
         const pick = options[0]
         if (pick.kind === 'advance' && pick.score > stay.score + 0.05)
           return { cmd: { type: 'declareAdvance', unitId: u.id }, explanation: `${fac}: отряд «${u.name}» продвигается (Advance) ${adv!.label}${adv!.why ? ` — ${adv!.why}` : ''}.` }
-        if (pick.kind === 'normal' && nm && nm.score > stay.score + 0.05)
-          return { cmd: { type: 'move', unitId: u.id, mode: 'normal', positions: nm.pos }, explanation: `${fac}: отряд «${u.name}» двигается ${nm.label}${nm.why ? ` — ${nm.why}` : ''}.` }
+        if (pick.kind === 'normal' && nm && nm.score > stay.score + 0.05) {
+          const swift = swiftBonus > 0 && longestStep(u, nm.pos) > maxMove(u) - (nm.fly ? FLY_PENALTY : 0) + 0.01
+          return { cmd: { type: 'move', unitId: u.id, mode: 'normal', positions: nm.pos, ...(nm.fly ? { fly: true } : {}), ...(swift ? { swift: true } : {}) }, explanation: `${fac}: отряд «${u.name}» двигается ${nm.label}${nm.why ? ` — ${nm.why}` : ''}${nm.fly ? ' (летит)' : ''}${swift ? ' — Swift as the Wind' : ''}.` }
+        }
+      }
+      // Guide (Farseer) at the end of the Movement phase: mark the enemy unit our army can hurt most
+      for (const u of mine) {
+        if (!hasAbility(u, 'guide') || u.guided) continue
+        const marks = enemiesOf(s, u)
+          .map((e) => ({ e, cmd: { type: 'guide', unitId: u.id, targetId: e.id } as Command }))
+          .filter((x) => validate(s, x.cmd).ok)
+          .sort((a, b) => unitDistance(u, a.e) - unitDistance(u, b.e))
+        if (marks[0]) return { cmd: marks[0].cmd, explanation: `${fac}: «${u.name}» направляет союзников на «${marks[0].e.name}» (Guide: +1 к попаданию).` }
       }
       return end(`${fac}: движение завершено.`)
     }

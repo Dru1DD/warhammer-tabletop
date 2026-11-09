@@ -155,7 +155,20 @@ export const REPORT = {
   LOW_DATA_MIN_ATTACK_DICE: 12,
 }
 
+/**
+ * Deterministic WORK BUDGET shared by every analyzer. Limits are COUNTS of candidates / evaluations, NEVER wall-clock
+ * time: the same record must produce byte-identical findings on a fast and a slow machine (see `Analyzer` in types.ts).
+ * Candidates are enumerated in a fixed order (state order, then id) and the budget cuts that list, so the cut is stable.
+ * Measured by the E0 spike: the AI's broad movement scoring costs ~6.7 s per game, so movement alternatives stay tiny.
+ */
+export const BUDGET = {
+  /** Max alternatives (other targets / profiles / positions) evaluated per decision frame, all analyzers. E0 measured a max of 32. */
+  MAX_ALTERNATIVES_PER_FRAME: 64,
+  /** Max candidate end positions per unit-move evaluated by the movement analyzer (acting unit only). */
+  MAX_MOVE_CANDIDATES: 3,
+}
+
 /** All sections; passed to analyzers as `AnalyzerContext.config` (tests can override a section). */
-export const CONFIG = { LUCK, SHOOT, MOVE, CHARGE, MISSED, OBJECTIVE, REPORT }
+export const CONFIG = { LUCK, SHOOT, MOVE, CHARGE, MISSED, OBJECTIVE, REPORT, BUDGET }
 
 export type CoachConfig = typeof CONFIG

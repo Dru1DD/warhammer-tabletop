@@ -82,6 +82,8 @@ A search snippet gave the Lieutenant **T4**, but the datasheet page itself says 
 | Terrain categories (13.03–13.11): crater = exposed, barricade = light, ruin / woods / container = dense, container also solid. Light and dense areas are obscuring. Only INFANTRY move through dense features (all assumed taller than 2″). No model ends a move inside a solid feature. Same limits when deploying. | Implemented with those assumptions. Hidden and vertical movement are not modelled. |
 | Mission / VP scoring | **Unofficial training rule** (labelled in the UI): from round 2, 5 VP per controlled objective in your Command phase. Win on VP after round 5, or by wiping out the enemy. Official mission rules were not used. |
 
+> The Tyranid, Necron and Aeldari armies (added 2026-11-09), their sources, legality notes, rules abstractions and five-army balance are in [armies.md](armies.md). The section below covers the original two-army setup only.
+
 ## Balance note
 
 With these datasheets the box is lopsided. Intercessor bolt rifles (S6, AP-1, D2, Rapid Fire, 24″) kill one-wound, 5+-save Boyz very efficiently, and on a 30″ board they reach almost everywhere after one move.

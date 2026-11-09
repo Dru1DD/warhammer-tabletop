@@ -1,5 +1,5 @@
 import { basesOverlap, EPS, pointInPolygon, pointSegmentDistance } from '../geometry/geometry'
-import { alive, checkCoherency, profileOf, radiusOf, unitsOf } from '../gameState'
+import { alive, checkCoherency, profileOf, radiusOf, sidesOf, unitsOf } from '../gameState'
 import { terrainBlock } from './movement'
 import { scenarioById } from '../scenarios/scenarios'
 import type { GameState, PlayerId, UnitState, Vec } from '../types'
@@ -9,7 +9,7 @@ import type { GameState, PlayerId, UnitState, Vec } from '../types'
 // bases, unit in coherency, not inside solid terrain, non-INFANTRY not inside
 // dense terrain (see docs/research.md).
 
-export const deploymentZone = (s: GameState, p: PlayerId): Vec[] => scenarioById(s.scenarioId).deployment[p]
+export const deploymentZone = (s: GameState, p: PlayerId): Vec[] => scenarioById(s.scenarioId).deployment[sidesOf(s)[0] === p ? 'west' : 'east']
 
 /** Base of radius r at c lies entirely inside the polygon. */
 export function baseWhollyWithin(c: Vec, r: number, poly: Vec[]): boolean {

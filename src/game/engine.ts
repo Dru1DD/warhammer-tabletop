@@ -5,16 +5,17 @@ import { FACTION_NAME } from './data/datasheets'
 import { rollDie, rollMany, type Roller } from './dice/dice'
 import { dist, withinRange, EPS, add, sub, scale, len } from './geometry/geometry'
 import {
-  addLog, alive, atHalfStrength, CHARGE_RANGE, checkCoherency, CONSOLIDATE, engagedUnits, ENGAGEMENT_RANGE,
-  enemiesOf, findUnit, fmt, hasAbility, isDestroyed, isEngaged, isMV, modelDistance, modelEngagedWith,
-  other, PILE_IN, profileOf, radiusOf, unitDistance, unitNearObjective, unitsOf,
+  addLog, alive, atHalfStrength, CHARGE_RANGE, checkCoherency, CONSOLIDATE, datasheetOf, engagedUnits, ENGAGEMENT_RANGE,
+  enemiesOf, findUnit, fmt, hasAbility, hasKeyword, inSynapseRange, isDestroyed, isEngaged, isFlyer, isMV, modelDistance, modelEngagedWith,
+  other, PILE_IN, profileOf, radiusOf, sidesOf, SYNAPSE_RANGE, unitDistance, unitNearObjective, unitsOf,
   updateObjectiveControl, weaponsOf, OBJECTIVE_MARKER_MM,
 } from './gameState'
+import { healUnit } from './rules/heal'
 import { applyMortalWounds, resolveGroup, type AttackContext, type AttackGroup } from './combat/attack'
 import { moveProblem, planMove } from './rules/movement'
 import { hasCover, visibleTargets } from './rules/visibility'
 import { baseRadius } from './geometry/geometry'
-import type { Command, DiceEntry, GameState, ModelState, Phase, PlayerId, UnitState, Validation, Vec, WeaponProfile } from './types'
+import type { Command, DiceEntry, GameState, ModelState, Phase, PlayerId, UnitState, Validation, Vec, Weapon, WeaponProfile } from './types'
 import { PHASES } from './types'
 
 export const PHASE_NAME: Record<Phase, string> = {
@@ -26,6 +27,11 @@ export const PHASE_NAME: Record<Phase, string> = {
 }
 
 export const VP_PER_OBJECTIVE = 5
+export const SWIFT_BONUS = 2
+export const FLY_PENALTY = 2
+export const GUIDE_RANGE = 18
+/** Battle Focus tokens per battle round (Incursion). */
+export const BATTLE_FOCUS_TOKENS = 2
 
 const fail = (reason: string): Validation => ({ ok: false, reason })
 const OK: Validation = { ok: true }
@@ -37,6 +43,30 @@ export function actor(s: GameState): PlayerId {
 }
 
 const riled = (s: GameState, u: UnitState) => hasAbility(u, 'waaagh') && s.players[u.owner].riledTurns > 0
+
+/** Onslaught (Hive Tyrant aura, Psychic): a friendly TYRANIDS unit within 6″ of the source has Assault + Lethal Hits on ranged weapons. */
+export const inOnslaught = (s: GameState, u: UnitState) =>
+  datasheetOf(u).faction === 'tyranids' &&
+  s.units.some((x) => x.owner === u.owner && !isDestroyed(x) && hasAbility(x, 'onslaught') && (x.id === u.id || unitDistance(u, x) <= SYNAPSE_RANGE))
+
+/** Guide (Farseer): friendly AELDARI models get +1 to hit against the unit marked by Guide. */
+const guided = (s: GameState, attacker: UnitState, target: UnitState) =>
+  hasKeyword(attacker, 'AELDARI') && s.players[attacker.owner].guide === target.id
+
+/** One Shot weapons already used by this model. */
+const spentKey = (m: ModelState, w: Weapon) => `${m.id}:${w.id}`
+const isSpent = (u: UnitState, m: ModelState, w: Weapon) => !!u.spent?.includes(spentKey(m, w))
+
+/** Melee weapons a model swings: its first non-Extra-Attacks weapon plus every Extra Attacks weapon. */
+export function meleeWeaponsOf(m: ModelState): Weapon[] {
+  const melee = weaponsOf(m).filter((w) => w.profiles[0].range === 'melee')
+  const primary = melee.find((w) => !w.profiles[0].keywords.extraAttacks)
+  return [...(primary ? [primary] : []), ...melee.filter((w) => w.profiles[0].keywords.extraAttacks)]
+}
+
+/** The unit's army can still "charge/shoot" in the situation (Bounding Leap, Adaptable Predators, Waaagh!). */
+const canChargeAfterAdvance = (s: GameState, u: UnitState) => riled(s, u) || hasAbility(u, 'boundingLeap')
+const canActAfterFallBack = (u: UnitState) => hasAbility(u, 'adaptablePredators')
 
 /** Lethal Hits marked "non-MONSTER/VEHICLE" (and Tactical Precision) don't work against M/V targets. */
 const lethalVs = (p: WeaponProfile, attacker: UnitState, target: UnitState) => {
@@ -52,7 +82,7 @@ function defenceMods(p: WeaponProfile, target: UnitState) {
   return {
     woundMod: duty ? -1 : 0,
     woundModNote: duty ? 'Duty Eternal: сила больше стойкости' : undefined,
-    damageMod: hasAbility(target, 'dreadArd') ? -1 : 0,
+    damageMod: hasAbility(target, 'dreadArd') || hasAbility(target, 'implacableResilience') ? -1 : 0,
   }
 }
 
@@ -61,10 +91,18 @@ function defenceMods(p: WeaponProfile, target: UnitState) {
 export interface ShootPlan {
   groups: (AttackGroup & { ctx: AttackContext })[]
   firingModels: ModelState[]
+  /** One Shot weapons that fire in this plan (`modelId:weaponId`) */
+  oneShots: string[]
   hazardousModels: number
   skipped: string[]
   cover: boolean
   problem: string | null
+}
+
+/** `target` is the closest enemy unit that `unit` could target (visible enemy units, nearest by distance). */
+function isClosestTarget(s: GameState, unit: UnitState, target: UnitState): boolean {
+  const d = unitDistance(unit, target)
+  return !enemiesOf(s, unit).some((e) => e.id !== target.id && unitDistance(unit, e) < d - 1e-9 && alive(unit).some((m) => visibleTargets(s, m, e).length > 0))
 }
 
 export function shootPlan(
@@ -73,10 +111,11 @@ export function shootPlan(
   target: UnitState,
   opts: { profiles?: Record<string, number>; usePistols?: boolean; useAmmoRunts?: boolean } = {},
 ): ShootPlan {
-  const plan: ShootPlan = { groups: [], firingModels: [], hazardousModels: 0, skipped: [], cover: false, problem: null }
+  const plan: ShootPlan = { groups: [], firingModels: [], oneShots: [], hazardousModels: 0, skipped: [], cover: false, problem: null }
   const engaged = isEngaged(s, unit)
   const advanced = unit.move === 'advance'
-  const assaultAll = riled(s, unit)
+  const onslaught = inOnslaught(s, unit)
+  const assaultAll = riled(s, unit) || onslaught
   const mv = isMV(unit)
   if (engaged && advanced) return { ...plan, problem: 'Отряд продвинулся (Advance) и находится в контакте — стрелять нельзя.' }
   if (engaged && !engagedUnits(s, unit).some((e) => e.id === target.id))
@@ -100,6 +139,7 @@ export function shootPlan(
       chosen = chosen.filter((w) => assaultAll || w.profiles[opts.profiles?.[w.id] ?? 0].keywords.assault)
       if (before > chosen.length) plan.skipped.push(`${profileOf(m).name}: после продвижения (Advance) стреляет только оружие Assault.`)
     }
+    chosen = chosen.filter((w) => !(w.profiles[0].keywords.oneShot && isSpent(unit, m, w)))
     const vis = visibleTargets(s, m, target)
     if (vis.length === 0) {
       if (chosen.length) plan.skipped.push(`${profileOf(m).name}: нет линии видимости до цели.`)
@@ -119,10 +159,13 @@ export function shootPlan(
       }
       fired = true
       if (p.keywords.hazardous) plan.hazardousModels++
-      const key = `${w.id}:${idx}`
+      if (p.keywords.oneShot) plan.oneShots.push(spentKey(m, w))
+      // Bladestorm (Dire Avengers): Sustained Hits 1 against a target within half range; such models form their own group
+      const bladestorm = hasAbility(unit, 'bladestorm') && withinRange(d, range / 2)
+      const key = `${w.id}:${idx}${bladestorm ? ':bs' : ''}`
       let g = byKey.get(key)
       if (!g) {
-        g = { weaponName: w.name, profile: p, models: 0, attacks: 0, randomAttacks: 0, notes: [], ctx: { hitMod: 0, hitModNotes: [], skillWorsen: 0, lethalHits: false } }
+        g = { weaponName: w.name, profile: p, models: 0, attacks: 0, randomAttacks: 0, notes: bladestorm ? ['Bladestorm: Sustained Hits 1'] : [], sustainedHits: bladestorm ? Math.max(1, p.keywords.sustainedHits ?? 0) : undefined, ctx: { hitMod: 0, hitModNotes: [], skillWorsen: 0, lethalHits: false } }
         byKey.set(key, g)
       }
       g.models++
@@ -156,14 +199,20 @@ export function shootPlan(
     if (bolter) { notes.push('Болтерная дисциплина +1'); hitMod++ }
     if (runts) { notes.push('Гроты-подносчики +1'); hitMod++ }
     if (engaged && mv && !g.profile.keywords.closeQuarters) { notes.push('техника в контакте −1'); hitMod-- }
+    if (guided(s, unit, target)) { notes.push('Guide +1'); hitMod++ }
+    // Swift Demise (Windriders): re-roll hit rolls of 1; any failed hit if the target is the closest eligible one
+    let rerollHits: AttackContext['rerollHits']
+    if (hasAbility(unit, 'swiftDemise')) rerollHits = isClosestTarget(s, unit, target) ? 'all' : 'ones'
     g.ctx = {
       hitMod,
       hitModNotes: notes,
       skillWorsen: plan.cover ? 1 : 0,
-      lethalHits: lethalVs(g.profile, unit, target),
+      lethalHits: lethalVs(g.profile, unit, target) || onslaught,
       invulnOverride: riled(s, target) ? 5 : undefined,
+      ...(rerollHits ? { rerollHits } : {}),
       ...defenceMods(g.profile, target),
     }
+    if (onslaught && !g.notes.includes('Onslaught')) g.notes.push('Onslaught: Assault + Lethal Hits')
     plan.groups.push(g)
   }
   return plan
@@ -171,33 +220,53 @@ export function shootPlan(
 
 // ---------------------------------------------------------------- melee
 
+/** Profile and context for one melee weapon of `unit` against `target` (shared by the engine and the AI). */
+export function meleeSetup(s: GameState, unit: UnitState, target: UnitState, p0: WeaponProfile) {
+  const notes: string[] = []
+  let p = p0
+  // Targeted Intercession: +1 S and +1 AP after charging
+  if (hasAbility(unit, 'targetedIntercession') && unit.charged) {
+    p = { ...p, s: p.s + 1, ap: p.ap - 1 }
+    notes.push('Targeted Intercession +1 S/AP')
+  }
+  // Synapse: +1 Strength on melee attacks of a TYRANIDS unit in Synapse Range
+  if (inSynapseRange(s, unit)) {
+    p = { ...p, s: p.s + 1 }
+    notes.push('Synapse +1 S')
+  }
+  const hitModNotes: string[] = []
+  let hitMod = 0
+  if (guided(s, unit, target)) { hitMod++; hitModNotes.push('Guide +1') }
+  // Whirling Onslaught (Skorpekh Destroyers): re-roll hit rolls of 1, or any hit roll after a charge
+  const rerollHits: AttackContext['rerollHits'] = hasAbility(unit, 'whirlingOnslaught') ? (unit.charged ? 'all' : 'ones') : undefined
+  if (rerollHits) notes.push(rerollHits === 'all' ? 'Whirling Onslaught: переброс попаданий' : 'Whirling Onslaught: переброс 1')
+  const ctx: AttackContext = {
+    hitMod, hitModNotes, skillWorsen: 0,
+    lethalHits: lethalVs(p, unit, target) || (hasAbility(unit, 'tideOfMuscle') && unit.charged),
+    invulnOverride: riled(s, target) ? 5 : undefined,
+    ...(rerollHits ? { rerollHits } : {}),
+    ...defenceMods(p, target),
+  }
+  return { profile: p, ctx, notes }
+}
+
 export function meleePlan(s: GameState, unit: UnitState, target: UnitState) {
   const groups: (AttackGroup & { ctx: AttackContext })[] = []
   const byKey = new Map<string, AttackGroup & { ctx: AttackContext }>()
   for (const m of alive(unit)) {
     if (!modelEngagedWith(m, target)) continue
-    const w = weaponsOf(m).find((x) => x.profiles[0].range === 'melee')
-    if (!w) continue
-    // Targeted Intercession: +1 S and +1 AP after charging
-    const boost = hasAbility(unit, 'targetedIntercession') && unit.charged
-    const p = boost ? { ...w.profiles[0], s: w.profiles[0].s + 1, ap: w.profiles[0].ap - 1 } : w.profiles[0]
-    let g = byKey.get(w.id)
-    if (!g) {
-      g = {
-        weaponName: w.name, profile: p, models: 0, attacks: 0, randomAttacks: 0, notes: boost ? ['Targeted Intercession +1 S/AP'] : [],
-        ctx: {
-          hitMod: 0, hitModNotes: [], skillWorsen: 0,
-          lethalHits: lethalVs(p, unit, target) || (hasAbility(unit, 'tideOfMuscle') && unit.charged),
-          invulnOverride: riled(s, target) ? 5 : undefined,
-          ...defenceMods(p, target),
-        },
+    for (const w of meleeWeaponsOf(m)) {
+      const { profile: p, ctx, notes } = meleeSetup(s, unit, target, w.profiles[0])
+      let g = byKey.get(w.id)
+      if (!g) {
+        g = { weaponName: w.name, profile: p, models: 0, attacks: 0, randomAttacks: 0, notes, ctx }
+        byKey.set(w.id, g)
+        groups.push(g)
       }
-      byKey.set(w.id, g)
-      groups.push(g)
+      g.models++
+      if (p.randomA) g.randomAttacks = (g.randomAttacks ?? 0) + 1
+      g.attacks += p.attacks + (p.keywords.cleave ? p.keywords.cleave * Math.floor(alive(target).length / 5) : 0)
     }
-    g.models++
-    if (p.randomA) g.randomAttacks = (g.randomAttacks ?? 0) + 1
-    g.attacks += p.attacks + (p.keywords.cleave ? p.keywords.cleave * Math.floor(alive(target).length / 5) : 0)
   }
   return groups
 }
@@ -254,6 +323,14 @@ export function validate(s: GameState, cmd: Command): Validation {
     if (s.players.orks.waaaghUsed) return fail('Waaagh! уже был объявлен в этой битве (раз за битву).')
     return OK
   }
+  if (cmd.type === 'callShadow') {
+    const me = s.activePlayer
+    if (s.phase !== 'command') return fail('«Тень в Варпе» (Shadow in the Warp) применяется в фазе командования.')
+    if (s.players[me].shadowUsed === undefined) return fail('Тень в Варпе — правило армии Тиранидов.')
+    if (s.players[me].shadowUsed) return fail('Тень в Варпе уже применена в этой битве (раз за битву).')
+    if (!unitsOf(s, me).some((u) => hasAbility(u, 'shadowInTheWarp'))) return fail('На поле нет отряда с правилом «Тень в Варпе».')
+    return OK
+  }
 
   const unit = findUnit(s, cmd.unitId)
   if (!unit || isDestroyed(unit)) return fail('Отряд не найден или уничтожен.')
@@ -265,6 +342,11 @@ export function validate(s: GameState, cmd: Command): Validation {
       if (s.phase !== 'movement') return fail('Двигаться можно только в фазе движения.')
       if (unit.move !== 'none') return fail('Отряд уже двигался в этой фазе.')
       const engaged = isEngaged(s, unit)
+      if (cmd.type === 'move' && cmd.fly && !isFlyer(unit)) return fail('«Взлететь» (FLY) могут только модели с ключевым словом FLY.')
+      if (cmd.type === 'move' && cmd.swift) {
+        if (datasheetOf(unit).faction !== 'aeldari') return fail('Swift as the Wind — манёвр Боевого фокуса (Battle Focus) армии Аэльдари.')
+        if ((s.players[unit.owner].focus ?? 0) <= 0) return fail('Нет жетонов Боевого фокуса (Battle Focus) в этом раунде.')
+      }
       if (cmd.type === 'declareAdvance') {
         if (engaged) return fail('Отряд в контакте с врагом: можно только отступить (Fall Back) или остаться на месте.')
         if (unit.advanceRoll !== null) return fail('Продвижение уже объявлено.')
@@ -275,8 +357,8 @@ export function validate(s: GameState, cmd: Command): Validation {
       if (cmd.mode === 'advance' && unit.advanceRoll === null) return fail('Сначала объявите продвижение и бросьте D6.')
       if (cmd.mode !== 'advance' && unit.advanceRoll !== null) return fail('Продвижение уже объявлено — двигайтесь в режиме продвижения.')
       const m = Math.min(...alive(unit).map((x) => profileOf(x).m))
-      const max = cmd.mode === 'advance' ? m + (unit.advanceRoll ?? 0) : m
-      const p = moveProblem(s, unit, cmd.positions, max, cmd.mode)
+      const max = (cmd.mode === 'advance' ? m + (unit.advanceRoll ?? 0) : m) + (cmd.swift ? SWIFT_BONUS : 0) - (cmd.fly ? FLY_PENALTY : 0)
+      const p = moveProblem(s, unit, cmd.positions, max, cmd.mode, [], !!cmd.fly)
       return p ? fail(p) : OK
     }
     case 'rerollAdvance':
@@ -287,7 +369,7 @@ export function validate(s: GameState, cmd: Command): Validation {
     case 'shoot': {
       if (s.phase !== 'shooting') return fail('Стрелять можно только в фазе стрельбы.')
       if (unit.shot) return fail('Отряд уже стрелял в этой фазе.')
-      if (unit.move === 'fallBack') return fail('Отряд отступил (Fall Back) в этот ход и не может стрелять.')
+      if (unit.move === 'fallBack' && !canActAfterFallBack(unit)) return fail('Отряд отступил (Fall Back) в этот ход и не может стрелять.')
       const target = findUnit(s, cmd.targetId)
       if (!target || isDestroyed(target) || target.owner === unit.owner) return fail('Недопустимая цель.')
       const plan = shootPlan(s, unit, target, cmd)
@@ -297,8 +379,8 @@ export function validate(s: GameState, cmd: Command): Validation {
       if (s.phase !== 'charge') return fail('Атаку (charge) объявляют в фазе атаки.')
       if (unit.chargeDeclared) return fail('Отряд уже объявлял атаку в этой фазе.')
       if (isEngaged(s, unit)) return fail('Отряд уже в контакте с врагом.')
-      if (unit.move === 'fallBack') return fail('Отряд отступил (Fall Back) в этот ход и не может атаковать.')
-      if (unit.move === 'advance' && !riled(s, unit)) return fail('Отряд продвинулся (Advance) в этот ход и не может атаковать.')
+      if (unit.move === 'fallBack' && !canActAfterFallBack(unit)) return fail('Отряд отступил (Fall Back) в этот ход и не может атаковать.')
+      if (unit.move === 'advance' && !canChargeAfterAdvance(s, unit)) return fail('Отряд продвинулся (Advance) в этот ход и не может атаковать.')
       const near = enemiesOf(s, unit).filter((e) => withinRange(unitDistance(unit, e), CHARGE_RANGE))
       if (near.length === 0) {
         const d = Math.min(...enemiesOf(s, unit).map((e) => unitDistance(unit, e)))
@@ -315,6 +397,16 @@ export function validate(s: GameState, cmd: Command): Validation {
       const targets = cmd.targetIds.map((t) => findUnit(s, t)!)
       if (!planCharge(s, unit, targets, s.pendingCharge.roll))
         return fail('Не удалось построить допустимое перемещение атаки (подставки мешают или нарушается связность).')
+      return OK
+    }
+    case 'guide': {
+      if (s.phase !== 'movement') return fail('Guide применяется в фазе движения.')
+      if (!hasAbility(unit, 'guide')) return fail('У этого отряда нет способности Guide.')
+      if (unit.guided) return fail('Guide уже использован в этот ход.')
+      const target = findUnit(s, cmd.targetId)
+      if (!target || isDestroyed(target) || target.owner === unit.owner) return fail('Недопустимая цель для Guide.')
+      if (unitDistance(unit, target) > GUIDE_RANGE + 1e-6) return fail(`Guide: цель дальше ${GUIDE_RANGE}″.`)
+      if (!alive(unit).some((m) => visibleTargets(s, m, target).length > 0)) return fail('Guide: цель не видна.')
       return OK
     }
     case 'fight': {
@@ -347,8 +439,8 @@ function advanceFight(s: GameState) {
     const f = s.fight
     const mine = fightCandidates(s, f.selecting, f.step)
     if (mine.length) return
-    const theirs = fightCandidates(s, other(f.selecting), f.step)
-    if (theirs.length) { f.selecting = other(f.selecting); return }
+    const theirs = fightCandidates(s, other(s, f.selecting), f.step)
+    if (theirs.length) { f.selecting = other(s, f.selecting); return }
     if (f.step === 'first') { f.step = 'rest'; f.selecting = s.activePlayer; continue }
     s.fight = null
     consolidateAll(s)
@@ -358,7 +450,7 @@ function advanceFight(s: GameState) {
 }
 
 function pileInAll(s: GameState) {
-  for (const p of [s.activePlayer, other(s.activePlayer)]) {
+  for (const p of [s.activePlayer, other(s, s.activePlayer)]) {
     for (const u of unitsOf(s, p)) {
       if (!(u.charged || isEngaged(s, u))) continue
       const near = enemiesOf(s, u).filter((e) => withinRange(unitDistance(u, e), 5))
@@ -375,7 +467,7 @@ function pileInAll(s: GameState) {
 }
 
 function consolidateAll(s: GameState) {
-  for (const p of [s.activePlayer, other(s.activePlayer)]) {
+  for (const p of [s.activePlayer, other(s, s.activePlayer)]) {
     for (const u of unitsOf(s, p)) {
       if (!u.fought) continue
       const near = enemiesOf(s, u).filter((e) => withinRange(unitDistance(u, e), CONSOLIDATE))
@@ -422,7 +514,13 @@ function resetTurnFlags(s: GameState) {
     u.chargeDeclared = false
     u.charged = false
     u.fought = false
+    delete u.guided
   }
+}
+
+/** Aeldari Battle Focus: tokens are refreshed at the start of every battle round. */
+function refreshFocus(s: GameState) {
+  for (const p of sidesOf(s)) if (s.players[p].focus !== undefined) s.players[p].focus = BATTLE_FOCUS_TOKENS
 }
 
 function enterPhase(s: GameState, phase: Phase, r: Roller) {
@@ -430,6 +528,7 @@ function enterPhase(s: GameState, phase: Phase, r: Roller) {
   addLog(s, `— ${PHASE_NAME[phase]}: ${FACTION_NAME[s.activePlayer]} —`, 'minimal')
   if (phase === 'command') commandPhase(s, r)
   if (phase === 'fight') {
+    selfDestruction(s, r)
     pileInAll(s)
     s.fight = { selecting: s.activePlayer, step: 'first' }
     advanceFight(s)
@@ -445,19 +544,25 @@ function enterPhase(s: GameState, phase: Phase, r: Roller) {
   if (hints[phase]) addLog(s, hints[phase]!, 'beginner')
 }
 
+/** Leadership roll: 2D6, or 3D6 for a TYRANIDS unit in Synapse Range (the total of all three dice, see docs). */
+function leadershipRoll(s: GameState, u: UnitState, r: Roller, mod = 0) {
+  const synapse = inSynapseRange(s, u)
+  const dice = rollMany(r, synapse ? 3 : 2)
+  const total = dice.reduce((a, b) => a + b, 0) + mod
+  const ld = profileOf(alive(u)[0]).ld
+  return { dice, total, ld, pass: total >= ld, label: synapse ? '3D6 (Synapse)' : '2D6' }
+}
+
 function commandPhase(s: GameState, r: Roller) {
-  s.players.marines.cp++
-  s.players.orks.cp++
+  for (const p of sidesOf(s)) s.players[p].cp++
+  if (s.players[s.activePlayer].guide !== undefined) s.players[s.activePlayer].guide = null
   addLog(s, 'Оба игрока получают 1 очко командования (CP).', 'beginner')
   for (const u of unitsOf(s, s.activePlayer)) {
     if (!u.battleShocked && !atHalfStrength(u)) continue
-    const dice = rollMany(r, 2)
-    const total = dice[0] + dice[1]
-    const ld = profileOf(alive(u)[0]).ld
-    const pass = total >= ld
+    const { dice, total, ld, pass, label } = leadershipRoll(s, u, r)
     const was = u.battleShocked
     u.battleShocked = !pass
-    pushDice(s, `Боевой шок: ${u.name}`, [{ label: '2D6', target: `${ld}+`, dice: dice.map((v) => ({ value: v, success: pass })), note: `Сумма ${total} против Ld ${ld}+` }],
+    pushDice(s, `Боевой шок: ${u.name}`, [{ label, target: `${ld}+`, dice: dice.map((v) => ({ value: v, success: pass })), note: `Сумма ${total} против Ld ${ld}+` }],
       pass ? `${u.name}: проверка пройдена${was ? ' — боевой шок снят' : ''}.` : `${u.name}: провал — отряд в боевом шоке (OC = 0, отступление опасно).`)
     addLog(s, pass ? `${u.name} проходит проверку боевого шока (${total} ≥ ${ld}).` : `${u.name} проваливает проверку боевого шока (${total} < ${ld}) и получает Battle-shock.`, 'minimal')
   }
@@ -483,22 +588,24 @@ function endTurn(s: GameState, r: Roller) {
     }
     if (removed) addLog(s, `${u.name}: ${removed} модель(и) убраны в конце хода из-за нарушения связности (coherency).`, 'minimal')
   }
-  for (const p of ['marines', 'orks'] as PlayerId[]) if (s.players[p].riledTurns > 0) s.players[p].riledTurns--
+  for (const p of sidesOf(s)) if (s.players[p].riledTurns > 0) s.players[p].riledTurns--
   updateObjectiveControl(s)
   checkWinner(s)
   if (s.winner) return
-  const second = other(s.firstPlayer)
+  const second = other(s, s.firstPlayer)
   if (s.activePlayer === second) {
     if (s.round >= s.maxRounds) {
-      const { marines, orks } = s.players
-      s.winner = marines.vp > orks.vp ? 'marines' : orks.vp > marines.vp ? 'orks' : 'draw'
-      addLog(s, `Битва окончена после ${s.maxRounds} раундов. ${s.winner === 'draw' ? 'Ничья!' : `Победа: ${FACTION_NAME[s.winner]}!`} (${marines.vp}:${orks.vp})`, 'minimal')
+      const [wa, wb] = sidesOf(s)
+      const a = s.players[wa], b = s.players[wb]
+      s.winner = a.vp > b.vp ? wa : b.vp > a.vp ? wb : 'draw'
+      addLog(s, `Битва окончена после ${s.maxRounds} раундов. ${s.winner === 'draw' ? 'Ничья!' : `Победа: ${FACTION_NAME[s.winner]}!`} (${a.vp}:${b.vp})`, 'minimal')
       return
     }
     s.round++
+    refreshFocus(s)
     addLog(s, `===== Раунд ${s.round} =====`, 'minimal')
   }
-  s.activePlayer = other(s.activePlayer)
+  s.activePlayer = other(s, s.activePlayer)
   resetTurnFlags(s)
   enterPhase(s, 'command', r)
 }
@@ -507,10 +614,70 @@ const sumDist = (m: ModelState, all: ModelState[]) => all.reduce((acc, o) => acc
 
 function checkWinner(s: GameState) {
   if (s.winner) return
-  const m = unitsOf(s, 'marines').length, o = unitsOf(s, 'orks').length
+  enforceCrews(s)
+  const [wa, wb] = sidesOf(s)
+  const m = unitsOf(s, wa).length, o = unitsOf(s, wb).length
   if (m && o) return
-  s.winner = m ? 'marines' : o ? 'orks' : 'draw'
+  s.winner = m ? wa : o ? wb : 'draw'
   addLog(s, `Армия противника уничтожена. ${s.winner === 'draw' ? 'Ничья!' : `Победа: ${FACTION_NAME[s.winner]}!`}`, 'minimal')
+}
+
+/** Crewed Platform (Guardian Defenders): platforms are destroyed with the last non-platform model of the unit. */
+function enforceCrews(s: GameState) {
+  for (const u of s.units) {
+    if (!hasAbility(u, 'crewedPlatform') || isDestroyed(u)) continue
+    if (alive(u).some((m) => !profileOf(m).platform)) continue
+    for (const m of u.models) if (!m.destroyed) m.destroyed = true
+    addLog(s, `${u.name}: последний Страж погиб — платформы тяжёлого оружия уничтожены (Crewed Platform).`, 'standard')
+  }
+}
+
+/** Reanimation Protocols (Necrons): at the end of your Command phase each such unit heals D3 wounds (revives models). */
+function reanimate(s: GameState, r: Roller) {
+  for (const u of unitsOf(s, s.activePlayer)) {
+    if (!hasAbility(u, 'reanimation')) continue
+    const lost = u.models.some((m) => (m.destroyed && !profileOf(m).character) || (!m.destroyed && m.wounds < profileOf(m).w))
+    if (!lost) continue
+    let v = rollDie(r, 'D3')
+    const dice = [{ value: v, success: true } as DiceEntry['steps'][number]['dice'][number]]
+    // Their Number is Legion: re-roll the dice that determine how many wounds are reanimated (we re-roll a 1)
+    if (hasAbility(u, 'legion') && v === 1) {
+      const again = rollDie(r, 'D3')
+      dice.push({ value: again, success: true, rerolledFrom: v })
+      v = again
+    }
+    const { healed, revived } = healUnit(s, u, v)
+    pushDice(s, `Реанимация: ${u.name}`, [{ label: 'D3', target: '—', dice, note: `Лечение ${v} ран: восстановлено ${healed}, возвращено моделей ${revived}.` }],
+      `${u.name}: Reanimation Protocols — ${healed} ран восстановлено, ${revived} модел. возвращено.`)
+    addLog(s, `${u.name}: Reanimation Protocols — лечение D3 = ${v}${healed ? `, восстановлено ран: ${healed}` : ''}${revived ? `, возвращено моделей: ${revived}` : ''}.`, 'standard')
+  }
+}
+
+/** Self-destruction (Canoptek Scarabs): at the start of the Fight phase an engaged swarm may sacrifice a model
+ * (we do it automatically while at least two models remain): D6 (+1 vs VEHICLE): 2–5 = D3 mortal wounds, 6+ = 3. */
+function selfDestruction(s: GameState, r: Roller) {
+  const before = aliveIds(s)
+  for (const u of s.units) {
+    if (!hasAbility(u, 'selfDestruction') || isDestroyed(u) || alive(u).length < 2) continue
+    const cand = alive(u)
+      .map((m) => ({ m, foes: enemiesOf(s, u).filter((e) => modelEngagedWith(m, e)) }))
+      .filter((x) => x.foes.length > 0)
+      .sort((a, b) => a.m.wounds - b.m.wounds)
+    if (!cand.length) continue
+    const { m, foes } = cand[0]
+    m.destroyed = true
+    const woundsLeft = (e: UnitState) => alive(e).reduce((a, x) => a + x.wounds, 0)
+    const target = [...foes].sort((a, b) => woundsLeft(b) - woundsLeft(a))[0]
+    const raw = r.d6()
+    const v = raw + (hasKeyword(target, 'VEHICLE') ? 1 : 0)
+    const mw = v >= 6 ? 3 : v >= 2 ? rollDie(r, 'D3') : 0
+    pushDice(s, `Самоуничтожение: ${u.name}`, [{ label: 'D6', target: '2+', dice: [{ value: raw, success: v >= 2 }], note: `${hasKeyword(target, 'VEHICLE') ? '+1 против техники; ' : ''}2–5: D3 смертельных ран, 6+: 3` }],
+      mw ? `${u.name} → ${target.name}: ${mw} смертельн. ран.` : `${u.name}: самоуничтожение не причинило вреда.`)
+    addLog(s, `${u.name}: модель самоуничтожается (Self-destruction) рядом с «${target.name}» — ${mw} смертельн. ран.`, 'standard')
+    if (mw) applyMortalWounds(s, target, mw, 'самоуничтожение скарабеев')
+  }
+  deadlyDemise(s, before, r)
+  checkWinner(s)
 }
 
 function pushDice(s: GameState, title: string, steps: DiceEntry['steps'], summary: string) {
@@ -562,6 +729,7 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       updateObjectiveControl(s)
       if (s.phase === 'movement')
         for (const u of s.units) if (u.advanceRoll !== null && u.move === 'none') u.move = 'advance'
+      if (s.phase === 'command') reanimate(s, r)
       const i = PHASES.indexOf(s.phase)
       if (i === PHASES.length - 1) endTurn(s, r)
       else enterPhase(s, PHASES[i + 1], r)
@@ -571,6 +739,28 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       s.players.orks.waaaghUsed = true
       s.players.orks.riledTurns = 2
       addLog(s, 'WAAAGH! Боевой клич: до конца следующего хода Орки «разъярены» — 5+ непробиваемый спасбросок, всё оружие дальнего боя получает Assault, можно атаковать после продвижения.', 'minimal')
+      break
+    }
+    case 'callShadow': {
+      const me = s.activePlayer
+      s.players[me].shadowUsed = true
+      const mine = unitsOf(s, me).filter((u) => hasKeyword(u, 'SYNAPSE'))
+      addLog(s, 'Тень в Варпе (Shadow in the Warp): каждый вражеский отряд проходит проверку боевого шока; в 6″ от отряда Synapse — с −1.', 'minimal')
+      for (const e of unitsOf(s, other(s, me))) {
+        const mod = mine.some((x) => unitDistance(e, x) <= SYNAPSE_RANGE) ? -1 : 0
+        const { dice, total, ld, pass } = leadershipRoll(s, e, r, mod)
+        if (!pass) e.battleShocked = true
+        pushDice(s, `Тень в Варпе: ${e.name}`, [{ label: '2D6', target: `${ld}+`, dice: dice.map((v) => ({ value: v, success: pass })), note: `Сумма ${total}${mod ? ' (−1 рядом с Synapse)' : ''} против Ld ${ld}+` }],
+          pass ? `${e.name}: проверка пройдена.` : `${e.name}: провал — отряд в боевом шоке.`)
+      }
+      break
+    }
+    case 'guide': {
+      const u = findUnit(s, cmd.unitId)!
+      const t = findUnit(s, cmd.targetId)!
+      s.players[u.owner].guide = t.id
+      u.guided = true
+      addLog(s, `${u.name}: Guide — союзные модели Аэльдари получают +1 к попаданию по «${t.name}» до начала следующей фазы командования.`, 'standard')
       break
     }
     case 'declareAdvance':
@@ -589,6 +779,11 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       const u = findUnit(s, cmd.unitId)!
       movedTo(u, cmd.positions)
       u.move = cmd.mode
+      if (cmd.swift) {
+        s.players[u.owner].focus = (s.players[u.owner].focus ?? 1) - 1
+        addLog(s, `${u.name}: Swift as the Wind — +${SWIFT_BONUS}″ к движению (жетон Боевого фокуса, осталось ${s.players[u.owner].focus}).`, 'standard')
+      }
+      if (cmd.fly) addLog(s, `${u.name} летит (take to the skies): −${FLY_PENALTY}″, игнорирует модели и тиррейн.`, 'standard')
       const label = { normal: 'обычное движение (Normal Move)', advance: 'продвижение (Advance)', fallBack: 'отступление (Fall Back)' }[cmd.mode]
       addLog(s, `${u.name}: ${label}, до ${fmt(u.movedDistance)}".`, 'standard')
       if (cmd.mode === 'fallBack') {
@@ -596,11 +791,9 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
         if (u.battleShocked) {
           hazard(s, u, alive(u).length, r, 'Отчаянный побег (Desperate Escape)')
           if (!isDestroyed(u)) {
-            const dice = rollMany(r, 2)
-            const ld = profileOf(alive(u)[0]).ld
-            const pass = dice[0] + dice[1] >= ld
+            const { dice, ld, pass, label } = leadershipRoll(s, u, r)
             u.battleShocked = !pass
-            pushDice(s, `Боевой шок после побега: ${u.name}`, [{ label: '2D6', target: `${ld}+`, dice: dice.map((x) => ({ value: x, success: pass })) }], pass ? 'Пройдено.' : 'Провал — отряд остаётся в боевом шоке.')
+            pushDice(s, `Боевой шок после побега: ${u.name}`, [{ label, target: `${ld}+`, dice: dice.map((x) => ({ value: x, success: pass })) }], pass ? 'Пройдено.' : 'Провал — отряд остаётся в боевом шоке.')
           }
         }
       }
@@ -612,6 +805,7 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       const before = aliveIds(s)
       const plan = shootPlan(s, u, t, cmd)
       u.shot = true
+      if (plan.oneShots.length) u.spent = [...(u.spent ?? []), ...plan.oneShots]
       if (cmd.useAmmoRunts && hasAbility(u, 'ammoRunts') && !u.ammoRuntsUsed) u.ammoRuntsUsed = true
       addLog(s, `${u.name} стреляет по отряду «${t.name}»${plan.cover ? ' (цель в укрытии: навык −1)' : ''}.`, 'minimal')
       for (const sk of plan.skipped) addLog(s, sk, 'beginner')
@@ -675,11 +869,12 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       deadlyDemise(s, before, r)
       if (isDestroyed(t)) addLog(s, `Отряд «${t.name}» уничтожен!`, 'minimal')
       checkWinner(s)
-      s.fight!.selecting = other(s.fight!.selecting)
+      s.fight!.selecting = other(s, s.fight!.selecting)
       advanceFight(s)
       break
     }
   }
+  enforceCrews(s)
   s.rng = r.state()
   return s
 }
@@ -692,9 +887,11 @@ export function startGame(s0: GameState, r: Roller): GameState {
   let a = 0, b = 0
   const rolls: number[] = []
   while (a === b) { a = r.d6(); b = r.d6(); rolls.push(a, b) }
-  s.firstPlayer = a > b ? 'marines' : 'orks'
+  const [west, east] = sidesOf(s)
+  s.firstPlayer = a > b ? west : east
   s.activePlayer = s.firstPlayer
-  pushDice(s, 'Бросок за первый ход', [{ label: 'Космодесант / Орки', target: '—', dice: rolls.map((v) => ({ value: v, success: true })) }], `Первым ходит: ${FACTION_NAME[s.firstPlayer]}.`)
+  refreshFocus(s)
+  pushDice(s, 'Бросок за первый ход', [{ label: `${FACTION_NAME[west]} / ${FACTION_NAME[east]}`, target: '—', dice: rolls.map((v) => ({ value: v, success: true })) }], `Первым ходит: ${FACTION_NAME[s.firstPlayer]}.`)
   addLog(s, `===== Раунд 1 ===== Первым ходит: ${FACTION_NAME[s.firstPlayer]}.`, 'minimal')
   enterPhase(s, 'command', r)
   s.rng = r.state()
@@ -723,6 +920,8 @@ export function unitActions(s: GameState, unitId: string): ActionInfo[] {
   if (s.phase === 'movement') {
     add('advance', 'Объявить продвижение (Advance): M + D6', { type: 'declareAdvance', unitId })
     add('reroll', 'Перебросить продвижение (Waaagh!)', { type: 'rerollAdvance', unitId })
+    if (hasAbility(u, 'guide'))
+      for (const e of enemiesOf(s, u)) add(`guide:${e.id}`, `Guide: пометить «${e.name}»`, { type: 'guide', unitId, targetId: e.id })
   }
   if (s.phase === 'shooting')
     for (const e of enemiesOf(s, u)) add(`shoot:${e.id}`, `Стрелять по «${e.name}»`, { type: 'shoot', unitId, targetId: e.id })
@@ -740,6 +939,29 @@ export function unitActions(s: GameState, unitId: string): ActionInfo[] {
 export function maxMove(u: UnitState): number {
   const m = Math.min(...alive(u).map((x) => profileOf(x).m))
   return u.advanceRoll !== null ? m + u.advanceRoll : m
+}
+
+/** Move options the player may toggle: FLY ("take to the skies") and Aeldari Swift as the Wind. */
+export interface MoveOptions { fly: boolean; swift: boolean }
+
+/** Options that actually apply to this unit (stale toggles for a unit that cannot use them are ignored). */
+export function effectiveMoveOptions(s: GameState, u: UnitState, o: MoveOptions): MoveOptions {
+  return {
+    fly: o.fly && isFlyer(u),
+    swift: o.swift && datasheetOf(u).faction === 'aeldari' && (s.players[u.owner].focus ?? 0) > 0,
+  }
+}
+
+/** Maximum distance of a move with the given options. */
+export function moveAllowance(s: GameState, u: UnitState, o: MoveOptions): number {
+  const e = effectiveMoveOptions(s, u, o)
+  return maxMove(u) + (e.swift ? SWIFT_BONUS : 0) - (e.fly ? FLY_PENALTY : 0)
+}
+
+/** The move command for `positions`, with the toggled options that apply. */
+export function moveCommand(s: GameState, u: UnitState, positions: Record<string, Vec>, o: MoveOptions): Command {
+  const e = effectiveMoveOptions(s, u, o)
+  return { type: 'move', unitId: u.id, mode: moveModeFor(s, u), positions, ...(e.fly ? { fly: true } : {}), ...(e.swift ? { swift: true } : {}) }
 }
 
 export function moveModeFor(s: GameState, u: UnitState): 'normal' | 'advance' | 'fallBack' {

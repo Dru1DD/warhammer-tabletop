@@ -16,10 +16,13 @@ No explicit licence was found that would allow embedding official product images
 
 | Asset | Source | Licence |
 |---|---|---|
-| Blueprint tokens: top-down technical drawings of each model on its base (rim with ticks, facing arrow, silhouette, weapon). Marines: backpack, pauldrons, bolt rifle / grenade launcher / officer's cape, sword and pistol. Orks (mirrored to face the Marines): armour plates, tusks, slugga and choppa / big shoota / rokkit / Nob's horns and big choppa. Assault Intercessors (chainsword, pistol), Redemptor Dreadnought (hull, fist, macro plasma, launchers), Deff Dread (riveted body, klaw, big shoota, skorcha, exhausts) | Hand-written SVG in `src/assets/tokenArt.ts` | Original, part of this project. No GW logos, icons or traced artwork. |
-| Fallback tokens: Cyrillic abbreviations Лт / Сж / И / Гр / Нб / Б / БШ / Р | Drawn in code (Konva) | Original |
+| Blueprint tokens: top-down technical drawings of each model on its base (rim with ticks, facing arrow, silhouette, weapon). Marines: backpack, pauldrons, bolt rifle / grenade launcher / officer's cape, sword and pistol. Orks: armour plates, tusks, slugga and choppa / big shoota / rokkit / Nob's horns and big choppa. Assault Intercessors (chainsword, pistol), Redemptor Dreadnought (hull, fist, macro plasma, launchers), Deff Dread (riveted body, klaw, big shoota, skorcha, exhausts) | Hand-written SVG in `src/assets/tokenArt.ts` | Original, part of this project. No GW logos, icons or traced artwork. |
+| Blueprint tokens for the Tyranids, Necrons and Aeldari (22 model profiles, checked 2026-11-09): Hive Tyrant (wings, crest, bonesword and talons), Termagants (four gun variants), Hormagaunt (scything talons), Tyranid Prime and three Warrior loadouts; Overlord, Necron Warrior (rib lines, gauss flayer), Skorpekh Destroyer (hyperphase blades), Scarab Swarm (cluster of scarabs); Farseer, Guardian Defender, Heavy Weapon Platform, Dire Avenger and Exarch, three Windrider loadouts. Each faction has its own line colour (coral / silver / violet) | Hand-written SVG in `src/assets/tokenArt.ts` | Original, part of this project. No GW logos, icons or traced artwork. |
+| Fallback tokens: Cyrillic abbreviations (Лт / Сж / И / Гр / Нб / Б / БШ / Р and one per new profile, `TOKENS` in `manifest.ts`) | Drawn in code (Konva) | Original |
 | Blueprint board: grid with inch rulers, ruins as hatched floor plans with walls and pillars, craters as contour lines, objectives as crosshairs | Drawn in code (Konva, `src/ui/Board.tsx`) | Original |
 | `public/favicon.svg` | Vite project template | MIT (Vite) |
+
+All built-in art faces east (+x). The board flips the built-in portraits of the army that stands on the east side so both armies face each other; your own photos are never flipped.
 
 ## Using photos of your own miniatures (in the app)
 

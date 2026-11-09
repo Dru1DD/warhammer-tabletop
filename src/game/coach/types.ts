@@ -68,6 +68,8 @@ export interface RecordStep {
    * Only present for AI steps when the AI supplied one. Analyzers must not parse it.
    */
   note?: string
+  /** AI steps only: `settings.aiLevel` at the moment of the step (it can change mid-battle). Absent on human steps. */
+  aiLevel?: AiLevel
 }
 
 /**
@@ -80,6 +82,16 @@ export interface RecordStep {
  * This is exactly what the live store does (`apply(game, cmd, seededRoller(game.rng))`, src/store.ts).
  * The engine logs EVERY entry regardless of the user's explanation level (that level is a pure
  * display filter), so the record does not store it.
+ *
+ * LIFECYCLE OBLIGATION (recorder, review H4). Every `set({ game: ... })` site in src/store.ts:
+ *  - `newGame` and `finishDeployment` (both call `startGame`): START a fresh record, `initial` = the started state.
+ *  - `startDeployment` and `quit`: DISCARD the record.
+ *  - `dispatch`: append a step. `undo`: see below. `load`: see below. `placeUnit` / `editTerrain` happen before
+ *    `startGame` and never touch the record.
+ *  - A FINISHED battle (`winner` set) keeps its record, persisted under its own key, until `startDeployment`,
+ *    `newGame` or `quit`. "Продолжить битву" is hidden once `winner` is set, so without this a reload loses the report.
+ *  - The AI level can change mid-battle (settings dialog, `aiStep` reads `settings.aiLevel` live): AI steps carry
+ *    `RecordStep.aiLevel`; `BattleRecord.aiLevel` is the level at the START of the record.
  *
  * UNDO OBLIGATION (recorder): the store has UNDO (`store.undo`), which restores a previous state
  * and applies ONLY to dice-free human commands (`next.rng === game.rng`, human still to act, not
@@ -1057,6 +1069,12 @@ export interface CoachReport {
    *    separately (`shoot.hazardLoss`). Always `attackDealt <= damageDealt`, `attackTaken <= damageTaken`.
    *    `luck.summary` / `good.efficiency` use the `attack*Wounds` metric keys for exactly these.
    *
+   * IMPLEMENTATION NOTE (review H1): `ai.ts` `expectedGroupDamage` is NOT this definition. It uses the profile's
+   * maximum W averaged over models, the save of `alive(target)[0]` only, `min(E[D], W)` instead of `E[min(D, W)]`,
+   * and no cap by the target unit's remaining wounds. The coach MUST use its own expectation (a damage
+   * DISTRIBUTION, needed anyway for `luck.swing` tail probabilities) and leave the AI's function untouched. Until
+   * that exists, every finding built on expected damage is at most `estimate`, never `exact`.
+   *
    * EXPECTED DAMAGE of one attack = sum over its unsaved wounds of min(D, remaining wounds of the
    * model the wound is allocated to), additionally capped by the target unit's remaining wounds
    * — the same as the engine, where excess damage is lost. So expected and actual use the same
@@ -1128,7 +1146,9 @@ export interface AnalyzerContext {
 
 /**
  * A pure analyzer: same frames + context in, same findings out (deterministic order and ids, no
- * Date/Math.random, no mutation of frames). Returns raw findings for the human only, ALWAYS
+ * Date/Math.random/performance.now, no mutation of frames). WORK BUDGETS ARE COUNT-BASED (`config.BUDGET`:
+ * alternatives per frame, move candidates): a wall-clock cutoff is FORBIDDEN because it makes the output depend on
+ * the machine. Returns raw findings for the human only, ALWAYS
  * emitted (even in a lowData game); every finding fills `impact`. Capping, ranking, supersession
  * and lowData suppression are the ranker's job.
  */
