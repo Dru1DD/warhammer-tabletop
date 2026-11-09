@@ -1,4 +1,7 @@
-import type { Datasheet, ModelProfile, Weapon } from '../types'
+import type { Datasheet, ModelProfile, PlayerId, Weapon } from '../types'
+import { AELDARI_ABILITY_TEXT, AELDARI_DATASHEETS, AELDARI_PROFILES, AELDARI_WEAPONS } from './aeldari'
+import { NECRON_ABILITY_TEXT, NECRON_DATASHEETS, NECRON_PROFILES, NECRON_WEAPONS } from './necrons'
+import { TYRANID_ABILITY_TEXT, TYRANID_DATASHEETS, TYRANID_PROFILES, TYRANID_WEAPONS } from './tyranids'
 
 // Profiles from 11th-edition datasheets as transcribed by Wahapedia (checked
 // 2026-10-18; Redemptor, Deff Dread, Assault Intercessors 2026-10-29). Loadouts follow the Introductory Set miniatures. See
@@ -6,7 +9,7 @@ import type { Datasheet, ModelProfile, Weapon } from '../types'
 
 const nonMV = 'nonMV' as const
 
-export const WEAPONS: Record<string, Weapon> = {
+const CORE_WEAPONS: Record<string, Weapon> = {
   plasmaPistol: {
     id: 'plasmaPistol',
     name: 'Плазменный пистолет (Plasma Pistol)',
@@ -137,7 +140,7 @@ export const WEAPONS: Record<string, Weapon> = {
   },
 }
 
-export const PROFILES: Record<string, ModelProfile> = {
+const CORE_PROFILES: Record<string, ModelProfile> = {
   lieutenant: {
     id: 'lieutenant', name: 'Лейтенант', m: 6, t: 5, sv: 3, w: 4, ld: 6, oc: 1, baseMm: 40, character: true,
     weapons: ['plasmaPistol', 'ltBoltPistol', 'mcPowerWeapon'],
@@ -188,7 +191,7 @@ export const PROFILES: Record<string, ModelProfile> = {
   },
 }
 
-export const DATASHEETS: Record<string, Datasheet> = {
+const CORE_DATASHEETS: Record<string, Datasheet> = {
   lieutenant: {
     id: 'lieutenant', name: 'Лейтенант (Lieutenant)', faction: 'marines',
     keywords: ['INFANTRY', 'CHARACTER', 'IMPERIUM', 'TACTICUS'], abilities: ['tacticalPrecision'],
@@ -215,7 +218,7 @@ export const DATASHEETS: Record<string, Datasheet> = {
   },
 }
 
-export const ABILITY_TEXT: Record<string, string> = {
+const CORE_ABILITY_TEXT: Record<string, string> = {
   boltDiscipline: 'Болтерная дисциплина (Bolter Discipline): +1 к броску на попадание в стрельбе, если отряд или цель в зоне цели (objective).',
   tacticalPrecision: 'Тактическая точность (Tactical Precision): атаки отряда имеют Lethal Hits против целей не MONSTER/VEHICLE.',
   ammoRunts: 'Гроты-подносчики (Ammo Runts): раз за битву +1 к броску на попадание при стрельбе.',
@@ -228,7 +231,15 @@ export const ABILITY_TEXT: Record<string, string> = {
   waaagh: 'Waaagh! (правило армии): переброс броска продвижения; раз за битву — «Боевой клич»: до конца следующего хода отряд «разъярён» — 5+ непробиваемый спас, оружие дальнего боя получает Assault, можно атаковать после продвижения.',
 }
 
-export const FACTION_NAME: Record<string, string> = {
+export const WEAPONS: Record<string, Weapon> = { ...CORE_WEAPONS, ...TYRANID_WEAPONS, ...NECRON_WEAPONS, ...AELDARI_WEAPONS }
+export const PROFILES: Record<string, ModelProfile> = { ...CORE_PROFILES, ...TYRANID_PROFILES, ...NECRON_PROFILES, ...AELDARI_PROFILES }
+export const DATASHEETS: Record<string, Datasheet> = { ...CORE_DATASHEETS, ...TYRANID_DATASHEETS, ...NECRON_DATASHEETS, ...AELDARI_DATASHEETS }
+export const ABILITY_TEXT: Record<string, string> = { ...CORE_ABILITY_TEXT, ...TYRANID_ABILITY_TEXT, ...NECRON_ABILITY_TEXT, ...AELDARI_ABILITY_TEXT }
+
+export const FACTION_NAME: Record<PlayerId, string> = {
   marines: 'Космодесант',
   orks: 'Орки',
+  tyranids: 'Тираниды',
+  necrons: 'Некроны',
+  aeldari: 'Аэльдари',
 }

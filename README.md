@@ -6,7 +6,9 @@ This is a browser tabletop trainer for **Warhammer 40,000 (11th edition)**, buil
 
 The «Боевой патруль» scenario adds a bigger battle on a 44″×30″ board: two Intercessor squads, Assault Intercessors and a Redemptor Dreadnought against three mobs of 10 Boyz and a Deff Dread, with ruins, woods, containers, barricades and craters.
 
-You pick a faction and a rules-driven AI plays the other. The interface is entirely in Russian.
+Three more complete armies play on that large board: **Tyranids** (Hive Tyrant, 10 Termagants, 10 Hormagaunts, 3 Tyranid Warriors), **Necrons** (Overlord, 10 Necron Warriors, 3 Skorpekh Destroyers, 3 Canoptek Scarab Swarms) and **Aeldari** (Farseer, 10 Guardian Defenders with their platform, 5 Dire Avengers, 3 Windriders). Any two of the five armies can fight each other; see [docs/armies.md](docs/armies.md).
+
+You pick a faction and an opponent, and a rules-driven AI plays the other side. The interface is entirely in Russian.
 
 It is a private hobby and learning project, not a Games Workshop product, and it ships no official images or rules text.
 
@@ -58,18 +60,20 @@ src/game/            pure TypeScript rules engine (no React)
   engine.ts          validate(state, cmd) / apply(state, cmd, roller), phase flow
   ai/ai.ts           utility AI: proposes commands, which still go through validate/apply
   scenarios/         scenario registry (2 scenarios)
-  persistence.ts     versioned save format with validation
+  match/             command pipeline: controllers, envelopes, versioning, action history, replay, network boundary (types only)
+  persistence.ts     versioned save format (format 2 = state + match block) with migrations
 src/view/transform.ts  the only world (inches) ↔ screen (px) conversion
 src/assets/manifest.ts token, terrain and board styles; resolves token art (photo → manifest → SVG)
 src/assets/tokenArt.ts original SVG portraits
 src/ui/guidance.ts   next-step hints, actionable units, click-to-target (pure, tested)
-src/store.ts         Zustand: game state, UI state, undo stack, AI stepping, save/load
+src/store.ts         Zustand orchestration: publishes the match state, UI state, undo snapshots, AI stepping, save/load
 src/ui/              Konva board and React panels
 ```
 
 - Commands are typed. `apply` validates first, then works on a `structuredClone`, so an invalid command never mutates state.
 - The RNG state lives inside `GameState`, so saved games and tests replay deterministically.
-- The AI and the human use the same `validate`/`apply` path. The AI has a per-turn action cap as a guard against loops.
+- The AI and the human use the same path: every command is a `CommandEnvelope` that goes through `match.submit` (ownership, sequence, state version, then `validate`/`apply`). The AI has a per-turn action cap as a guard against loops.
+- Multiplayer readiness (no networking yet): see [docs/architecture.md](docs/architecture.md).
 
 ## What's implemented
 
@@ -82,6 +86,7 @@ The full list, with what is exact and what is approximated, is in [docs/research
 - Weapon keywords: Rapid Fire, Heavy, Assault, Close-quarters, Blast, Lethal Hits, Hazardous, plus wound allocation rules.
 - Charge: 2D6 roll, then target selection; Fights First; pile-in; alternating fight order; consolidation.
 - Unit abilities: Bolter Discipline, Tactical Precision, Ammo Runts, Tide of Muscle, Waaagh! War Cry.
+- Five armies with their army rules: Tyranid Synapse and Shadow in the Warp, Necron Reanimation Protocols, Aeldari Battle Focus (Swift as the Wind) and Guide, plus the datasheet abilities and weapon keywords they need (Twin-linked, Extra Attacks, Devastating Wounds, Sustained Hits, Anti-X, Psychic, One Shot, FLY). Details and the explicit list of what is not implemented: [docs/armies.md](docs/armies.md).
 - Objective control by OC, end of game after 5 rounds or when an army is destroyed.
 - AI with two levels, faction-specific weights and Russian explanations of each decision.
 - 7-step tutorial that runs on the real engine, and three explanation levels.
@@ -97,9 +102,16 @@ The full list, with what is exact and what is approximated, is in [docs/research
   - Hit modifiers are capped at ±1.
   - Cleave and half-strength use assumed definitions.
   - Charge, pile-in and consolidation moves are placed automatically.
-- **Balance.** With the official profiles, the Space Marines win almost every AI-vs-AI game: 75 of 80 games, see research.md. Playing as Orks is hard. Use «Переулок в руинах» and stay behind ruins.
+- **Balance.** With the official profiles, the Space Marines win almost every AI-vs-AI game: 75 of 80 games, see research.md. Playing as Orks is hard. Use «Переулок в руинах» and stay behind ruins. Balance of all five armies: docs/armies.md.
+- **New armies: not implemented** (the engine has no out-of-turn moves, stratagems or attached leaders): Skulking Horrors, Fade Back and the other reactive Agile Manoeuvres, Fleet of Foot, Will of the Hive Mind, My Will Be Done, Branching Fates. Each is marked in the unit card.
 
 ## Docs
 
+- [docs/architecture.md](docs/architecture.md): command pipeline, ownership, versioning, replay, persistence, future networking boundary.
+- [docs/armies.md](docs/armies.md): the Tyranid, Necron and Aeldari armies: sources, legality notes, rules abstractions, limitations, AI behaviour, balance.
 - [docs/research.md](docs/research.md): edition, sources, box contents, datasheets, exact vs approximated rules.
 - [docs/assets.md](docs/assets.md): asset inventory and licensing.
+
+## Online play (two humans)
+
+PeerJS / WebRTC, host-authoritative, no backend of our own. See [docs/multiplayer.md](docs/multiplayer.md) for the architecture, signaling/STUN/TURN setup, limits and a manual two-browser test plan.

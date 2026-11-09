@@ -16,6 +16,9 @@ export interface TokenStyle {
 export const FACTION_STYLE: Record<PlayerId, { primary: string; secondary: string; accent: string }> = {
   marines: { primary: '#1f4e9c', secondary: '#c9d6ee', accent: '#e4b33a' },
   orks: { primary: '#3f7a2a', secondary: '#d7e5c3', accent: '#b83a2b' },
+  tyranids: { primary: '#8c2f4a', secondary: '#f3c4cc', accent: '#ff7a8a' },
+  necrons: { primary: '#3a4a52', secondary: '#dfe9ef', accent: '#47e08a' },
+  aeldari: { primary: '#5a3f9c', secondary: '#ddd0f7', accent: '#f0c75e' },
 }
 
 export const TOKENS: Record<string, TokenStyle> = {
@@ -31,6 +34,31 @@ export const TOKENS: Record<string, TokenStyle> = {
   assaultIntercessor: { fill: '#2b5fb5', stroke: '#c9d6ee', text: '#ffffff', label: 'Ш' },
   redemptor: { fill: '#1f4e9c', stroke: '#e4b33a', text: '#ffffff', label: 'Дрд' },
   deffDread: { fill: '#3f7a2a', stroke: '#b83a2b', text: '#ffffff', label: 'ДД' },
+  // Tyranids
+  hiveTyrant: { fill: '#8c2f4a', stroke: '#ff7a8a', text: '#ffffff', label: 'ТУ' },
+  termagant: { fill: '#a33a58', stroke: '#f3c4cc', text: '#ffffff', label: 'Тр' },
+  termagantShard: { fill: '#a33a58', stroke: '#f3c4cc', text: '#ffffff', label: 'ТО' },
+  termagantSpike: { fill: '#a33a58', stroke: '#f3c4cc', text: '#ffffff', label: 'ТШ' },
+  termagantWeb: { fill: '#a33a58', stroke: '#f3c4cc', text: '#ffffff', label: 'ТП' },
+  hormagaunt: { fill: '#8c2f4a', stroke: '#f3c4cc', text: '#ffffff', label: 'Гм' },
+  tyranidPrime: { fill: '#8c2f4a', stroke: '#ff7a8a', text: '#ffffff', label: 'Пр' },
+  tyranidWarrior: { fill: '#a33a58', stroke: '#f3c4cc', text: '#ffffff', label: 'Вн' },
+  tyranidWarriorVenom: { fill: '#a33a58', stroke: '#f3c4cc', text: '#ffffff', label: 'ВЯ' },
+  tyranidWarriorStrangler: { fill: '#a33a58', stroke: '#f3c4cc', text: '#ffffff', label: 'ВД' },
+  // Necrons
+  overlord: { fill: '#3a4a52', stroke: '#47e08a', text: '#ffffff', label: 'Ов' },
+  necronWarrior: { fill: '#46585f', stroke: '#dfe9ef', text: '#ffffff', label: 'Нк' },
+  skorpekh: { fill: '#3a4a52', stroke: '#47e08a', text: '#ffffff', label: 'Ск' },
+  scarab: { fill: '#46585f', stroke: '#47e08a', text: '#ffffff', label: 'Рой' },
+  // Aeldari
+  farseer: { fill: '#5a3f9c', stroke: '#f0c75e', text: '#ffffff', label: 'Фр' },
+  guardian: { fill: '#6a4cb0', stroke: '#ddd0f7', text: '#ffffff', label: 'Ст' },
+  heavyPlatform: { fill: '#6a4cb0', stroke: '#f0c75e', text: '#ffffff', label: 'ПТО' },
+  direAvenger: { fill: '#5a3f9c', stroke: '#ddd0f7', text: '#ffffff', label: 'ГМ' },
+  exarch: { fill: '#5a3f9c', stroke: '#f0c75e', text: '#ffffff', label: 'Эк' },
+  windrider: { fill: '#6a4cb0', stroke: '#ddd0f7', text: '#ffffff', label: 'Рв' },
+  windriderLaser: { fill: '#6a4cb0', stroke: '#ddd0f7', text: '#ffffff', label: 'РЛ' },
+  windriderCannon: { fill: '#6a4cb0', stroke: '#ddd0f7', text: '#ffffff', label: 'РП' },
 }
 
 // Blueprint look: dark drafting paper, light line work.

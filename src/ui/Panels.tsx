@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { FACTION_STYLE, TOKENS, tokenImageFor } from '../assets/manifest'
 import { ABILITY_TEXT, FACTION_NAME, PROFILES } from '../game/data/datasheets'
-import { actor, maxMove, moveModeFor, PHASE_NAME, shootPlan, unitActions, validate } from '../game/engine'
-import { alive, datasheetOf, engagedUnits, fmt, isDestroyed, profileOf, unitsOf, weaponsOf } from '../game/gameState'
+import { actor, moveAllowance, moveCommand, moveModeFor, PHASE_NAME, shootPlan, unitActions, validate } from '../game/engine'
+import { alive, datasheetOf, engagedUnits, fmt, isDestroyed, other, profileOf, sidesOf, unitsOf, weaponsOf } from '../game/gameState'
 import { hitRoll, saveTarget, toughness, woundTarget } from '../game/combat/attack'
 import { fmtRandom } from '../game/dice/dice'
 import { deploymentIssues, deploymentZone } from '../game/rules/deployment'
@@ -11,10 +11,15 @@ import { scenarioById } from '../game/scenarios/scenarios'
 import type { Command, DiceEntry, GameState, UnitState, WeaponKeywords } from '../game/types'
 import { PHASES } from '../game/types'
 import { useStore } from '../store'
+import { scoreText } from './score'
 import { explainStep, LESSONS, PHASE_GOAL, PHASE_HELP, PHASE_NEXT, showAt, STAT_HELP, UNIT_ROLE } from './help'
 import { canActNow, draftDistance, nextPhaseLabel, PHASE_SHORT, phaseStatus } from './guidance'
 import { fileToTokenDataUrl } from './imageUpload'
+import { leaveRoom } from '../multiplayer/session'
 
+
+/** Who plays the other side: the computer in single-player, a person online. */
+const rivalName = () => (useStore.getState().shared ? 'соперник' : 'ИИ')
 
 // ---------------------------------------------------------------- left: roster
 
@@ -23,6 +28,7 @@ export function RosterPanel() {
   const selected = useStore((s) => s.selectedUnitId)
   const select = useStore((s) => s.select)
   const human = useStore((s) => s.settings.human)
+  const rival = useStore((s) => (s.shared ? 'соперник' : 'ИИ'))
   const open = useStore((s) => s.layout.roster)
   const toggle = useStore((s) => s.toggleLayout)
   const sel = game.units.find((u) => u.id === selected)
@@ -48,10 +54,10 @@ export function RosterPanel() {
   return (
     <div className="flex flex-col gap-3">
       <button className="self-end text-xs text-stone-400 hover:text-stone-100" onClick={() => toggle('roster')} title="Свернуть панель отрядов">« свернуть</button>
-      {(['marines', 'orks'] as const).map((p) => (
+      {sidesOf(game).map((p) => (
         <section key={p}>
           <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide" style={{ color: FACTION_STYLE[p].secondary }}>
-            {FACTION_NAME[p]} {p === human ? '(вы)' : '(ИИ)'} · CP {game.players[p].cp} · ПО {game.players[p].vp}
+            {FACTION_NAME[p]} {p === human ? '(вы)' : `(${rival})`} · CP {game.players[p].cp} · ПО {game.players[p].vp}
           </h3>
           {game.units.filter((u) => u.owner === p).map((u) => (
             <button
@@ -226,6 +232,13 @@ function keywordText(k: WeaponKeywords) {
   if (k.lethalHits) parts.push('Lethal Hits')
   if (k.hazardous) parts.push('Hazardous')
   if (k.cleave) parts.push(`Cleave ${k.cleave}*`)
+  if (k.twinLinked) parts.push('Twin-linked')
+  if (k.extraAttacks) parts.push('Extra Attacks')
+  if (k.devastatingWounds) parts.push('Devastating Wounds')
+  if (k.sustainedHits) parts.push(`Sustained Hits ${k.sustainedHits}`)
+  if (k.anti) parts.push(`Anti-${k.anti.keyword} ${k.anti.roll}+`)
+  if (k.psychic) parts.push('Psychic')
+  if (k.oneShot) parts.push('One Shot')
   return parts.join(', ')
 }
 
@@ -249,8 +262,8 @@ export function ActionPanel() {
       {game.winner ? (
         <div className="rounded border border-yellow-500 bg-yellow-900/40 p-3 text-center">
           <div className="text-lg font-bold">{game.winner === 'draw' ? 'Ничья' : `Победа: ${FACTION_NAME[game.winner]}`}</div>
-          <div>Счёт ПО — Космодесант {game.players.marines.vp} : {game.players.orks.vp} Орки</div>
-          <button className="btn mt-2" onClick={() => st.startDeployment()}>Новая битва</button>
+          <div>Счёт ПО — {scoreText(game, 'full')}</div>
+          <button className="btn mt-2" onClick={() => (st.shared ? leaveRoom() : st.startDeployment())}>{st.shared ? 'Покинуть комнату' : 'Новая битва'}</button>
         </div>
       ) : (
         <PhaseTrack game={game} myTurn={myTurn} />
@@ -264,6 +277,9 @@ export function ActionPanel() {
       {st.settings.tutorial && <Tutorial />}
       {!game.winner && myTurn && game.phase === 'command' && human === 'orks' && (
         <ActionButton cmd={{ type: 'callWaaagh' }} label="WAAAGH! (Боевой клич, раз за битву)" />
+      )}
+      {!game.winner && myTurn && game.phase === 'command' && game.players[human].shadowUsed === false && (
+        <ActionButton cmd={{ type: 'callShadow' }} label="Тень в Варпе (Shadow in the Warp, раз за битву)" />
       )}
       {sel ? <UnitActions u={sel} /> : <p className="text-stone-400">Выберите отряд на поле или в списке.</p>}
       <LastAttack />
@@ -281,7 +297,7 @@ function PhaseTrack({ game, myTurn }: { game: GameState; myTurn: boolean }) {
   const verb: Partial<Record<string, string>> = { movement: 'двигаться', shooting: 'стрелять', charge: 'атаковать', fight: 'сражаться' }
   return (
     <section className={`rounded border p-2 ${myTurn ? 'border-emerald-600 bg-emerald-950/40' : 'border-stone-600 bg-stone-800/60'}`} aria-label="Текущая фаза">
-      <div className="mb-1 text-xs text-stone-400">Раунд {game.round}/{game.maxRounds} · ход: <b style={{ color: FACTION_STYLE[game.activePlayer].secondary }}>{FACTION_NAME[game.activePlayer]}</b>{myTurn ? ' (вы)' : ' (ИИ)'}</div>
+      <div className="mb-1 text-xs text-stone-400">Раунд {game.round}/{game.maxRounds} · ход: <b style={{ color: FACTION_STYLE[game.activePlayer].secondary }}>{FACTION_NAME[game.activePlayer]}</b>{myTurn ? ' (вы)' : ` (${rivalName()})`}</div>
       <ol className="flex flex-wrap gap-1" aria-label="Фазы хода">
         {PHASES.map((p, i) => (
           <li key={p} aria-current={i === cur ? 'step' : undefined} className={`rounded px-1.5 py-0.5 text-[11px] ${i === cur ? 'bg-yellow-500 font-semibold text-black' : i < cur ? 'bg-stone-700 text-stone-400' : 'bg-stone-800 text-stone-300'}`}>
@@ -289,7 +305,7 @@ function PhaseTrack({ game, myTurn }: { game: GameState; myTurn: boolean }) {
           </li>
         ))}
       </ol>
-      <div className="mt-2 font-semibold">{myTurn ? 'Ваш ход' : `Ходит ИИ (${FACTION_NAME[actor(game)]})…`} — {PHASE_NAME[game.phase].split(' (')[0]}</div>
+      <div className="mt-2 font-semibold">{myTurn ? 'Ваш ход' : `Ходит ${rivalName()} (${FACTION_NAME[actor(game)]})…`} — {PHASE_NAME[game.phase].split(' (')[0]}</div>
       {explain !== 'minimal' && <p className="text-xs text-stone-300">{PHASE_GOAL[game.phase]}</p>}
       {myTurn && !status.canEnd && status.reason && <p className="mt-1 text-xs text-amber-300">Сначала: {status.reason}</p>}
       {myTurn && status.canEnd && verb[game.phase] && (
@@ -394,7 +410,7 @@ function DeploymentPanel() {
           <li>Модели отряда держатся вместе: каждая в 2″ от другой модели отряда, все — в 9″ (связность).</li>
           <li>Подставки не должны пересекаться.</li>
         </ul>
-        {beginner && <p className="mt-1 text-[11px] text-stone-400">Противник ({FACTION_NAME[human === 'marines' ? 'orks' : 'marines']}) уже стоит в своей зоне. Учебное упрощение: в настоящей игре стороны ставят отряды по очереди.</p>}
+        {beginner && <p className="mt-1 text-[11px] text-stone-400">Противник ({FACTION_NAME[other(game, human)]}) уже стоит в своей зоне. Учебное упрощение: в настоящей игре стороны ставят отряды по очереди.</p>}
       </div>
 
       <div>
@@ -459,7 +475,8 @@ function MoveControls({ u }: { u: UnitState }) {
   const game = st.game!
   const mode = moveModeFor(game, u)
   const hasDraft = Object.keys(st.draft).length > 0
-  const cmd = { type: 'move' as const, unitId: u.id, mode, positions: st.draft }
+  const cmd = moveCommand(game, u, st.draft, st.moveOptions)
+  const allow = moveAllowance(game, u, st.moveOptions)
   const v = hasDraft ? validate(game, cmd) : null
   if (u.move !== 'none') {
     const after = { none: '', normal: 'Может стрелять и атаковать (charge) как обычно.', advance: 'После продвижения: стреляет только оружие Assault, атаковать (charge) нельзя.', fallBack: 'После отступления: не стреляет и не атакует в этот ход.' }[u.move]
@@ -475,7 +492,7 @@ function MoveControls({ u }: { u: UnitState }) {
   const used = hasDraft ? draftDistance(u, st.draft) : 0
   return (
     <div className="flex flex-col gap-1">
-      <p className="text-xs text-stone-300">Режим: <b>{{ normal: 'Обычное движение', advance: `Продвижение (+${u.advanceRoll}″)`, fallBack: 'Отступление (Fall Back)' }[mode]}</b>, до {fmt(maxMove(u))}″.</p>
+      <p className="text-xs text-stone-300">Режим: <b>{{ normal: 'Обычное движение', advance: `Продвижение (+${u.advanceRoll}″)`, fallBack: 'Отступление (Fall Back)' }[mode]}</b>, до {fmt(allow)}″.</p>
       {st.settings.explain !== 'minimal' && (
         <ul className="text-[11px]">
           {modes.map((m) => (
@@ -485,7 +502,7 @@ function MoveControls({ u }: { u: UnitState }) {
           ))}
         </ul>
       )}
-      {hasDraft && <p className="text-[11px]">Пройдено: <b>{fmt(used)}″</b> из {fmt(maxMove(u))}″ · осталось {fmt(Math.max(0, maxMove(u) - used))}″</p>}
+      {hasDraft && <p className="text-[11px]">Пройдено: <b>{fmt(used)}″</b> из {fmt(allow)}″ · осталось {fmt(Math.max(0, allow - used))}″</p>}
       {hasDraft && v && !v.ok && <p className="text-[11px] text-rose-300">⛔ {v.reason} Подвиньте модель или нажмите «↺ Вернуть» (Esc).</p>}
       {hasDraft && v?.ok && <p className="text-[11px] text-emerald-300">✓ Позиция допустима — «Подтвердить» под полем (или Enter).</p>}
       {!hasDraft && <p className="text-[11px] text-stone-400">Перетащите модель на поле: пунктирный круг — предел, тень — исходная позиция. Режим «По одной модели» (под полем) позволяет сдвинуть только одну-две модели — остальные останутся на месте, но отряд должен остаться связным (каждая модель в 2″ от другой). Не двигать отряд вовсе тоже можно.</p>}
@@ -728,7 +745,7 @@ export function BottomPanel() {
   const human = st.settings.human
   const log = game.log.filter((l) => showAt(l.level, st.settings.explain))
   const undoBtn = <button className="btn" disabled={!(st.deploying ? st.deployHistory : st.history).length} onClick={() => st.undo()} title="Отмена доступна для действий без бросков кубиков">↶ Отменить</button>
-  const restartBtn = <button className="btn" onClick={() => { if (confirm('Начать сценарий заново? Текущий прогресс (автосохранение) будет заменён.')) st.newGame() }} title="Начать сценарий заново">⟲ Заново</button>
+  const restartBtn = st.shared ? null : <button className="btn" onClick={() => { if (confirm('Начать сценарий заново? Текущий прогресс (автосохранение) будет заменён.')) st.newGame() }} title="Начать сценарий заново">⟲ Заново</button>
   if (!st.layout.log) {
     const last = game.diceLog.at(-1)
     const openTab = (t: 'dice' | 'log') => { setTab(t); st.toggleLayout('log') }
@@ -768,7 +785,7 @@ export function BottomPanel() {
         </div>
       </div>
       <div className="flex w-full flex-col gap-1 md:w-56">
-        <p className="text-[11px] text-stone-400">{st.deploying ? 'Расстановка армии перед битвой' : `${PHASE_NAME[game.phase]} · ход: ${FACTION_NAME[game.activePlayer]}${actor(game) !== human ? ' (ИИ)' : ''}`}</p>
+        <p className="text-[11px] text-stone-400">{st.deploying ? 'Расстановка армии перед битвой' : `${PHASE_NAME[game.phase]} · ход: ${FACTION_NAME[game.activePlayer]}${actor(game) !== human ? ` (${rivalName()})` : ''}`}</p>
         <p className="text-[11px] text-stone-500">Клавиши: Enter — подтвердить движение, Esc — отмена, R — линейка.</p>
         {undoBtn}
         {restartBtn}

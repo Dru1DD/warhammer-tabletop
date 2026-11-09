@@ -1,17 +1,25 @@
 import { PROFILES } from '../data/datasheets'
 import { rect } from '../geometry/geometry'
-import { SCHEMA_VERSION } from '../gameState'
-import type { GameState, ModelState, PlayerId, Terrain, UnitState, Vec } from '../types'
+import { DEFAULT_SIDES, SCHEMA_VERSION, seats } from '../gameState'
+import type { GameState, ModelState, PlayerId, PlayerState, Terrain, UnitState, Vec } from '../types'
 
 export interface Scenario {
   id: string
   name: string
   description: string
   victory: string
-  /** deployment zones (display + documentation) */
-  deployment: Record<PlayerId, Vec[]>
-  build: () => GameState
+  /** deployment zones (display + documentation): the west and east edge of the board */
+  deployment: { west: Vec[]; east: Vec[] }
+  /** factions that have an army for this board */
+  factions: PlayerId[]
+  /** `sides` = [west, east] factions; default Space Marines (west) vs Orks (east) */
+  build: (sides?: [PlayerId, PlayerId]) => GameState
 }
+
+/** Maps (depth from the side's own board edge, y) to board coordinates, so any faction can stand on either side. */
+type At = (depth: number, y: number) => Vec
+const westAt: At = (depth, y) => ({ x: depth, y })
+const eastAt = (width: number): At => (depth, y) => ({ x: width - depth, y })
 
 function unit(id: string, datasheetId: string, owner: PlayerId, name: string, models: [string, Vec][]): UnitState {
   const ms: ModelState[] = models.map(([profileId, pos], i) => ({ id: `${id}-${i}`, profileId, pos, wounds: 0, destroyed: false }))
@@ -28,22 +36,28 @@ const fillWounds = (s: GameState) => {
   return s
 }
 
-function baseState(id: string, board: GameState['board'], terrain: Terrain[], objectives: Vec[], units: UnitState[]): GameState {
+/** Army-rule state of a side. Marines and Orks keep the original shape (old saves and golden states stay identical). */
+function playerState(p: PlayerId): PlayerState {
+  const base: PlayerState = { cp: 0, vp: 0, waaaghUsed: false, riledTurns: 0 }
+  if (p === 'tyranids') return { ...base, shadowUsed: false }
+  if (p === 'aeldari') return { ...base, focus: 0, guide: null }
+  return base
+}
+
+function baseState(id: string, board: GameState['board'], terrain: Terrain[], objectives: Vec[], units: UnitState[], sides: [PlayerId, PlayerId] = DEFAULT_SIDES): GameState {
+  const isDefault = sides[0] === DEFAULT_SIDES[0] && sides[1] === DEFAULT_SIDES[1]
   return fillWounds({
     schemaVersion: SCHEMA_VERSION,
     scenarioId: id,
     board,
     terrain,
     objectives: objectives.map((pos, i) => ({ id: `o${i + 1}`, pos, controller: null })),
-    players: {
-      marines: { cp: 0, vp: 0, waaaghUsed: false, riledTurns: 0 },
-      orks: { cp: 0, vp: 0, waaaghUsed: false, riledTurns: 0 },
-    },
+    players: seats(sides[0], playerState(sides[0]), sides[1], playerState(sides[1])),
     units,
     round: 1,
     maxRounds: 5,
-    firstPlayer: 'marines',
-    activePlayer: 'marines',
+    firstPlayer: sides[0],
+    activePlayer: sides[0],
     phase: 'command',
     pendingCharge: null,
     fight: null,
@@ -52,37 +66,135 @@ function baseState(id: string, board: GameState['board'], terrain: Terrain[], ob
     diceLog: [],
     winner: null,
     nextId: 1,
+    ...(isDefault ? {} : { sides }),
   })
 }
 
+// ---------------------------------------------------------------- armies
+// Rosters are written in (depth, y) from the side's own edge; `at` turns them into board coordinates.
+
+type Roster = (at: At) => UnitState[]
+
 /** 10 Boyz in two files (Nob + one special weapon per 10, as the datasheet allows). */
-const boyzMob = (id: string, name: string, x: number, y: number, special: 'boyBigShoota' | 'boyRokkit'): UnitState =>
+const boyzMob = (at: At, id: string, name: string, depth: number, y: number, special: 'boyBigShoota' | 'boyRokkit'): UnitState =>
   unit(id, 'boyz', 'orks', name, Array.from({ length: 10 }, (_, i): [string, Vec] => [
     i === 2 ? 'nob' : i === 7 ? special : 'boy',
-    { x: x + (i % 2) * 1.5, y: y + Math.floor(i / 2) * 2 },
+    at(depth - (i % 2) * 1.5, y + Math.floor(i / 2) * 2),
   ]))
 
-const column5 = (profiles: string[], x: number, y: number): [string, Vec][] => profiles.map((p, i) => [p, { x, y: y + i * 2 }])
+const column5 = (at: At, profiles: string[], depth: number, y: number): [string, Vec][] => profiles.map((p, i) => [p, at(depth, y + i * 2)])
 
-function makeState(id: string, terrain: Terrain[], objectives: Vec[], mx = 4, ox = 26.5): GameState {
-  return baseState(id, { width: 30, height: 22 }, terrain, objectives, [
-      unit('lt', 'lieutenant', 'marines', 'Лейтенант', [['lieutenant', { x: mx - 1.5, y: 11 }]]),
-      unit('int', 'intercessors', 'marines', 'Интерсессоры', [
-        ['intercessorSergeant', { x: mx, y: 11 }],
-        ['intercessor', { x: mx, y: 9 }],
-        ['intercessor', { x: mx, y: 13 }],
-        ['intercessorGL', { x: mx, y: 7 }],
-        ['intercessor', { x: mx, y: 15 }],
-      ]),
-      unit('boyz', 'boyz', 'orks', 'Бойз', [
-        ['nob', { x: ox, y: 11 }],
-        ['boy', { x: ox, y: 9 }],
-        ['boy', { x: ox, y: 13 }],
-        ['boyBigShoota', { x: ox + 1.5, y: 7.5 }],
-        ['boyRokkit', { x: ox + 1.5, y: 14.5 }],
-        ['boy', { x: ox - 1.5, y: 11 }],
-      ]),
-  ])
+/** Introductory-Set armies for the small 30″×22″ boards. `depth` = distance of the main line from the own edge. */
+const marinesDuel = (depth: number): Roster => (at) => [
+  unit('lt', 'lieutenant', 'marines', 'Лейтенант', [['lieutenant', at(depth - 1.5, 11)]]),
+  unit('int', 'intercessors', 'marines', 'Интерсессоры', [
+    ['intercessorSergeant', at(depth, 11)],
+    ['intercessor', at(depth, 9)],
+    ['intercessor', at(depth, 13)],
+    ['intercessorGL', at(depth, 7)],
+    ['intercessor', at(depth, 15)],
+  ]),
+]
+const orksDuel = (depth: number): Roster => (at) => [
+  unit('boyz', 'boyz', 'orks', 'Бойз', [
+    ['nob', at(depth, 11)],
+    ['boy', at(depth, 9)],
+    ['boy', at(depth, 13)],
+    ['boyBigShoota', at(depth - 1.5, 7.5)],
+    ['boyRokkit', at(depth - 1.5, 14.5)],
+    ['boy', at(depth + 1.5, 11)],
+  ]),
+]
+
+/** Combat Patrol armies for the 44″×30″ board. */
+const marinesPatrol: Roster = (at) => [
+  unit('lt', 'lieutenant', 'marines', 'Лейтенант', [['lieutenant', at(3, 16)]]),
+  unit('int', 'intercessors', 'marines', 'Интерсессоры I', column5(at, ['intercessorSergeant', 'intercessor', 'intercessorGL', 'intercessor', 'intercessor'], 7, 5)),
+  unit('int2', 'intercessors', 'marines', 'Интерсессоры II', column5(at, ['intercessorSergeant', 'intercessor', 'intercessorGL', 'intercessor', 'intercessor'], 7, 17)),
+  unit('aint', 'assaultIntercessors', 'marines', 'Штурмовые интерсессоры', column5(at, ['assaultSergeant', 'assaultIntercessor', 'assaultIntercessor', 'assaultIntercessor', 'assaultIntercessor'], 3, 4)),
+  unit('red', 'redemptor', 'marines', 'Дредноут «Редемптор»', [['redemptor', at(4, 23)]]),
+]
+const orksPatrol: Roster = (at) => [
+  boyzMob(at, 'boyz', 'Бойз I', 7.5, 4, 'boyBigShoota'),
+  boyzMob(at, 'boyz2', 'Бойз II', 7.5, 18, 'boyRokkit'),
+  boyzMob(at, 'boyz3', 'Бойз III', 3.5, 3, 'boyBigShoota'),
+  unit('dread', 'deffDread', 'orks', 'Дэфф-дред', [['deffDread', at(3.5, 15)]]),
+]
+
+/** Two-file formation of `n` models: `pick(i)` chooses the profile, files at `depth` and `depth - gap`. */
+const formation = (at: At, n: number, pick: (i: number) => string, depth: number, y: number, step: number, gap = 1.4): [string, Vec][] =>
+  Array.from({ length: n }, (_, i): [string, Vec] => [pick(i), at(depth - (i % 2) * gap, y + Math.floor(i / 2) * step)])
+
+/** Tyranids: 1 Hive Tyrant, 10 Termagants, 10 Hormagaunts, 3 Tyranid Warriors (docs/armies.md). */
+const tyranidsPatrol: Roster = (at) => [
+  unit('tyrant', 'hiveTyrant', 'tyranids', 'Тиран Улья', [['hiveTyrant', at(2.5, 15)]]),
+  unit('termagants', 'termagants', 'tyranids', 'Термаганты', formation(at, 10, (i) => (i === 2 ? 'termagantShard' : i === 5 ? 'termagantSpike' : i === 8 ? 'termagantWeb' : 'termagant'), 8.6, 4, 1.6)),
+  unit('hormagaunts', 'hormagaunts', 'tyranids', 'Гормагауны', formation(at, 10, () => 'hormagaunt', 8.6, 19, 1.6)),
+  unit('warriors', 'tyranidWarriors', 'tyranids', 'Воины тиранидов', [
+    ['tyranidPrime', at(5.5, 15)],
+    ['tyranidWarriorVenom', at(5.5, 12.8)],
+    ['tyranidWarriorStrangler', at(5.5, 17.2)],
+  ]),
+]
+
+/** Necrons: 1 Overlord, 10 Necron Warriors, 3 Skorpekh Destroyers, 3 Canoptek Scarab Swarms. */
+const necronsPatrol: Roster = (at) => [
+  unit('overlord', 'overlord', 'necrons', 'Оверлорд', [['overlord', at(3, 15)]]),
+  unit('nwar', 'necronWarriors', 'necrons', 'Воины некронов', formation(at, 10, () => 'necronWarrior', 8.6, 3.5, 1.7, 1.5)),
+  unit('skorp', 'skorpekhDestroyers', 'necrons', 'Скорпекх-разрушители', [
+    ['skorpekh', at(5.5, 12.8)],
+    ['skorpekh', at(5.5, 15.2)],
+    ['skorpekh', at(5.5, 17.6)],
+  ]),
+  unit('scarabs', 'scarabSwarms', 'necrons', 'Рои скарабеев', [
+    ['scarab', at(7.5, 21)],
+    ['scarab', at(7.5, 22.8)],
+    ['scarab', at(7.5, 24.6)],
+  ]),
+]
+
+/** Aeldari: 1 Farseer, 10 Guardian Defenders (+ the datasheet's Heavy Weapon Platform), 5 Dire Avengers, 3 Windriders. */
+const aeldariPatrol: Roster = (at) => [
+  unit('farseer', 'farseer', 'aeldari', 'Фарсир', [['farseer', at(2.5, 15)]]),
+  unit('guardians', 'guardianDefenders', 'aeldari', 'Стражи-защитники', [
+    ...formation(at, 10, () => 'guardian', 8.6, 3.5, 1.5),
+    ['heavyPlatform', at(5.6, 6.5)],
+  ]),
+  unit('avengers', 'direAvengers', 'aeldari', 'Грозные мстители', [
+    ['exarch', at(6, 12.5)],
+    ['direAvenger', at(6, 14)],
+    ['direAvenger', at(6, 15.5)],
+    ['direAvenger', at(6, 17)],
+    ['direAvenger', at(6, 18.5)],
+  ]),
+  unit('riders', 'windriders', 'aeldari', 'Райдеры ветра', [
+    ['windrider', at(8.5, 21)],
+    ['windriderLaser', at(8.5, 23)],
+    ['windriderCannon', at(8.5, 25)],
+  ]),
+]
+
+export const PATROL_ROSTERS: Record<PlayerId, Roster> = {
+  marines: marinesPatrol,
+  orks: orksPatrol,
+  tyranids: tyranidsPatrol,
+  necrons: necronsPatrol,
+  aeldari: aeldariPatrol,
+}
+
+function units(width: number, sides: [PlayerId, PlayerId], roster: (faction: PlayerId, depthOf?: 'west' | 'east') => Roster): UnitState[] {
+  return [...roster(sides[0], 'west')(westAt), ...roster(sides[1], 'east')(eastAt(width))]
+}
+
+function makeState(id: string, terrain: Terrain[], objectives: Vec[], sides: [PlayerId, PlayerId], mx = 4, ox = 26.5): GameState {
+  assertSides(['marines', 'orks'], sides)
+  const duel: Partial<Record<PlayerId, Roster>> = { marines: marinesDuel(mx), orks: orksDuel(30 - ox) }
+  return baseState(id, { width: 30, height: 22 }, terrain, objectives, units(30, sides, (f) => duel[f]!), sides)
+}
+
+function assertSides(factions: PlayerId[], sides: [PlayerId, PlayerId]) {
+  if (sides[0] === sides[1]) throw new Error('Стороны должны быть разными фракциями.')
+  for (const f of sides) if (!factions.includes(f)) throw new Error(`В этом сценарии нет армии «${f}».`)
 }
 
 const ruin = (id: string, name: string, poly: Vec[]): Terrain => ({ id, name, kind: 'ruin', poly, obscuring: true })
@@ -101,8 +213,9 @@ export const SCENARIOS: Scenario[] = [
     description:
       'Поле 30″×22″ (как коврик Introductory Set). Космодесант развёртывается у левого края, Орки — у правого. Три маркера целей, хижины-руины блокируют обзор, воронки дают укрытие. Открытое поле — преимущество у стрелков.',
     victory: VICTORY,
-    deployment: { marines: rect(0, 0, 6, 22), orks: rect(24, 0, 6, 22) },
-    build: () =>
+    deployment: { west: rect(0, 0, 6, 22), east: rect(24, 0, 6, 22) },
+    factions: ['marines', 'orks'],
+    build: (sides = DEFAULT_SIDES) =>
       makeState(
         'training-outpost',
         [
@@ -113,6 +226,7 @@ export const SCENARIOS: Scenario[] = [
           ruin('t5', 'Обломки стены', rect(14, 9.5, 2, 0.8)),
         ],
         [{ x: 15, y: 11 }, { x: 8, y: 6 }, { x: 22, y: 16 }],
+        sides,
       ),
   },
   {
@@ -121,8 +235,9 @@ export const SCENARIOS: Scenario[] = [
     description:
       'То же поле, но центр плотно застроен: руины перекрывают линии огня, и Оркам проще подойти вплотную. Зоны развёртывания ближе (9″ от краёв).',
     victory: VICTORY,
-    deployment: { marines: rect(0, 0, 9, 22), orks: rect(21, 0, 9, 22) },
-    build: () =>
+    deployment: { west: rect(0, 0, 9, 22), east: rect(21, 0, 9, 22) },
+    factions: ['marines', 'orks'],
+    build: (sides = DEFAULT_SIDES) =>
       makeState(
         'ruined-alley',
         [
@@ -135,6 +250,7 @@ export const SCENARIOS: Scenario[] = [
           crater('t7', rect(21.5, 9.5, 2.5, 3)),
         ],
         [{ x: 15, y: 4 }, { x: 15, y: 18 }, { x: 15, y: 11 }],
+        sides,
         6,
         24,
       ),
@@ -143,11 +259,13 @@ export const SCENARIOS: Scenario[] = [
     id: 'combat-patrol',
     name: 'Боевой патруль (большая битва)',
     description:
-      'Поле 44″×30″ и армии крупнее: у Космодесанта Лейтенант, два отряда интерсессоров, штурмовые интерсессоры и дредноут «Редемптор»; у Орков три отряда по 10 Бойз и Дэфф-дред. Разнообразный тиррейн: руины и лес (техника не проходит), контейнеры (внутри нельзя стоять), баррикады, воронки. Игра длиннее и тактически богаче.',
+      'Поле 44″×30″ и армии крупнее; здесь доступны все пять армий (Космодесант, Орки, Тираниды, Некроны, Аэльдари) в любых парах — состав смотрите на экране выбора армии. Разнообразный тиррейн: руины и лес (техника не проходит), контейнеры (внутри нельзя стоять), баррикады, воронки. Игра длиннее и тактически богаче.',
     victory: VICTORY,
-    deployment: { marines: rect(0, 0, 10, 30), orks: rect(34, 0, 10, 30) },
-    build: () =>
-      baseState(
+    deployment: { west: rect(0, 0, 10, 30), east: rect(34, 0, 10, 30) },
+    factions: ['marines', 'orks', 'tyranids', 'necrons', 'aeldari'],
+    build: (sides = DEFAULT_SIDES) => {
+      assertSides(['marines', 'orks', 'tyranids', 'necrons', 'aeldari'], sides)
+      return baseState(
         'combat-patrol',
         { width: 44, height: 30 },
         [
@@ -163,19 +281,19 @@ export const SCENARIOS: Scenario[] = [
           crater('t10', rect(24.5, 3, 3, 3)),
         ],
         [{ x: 22, y: 15 }, { x: 14, y: 9 }, { x: 30, y: 21 }],
-        [
-          unit('lt', 'lieutenant', 'marines', 'Лейтенант', [['lieutenant', { x: 3, y: 16 }]]),
-          unit('int', 'intercessors', 'marines', 'Интерсессоры I', column5(['intercessorSergeant', 'intercessor', 'intercessorGL', 'intercessor', 'intercessor'], 7, 5)),
-          unit('int2', 'intercessors', 'marines', 'Интерсессоры II', column5(['intercessorSergeant', 'intercessor', 'intercessorGL', 'intercessor', 'intercessor'], 7, 17)),
-          unit('aint', 'assaultIntercessors', 'marines', 'Штурмовые интерсессоры', column5(['assaultSergeant', 'assaultIntercessor', 'assaultIntercessor', 'assaultIntercessor', 'assaultIntercessor'], 3, 4)),
-          unit('red', 'redemptor', 'marines', 'Дредноут «Редемптор»', [['redemptor', { x: 4, y: 23 }]]),
-          boyzMob('boyz', 'Бойз I', 36.5, 4, 'boyBigShoota'),
-          boyzMob('boyz2', 'Бойз II', 36.5, 18, 'boyRokkit'),
-          boyzMob('boyz3', 'Бойз III', 40.5, 3, 'boyBigShoota'),
-          unit('dread', 'deffDread', 'orks', 'Дэфф-дред', [['deffDread', { x: 40.5, y: 15 }]]),
-        ],
-      ),
+        units(44, sides, (f) => PATROL_ROSTERS[f]),
+        sides,
+      )
+    },
   },
 ]
+
+/** The army `faction` fields in a scenario (null if the scenario has none): what the selection screen lists. */
+export function armyOf(scenarioId: string, faction: PlayerId): UnitState[] | null {
+  const sc = SCENARIOS.find((s) => s.id === scenarioId)
+  if (!sc || !sc.factions.includes(faction)) return null
+  const foe = sc.factions.find((f) => f !== faction)!
+  return sc.build([faction, foe]).units.filter((u) => u.owner === faction)
+}
 
 export const scenarioById = (id: string) => SCENARIOS.find((s) => s.id === id) ?? SCENARIOS[0]

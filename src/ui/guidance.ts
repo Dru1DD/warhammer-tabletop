@@ -1,5 +1,5 @@
 import { FACTION_NAME } from '../game/data/datasheets'
-import { actor, maxMove, moveModeFor, PHASE_NAME, validate } from '../game/engine'
+import { actor, moveAllowance, moveCommand, PHASE_NAME, validate, type MoveOptions } from '../game/engine'
 import { alive, enemiesOf, findUnit, fmt, isDestroyed, unitsOf } from '../game/gameState'
 import { deploymentIssues, deploymentProblem } from '../game/rules/deployment'
 import { dist } from '../game/geometry/geometry'
@@ -104,10 +104,10 @@ export interface Hint {
 export function nextStepHint(
   s: GameState,
   human: PlayerId,
-  ui: { selectedUnitId: string | null; draft: Record<string, Vec>; measuring: boolean; aimTargetId?: string | null; groupDrag?: boolean; aimFirst?: boolean },
+  ui: { selectedUnitId: string | null; draft: Record<string, Vec>; measuring: boolean; aimTargetId?: string | null; groupDrag?: boolean; aimFirst?: boolean; moveOptions?: MoveOptions; shared?: object | null },
 ): Hint {
   if (s.winner) return { text: s.winner === 'draw' ? 'Битва окончена: ничья.' : `Битва окончена: победа — ${FACTION_NAME[s.winner]}.`, tone: 'info' }
-  if (actor(s) !== human) return { text: `Ходит ИИ (${FACTION_NAME[actor(s)]}) — ${PHASE_NAME[s.phase]}…`, tone: 'wait' }
+  if (actor(s) !== human) return { text: `Ходит ${ui.shared ? 'соперник' : 'ИИ'} (${FACTION_NAME[actor(s)]}) — ${PHASE_NAME[s.phase]}…`, tone: 'wait' }
   if (ui.measuring) return { text: 'Линейка: щёлкните две точки или две модели. Esc — выключить.', tone: 'info' }
 
   const sel = ui.selectedUnitId ? findUnit(s, ui.selectedUnitId) : undefined
@@ -117,23 +117,25 @@ export function nextStepHint(
 
   switch (s.phase) {
     case 'command':
-      return { text: `Фаза командования: очки командования получены.${human === 'orks' && !s.players.orks.waaaghUsed ? ' Можно объявить WAAAGH!' : ''} Нажмите «${nextPhaseLabel(s)}».`, tone: 'action' }
+      return { text: `Фаза командования: очки командования получены.${human === 'orks' && !s.players.orks.waaaghUsed ? ' Можно объявить WAAAGH!' : ''}${s.players[human].shadowUsed === false ? ' Можно применить «Тень в Варпе» (раз за битву).' : ''} Нажмите «${nextPhaseLabel(s)}».`, tone: 'action' }
     case 'movement': {
       if (mine && mine.move !== 'none') {
         const after = mine.move === 'advance' ? ' После продвижения он не сможет атаковать (charge) и стреляет только оружием Assault.' : mine.move === 'fallBack' ? ' После отступления он не стреляет и не атакует в этот ход.' : ''
         return { text: `«${mine.name}» уже переместился.${after} ${ready.length ? 'Можно двигать другой отряд (зелёная рамка)' : 'Других отрядов для движения нет'} или перейти к стрельбе.`, tone: 'action' }
       }
       if (!mine) return ready.length ? { text: `Выберите отряд с зелёной рамкой — он ещё может двигаться. Двигаться необязательно: можно сразу нажать «${nextPhaseLabel(s)}».`, tone: 'action' } : done
+      const mo = ui.moveOptions ?? { fly: false, swift: false }
+      const allow = moveAllowance(s, mine, mo)
       if (Object.keys(ui.draft).length === 0)
         return {
           text: ui.groupDrag === false
-            ? `Режим «По одной модели»: двигайте любые модели «${mine.name}» по отдельности (до ${fmt(maxMove(mine))}″ каждая), остальные останутся на месте. Затем одно «Подтвердить».`
-            : `Перетащите модель «${mine.name}» — сдвинется весь отряд, до ${fmt(maxMove(mine))}″ (пунктирный круг — предел). Нужна одна-две модели — выберите внизу «По одной модели».`,
+            ? `Режим «По одной модели»: двигайте любые модели «${mine.name}» по отдельности (до ${fmt(allow)}″ каждая), остальные останутся на месте. Затем одно «Подтвердить».`
+            : `Перетащите модель «${mine.name}» — сдвинется весь отряд, до ${fmt(allow)}″ (пунктирный круг — предел). Нужна одна-две модели — выберите внизу «По одной модели».`,
           tone: 'action',
         }
-      const v = validate(s, { type: 'move', unitId: mine.id, mode: moveModeFor(s, mine), positions: ui.draft })
+      const v = validate(s, moveCommand(s, mine, ui.draft, mo))
       return v.ok
-        ? { text: `Позиция допустима (${fmt(draftDistance(mine, ui.draft))}″ из ${fmt(maxMove(mine))}″) — нажмите «Подтвердить» (Enter). Esc — вернуть модели.`, tone: 'action' }
+        ? { text: `Позиция допустима (${fmt(draftDistance(mine, ui.draft))}″ из ${fmt(allow)}″) — нажмите «Подтвердить» (Enter). Esc — вернуть модели.`, tone: 'action' }
         : { text: `${v.reason} Подвиньте модель или нажмите Esc, чтобы вернуть её.`, tone: 'warn' }
     }
     case 'shooting':

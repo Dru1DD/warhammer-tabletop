@@ -1,8 +1,15 @@
 // Original blueprint-style tokens: a top-down technical drawing of each model
-// on its base (no Games Workshop artwork). 100×100, facing +x; Orks are
-// mirrored so both armies face each other. The board clips them to the base.
+// on its base (no Games Workshop artwork). 100×100, ALL art faces +x; the board
+// flips the built-in portraits of the army that stands on the east side so both
+// armies face each other. The board clips them to the base.
 
-export const BLUEPRINT_LINE = { marines: '#8fd3ff', orks: '#b9e66b' } as const
+export const BLUEPRINT_LINE = {
+  marines: '#8fd3ff',
+  orks: '#b9e66b',
+  tyranids: '#ff7a8a',
+  necrons: '#e6eef7',
+  aeldari: '#c79bff',
+} as const
 const PAPER = '#0a1f3a'
 
 /** Shared base: rim, inch-style ticks, facing arrow. */
@@ -87,7 +94,7 @@ function deffDread(): string {
     <path d="M52 68 L64 76 L60 80 L50 74 Z" ${f(c, 0.25)}/>
     <rect x="60" y="74" width="30" height="9" rx="2" ${f(c, 0.3)}/><line x1="82" y1="76.5" x2="93" y2="76.5"/><line x1="82" y1="80.5" x2="93" y2="80.5"/>
     <rect x="64" y="46" width="14" height="8" rx="3" ${f(c, 0.35)}/><path d="M78 46 L86 43 L86 57 L78 54 Z" ${f(c, 0.5)}/>
-  `, true)
+  `, false)
 }
 
 // ---------------------------------------------------------------- Orks
@@ -114,10 +121,214 @@ function ork(gear: OrkGear, opts: { nob?: boolean } = {}): string {
     bigShoota: `<rect x="55" y="55" width="35" height="10" rx="2" ${f(c, 0.3)}/><line x1="80" y1="58" x2="93" y2="58"/><line x1="80" y1="62" x2="93" y2="62"/><circle cx="62" cy="69" r="4.5" ${f(c, 0.35)}/>`,
     rokkit: `<rect x="34" y="59" width="54" height="9" rx="4.5" ${f(c, 0.3)}/><path d="M88 59 L96 63.5 L88 68 Z" ${f(c, 0.6)}/><line x1="44" y1="59" x2="44" y2="68"/>`,
   }[gear]
-  return base(c, body + weapon, true)
+  return base(c, body + weapon, false)
+}
+
+// ---------------------------------------------------------------- Tyranids
+
+/** Hive Tyrant: huge winged monster, crest and horns, bonesword arm, scything talons. */
+function hiveTyrant(): string {
+  const c = BLUEPRINT_LINE.tyranids
+  return base(c, `
+    <path d="M34 34 Q8 14 6 44 Q20 38 32 46 Z" ${f(c, 0.12)}/><path d="M34 66 Q8 86 6 56 Q20 62 32 54 Z" ${f(c, 0.12)}/>
+    <ellipse cx="42" cy="50" rx="21" ry="25" ${f(c)}/>
+    <path d="M26 40 Q42 36 58 40 M24 50 Q42 46 60 50 M26 60 Q42 56 58 60" fill="none" opacity="0.55"/>
+    <path d="M56 40 L72 38 L82 50 L72 62 L56 60 Z" ${f(c, 0.3)}/><circle cx="70" cy="45" r="2" fill="${c}" stroke="none"/><circle cx="70" cy="55" r="2" fill="${c}" stroke="none"/>
+    <path d="M66 36 L80 22 L74 38 Z M66 64 L80 78 L74 62 Z" ${f(c, 0.5)}/>
+    <path d="M48 26 L92 10 L86 20 L56 36 Z" ${f(c, 0.35)}/><path d="M58 24 Q66 16 74 18" fill="none" stroke-dasharray="2 1.5"/>
+    <path d="M48 74 L90 86 L82 72 L56 64 Z" ${f(c, 0.35)}/><path d="M62 70 L74 80 M68 68 L80 78" fill="none"/>
+  `, false)
+}
+
+type TermaGear = 'fleshborer' | 'shard' | 'spike' | 'web'
+
+/** Termagant: small hunched body, clawed forelimbs, a living gun. */
+function termagant(gear: TermaGear): string {
+  const c = BLUEPRINT_LINE.tyranids
+  const gun = {
+    fleshborer: `<path d="M54 56 L84 56 L84 62 L54 62 Z" ${f(c, 0.3)}/><circle cx="84" cy="59" r="3" ${f(c, 0.4)}/>`,
+    shard: `<path d="M52 54 L80 52 L88 60 L80 68 L52 64 Z" ${f(c, 0.35)}/><line x1="62" y1="54" x2="62" y2="66"/>`,
+    spike: `<path d="M52 57 L92 57 L92 61 L52 61 Z" ${f(c, 0.3)}/><line x1="76" y1="52" x2="76" y2="66"/>`,
+    web: `<circle cx="70" cy="60" r="9" ${f(c, 0.3)}/><path d="M70 60 L90 48 M70 60 L92 60 M70 60 L90 72" fill="none" stroke-dasharray="2 1.5"/>`,
+  }[gear]
+  return base(c, `
+    <ellipse cx="40" cy="50" rx="16" ry="19" ${f(c)}/><path d="M26 42 Q40 38 54 42 M26 58 Q40 62 54 58" fill="none" opacity="0.5"/>
+    <circle cx="58" cy="48" r="8" ${f(c, 0.28)}/><path d="M64 44 L72 40 L68 48 Z" ${f(c, 0.4)}/>
+    <path d="M52 38 L68 28 L64 38 Z" ${f(c, 0.3)}/>${gun}
+  `, false)
+}
+
+/** Hormagaunt: lean sprinter with two huge scything talons. */
+function hormagaunt(): string {
+  const c = BLUEPRINT_LINE.tyranids
+  return base(c, `
+    <ellipse cx="38" cy="50" rx="13" ry="16" ${f(c)}/><path d="M28 42 L48 46 M28 58 L48 54" fill="none" opacity="0.5"/>
+    <circle cx="54" cy="50" r="7" ${f(c, 0.28)}/>
+    <path d="M46 36 Q70 14 92 20 Q76 26 62 42 Z" ${f(c, 0.4)}/><path d="M46 64 Q70 86 92 80 Q76 74 62 58 Z" ${f(c, 0.4)}/>
+    <path d="M26 48 Q10 50 6 56" fill="none"/>
+  `, false)
+}
+
+type WarriorGear = 'devourer' | 'venom' | 'strangler'
+
+/** Tyranid Warrior / Prime: armoured four-armed shooter. */
+function warrior(gear: WarriorGear, prime = false): string {
+  const c = BLUEPRINT_LINE.tyranids
+  const gun = {
+    devourer: `<path d="M56 52 L88 52 L88 60 L56 60 Z" ${f(c, 0.3)}/><path d="M88 54 L94 50 M88 58 L94 62" fill="none"/>`,
+    venom: `<rect x="54" y="50" width="38" height="11" rx="5" ${f(c, 0.35)}/><circle cx="92" cy="55.5" r="4" ${f(c, 0.5)}/><line x1="66" y1="50" x2="66" y2="61"/>`,
+    strangler: `<path d="M54 52 L84 48 L94 56 L84 64 L54 60 Z" ${f(c, 0.35)}/><path d="M60 54 Q74 50 88 56" fill="none"/>`,
+  }[gear]
+  return base(c, `
+    <path d="M30 32 Q14 40 14 50 Q14 60 30 68 Z" ${f(c, 0.12)}/>
+    <ellipse cx="42" cy="50" rx="18" ry="22" ${f(c)}/><path d="M28 38 Q42 34 56 38 M26 50 H58 M28 62 Q42 66 56 62" fill="none" opacity="0.55"/>
+    <circle cx="44" cy="30" r="9" ${f(c, 0.25)}/><circle cx="44" cy="70" r="9" ${f(c, 0.25)}/>
+    <path d="M58 42 L72 40 L78 50 L72 60 L58 58 Z" ${f(c, 0.3)}/><path d="M66 38 L76 28 L72 40 Z M66 62 L76 72 L72 60 Z" ${f(c, 0.5)}/>
+    ${prime ? `<path d="M42 50 m-26 0 a26 26 0 1 0 52 0 a26 26 0 1 0 -52 0" fill="none" stroke-dasharray="1.5 3" opacity="0.6"/><path d="M50 22 L56 14 L62 22" fill="none" stroke-width="1.8"/>` : ''}
+    ${gun}
+    <path d="M52 30 L74 24 L68 30 Z M52 70 L74 76 L68 70 Z" ${f(c, 0.4)}/>
+  `, false)
+}
+
+// ---------------------------------------------------------------- Necrons
+
+/** Necron Warrior: skeletal metal body, rib lines, gauss flayer. */
+function necronWarrior(): string {
+  const c = BLUEPRINT_LINE.necrons
+  return base(c, `
+    <ellipse cx="42" cy="50" rx="13" ry="21" ${f(c)}/>
+    <path d="M32 38 H52 M32 44 H52 M32 50 H52 M32 56 H52 M32 62 H52" fill="none" opacity="0.5"/><line x1="42" y1="30" x2="42" y2="70" opacity="0.6"/>
+    <circle cx="44" cy="30" r="6" ${f(c, 0.28)}/><circle cx="44" cy="70" r="6" ${f(c, 0.28)}/>
+    <circle cx="58" cy="50" r="7.5" ${f(c, 0.25)}/><circle cx="61" cy="47.5" r="1.6" fill="${c}" stroke="none"/><circle cx="61" cy="52.5" r="1.6" fill="${c}" stroke="none"/>
+    <rect x="52" y="55" width="42" height="6" rx="1.5" ${f(c, 0.3)}/><path d="M78 55 L78 50 L86 50 L86 55" ${f(c, 0.3)}/><circle cx="70" cy="58" r="2.4" fill="${c}" stroke="none"/>
+  `, false)
+}
+
+/** Overlord: crested noble with blade and tachyon-arrow staff. */
+function overlord(): string {
+  const c = BLUEPRINT_LINE.necrons
+  return base(c, `
+    <path d="M38 22 Q14 32 12 50 Q14 68 38 78" ${f(c, 0.1)} stroke-dasharray="3 2"/>
+    <ellipse cx="42" cy="50" rx="15" ry="22" ${f(c)}/><path d="M30 40 H54 M30 50 H54 M30 60 H54" fill="none" opacity="0.5"/>
+    <circle cx="44" cy="29" r="8" ${f(c, 0.3)}/><circle cx="44" cy="71" r="8" ${f(c, 0.3)}/>
+    <circle cx="58" cy="50" r="8" ${f(c, 0.28)}/><path d="M54 42 L46 30 L60 38 Z M54 58 L46 70 L60 62 Z M62 44 L72 50 L62 56 Z" ${f(c, 0.45)}/>
+    <path d="M52 30 L90 12 L88 20 L58 38 Z" ${f(c, 0.4)}/><line x1="58" y1="34" x2="82" y2="22" opacity="0.7"/>
+    <line x1="50" y1="70" x2="94" y2="82" stroke-width="2.4"/><path d="M88 76 L97 82 L88 88 Z" ${f(c, 0.5)}/><circle cx="62" cy="73" r="3" ${f(c, 0.4)}/>
+  `, false)
+}
+
+/** Skorpekh Destroyer: hunched cult killer with two giant hyperphase blades. */
+function skorpekh(): string {
+  const c = BLUEPRINT_LINE.necrons
+  return base(c, `
+    <ellipse cx="38" cy="50" rx="15" ry="22" ${f(c)}/><path d="M26 40 H50 M26 50 H50 M26 60 H50" fill="none" opacity="0.5"/>
+    <path d="M52 44 L58 40 L64 50 L58 60 L52 56 Z" ${f(c, 0.3)}/><circle cx="60" cy="47" r="1.4" fill="${c}" stroke="none"/><circle cx="60" cy="53" r="1.4" fill="${c}" stroke="none"/>
+    <path d="M46 34 Q66 10 94 18 Q76 24 60 42 Z" ${f(c, 0.4)}/><path d="M52 32 Q70 18 88 20" fill="none" stroke-dasharray="2 1.5"/>
+    <path d="M46 66 Q66 90 94 82 Q76 76 60 58 Z" ${f(c, 0.4)}/>
+    <circle cx="30" cy="34" r="4" ${f(c, 0.3)}/><circle cx="30" cy="66" r="4" ${f(c, 0.3)}/>
+  `, false)
+}
+
+/** Canoptek Scarab Swarm: a cluster of small scarabs. */
+function scarabs(): string {
+  const c = BLUEPRINT_LINE.necrons
+  const bug = (x: number, y: number, a: number, s: number) =>
+    `<g transform="translate(${x} ${y}) rotate(${a}) scale(${s})"><ellipse cx="0" cy="0" rx="7" ry="4.5" ${f(c, 0.3)}/><path d="M-5 0 H5 M0 -4.5 V4.5" fill="none" opacity="0.6"/><circle cx="8" cy="0" r="2.4" ${f(c, 0.4)}/><path d="M6 -3 L12 -6 M6 3 L12 6 M-2 -4 L-6 -9 M-2 4 L-6 9" fill="none"/></g>`
+  return base(c, bug(42, 40, -20, 1.1) + bug(58, 56, 25, 1) + bug(34, 62, 10, 1.15) + bug(66, 36, -40, 0.85) + bug(48, 50, 0, 0.8) + bug(74, 62, 35, 0.8) + bug(26, 46, -10, 0.8), false)
+}
+
+// ---------------------------------------------------------------- Aeldari
+
+type AeldariGear = 'catapult' | 'laser' | 'cannon'
+
+/** Guardian Defender: slim Eldar in a plumed helm with a shuriken catapult. */
+function guardian(): string {
+  const c = BLUEPRINT_LINE.aeldari
+  return base(c, `
+    <ellipse cx="42" cy="50" rx="11" ry="19" ${f(c)}/><path d="M34 42 Q42 38 50 42" fill="none" opacity="0.5"/>
+    <circle cx="42" cy="32" r="6" ${f(c, 0.28)}/><circle cx="42" cy="68" r="6" ${f(c, 0.28)}/>
+    <circle cx="55" cy="50" r="7" ${f(c, 0.28)}/><path d="M50 48 Q36 40 22 50 Q36 60 50 52" ${f(c, 0.3)}/><line x1="61" y1="46" x2="61" y2="54" stroke-width="2.2"/>
+    <rect x="54" y="56" width="32" height="5" rx="2" ${f(c, 0.3)}/><path d="M86 54 L94 58.5 L86 63 Z" ${f(c, 0.45)}/><rect x="64" y="52" width="9" height="4" ${f(c, 0.3)}/>
+  `, false)
+}
+
+/** Heavy Weapon Platform: hovering disc with a pintle gun. */
+function heavyPlatform(): string {
+  const c = BLUEPRINT_LINE.aeldari
+  return base(c, `
+    <ellipse cx="46" cy="50" rx="26" ry="22" ${f(c, 0.18)}/><ellipse cx="46" cy="50" rx="18" ry="15" ${f(c, 0.3)}/>
+    <path d="M24 38 L14 30 M24 62 L14 70" fill="none" stroke-width="2.4"/>
+    <rect x="46" y="44" width="46" height="12" rx="4" ${f(c, 0.35)}/><path d="M78 44 L78 38 L90 38 L90 44" ${f(c, 0.3)}/><circle cx="52" cy="50" r="5" ${f(c, 0.5)}/>
+    <circle cx="36" cy="50" r="4" fill="${c}" stroke="none"/>
+  `, false)
+}
+
+/** Dire Avenger / Exarch: helmed aspect warrior; the Exarch carries a diresword and a crest. */
+function direAvenger(exarch = false): string {
+  const c = BLUEPRINT_LINE.aeldari
+  return base(c, `
+    ${exarch ? `<path d="M36 22 Q14 32 12 50 Q14 68 36 78" ${f(c, 0.1)} stroke-dasharray="3 2"/>` : ''}
+    <ellipse cx="42" cy="50" rx="13" ry="20" ${f(c)}/><path d="M32 42 Q42 36 52 42 M32 58 Q42 64 52 58" fill="none" opacity="0.55"/>
+    <circle cx="42" cy="31" r="7" ${f(c, 0.3)}/><circle cx="42" cy="69" r="7" ${f(c, 0.3)}/>
+    <circle cx="57" cy="50" r="7.5" ${f(c, 0.28)}/><path d="M54 43 Q42 36 28 50 Q42 64 54 57" ${f(c, exarch ? 0.4 : 0.28)}/>
+    ${exarch
+      ? `<line x1="54" y1="32" x2="92" y2="20" stroke-width="2.8"/><line x1="58" y1="28" x2="62" y2="38" stroke-width="2"/><rect x="58" y="60" width="16" height="5" rx="2" ${f(c, 0.3)}/>`
+      : `<rect x="52" y="55" width="34" height="7" rx="2.5" ${f(c, 0.3)}/><rect x="52" y="63" width="34" height="5" rx="2" ${f(c, 0.25)}/><path d="M86 55 L94 58.5 L86 62 Z" ${f(c, 0.45)}/>`}
+  `, false)
+}
+
+/** Windrider: rider on a jetbike, a pair of fins and a bow gun. */
+function windrider(gear: AeldariGear): string {
+  const c = BLUEPRINT_LINE.aeldari
+  const gun = {
+    catapult: `<rect x="66" y="42" width="26" height="5" rx="2" ${f(c, 0.35)}/><rect x="66" y="53" width="26" height="5" rx="2" ${f(c, 0.35)}/>`,
+    laser: `<rect x="58" y="43" width="34" height="14" rx="5" ${f(c, 0.35)}/><line x1="76" y1="43" x2="76" y2="57"/><line x1="84" y1="43" x2="84" y2="57"/>`,
+    cannon: `<path d="M60 44 L92 44 L92 56 L60 56 Z" ${f(c, 0.35)}/><circle cx="92" cy="50" r="4" ${f(c, 0.5)}/>`,
+  }[gear]
+  return base(c, `
+    <path d="M22 28 L50 44 L50 56 L22 72 L14 50 Z" ${f(c, 0.18)}/><path d="M30 34 L10 22 M30 66 L10 78" fill="none" stroke-width="2.4"/>
+    <path d="M30 38 Q62 32 76 50 Q62 68 30 62 Z" ${f(c)}/><path d="M40 44 H66 M40 56 H66" fill="none" opacity="0.5"/>
+    <circle cx="50" cy="50" r="7" ${f(c, 0.3)}/><path d="M46 44 Q38 42 32 50 Q38 58 46 56" ${f(c, 0.4)}/>${gun}
+  `, false)
+}
+
+/** Farseer: tall-crested robed seer with a staff and runic arcs. */
+function farseer(): string {
+  const c = BLUEPRINT_LINE.aeldari
+  return base(c, `
+    <path d="M42 50 m-30 0 a30 30 0 1 0 60 0 a30 30 0 1 0 -60 0" fill="none" stroke-dasharray="2 3" opacity="0.5"/>
+    <path d="M36 24 Q12 34 12 50 Q12 66 36 76" ${f(c, 0.12)}/>
+    <ellipse cx="42" cy="50" rx="14" ry="21" ${f(c)}/><path d="M32 40 L52 60 M52 40 L32 60" fill="none" opacity="0.4"/>
+    <circle cx="44" cy="30" r="6" ${f(c, 0.28)}/><circle cx="44" cy="70" r="6" ${f(c, 0.28)}/>
+    <circle cx="57" cy="50" r="7.5" ${f(c, 0.28)}/><path d="M56 42 Q44 28 28 36 Q40 44 54 48 Z M56 58 Q44 72 28 64 Q40 56 54 52 Z" ${f(c, 0.35)}/>
+    <line x1="50" y1="68" x2="92" y2="84" stroke-width="2.4"/><circle cx="92" cy="84" r="4" ${f(c, 0.5)}/>
+    <rect x="58" y="58" width="14" height="4" rx="2" ${f(c, 0.3)}/>
+  `, false)
 }
 
 const SVGS: Record<string, string> = {
+  hiveTyrant: hiveTyrant(),
+  termagant: termagant('fleshborer'),
+  termagantShard: termagant('shard'),
+  termagantSpike: termagant('spike'),
+  termagantWeb: termagant('web'),
+  hormagaunt: hormagaunt(),
+  tyranidPrime: warrior('devourer', true),
+  tyranidWarrior: warrior('devourer'),
+  tyranidWarriorVenom: warrior('venom'),
+  tyranidWarriorStrangler: warrior('strangler'),
+  overlord: overlord(),
+  necronWarrior: necronWarrior(),
+  skorpekh: skorpekh(),
+  scarab: scarabs(),
+  farseer: farseer(),
+  guardian: guardian(),
+  heavyPlatform: heavyPlatform(),
+  direAvenger: direAvenger(),
+  exarch: direAvenger(true),
+  windrider: windrider('catapult'),
+  windriderLaser: windrider('laser'),
+  windriderCannon: windrider('cannon'),
   lieutenant: marine('swordPistol', { officer: true }),
   intercessorSergeant: marine('rifle', { sergeant: true }),
   intercessor: marine('rifle'),

@@ -1,12 +1,17 @@
 import { create } from 'zustand'
-import { decide, type AiLevel } from './game/ai/ai'
+import type { AiLevel } from './game/ai/ai'
 import { seededRoller } from './game/dice/dice'
-import { actor, apply, startGame, validate } from './game/engine'
-import { deserialize, readStorage, saveToStorage, serialize } from './game/persistence'
+import { actor, startGame, validate, type MoveOptions } from './game/engine'
+import { other, sidesOf } from './game/gameState'
+import {
+  aiProposal, controllerOf, createMatch, isLocallyUndoable, localPlayerOf, nextEnvelope, soloAssignments, submit as submitCommand, undoTo,
+} from './game/match/match'
+import type { ActionRecord, CommandEnvelope, MatchState, PlayerAssignments, SubmitResult } from './game/match/types'
+import { deserialize, readStorage, saveMatch, saveToStorage } from './game/persistence'
 import { scenarioById } from './game/scenarios/scenarios'
 import { deploymentIssues, deploymentProblem } from './game/rules/deployment'
 import { parseLayout } from './game/terrainLayout'
-import type { Command, ExplainLevel, GameState, PlayerId, Terrain, Vec } from './game/types'
+import { FACTIONS, type Command, type ExplainLevel, type GameState, type PlayerId, type Terrain, type Vec } from './game/types'
 import type { TutorialStart } from './ui/help'
 import { actionableUnits, canActNow } from './ui/guidance'
 
@@ -32,12 +37,16 @@ function loadLayout(): Layout {
     return def
   }
 }
+/** Host's autosave of a shared (online) match. Never mixed with the single-player autosave. */
+export const MP_SAVE_KEY = 'wh40k-training-mp-save'
 export const TOKENS_KEY = 'wh40k-training-tokens'
 const MAX_AI_ACTIONS_PER_TURN = 150
 export const AI_STEP_MS = 550
 
 export interface Settings {
   human: PlayerId
+  /** the computer's faction; must differ from `human` */
+  opponent: PlayerId
   aiLevel: AiLevel
   explain: ExplainLevel
   tutorial: boolean
@@ -56,8 +65,18 @@ export interface AiNote {
   text: string
 }
 
+/** Online match info. The store only knows `send`; networking lives in src/multiplayer. */
+export interface SharedInfo {
+  role: 'host' | 'guest'
+  /** guest only: ship a command to the host (the guest never applies commands itself) */
+  send: ((env: CommandEnvelope) => boolean) | null
+  /** single-player settings to restore (and persist) when the online match ends */
+  prevSettings: Settings
+}
+
 interface Store {
   game: GameState | null
+  shared: SharedInfo | null
   settings: Settings
   selectedUnitId: string | null
   draft: Record<string, Vec>
@@ -65,7 +84,11 @@ interface Store {
   measuring: boolean
   measure: { a: MeasurePoint | null; b: MeasurePoint | null; range: number }
   message: { text: string; kind: 'error' | 'info' } | null
-  history: GameState[]
+  /** the match behind `game`: assignments, state version, sequence counters, accepted-action history.
+   * null during setup. `game` is always `match.state` while a battle runs (published projection). */
+  match: MatchState | null
+  /** local undo snapshots (training mode only; never filled in a shared match) */
+  history: MatchState[]
   aiNotes: AiNote[]
   aiActionsThisTurn: number
   /** ids of tutorial lessons already learned (persisted across games) */
@@ -82,6 +105,8 @@ interface Store {
   /** terrain piece being edited during setup */
   selectedTerrainId: string | null
   shotOptions: { profiles: Record<string, number>; usePistols: boolean; useAmmoRunts: boolean }
+  /** FLY / Swift as the Wind toggles for the move being planned */
+  moveOptions: MoveOptions
   /** user photos per model profile (data URLs), kept only in this browser */
   customTokens: Record<string, string>
 
@@ -91,6 +116,16 @@ interface Store {
   autoDeploy: () => void
   finishDeployment: () => boolean
   quit: () => void
+  /** The single entry point for every command from any controller (local UI, AI, future remote).
+   * Returns the full result (accepted action or reject code) so a network adapter can answer the sender. */
+  submit: (env: CommandEnvelope, opts?: { silent?: boolean }) => SubmitResult
+  /** Publish a match the pipeline already accepted (host: after `submit`; guest: after verifying the host's action). */
+  commitAccepted: (prev: MatchState, r: { match: MatchState; action: ActionRecord }) => void
+  /** Host: build a fresh battle for an online match (host seed, default positions) and publish it. */
+  startSharedHost: (c: { scenarioId: string; hostSide: PlayerId; guestSide: PlayerId; assignments: PlayerAssignments }) => MatchState
+  /** Publish an online match (host start / restore, guest start / snapshot). The viewer's side comes from the local controller. */
+  installShared: (match: MatchState, role: 'host' | 'guest', send?: SharedInfo['send']) => void
+  /** Local player's command: wraps it in an envelope and goes through `submit`. */
   dispatch: (cmd: Command) => boolean
   aiStep: () => boolean
   select: (unitId: string | null) => void
@@ -115,6 +150,7 @@ interface Store {
   completeLesson: (id: string) => void
   resetTutorial: () => void
   setShotOptions: (o: Partial<Store['shotOptions']>) => void
+  setMoveOptions: (o: Partial<MoveOptions>) => void
   setCustomToken: (profileId: string, dataUrl: string | null) => boolean
 }
 
@@ -137,14 +173,27 @@ function autoSelect(game: GameState, prev: GameState | null, human: PlayerId, se
 }
 
 function loadSettings(): Settings {
-  const def: Settings = { human: 'marines', aiLevel: 'standard', explain: 'beginner', tutorial: true, scenarioId: 'training-outpost' }
+  const def: Settings = { human: 'marines', opponent: 'orks', aiLevel: 'standard', explain: 'beginner', tutorial: true, scenarioId: 'training-outpost' }
   try {
     const raw = localStorage.getItem(SETTINGS_KEY)
-    return raw ? { ...def, ...JSON.parse(raw) } : def
+    return raw ? normalizeSettings({ ...def, ...JSON.parse(raw) }) : def
   } catch {
     return def
   }
 }
+
+/** Valid factions, different from each other, on a board that has both armies. */
+export function normalizeSettings(s: Settings): Settings {
+  const human = FACTIONS.includes(s.human) ? s.human : 'marines'
+  let opponent = FACTIONS.includes(s.opponent) && s.opponent !== human ? s.opponent : human === 'orks' ? 'marines' : 'orks'
+  if (opponent === human) opponent = FACTIONS.find((f) => f !== human)!
+  const sc = scenarioById(s.scenarioId)
+  const scenarioId = sc.factions.includes(human) && sc.factions.includes(opponent) ? sc.id : 'combat-patrol'
+  return { ...s, human, opponent, scenarioId }
+}
+
+/** [west, east]: the lower faction in the standard order stands in the west (Marines vs Orks stays as it always was). */
+export const sidesFor = (a: PlayerId, b: PlayerId): [PlayerId, PlayerId] => (FACTIONS.indexOf(a) <= FACTIONS.indexOf(b) ? [a, b] : [b, a])
 
 const persistSettings = (s: Settings) => saveToStorage(SETTINGS_KEY, JSON.stringify(s))
 
@@ -167,8 +216,8 @@ function savedLayouts(): Record<string, unknown> {
 }
 
 /** Scenario state with the player's saved terrain layout (if valid). */
-function buildScenario(scenarioId: string): GameState {
-  const g = scenarioById(scenarioId).build()
+function buildScenario(s: Settings): GameState {
+  const g = scenarioById(s.scenarioId).build(sidesFor(s.human, s.opponent))
   const custom = parseLayout(savedLayouts()[g.scenarioId])
   if (custom) g.terrain = custom
   return g
@@ -181,10 +230,26 @@ function saveLayout(scenarioId: string, terrain: Terrain[] | null) {
   return saveToStorage(TERRAIN_KEY, JSON.stringify(all))
 }
 
+/** Deterministic from the (random) battle seed; chosen here, outside the pure match layer. */
+const newGameId = (seed: number) => `g-${(seed >>> 0).toString(36)}`
+
+/**
+ * The match that belongs to `game`. If `game` was replaced from outside the pipeline (deployment, tests,
+ * a changed human side) a fresh baseline match is built around it, keeping the game id.
+ * A shared match is never rebuilt: its `state` is the only truth and cannot be swapped from the UI.
+ */
+function matchOf(game: GameState, match: MatchState | null, humanSetting: PlayerId): MatchState {
+  if (match?.mode === 'shared') return match
+  const human = sidesOf(game).includes(humanSetting) ? humanSetting : sidesOf(game)[0]
+  if (match && match.state === game && match.assignments[human]?.type === 'local') return match
+  return createMatch(game, soloAssignments(human, other(game, human)), { gameId: match?.gameId ?? newGameId(game.rng) })
+}
+
 const tutorialStartOf = (g: GameState): TutorialStart => ({ round: g.round, activePlayer: g.activePlayer, diceCount: g.diceLog.length })
 
 export const useStore = create<Store>((set, get) => ({
   game: null,
+  shared: null,
   settings: loadSettings(),
   selectedUnitId: null,
   draft: {},
@@ -192,6 +257,7 @@ export const useStore = create<Store>((set, get) => ({
   measuring: false,
   measure: { a: null, b: null, range: 12 },
   message: null,
+  match: null,
   history: [],
   aiNotes: [],
   aiActionsThisTurn: 0,
@@ -204,27 +270,31 @@ export const useStore = create<Store>((set, get) => ({
   selectedTerrainId: null,
   layout: loadLayout(),
   shotOptions: { profiles: {}, usePistols: false, useAmmoRunts: false },
+  moveOptions: { fly: false, swift: false },
   customTokens: loadTokens(),
 
   newGame: (patch = {}) => {
-    const settings = { ...get().settings, ...patch }
+    if (get().shared) return // an online match is left through `leaveRoom`
+    const settings = normalizeSettings({ ...get().settings, ...patch })
     persistSettings(settings)
     const seed = (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0
     const r = seededRoller(seed)
-    const game = startGame(buildScenario(settings.scenarioId), r)
-    saveToStorage(AUTOSAVE_KEY, serialize(game, settings.human))
-    set({ game, settings, selectedUnitId: autoSelect(game, null, settings.human, null), draft: {}, history: [], aiNotes: [], message: null, deploying: null, deployHistory: [], review: null, aimTargetId: null, tutorialStart: tutorialStartOf(game), aiActionsThisTurn: 0, measure: { a: null, b: null, range: 12 } })
+    const game = startGame(buildScenario(settings), r)
+    const match = createMatch(game, soloAssignments(settings.human, settings.opponent), { gameId: newGameId(seed) })
+    saveMatch(AUTOSAVE_KEY, match, settings.human)
+    set({ game, match, settings, selectedUnitId: autoSelect(game, null, settings.human, null), draft: {}, history: [], aiNotes: [], message: null, deploying: null, deployHistory: [], review: null, aimTargetId: null, tutorialStart: tutorialStartOf(game), aiActionsThisTurn: 0, measure: { a: null, b: null, range: 12 } })
   },
 
   /** Guided setup: the human places their units, the AI army stands at the
    * scenario's default positions. Nothing is autosaved until the battle starts,
    * so an existing autosaved game is never replaced by a half-finished setup. */
   startDeployment: (patch = {}) => {
-    const settings = { ...get().settings, ...patch }
+    if (get().shared) return // an online match is left through `leaveRoom`
+    const settings = normalizeSettings({ ...get().settings, ...patch })
     persistSettings(settings)
-    const game = buildScenario(settings.scenarioId)
+    const game = buildScenario(settings)
     const first = game.units.find((u) => u.owner === settings.human)?.id ?? null
-    set({ game, settings, deploying: { placed: [] }, deployHistory: [], review: null, aimTargetId: null, selectedUnitId: first, draft: {}, history: [], aiNotes: [], message: null, groupDrag: true, measuring: false, aiActionsThisTurn: 0, measure: { a: null, b: null, range: 12 } })
+    set({ game, match: null, settings, deploying: { placed: [] }, deployHistory: [], review: null, aimTargetId: null, selectedUnitId: first, draft: {}, history: [], aiNotes: [], message: null, groupDrag: true, measuring: false, aiActionsThisTurn: 0, measure: { a: null, b: null, range: 12 } })
   },
 
   placeUnit: (unitId) => {
@@ -261,60 +331,115 @@ export const useStore = create<Store>((set, get) => ({
     }
     const seed = (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0
     const started = startGame(game, seededRoller(seed))
-    saveToStorage(AUTOSAVE_KEY, serialize(started, settings.human))
-    set({ game: started, deploying: null, deployHistory: [], selectedTerrainId: null, draft: {}, history: [], message: null, selectedUnitId: autoSelect(started, null, settings.human, null), tutorialStart: tutorialStartOf(started) })
+    const match = createMatch(started, soloAssignments(settings.human, settings.opponent), { gameId: newGameId(seed) })
+    saveMatch(AUTOSAVE_KEY, match, settings.human)
+    set({ game: started, match, deploying: null, deployHistory: [], selectedTerrainId: null, draft: {}, history: [], message: null, selectedUnitId: autoSelect(started, null, settings.human, null), tutorialStart: tutorialStartOf(started) })
     return true
   },
 
-  quit: () => set({ game: null, selectedUnitId: null, draft: {}, history: [], deploying: null, deployHistory: [], review: null, aimTargetId: null }),
+  quit: () => set({ game: null, match: null, shared: null, settings: get().shared?.prevSettings ?? get().settings, selectedUnitId: null, draft: {}, history: [], deploying: null, deployHistory: [], review: null, aimTargetId: null }),
 
-  dispatch: (cmd) => {
-    const { game, history } = get()
-    if (!game) return false
+  submit: (env, opts) => {
+    const { game, settings } = get()
+    if (!game) return { ok: false, code: 'illegal', reason: 'Игра не начата.' }
+    if (get().shared?.role === 'guest') return { ok: false, code: 'unauthorized', reason: 'Команды выполняет только хозяин комнаты.' }
     if (get().deploying) {
-      set({ message: { text: 'Сначала завершите расстановку армии.', kind: 'error' } })
-      return false
+      const reason = 'Сначала завершите расстановку армии.'
+      set({ message: { text: reason, kind: 'error' } })
+      return { ok: false, code: 'illegal', reason }
     }
-    const v = validate(game, cmd)
-    if (!v.ok) {
-      set({ message: { text: v.reason, kind: 'error' } })
-      return false
+    const prev = matchOf(game, get().match, settings.human)
+    const r = submitCommand(prev, env)
+    if (!r.ok) {
+      set(opts?.silent ? { match: prev } : { match: prev, message: { text: r.reason, kind: 'error' } })
+      return r
     }
-    const next = apply(game, cmd, seededRoller(game.rng))
-    // Undo is only safe for commands that rolled no dice and when control stays with the human.
-    const undoable = next.rng === game.rng && actor(next) === get().settings.human && cmd.type !== 'endPhase'
-    const turnChanged = next.activePlayer !== game.activePlayer
-    const lastId = game.diceLog.at(-1)?.id ?? 0
+    get().commitAccepted(prev, r)
+    return r
+  },
+
+  commitAccepted: (prev, r) => {
+    const { settings, history } = get()
+    const next = r.match.state
+    // Undo policy lives in the match layer; here we only keep the snapshots.
+    const undoable = isLocallyUndoable(r.action, r.match)
+    const turnChanged = next.activePlayer !== prev.state.activePlayer
+    const lastId = prev.state.diceLog.at(-1)?.id ?? 0
     const attacked = next.diceLog.some((d) => d.id > lastId && d.steps.some((x) => x.label === 'Попадание'))
-    const review = attacked && get().settings.explain !== 'minimal' ? { afterId: lastId } : get().review
-    const selectedUnitId = autoSelect(next, game, get().settings.human, get().selectedUnitId)
+    const review = attacked && settings.explain !== 'minimal' ? { afterId: lastId } : get().review
+    const selectedUnitId = autoSelect(next, prev.state, settings.human, get().selectedUnitId)
     set({
       game: next,
+      match: r.match,
       selectedUnitId,
-      history: undoable ? [...history, game].slice(-30) : [],
+      history: undoable ? [...history, prev].slice(-30) : [],
       draft: {},
+      moveOptions: { fly: false, swift: false },
       message: null,
       aimTargetId: null,
       review,
       aiActionsThisTurn: turnChanged ? 0 : get().aiActionsThisTurn,
     })
-    saveToStorage(AUTOSAVE_KEY, serialize(next, get().settings.human))
-    return true
+    // single-player autosave, or (host only) the online match's own save; a guest saves nothing
+    if (r.match.mode === 'shared') {
+      if (get().shared?.role === 'host') saveMatch(MP_SAVE_KEY, r.match, settings.human)
+    } else saveMatch(AUTOSAVE_KEY, r.match, settings.human)
   },
 
-  /** One AI decision; returns false when it is not the AI's turn. */
+  startSharedHost: ({ scenarioId, hostSide, guestSide, assignments }) => {
+    const settings = normalizeSettings({ ...get().settings, human: hostSide, opponent: guestSide, scenarioId })
+    const seed = (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0
+    const game = startGame(buildScenario(settings), seededRoller(seed))
+    const match = createMatch(game, assignments, { gameId: newGameId(seed), mode: 'shared' })
+    get().installShared(match, 'host')
+    saveMatch(MP_SAVE_KEY, match, hostSide)
+    return match
+  },
+
+  installShared: (match, role, send = null) => {
+    const prev = get().shared?.prevSettings ?? get().settings
+    const me = localPlayerOf(match)
+    const human = (Object.keys(match.assignments) as PlayerId[]).find((s) => match.assignments[s].playerId === me?.playerId) ?? sidesOf(match.state)[0]
+    const settings: Settings = { ...prev, human, opponent: other(match.state, human), scenarioId: match.state.scenarioId, tutorial: false }
+    const same = get().match?.gameId === match.gameId
+    set({
+      game: match.state, match, shared: { role, send, prevSettings: prev }, settings,
+      selectedUnitId: same ? get().selectedUnitId : autoSelect(match.state, null, human, null),
+      draft: {}, history: [], aiNotes: [], message: null, deploying: null, deployHistory: [], review: null, aimTargetId: null,
+      tutorialStart: tutorialStartOf(match.state), aiActionsThisTurn: 0,
+      ...(same ? {} : { measure: { a: null, b: null, range: 12 } }),
+    })
+  },
+
+  dispatch: (cmd) => {
+    const { game, settings } = get()
+    if (!game) return false
+    const m = matchOf(game, get().match, settings.human)
+    const me = localPlayerOf(m)
+    if (!me) return false
+    const env = nextEnvelope(m, me.playerId, cmd)
+    const shared = get().shared
+    // a guest never applies anything: the host decides, the accepted action comes back
+    if (shared?.role === 'guest') return !!shared.send && shared.send(env)
+    return get().submit(env).ok
+  },
+
+  /** One AI decision; returns false when the deciding side is not AI-controlled. */
   aiStep: () => {
     const { game, settings, aiActionsThisTurn, aiNotes } = get()
-    if (!game || get().deploying || get().review || game.winner || actor(game) === settings.human) return false
-    let d = decide(game, settings.aiLevel)
-    if (!d || aiActionsThisTurn >= MAX_AI_ACTIONS_PER_TURN) {
-      // safeguard against loops: force the phase to end if allowed
-      d = { cmd: { type: 'endPhase' }, explanation: 'ИИ: превышен лимит действий — фаза завершается.' }
-      if (!validate(game, d.cmd).ok) return false
+    if (!game || get().deploying || get().review || game.winner) return false
+    const m = matchOf(game, get().match, settings.human)
+    if (controllerOf(m).type !== 'ai') return false
+    const p = aiProposal(m, settings.aiLevel)
+    let env = p?.envelope
+    if (!env || aiActionsThisTurn >= MAX_AI_ACTIONS_PER_TURN) {
+      // safeguard against loops: force the phase to end if allowed (still through the same pipeline)
+      env = nextEnvelope(m, controllerOf(m).playerId, { type: 'endPhase' })
+      if (!validate(m.state, env.command).ok) return false
     }
-    const ok = get().dispatch(d.cmd)
-    if (ok && d.cmd.type !== 'endPhase')
-      set({ aiNotes: [...aiNotes, { id: Date.now() + Math.random(), text: d.explanation }].slice(-30) })
+    const ok = get().submit(env).ok
+    if (ok && env.command.type !== 'endPhase' && p)
+      set({ aiNotes: [...aiNotes, { id: Date.now() + Math.random(), text: p.decision.explanation }].slice(-30) })
     set({ aiActionsThisTurn: get().aiActionsThisTurn + 1, history: [] })
     return ok
   },
@@ -343,7 +468,7 @@ export const useStore = create<Store>((set, get) => ({
     set({ selectedTerrainId: null })
   },
   closeReview: () => set({ review: null }),
-  select: (unitId) => set({ selectedUnitId: unitId, draft: {}, aimTargetId: null, shotOptions: { profiles: {}, usePistols: false, useAmmoRunts: false } }),
+  select: (unitId) => set({ selectedUnitId: unitId, draft: {}, aimTargetId: null, shotOptions: { profiles: {}, usePistols: false, useAmmoRunts: false }, moveOptions: { fly: false, swift: false } }),
   setDraft: (positions) => set({ draft: { ...get().draft, ...positions } }),
   clearDraft: () => set({ draft: {} }),
   setGroupDrag: (v) => set({ groupDrag: v }),
@@ -367,8 +492,13 @@ export const useStore = create<Store>((set, get) => ({
     const h = get().history
     if (!h.length) return
     const prev = h[h.length - 1]
-    set({ game: prev, history: h.slice(0, -1), draft: {}, message: { text: 'Действие отменено.', kind: 'info' } })
-    saveToStorage(AUTOSAVE_KEY, serialize(prev, get().settings.human))
+    const cur = get().match
+    if (cur && !undoTo(cur, prev)) {
+      set({ message: { text: 'В общей партии принятые действия не отменяются.', kind: 'error' } })
+      return
+    }
+    set({ game: prev.state, match: prev, history: h.slice(0, -1), draft: {}, message: { text: 'Действие отменено.', kind: 'info' } })
+    saveMatch(AUTOSAVE_KEY, prev, get().settings.human)
   },
 
   save: () => {
@@ -378,24 +508,43 @@ export const useStore = create<Store>((set, get) => ({
       set({ message: { text: 'Сохранение доступно после начала битвы.', kind: 'error' } })
       return
     }
-    const ok = saveToStorage(MANUAL_KEY, serialize(g, get().settings.human))
+    const shared = get().shared
+    if (shared) {
+      set({ message: shared.role === 'host' ? { text: 'Онлайн-партия сохраняется автоматически после каждого действия.', kind: 'info' } : { text: 'Партию сохраняет хозяин комнаты.', kind: 'info' } })
+      return
+    }
+    const ok = saveMatch(MANUAL_KEY, matchOf(g, get().match, get().settings.human), get().settings.human)
     set({ message: ok ? { text: 'Игра сохранена.', kind: 'info' } : { text: 'Не удалось сохранить (хранилище недоступно).', kind: 'error' } })
   },
 
   load: (key = MANUAL_KEY) => {
+    if (get().shared) {
+      set({ message: { text: 'В онлайн-партии загрузка недоступна.', kind: 'error' } })
+      return false
+    }
     const r = deserialize(readStorage(key))
     if (!r.ok) {
       set({ message: { text: r.reason, kind: 'error' } })
       return false
     }
     const s = r.file.state
-    const settings = r.file.human ? { ...get().settings, human: r.file.human } : get().settings
-    set({ game: s, settings, selectedUnitId: autoSelect(s, null, settings.human, null), draft: {}, history: [], deploying: null, deployHistory: [], review: null, aimTargetId: null, aiActionsThisTurn: 0, message: { text: 'Игра загружена.', kind: 'info' } })
+    const human = r.file.human && sidesOf(s).includes(r.file.human) ? r.file.human : get().settings.human
+    const settings = sidesOf(s).includes(human) ? { ...get().settings, human, opponent: other(s, human) } : { ...get().settings, human: sidesOf(s)[0], opponent: sidesOf(s)[1] }
+    set({ game: s, match: { ...r.file.match, state: s }, settings, selectedUnitId: autoSelect(s, null, settings.human, null), draft: {}, history: [], deploying: null, deployHistory: [], review: null, aimTargetId: null, aiActionsThisTurn: 0, message: { text: 'Игра загружена.', kind: 'info' } })
     return true
   },
 
   setSettings: (patch) => {
-    const settings = { ...get().settings, ...patch }
+    const shared = get().shared
+    if (shared) {
+      // in an online match the sides and scenario are fixed; only preferences change, and the stored single-player setup is kept
+      const { human: _h, opponent: _o, scenarioId: _s, ...rest } = patch
+      const base = { ...shared.prevSettings, ...rest }
+      persistSettings(base)
+      set({ settings: { ...get().settings, ...rest }, shared: { ...shared, prevSettings: base } })
+      return
+    }
+    const settings = normalizeSettings({ ...get().settings, ...patch })
     persistSettings(settings)
     set({ settings })
   },
@@ -412,6 +561,7 @@ export const useStore = create<Store>((set, get) => ({
     set({ tutorialDone: [], tutorialStart: g ? tutorialStartOf(g) : get().tutorialStart })
   },
   setShotOptions: (o) => set({ shotOptions: { ...get().shotOptions, ...o } }),
+  setMoveOptions: (o) => set({ moveOptions: { ...get().moveOptions, ...o }, draft: {} }),
   setCustomToken: (profileId, dataUrl) => {
     const next = { ...get().customTokens }
     if (dataUrl) next[profileId] = dataUrl
