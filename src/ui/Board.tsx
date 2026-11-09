@@ -280,6 +280,11 @@ function ActionBar() {
 
   if (game.phase === 'command' && human === 'orks' && !game.players.orks.waaaghUsed) btn('waaagh', { type: 'callWaaagh' }, '📣 WAAAGH!')
   if (game.phase === 'command' && game.players[human].shadowUsed === false) btn('shadow', { type: 'callShadow' }, '🌑 Тень в Варпе')
+  if (game.phase === 'command' && game.players[human].imperative === null) {
+    btn('protector', { type: 'imperative', imperative: 'protector' }, '🛡 Протектор')
+    btn('conqueror', { type: 'imperative', imperative: 'conqueror' }, '⚔ Завоеватель')
+  }
+  if (mine && hasAbility(mine, 'defendDivineWork') && !game.players[human].divineUsed) btn('divine', { type: 'divineWork', unitId: mine.id }, '⚙ Защита божественного труда')
   if (game.phase === 'movement' && mine && mine.move === 'none') {
     const mode = moveModeFor(game, mine)
     if (hasDraft) {

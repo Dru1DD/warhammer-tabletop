@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { OnlineBanner, OnlineHeader, OnlineScreen } from './multiplayer/OnlineScreen'
 import { joinRoom, leaveRoom, openOnlineMenu, parseRoomCode, savedGuestRoom, useMp } from './multiplayer/session'
-import { FACTION_STYLE, tokenImageFor } from './assets/manifest'
+import { FACTION_EMBLEM, FACTION_STYLE, tokenImageFor } from './assets/manifest'
 import { FACTION_NAME } from './game/data/datasheets'
 import { actor } from './game/engine'
 import { deserialize, readStorage } from './game/persistence'
@@ -78,10 +78,10 @@ function StartScreen() {
   const both = (s: (typeof SCENARIOS)[number]) => s.factions.includes(human) && s.factions.includes(opponent)
   return (
     <div className="min-h-full bg-stone-900 p-4 text-stone-100">
-      <div className="mx-auto max-w-4xl rounded-lg border border-stone-700 bg-stone-800 p-6 shadow-xl">
+      <div className="mx-auto max-w-5xl rounded-lg border border-stone-700 bg-stone-800 p-6 shadow-xl">
         <h1 className="text-2xl font-bold">Тренировочный стол 40K</h1>
         <p className="mt-1 text-sm text-stone-400">
-          Учебный симулятор по правилам Warhammer 40,000 (11-я редакция). Пять армий: Космодесант, Орки, Тираниды, Некроны, Аэльдари. Неофициальный любительский проект.
+          Учебный симулятор по правилам Warhammer 40,000 (11-я редакция). Шесть армий: Космодесант, Орки, Тираниды, Некроны, Аэльдари, Адептус Механикус. Неофициальный любительский проект.
         </p>
 
         {auto.ok && !auto.file.state.winner && (
@@ -91,7 +91,7 @@ function StartScreen() {
         )}
 
         <h2 className="mt-5 font-semibold">Ваша армия</h2>
-        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {FACTIONS.map((p) => {
             const army = armyOf(scenarioId, p) ?? armyOf('combat-patrol', p)!
             const faces = [...new Set(army.flatMap((u) => u.models.map((m) => m.profileId)))].slice(0, 4)
@@ -100,13 +100,16 @@ function StartScreen() {
                 key={p}
                 onClick={() => st.setSettings({ human: p })}
                 aria-pressed={human === p}
-                className={`rounded-lg border-2 p-3 text-left ${human === p ? 'border-yellow-400' : 'border-stone-600'}`}
+                className={`flex flex-col items-start justify-start rounded-lg border-2 p-3 text-left ${human === p ? 'border-yellow-400' : 'border-stone-600'}`}
                 style={{ background: FACTION_STYLE[p].primary + '55' }}
               >
-                <div className="mb-2 flex -space-x-3">
-                  {faces.map((id) => (
-                    <img key={id} src={tokenImageFor(id, st.customTokens)} alt="" className="h-10 w-10 rounded-full border-2 border-stone-900" />
-                  ))}
+                <div className="mb-2 flex items-center gap-3">
+                  {FACTION_EMBLEM[p] && <img src={FACTION_EMBLEM[p]} alt="" className="h-12 w-12 shrink-0 rounded-full border-2 border-amber-500" />}
+                  <div className="flex -space-x-3">
+                    {faces.map((id) => (
+                      <img key={id} src={tokenImageFor(id, st.customTokens)} alt="" className="h-10 w-10 rounded-full border-2 border-stone-900" />
+                    ))}
+                  </div>
                 </div>
                 <div className="font-semibold">{FACTION_NAME[p]}</div>
                 <ArmyList faction={p} scenarioId={armyOf(scenarioId, p) ? scenarioId : 'combat-patrol'} />
@@ -197,6 +200,7 @@ function GameScreen() {
         <OnlineHeader />
         <span className="text-sm text-stone-300">ПО: {scoreText(game)}</span>
         {game.players.orks?.riledTurns > 0 && <span className="rounded bg-red-800 px-2 py-0.5 text-xs">WAAAGH!</span>}
+        {game.players.adeptus_mechanicus?.imperative && <span className="rounded bg-amber-800 px-2 py-0.5 text-xs" title="Доктрина Империатива армии Адептус Механикус">{game.players.adeptus_mechanicus.imperative === 'protector' ? 'Протектор' : 'Завоеватель'}</span>}
         <div className="ml-auto flex flex-wrap gap-1">
           {/* icons only on laptop widths; labels from 1536px */}
           <button className={`btn ${st.measuring ? 'btn-primary' : ''}`} onClick={() => st.toggleMeasure()} aria-pressed={st.measuring} title="Линейка (R)" aria-label="Линейка">📏<span className="hidden 2xl:inline"> Линейка</span></button>

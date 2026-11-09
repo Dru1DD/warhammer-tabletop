@@ -9,6 +9,7 @@ export const BLUEPRINT_LINE = {
   tyranids: '#ff7a8a',
   necrons: '#e6eef7',
   aeldari: '#c79bff',
+  adeptus_mechanicus: '#f0b24a',
 } as const
 const PAPER = '#0a1f3a'
 
@@ -306,6 +307,126 @@ function farseer(): string {
   `, false)
 }
 
+
+// ---------------------------------------------------------------- Adeptus Mechanicus
+// Brass line work with deep-red robes: hoods, cog halos, mechanical skulls and servo-arms.
+
+const BRASS = BLUEPRINT_LINE.adeptus_mechanicus
+const RED = '#c0392b'
+const rd = (o = 0.4) => `fill="${RED}" fill-opacity="${o}"`
+
+/** Toothed cog outline centred on (cx, cy). */
+function cog(cx: number, cy: number, r: number, teeth = 10): string {
+  const pts = Array.from({ length: teeth * 2 }, (_, i) => {
+    const a = (i / (teeth * 2)) * Math.PI * 2
+    const rr = i % 2 === 0 ? r : r * 0.8
+    return `${(cx + Math.cos(a) * rr).toFixed(1)} ${(cy + Math.sin(a) * rr).toFixed(1)}`
+  })
+  return `<path d="M${pts.join(' L')} Z" ${f(BRASS, 0.18)}/>`
+}
+
+/** Mechanical skull face: brow, two eye lenses and a grille, seen from above-front. */
+const skull = (x: number, y: number, s = 1) =>
+  `<g transform="translate(${x} ${y}) scale(${s})"><circle r="6.5" ${f(BRASS, 0.3)}/><circle cx="2.4" cy="-2.2" r="1.5" fill="${RED}" stroke="none"/><circle cx="2.4" cy="2.2" r="1.5" fill="${RED}" stroke="none"/><path d="M5 -2 V2" stroke-width="1"/></g>`
+
+type TechKind = 'dominus' | 'manipulus'
+
+/** Tech-Priest: robed adept under a cog halo, servo-arms behind, axe (Dominus) or magnarail lance (Manipulus). */
+function techPriest(kind: TechKind): string {
+  const arms = `<path d="M34 40 Q16 30 10 18 M34 60 Q16 70 10 82 M34 50 Q14 50 8 50" fill="none" stroke-width="1.8"/><circle cx="10" cy="18" r="2.4" ${f(BRASS, 0.5)}/><circle cx="10" cy="82" r="2.4" ${f(BRASS, 0.5)}/>`
+  const gear = kind === 'dominus'
+    ? `<line x1="52" y1="62" x2="88" y2="40" stroke-width="2.6"/><path d="M82 30 L94 38 L86 48 L80 40 Z" ${f(BRASS, 0.5)}/><rect x="56" y="64" width="16" height="4.5" rx="2" ${f(BRASS, 0.3)}/>`
+    : `<rect x="50" y="44" width="46" height="6" rx="2" ${f(BRASS, 0.3)}/><rect x="62" y="40" width="22" height="3" ${f(BRASS, 0.4)}/><line x1="50" y1="64" x2="74" y2="64" stroke-width="2.4"/><circle cx="76" cy="64" r="3.2" ${f(BRASS, 0.5)}/>`
+  return base(BRASS, `${cog(44, 50, 30, 12)}${arms}
+    <path d="M28 24 Q10 40 12 50 Q10 60 28 76 Q54 70 58 50 Q54 30 28 24 Z" ${rd(0.42)}/><path d="M30 40 L52 60 M52 40 L30 60" fill="none" opacity="0.4"/>
+    <circle cx="48" cy="50" r="9.5" ${rd(0.55)}/>${skull(51, 50, 0.9)}${gear}`, false)
+}
+
+type SkitGear = 'rifle' | 'longRifle' | 'carbine' | 'arc' | 'caliver' | 'pistol'
+
+/** Skitarii: slim hooded trooper with a mechanical skull; rifle length shows the role (Rangers long, Vanguard short). */
+function skitarii(gear: SkitGear, opts: { alpha?: boolean; omnispex?: boolean; vanguard?: boolean } = {}): string {
+  const weapon = {
+    rifle: `<rect x="52" y="56" width="38" height="4.5" rx="2" ${f(BRASS, 0.3)}/><rect x="70" y="52.5" width="9" height="3.5" ${f(BRASS, 0.4)}/>`,
+    longRifle: `<rect x="50" y="56" width="44" height="4" rx="2" ${f(BRASS, 0.3)}/><rect x="64" y="52" width="14" height="3" ${f(BRASS, 0.4)}/>`,
+    carbine: `<rect x="52" y="55" width="28" height="7" rx="3" ${f(BRASS, 0.35)}/><path d="M80 55 L90 58.5 L80 62 Z" ${f(BRASS, 0.5)}/>`,
+    arc: `<rect x="52" y="55" width="34" height="6" rx="2" ${f(BRASS, 0.3)}/><path d="M86 52 L92 58 L86 64 M90 50 L96 58 L90 66" fill="none" stroke-width="1.6"/>`,
+    caliver: `<rect x="52" y="55" width="30" height="7" rx="2.5" ${f(BRASS, 0.3)}/><circle cx="84" cy="58.5" r="4.4" ${f(RED, 0.5)}/>`,
+    pistol: `<rect x="56" y="61" width="15" height="5" rx="1.5" ${f(BRASS, 0.3)}/>`,
+  }[gear]
+  const alpha = opts.alpha ? `<line x1="54" y1="32" x2="84" y2="24" stroke-width="2.4"/><path d="M34 26 H52" stroke-width="2.2"/>` : ''
+  const omni = opts.omnispex ? `<circle cx="64" cy="46" r="3.6" ${f(RED, 0.5)}/><line x1="60" y1="46" x2="52" y2="48"/>` : ''
+  const rad = opts.vanguard ? `<circle cx="50" cy="50" r="23" fill="none" stroke-dasharray="1.5 3.5" opacity="0.6"/>` : ''
+  return base(BRASS, `${rad}
+    <path d="M22 36 Q10 50 22 64 L38 60 L38 40 Z" ${rd(0.3)}/>
+    <ellipse cx="42" cy="50" rx="12" ry="18" ${rd(0.45)}/><path d="M34 42 L50 58" fill="none" opacity="0.4"/>
+    <circle cx="44" cy="33" r="6" ${f(BRASS, 0.25)}/><circle cx="44" cy="67" r="6" ${f(BRASS, 0.25)}/>
+    <circle cx="54" cy="50" r="7.5" ${rd(0.55)}/>${skull(57, 50, 0.7)}${alpha}${omni}${weapon}`, false)
+}
+
+type KataKind = 'breacher' | 'breacherTorsion' | 'breacherHydraulic' | 'destroyer' | 'destroyerCulverin'
+
+/** Kataphron: hulking cyborg on tracks, armoured dome head, heavy gun on the right and a claw or flamer on the left. */
+function kataphron(kind: KataKind): string {
+  const breacher = kind.startsWith('breacher')
+  const gun = kind === 'breacherTorsion'
+    ? `<path d="M56 40 H92 V52 H56 Z" ${f(BRASS, 0.35)}/><circle cx="92" cy="46" r="5" ${f(RED, 0.5)}/>`
+    : kind === 'destroyerCulverin'
+      ? `<rect x="54" y="38" width="38" height="12" rx="5" ${f(BRASS, 0.35)}/><circle cx="92" cy="44" r="4.5" ${f(RED, 0.55)}/><rect x="60" y="34" width="20" height="4" ${f(BRASS, 0.4)}/>`
+      : breacher
+        ? `<rect x="54" y="40" width="36" height="9" rx="2" ${f(BRASS, 0.3)}/><path d="M90 38 L96 44.5 L90 51" fill="none" stroke-width="1.8"/>`
+        : `<rect x="54" y="38" width="30" height="5" rx="2" ${f(BRASS, 0.35)}/><rect x="54" y="45" width="30" height="5" rx="2" ${f(BRASS, 0.35)}/><rect x="54" y="52" width="30" height="5" rx="2" ${f(BRASS, 0.35)}/>`
+  const left = kind === 'breacherHydraulic'
+    ? `<path d="M52 60 L78 66 L86 58 M78 66 L88 72" fill="none" stroke-width="3.4"/>`
+    : breacher
+      ? `<path d="M52 62 L72 68 M72 68 L82 62 M72 68 L84 70 M72 68 L80 76" fill="none" stroke-width="2.4"/>`
+      : `<rect x="52" y="62" width="22" height="6" rx="3" ${f(BRASS, 0.3)}/><circle cx="78" cy="65" r="3.4" ${f(RED, 0.5)}/>`
+  return base(BRASS, `
+    <rect x="12" y="22" width="52" height="12" rx="4" ${f(BRASS, 0.18)}/><rect x="12" y="66" width="52" height="12" rx="4" ${f(BRASS, 0.18)}/>
+    <path d="M16 26 H60 M16 74 H60" fill="none" stroke-dasharray="3 2" opacity="0.6"/>
+    <rect x="20" y="30" width="40" height="40" rx="8" ${rd(0.42)}/><path d="M26 38 H54 M26 62 H54" fill="none" opacity="0.4"/>
+    <circle cx="46" cy="50" r="12" ${f(BRASS, 0.3)}/><circle cx="46" cy="50" r="6" ${rd(0.6)}/>${skull(49, 50, 0.55)}${gun}${left}`, false)
+}
+
+type SicGear = 'carbine' | 'taser'
+
+/** Sicarian Infiltrator: lean, forward-leaning stalker with a domed head, cloak tatters and a blade or taser goad. */
+function sicarian(gear: SicGear, princeps = false): string {
+  const arms = gear === 'carbine'
+    ? `<line x1="52" y1="34" x2="92" y2="22" stroke-width="2.6"/><line x1="56" y1="30" x2="60" y2="40" stroke-width="2"/><rect x="58" y="60" width="18" height="6" rx="2" ${f(BRASS, 0.35)}/>`
+    : `<path d="M52 34 L90 26 M52 34 L92 32 M52 34 L88 38" fill="none" stroke-width="1.8"/><path d="M90 24 L96 30 L90 40" fill="none" stroke-width="1.6"/><rect x="56" y="60" width="26" height="8" rx="3" ${f(BRASS, 0.35)}/>`
+  return base(BRASS, `
+    <path d="M30 30 L8 40 L18 46 L6 52 L18 56 L8 62 L30 72 Z" ${rd(0.22)} stroke-dasharray="2 2"/>
+    <path d="M26 36 Q44 28 58 50 Q44 72 26 64 Z" ${rd(0.45)}/><path d="M34 46 H52 M34 54 H52" fill="none" opacity="0.4"/>
+    <circle cx="56" cy="50" r="7.5" ${f(BRASS, 0.3)}/><path d="M52 44 Q64 50 52 56" fill="none"/><circle cx="60" cy="47" r="1.8" fill="${RED}" stroke="none"/><circle cx="60" cy="53" r="1.8" fill="${RED}" stroke="none"/>
+    ${princeps ? `<path d="M40 24 L50 30 L40 36 M40 64 L50 70 L40 76" fill="none" stroke-width="1.8"/>` : ''}${arms}`, false)
+}
+
+type KastGear = 'combustor' | 'guns'
+
+/** Kastelan Robot: boxy war-automaton with a cog chest plate, a massive fist and a shoulder weapon. */
+function kastelan(gear: KastGear): string {
+  const shoulder = gear === 'combustor'
+    ? `<path d="M56 30 H76 L92 36 V44 L76 48 H56 Z" ${f(BRASS, 0.35)}/><circle cx="92" cy="40" r="4" ${f(RED, 0.6)}/>`
+    : `<rect x="54" y="28" width="40" height="8" rx="2" ${f(BRASS, 0.35)}/><rect x="54" y="38" width="32" height="7" rx="2" ${f(BRASS, 0.35)}/>`
+  return base(BRASS, `
+    <rect x="14" y="16" width="14" height="20" rx="3" ${f(BRASS, 0.2)}/><rect x="14" y="64" width="14" height="20" rx="3" ${f(BRASS, 0.2)}/>
+    <rect x="22" y="24" width="38" height="52" rx="6" ${rd(0.42)}/>${cog(41, 50, 13, 8)}<circle cx="41" cy="50" r="4" ${rd(0.7)}/>
+    <rect x="52" y="42" width="14" height="16" rx="3" ${f(BRASS, 0.3)}/>${skull(60, 50, 0.7)}
+    <circle cx="76" cy="66" r="11" ${f(BRASS, 0.3)}/><circle cx="76" cy="66" r="6" ${rd(0.55)}/><path d="M60 62 L68 64" stroke-width="3.4"/>${shoulder}`, false)
+}
+
+/** Faction emblem (shown on the army selection card): a toothed cog around a mechanical skull. */
+export const mechanicusEmblem = () =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="49" fill="#2a0c0c"/>
+  <g stroke="${BRASS}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+    ${cog(50, 50, 40, 16)}<circle cx="50" cy="50" r="27" fill="#8a1f1f" fill-opacity="0.8"/>
+    <path d="M32 46 Q32 28 50 28 Q68 28 68 46 Q68 54 62 58 V66 H38 V58 Q32 54 32 46 Z" fill="${BRASS}" fill-opacity="0.85" stroke="#2a0c0c"/>
+    <circle cx="42" cy="46" r="5" fill="#2a0c0c"/><circle cx="58" cy="46" r="5" fill="#8a1f1f" stroke="#2a0c0c"/>
+    <path d="M50 52 L47 60 H53 Z" fill="#2a0c0c" stroke="none"/><path d="M42 66 V60 M46 66 V61 M50 66 V61 M54 66 V61 M58 66 V60" stroke="#2a0c0c" stroke-width="1.6"/>
+    <path d="M20 20 L34 34 M80 20 L66 34" fill="none" opacity="0.5"/>
+  </g></svg>`
+
 const SVGS: Record<string, string> = {
   hiveTyrant: hiveTyrant(),
   termagant: termagant('fleshborer'),
@@ -329,6 +450,27 @@ const SVGS: Record<string, string> = {
   windrider: windrider('catapult'),
   windriderLaser: windrider('laser'),
   windriderCannon: windrider('cannon'),
+  techDominus: techPriest('dominus'),
+  techManipulus: techPriest('manipulus'),
+  rangerAlpha: skitarii('longRifle', { alpha: true }),
+  ranger: skitarii('longRifle'),
+  rangerOmnispex: skitarii('longRifle', { omnispex: true }),
+  rangerArc: skitarii('arc'),
+  rangerCaliver: skitarii('caliver'),
+  vanguardAlpha: skitarii('pistol', { alpha: true, vanguard: true }),
+  vanguard: skitarii('carbine', { vanguard: true }),
+  vanguardArc: skitarii('arc', { vanguard: true }),
+  vanguardCaliver: skitarii('caliver', { vanguard: true }),
+  breacher: kataphron('breacher'),
+  breacherTorsion: kataphron('breacherTorsion'),
+  breacherHydraulic: kataphron('breacherHydraulic'),
+  destroyer: kataphron('destroyer'),
+  destroyerCulverin: kataphron('destroyerCulverin'),
+  sicarianPrinceps: sicarian('carbine', true),
+  sicarian: sicarian('carbine'),
+  sicarianTaser: sicarian('taser'),
+  kastelan: kastelan('combustor'),
+  kastelanGun: kastelan('guns'),
   lieutenant: marine('swordPistol', { officer: true }),
   intercessorSergeant: marine('rifle', { sergeant: true }),
   intercessor: marine('rifle'),

@@ -37,6 +37,67 @@ export const isMV = (u: UnitState) => hasKeyword(u, 'MONSTER', 'VEHICLE')
 export const isInfantry = (u: UnitState) => hasKeyword(u, 'INFANTRY', 'SWARM')
 export const isFlyer = (u: UnitState) => hasKeyword(u, 'FLY')
 
+// ---------------------------------------------------------------- Adeptus Mechanicus
+
+/** Distance (edge to edge) within which a Tech-Priest counts as leading a friendly unit (approximation of attached units). */
+export const LEADER_RANGE = 3
+/** BATTLELINE support radius of the Doctrina Imperatives and Breaching Command. */
+export const BATTLELINE_RANGE = 6
+export const RAD_RANGE = 3
+export const NEUROSTATIC_RANGE = 6
+
+/** The Doctrina Imperative active for this unit (the army's choice, only for units with the ability). */
+export function imperativeOf(s: GameState, u: UnitState): 'protector' | 'conqueror' | null {
+  return hasAbility(u, 'doctrina') ? (s.players[u.owner].imperative ?? null) : null
+}
+
+/** BATTLELINE itself, or within 6″ of a friendly ADEPTUS MECHANICUS BATTLELINE unit (Imperatives, Breaching Command, Neurostatic Interference). */
+export function battlelineSupport(s: GameState, u: UnitState): boolean {
+  if (hasKeyword(u, 'BATTLELINE')) return true
+  return s.units.some((x) => x.id !== u.id && x.owner === u.owner && !isDestroyed(x) && hasKeyword(x, 'BATTLELINE') && hasKeyword(x, 'ADEPTUS MECHANICUS') && unitDistance(u, x) <= BATTLELINE_RANGE + EPS)
+}
+
+/** The one unit a Tech-Priest (a unit with `ability`) leads: the nearest friendly unit with Leader support within 3″ (ties: by id). */
+export function ledUnitOf(s: GameState, leader: UnitState): UnitState | null {
+  const cands = s.units
+    .filter((x) => x.id !== leader.id && x.owner === leader.owner && !isDestroyed(x) && hasAbility(x, 'ledUnit'))
+    .map((x) => ({ x, d: unitDistance(leader, x) }))
+    .filter((c) => c.d <= LEADER_RANGE + EPS)
+    .sort((a, b) => a.d - b.d || (a.x.id < b.x.id ? -1 : 1))
+  return cands[0]?.x ?? null
+}
+
+/** Friendly units that lead or are led by `u` and carry `ability`: the Tech-Priests whose bonus applies to `u`. */
+export function leadersOf(s: GameState, u: UnitState, ability: string): UnitState[] {
+  return s.units.filter((l) => l.owner === u.owner && !isDestroyed(l) && hasAbility(l, ability) && (l.id === u.id || ledUnitOf(s, l)?.id === u.id))
+}
+
+/** Wargear carried by any living model of the unit. */
+export const hasWargear = (u: UnitState, g: string) => alive(u).some((m) => profileOf(m).wargear?.includes(g as never))
+
+/** Feel No Pain value for damage to this unit (Lord of the Machine Cult), or undefined. */
+export const feelNoPainOf = (s: GameState, u: UnitState): number | undefined => (leadersOf(s, u, 'lordOfMachineCult').length ? 5 : undefined)
+
+/** Best invulnerable save granted to the unit as a whole (Waaagh! 5+, Defend the Divine Work 4+). */
+export function invulnOverrideOf(s: GameState, u: UnitState): number | undefined {
+  const v = [
+    hasAbility(u, 'waaagh') && s.players[u.owner].riledTurns > 0 ? 5 : undefined,
+    u.warded ? 4 : undefined,
+  ].filter((x): x is number => x !== undefined)
+  return v.length ? Math.min(...v) : undefined
+}
+
+/** Neurostatic Interference: modifier to Battle-shock and Leadership tests of `u` caused by enemy Sicarians within 6″. */
+export function neurostaticMod(s: GameState, u: UnitState): number {
+  let mod = 0
+  for (const e of s.units) {
+    if (e.owner === u.owner || isDestroyed(e) || !hasAbility(e, 'neurostaticInterference')) continue
+    if (unitDistance(u, e) > NEUROSTATIC_RANGE + EPS) continue
+    mod = Math.min(mod, battlelineSupport(s, e) ? -2 : -1)
+  }
+  return mod
+}
+
 // ---------------------------------------------------------------- Synapse
 
 export const SYNAPSE_RANGE = 6
@@ -108,26 +169,45 @@ export const unitNearObjective = (u: UnitState, o: Objective) => alive(u).some((
 const chittered = (s: GameState, u: UnitState) =>
   s.units.some((e) => e.owner !== u.owner && hasAbility(e, 'chitteringSwarm') && !isDestroyed(e) && unitDistance(u, e) <= ENGAGEMENT_RANGE + EPS)
 
+/** Rad-saturation (Skitarii Vanguard): models of enemy non-VEHICLE units within 3″ of the unit have OC reduced by 1. */
+const irradiated = (s: GameState, u: UnitState) =>
+  !hasKeyword(u, 'VEHICLE') && s.units.some((e) => e.owner !== u.owner && hasAbility(e, 'radSaturation') && !isDestroyed(e) && unitDistance(u, e) <= RAD_RANGE + EPS)
+
 export function objectiveLevels(s: GameState, o: Objective): Record<PlayerId, number> {
   const lv = Object.fromEntries(sidesOf(s).map((p) => [p, 0])) as Record<PlayerId, number>
   for (const u of s.units) {
     if (u.battleShocked) continue
-    const shaved = alive(u).some((m) => modelInObjectiveRange(m, o)) && chittered(s, u)
+    const near = alive(u).some((m) => modelInObjectiveRange(m, o))
+    const shaved = near && chittered(s, u)
+    const rad = near && irradiated(s, u)
     for (const m of alive(u)) {
       if (!modelInObjectiveRange(m, o)) continue
-      const oc = profileOf(m).oc
-      lv[u.owner] += shaved && oc > 0 ? Math.max(1, oc - 1) : oc
+      let oc = profileOf(m).oc
+      if (shaved && oc > 0) oc = Math.max(1, oc - 1)
+      if (rad) oc = Math.max(0, oc - 1)
+      lv[u.owner] += oc
     }
   }
   return lv
 }
 
+/** Controller of each objective: higher Objective Control wins; Objective Scouted keeps control until the opponent's level is higher. */
 export function updateObjectiveControl(s: GameState) {
   const [a, b] = sidesOf(s)
   for (const o of s.objectives) {
     const lv = objectiveLevels(s, o)
-    o.controller = lv[a] > lv[b] ? a : lv[b] > lv[a] ? b : null
+    if (o.held && lv[other(s, o.held)] > lv[o.held]) delete o.held
+    o.controller = o.held ?? (lv[a] > lv[b] ? a : lv[b] > lv[a] ? b : null)
   }
+}
+
+/** Objective Scouted: at the end of the owner's Command phase a unit near an objective its army controls keeps it. */
+export function holdScoutedObjectives(s: GameState, p: PlayerId) {
+  for (const o of s.objectives)
+    if (o.held !== p && o.controller === p && s.units.some((u) => u.owner === p && !isDestroyed(u) && hasAbility(u, 'objectiveScouted') && !u.battleShocked && unitNearObjective(u, o))) {
+      o.held = p
+      addLog(s, `Цель ${o.id} закреплена за вами (Objective Scouted): контроль сохраняется, пока уровень врага не станет выше вашего.`, 'standard')
+    }
 }
 
 export const modelInTerrain = (s: GameState, m: ModelState, pos: Vec = m.pos) =>

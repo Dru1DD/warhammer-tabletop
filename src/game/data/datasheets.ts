@@ -1,5 +1,6 @@
 import type { Datasheet, ModelProfile, PlayerId, Weapon } from '../types'
 import { AELDARI_ABILITY_TEXT, AELDARI_DATASHEETS, AELDARI_PROFILES, AELDARI_WEAPONS } from './aeldari'
+import { MECHANICUS_ABILITY_TEXT, MECHANICUS_DATASHEETS, MECHANICUS_PROFILES, MECHANICUS_WEAPONS } from './mechanicus'
 import { NECRON_ABILITY_TEXT, NECRON_DATASHEETS, NECRON_PROFILES, NECRON_WEAPONS } from './necrons'
 import { TYRANID_ABILITY_TEXT, TYRANID_DATASHEETS, TYRANID_PROFILES, TYRANID_WEAPONS } from './tyranids'
 
@@ -231,10 +232,10 @@ const CORE_ABILITY_TEXT: Record<string, string> = {
   waaagh: 'Waaagh! (правило армии): переброс броска продвижения; раз за битву — «Боевой клич»: до конца следующего хода отряд «разъярён» — 5+ непробиваемый спас, оружие дальнего боя получает Assault, можно атаковать после продвижения.',
 }
 
-export const WEAPONS: Record<string, Weapon> = { ...CORE_WEAPONS, ...TYRANID_WEAPONS, ...NECRON_WEAPONS, ...AELDARI_WEAPONS }
-export const PROFILES: Record<string, ModelProfile> = { ...CORE_PROFILES, ...TYRANID_PROFILES, ...NECRON_PROFILES, ...AELDARI_PROFILES }
-export const DATASHEETS: Record<string, Datasheet> = { ...CORE_DATASHEETS, ...TYRANID_DATASHEETS, ...NECRON_DATASHEETS, ...AELDARI_DATASHEETS }
-export const ABILITY_TEXT: Record<string, string> = { ...CORE_ABILITY_TEXT, ...TYRANID_ABILITY_TEXT, ...NECRON_ABILITY_TEXT, ...AELDARI_ABILITY_TEXT }
+export const WEAPONS: Record<string, Weapon> = { ...CORE_WEAPONS, ...TYRANID_WEAPONS, ...NECRON_WEAPONS, ...AELDARI_WEAPONS, ...MECHANICUS_WEAPONS }
+export const PROFILES: Record<string, ModelProfile> = { ...CORE_PROFILES, ...TYRANID_PROFILES, ...NECRON_PROFILES, ...AELDARI_PROFILES, ...MECHANICUS_PROFILES }
+export const DATASHEETS: Record<string, Datasheet> = { ...CORE_DATASHEETS, ...TYRANID_DATASHEETS, ...NECRON_DATASHEETS, ...AELDARI_DATASHEETS, ...MECHANICUS_DATASHEETS }
+export const ABILITY_TEXT: Record<string, string> = { ...CORE_ABILITY_TEXT, ...TYRANID_ABILITY_TEXT, ...NECRON_ABILITY_TEXT, ...AELDARI_ABILITY_TEXT, ...MECHANICUS_ABILITY_TEXT }
 
 export const FACTION_NAME: Record<PlayerId, string> = {
   marines: 'Космодесант',
@@ -242,4 +243,5 @@ export const FACTION_NAME: Record<PlayerId, string> = {
   tyranids: 'Тираниды',
   necrons: 'Некроны',
   aeldari: 'Аэльдари',
+  adeptus_mechanicus: 'Адептус Механикус',
 }

@@ -3,7 +3,7 @@
 // portrait (src/assets/tokenArt.ts). No third-party art — see docs/assets.md.
 
 import type { PlayerId, TerrainKind } from '../game/types'
-import { BLUEPRINT_LINE, portraitFor } from './tokenArt'
+import { BLUEPRINT_LINE, mechanicusEmblem, portraitFor, svgDataUrl } from './tokenArt'
 
 export interface TokenStyle {
   fill: string
@@ -19,7 +19,11 @@ export const FACTION_STYLE: Record<PlayerId, { primary: string; secondary: strin
   tyranids: { primary: '#8c2f4a', secondary: '#f3c4cc', accent: '#ff7a8a' },
   necrons: { primary: '#3a4a52', secondary: '#dfe9ef', accent: '#47e08a' },
   aeldari: { primary: '#5a3f9c', secondary: '#ddd0f7', accent: '#f0c75e' },
+  adeptus_mechanicus: { primary: '#8a1f1f', secondary: '#f1d9a6', accent: '#e0a63a' },
 }
+
+/** Original faction emblem for the army selection card (factions without one show only their unit portraits). */
+export const FACTION_EMBLEM: Partial<Record<PlayerId, string>> = { adeptus_mechanicus: svgDataUrl(mechanicusEmblem()) }
 
 export const TOKENS: Record<string, TokenStyle> = {
   lieutenant: { fill: '#1f4e9c', stroke: '#e4b33a', text: '#ffffff', label: 'Лт' },
@@ -59,6 +63,28 @@ export const TOKENS: Record<string, TokenStyle> = {
   windrider: { fill: '#6a4cb0', stroke: '#ddd0f7', text: '#ffffff', label: 'Рв' },
   windriderLaser: { fill: '#6a4cb0', stroke: '#ddd0f7', text: '#ffffff', label: 'РЛ' },
   windriderCannon: { fill: '#6a4cb0', stroke: '#ddd0f7', text: '#ffffff', label: 'РП' },
+  // Adeptus Mechanicus: deep-red robes, brass trim
+  techDominus: { fill: '#7d1d1d', stroke: '#e8b04a', text: '#ffffff', label: 'Дм' },
+  techManipulus: { fill: '#7d1d1d', stroke: '#e8b04a', text: '#ffffff', label: 'Мн' },
+  rangerAlpha: { fill: '#8a1f1f', stroke: '#e8b04a', text: '#ffffff', label: 'АРн' },
+  ranger: { fill: '#9a2a2a', stroke: '#f1d9a6', text: '#ffffff', label: 'Рн' },
+  rangerOmnispex: { fill: '#9a2a2a', stroke: '#e8b04a', text: '#ffffff', label: 'Ро' },
+  rangerArc: { fill: '#9a2a2a', stroke: '#f1d9a6', text: '#ffffff', label: 'РД' },
+  rangerCaliver: { fill: '#9a2a2a', stroke: '#f1d9a6', text: '#ffffff', label: 'РП' },
+  vanguardAlpha: { fill: '#8a1f1f', stroke: '#e8b04a', text: '#ffffff', label: 'АА' },
+  vanguard: { fill: '#9a2a2a', stroke: '#f1d9a6', text: '#ffffff', label: 'Ав' },
+  vanguardArc: { fill: '#9a2a2a', stroke: '#f1d9a6', text: '#ffffff', label: 'АД' },
+  vanguardCaliver: { fill: '#9a2a2a', stroke: '#f1d9a6', text: '#ffffff', label: 'АП' },
+  breacher: { fill: '#7d1d1d', stroke: '#e8b04a', text: '#ffffff', label: 'Пб' },
+  breacherTorsion: { fill: '#7d1d1d', stroke: '#e8b04a', text: '#ffffff', label: 'ПТ' },
+  breacherHydraulic: { fill: '#7d1d1d', stroke: '#e8b04a', text: '#ffffff', label: 'ПГ' },
+  destroyer: { fill: '#8a1f1f', stroke: '#f1d9a6', text: '#ffffff', label: 'Рз' },
+  destroyerCulverin: { fill: '#8a1f1f', stroke: '#e8b04a', text: '#ffffff', label: 'Кр' },
+  sicarianPrinceps: { fill: '#5e1717', stroke: '#e8b04a', text: '#ffffff', label: 'ПС' },
+  sicarian: { fill: '#6e1b1b', stroke: '#f1d9a6', text: '#ffffff', label: 'Сх' },
+  sicarianTaser: { fill: '#6e1b1b', stroke: '#e8b04a', text: '#ffffff', label: 'Тз' },
+  kastelan: { fill: '#7d1d1d', stroke: '#e8b04a', text: '#ffffff', label: 'Кс' },
+  kastelanGun: { fill: '#7d1d1d', stroke: '#f1d9a6', text: '#ffffff', label: 'КБ' },
 }
 
 // Blueprint look: dark drafting paper, light line work.

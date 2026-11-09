@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { FACTION_STYLE, TOKENS, tokenImageFor } from '../assets/manifest'
 import { ABILITY_TEXT, FACTION_NAME, PROFILES } from '../game/data/datasheets'
 import { actor, moveAllowance, moveCommand, moveModeFor, PHASE_NAME, shootPlan, unitActions, validate } from '../game/engine'
-import { alive, datasheetOf, engagedUnits, fmt, isDestroyed, other, profileOf, sidesOf, unitsOf, weaponsOf } from '../game/gameState'
+import { alive, datasheetOf, engagedUnits, fmt, hasAbility, isDestroyed, other, profileOf, sidesOf, unitsOf, weaponsOf } from '../game/gameState'
 import { hitRoll, saveTarget, toughness, woundTarget } from '../game/combat/attack'
 import { fmtRandom } from '../game/dice/dice'
 import { deploymentIssues, deploymentZone } from '../game/rules/deployment'
@@ -149,6 +149,7 @@ function UnitDetails({ u }: { u: UnitState }) {
         <h3 className="text-sm font-semibold">{ds.name}</h3>
       </div>
       <p className="text-stone-400">{FACTION_NAME[u.owner]} · {ds.keywords.join(', ')}</p>
+      {ds.description && <p className="mt-1 text-stone-200">{ds.description}</p>}
       <table className="mt-1 w-full text-center">
         <thead className="text-stone-400"><tr><th className="text-left">Модель</th>{['M', 'T', 'Sv', 'W', 'Ld', 'OC'].map((k) => <StatTh key={k} k={k} />)}</tr></thead>
         <tbody>
@@ -281,6 +282,7 @@ export function ActionPanel() {
       {!game.winner && myTurn && game.phase === 'command' && game.players[human].shadowUsed === false && (
         <ActionButton cmd={{ type: 'callShadow' }} label="Тень в Варпе (Shadow in the Warp, раз за битву)" />
       )}
+      {!game.winner && myTurn && game.phase === 'command' && game.players[human].imperative !== undefined && <ImperativePicker />}
       {sel ? <UnitActions u={sel} /> : <p className="text-stone-400">Выберите отряд на поле или в списке.</p>}
       <LastAttack />
       <AiNotes />
@@ -409,6 +411,7 @@ function DeploymentPanel() {
           <li>Каждая подставка — <b>целиком</b> в вашей зоне: полоса {fmt(depth)}″ у {zone[0].x === 0 ? 'левого' : 'правого'} края (подсвечена, жёлтый пунктир).</li>
           <li>Модели отряда держатся вместе: каждая в 2″ от другой модели отряда, все — в 9″ (связность).</li>
           <li>Подставки не должны пересекаться.</li>
+          {unitsOf(game, human).some((u) => hasAbility(u, 'infiltrators')) && <li>Диверсанты (Infiltrators, Сикарии) можно ставить где угодно дальше 8″ от зоны и моделей противника.</li>}
         </ul>
         {beginner && <p className="mt-1 text-[11px] text-stone-400">Противник ({FACTION_NAME[other(game, human)]}) уже стоит в своей зоне. Учебное упрощение: в настоящей игре стороны ставят отряды по очереди.</p>}
       </div>
@@ -426,6 +429,22 @@ function DeploymentPanel() {
         {issues.length > 0 && <button className="btn mt-1 w-full" onClick={() => st.autoDeploy()} title="Поставить нерасставленные отряды на предложенные места">Оставить остальных на предложенных местах</button>}
       </div>
     </section>
+  )
+}
+
+/** Doctrina Imperatives (Adeptus Mechanicus army rule): one choice per turn, active until your next Command phase. */
+function ImperativePicker() {
+  const game = useStore((s) => s.game!)
+  const human = useStore((s) => s.settings.human)
+  const chosen = game.players[human].imperative
+  if (chosen)
+    return <p className="rounded border border-amber-700 bg-amber-950/40 p-2 text-xs text-amber-200">Империатив: <b>{chosen === 'protector' ? 'Протектор' : 'Завоеватель'}</b> — действует до вашей следующей фазы командования.</p>
+  return (
+    <div className="flex flex-col gap-1 rounded border border-amber-700 bg-amber-950/40 p-2" aria-label="Доктрины Империатива">
+      <b className="text-xs text-amber-200">Доктрины Империатива (Doctrina Imperatives): выберите одну</b>
+      <ActionButton cmd={{ type: 'imperative', imperative: 'protector' }} label="🛡 Протектор: Heavy, BS на 1 лучше, −1 к попаданию по линейным в ближнем бою" />
+      <ActionButton cmd={{ type: 'imperative', imperative: 'conqueror' }} label="⚔ Завоеватель: Assault, WS на 1 лучше, AP +1 линейным" />
+    </div>
   )
 }
 

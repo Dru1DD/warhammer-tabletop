@@ -1,6 +1,8 @@
 # Armies: Tyranids, Necrons, Aeldari
 
-Three complete armies play next to the original Space Marines and Orks on the 44″×30″ «Боевой патруль» board. Any two different armies can fight each other (10 pairings, either seating). Small 30″×22″ boards keep the two Introductory Set armies only.
+> The sixth army, **Adeptus Mechanicus** (added 2026-11-09), has its own document: [mechanicus.md](mechanicus.md). Its balance numbers are in the section [Adeptus Mechanicus balance](#adeptus-mechanicus-balance) at the end of this file. The text below covers the Tyranids, Necrons and Aeldari.
+
+Three complete armies play next to the original Space Marines and Orks (and the Adeptus Mechanicus) on the 44″×30″ «Боевой патруль» board. Any two different armies can fight each other (15 pairings with the Mechanicus, either seating). Small 30″×22″ boards keep the two Introductory Set armies only.
 
 ## Sources and edition
 
@@ -156,3 +158,54 @@ What the numbers do and do not say:
 - **Sample size.** Eight battles per pairing give wide error bars (a 6–2 result is compatible with a 50/50 matchup); only the army totals and the extreme pairings (8–0) are meaningful. Games end on average in round 3.6–5.0 of 5.
 
 Possible follow-ups, deliberately not done here (they change rules or AI): give Necron/Aeldari AI a sturdier opening (cover and objective play), add the missing reactive abilities (Fade Back would help the Aeldari most), and match the lists by points.
+
+## Adeptus Mechanicus balance
+
+Measured on 2026-11-09: the tactical (**«Стандарт»**) AI plays both sides, «Боевой патруль», **seeds 1–4, both seatings** of every pairing = **40 battles** (8 per pairing). Reproduce with
+`BALANCE_SIM=1 BALANCE_FACTION=adeptus_mechanicus npx vitest run src/game/__tests__/balance.test.ts --disableConsoleIntercept` (about 11 minutes). Observation only: **nothing was tuned**. The old pairings cannot change (every new effect is gated on Mechanicus abilities, the golden-master test confirms it), so the table in *Balance observations* above still stands.
+
+| Pairing (A vs B) | Wins A : B : draws | Avg end round | Avg VP (A : B) | Avg models lost (A / B) |
+|---|---|---|---|---|
+| Космодесант vs Адептус Механикус | 0 : 8 : 0 | 4.8 | 4.4 : 33.8 | 16.1 / 12.9 |
+| Орки vs Адептус Механикус | 0 : 8 : 0 | 4.3 | 6.3 : 25.0 | 30.8 / 6.5 |
+| Тираниды vs Адептус Механикус | 0 : 8 : 0 | 3.1 | 5.0 : 15.6 | 23.9 / 5.4 |
+| Некроны vs Адептус Механикус | 0 : 8 : 0 | 4.8 | 3.8 : 38.1 | 16.9 / 3.9 |
+| Аэльдари vs Адептус Механикус | 0 : 8 : 0 | 3.8 | 6.9 : 23.8 | 19.9 / 5.6 |
+
+| Army (in these 40 battles) | Wins | Win rate | Wounds dealt / battle | Wounds taken / battle | Damage ratio | Units alive at the end | Avg VP |
+|---|---|---|---|---|---|---|---|
+| Адептус Механикус | 40 / 40 | **100 %** | 37.2 | 10.4 | **3.58** | 7.8 of 8 | 27.3 |
+| Космодесант | 0 / 8 | 0 % | 21.6 | 39.5 | 0.55 | 0.9 of 5 | 4.4 |
+| Орки | 0 / 8 | 0 % | 8.0 | 43.6 | 0.18 | 0.3 of 4 | 6.3 |
+| Тираниды | 0 / 8 | 0 % | 9.8 | 38.6 | 0.25 | 0.1 of 4 | 5.0 |
+| Некроны | 0 / 8 | 0 % | 6.9 | 36.8 | 0.19 | 0.1 of 4 | 3.8 |
+| Аэльдари | 0 / 8 | 0 % | 5.8 | 27.5 | 0.21 | 0.1 of 4 | 6.9 |
+
+(VP are 5 per controlled objective from round 2, so average VP is an objective-control measure: 27.3 ≈ 5.5 objective-turns per battle for the Mechanicus against 0.8–1.4 for the others.) The side that took the first turn won 50 % and the west seat won 50 %: no seat bias.
+
+**Faction ability use** (counted in the 40 battles; only the Mechanicus abilities are relevant, the opponents' own rows such as Waaagh!, Shadow in the Warp, Reanimation and Guide are in the test output):
+
+| Ability | Uses | Per battle |
+|---|---|---|
+| Doctrina Imperative chosen: Protector / Conqueror | 147 / 18 | 3.7 / 0.45 |
+| Objective Scouted (objective kept) | 57 | 1.4 |
+| Feel No Pain (attacks against the led unit) | 29 | 0.7 |
+| Voices in the Code (tests forced) | 17 | 0.4 |
+| Repulsor Grid (shooters hurt) | 2 | 0.05 |
+| Defend the Divine Work | 1 | 0.03 |
+| Data-spike | 0 | 0 |
+
+### Major balance problems (documented, not fixed)
+
+1. **The Mechanicus win every battle (40 of 40), with 3.6 times the damage ratio and almost no losses** (7.8 of 8 units alive). They beat the Space Marines, until now the strongest army (97 %), 8–0 and with a clear damage lead. For this AI, these lists and this scoring they are the strongest army by a wide margin. This is **not** a statement about the real game.
+2. **Likely causes, not isolated by experiments:**
+   - The training roster is the largest of the six: **36 models** (Marines 17, Necrons 17, Aeldari 20, Tyranids 24) and, by the points printed on the datasheet pages, about 830 points (Kastelans interpolated). The lists are not points-matched, as before.
+   - **Long guns and stacking bonuses.** 30–36″ BS 4+ weapons, and the Protector Imperative (chosen in 82 % of turns) adds *Heavy* (+1 to hit when stationary) **and** BS +1 on top, so most shots hit on 2+.
+   - **Durable bodies.** T7 / T9 platforms with 3+ / 2+ saves and 5–6+ invulnerable saves, Feel No Pain 5+ for the led unit and Skitarii invulnerable saves of 5+ make the AI armies' small-calibre fire inefficient.
+   - **Objective play.** Objective Scouted keeps objectives after the unit leaves, Rad-saturation lowers the OC of enemies near objectives and Neurostatic Interference makes their battle-shock tests fail more often. The Mechanicus earn four to seven times the VP of their opponents.
+3. **AI notes.** The AI almost always picks Protector (Conqueror is chosen when the enemy is already close); Defend the Divine Work was used once in 40 battles (its threshold is deliberately high) and **Data-spike never fired** (the Dominus has to be engaged with an enemy VEHICLE; only the Marines' Redemptor and the Orks' Deff Dread qualify, and the Dominus stays back). Repulsor Grid fired rarely because the Kastelans are shot at little.
+4. **Levers if a closer match is wanted** (deliberately not applied, they change rules, rosters or AI): a smaller training roster (fewer Skitarii models; the minimum legal sizes are Kataphron 3, Sicarians 5, Kastelan 2, Rangers and Vanguard fixed at 10), a points-matched list, treating *Heavy* and the Protector BS bonus as non-stacking, or a weaker opponent AI preference for the Imperative. A fairer lesson mode would still need the handbook's scenarios.
+
+### AI speed
+
+The Mechanicus army has the most models, so AI decisions are the slowest of all armies. Measured in Node on the development machine, «Стандарт», 40 consecutive decisions on «Боевой патруль»: slowest single decision ≈ 0.6 s with the Mechanicus as the AI against Marines (0.5 s for Marines vs Orks, Necrons vs Aeldari) and ≈ 1.3 s for the Orks AI choosing moves against the 36-model army (before the visibility pre-filter it was up to 2.8 s). The old maximum on this board was 0.8 s.

@@ -5,6 +5,7 @@ import { FACTION_NAME } from './data/datasheets'
 import { rollDie, rollMany, type Roller } from './dice/dice'
 import { dist, withinRange, EPS, add, sub, scale, len } from './geometry/geometry'
 import {
+  battlelineSupport, feelNoPainOf, hasWargear, holdScoutedObjectives, imperativeOf, invulnOverrideOf, ledUnitOf, leadersOf, neurostaticMod,
   addLog, alive, atHalfStrength, CHARGE_RANGE, checkCoherency, CONSOLIDATE, datasheetOf, engagedUnits, ENGAGEMENT_RANGE,
   enemiesOf, findUnit, fmt, hasAbility, hasKeyword, inSynapseRange, isDestroyed, isEngaged, isFlyer, isMV, modelDistance, modelEngagedWith,
   other, PILE_IN, profileOf, radiusOf, sidesOf, SYNAPSE_RANGE, unitDistance, unitNearObjective, unitsOf,
@@ -76,13 +77,30 @@ const lethalVs = (p: WeaponProfile, attacker: UnitState, target: UnitState) => {
 }
 
 /** Defensive abilities of the target that modify the wound roll / damage. */
-function defenceMods(p: WeaponProfile, target: UnitState) {
+function defenceMods(s: GameState, p: WeaponProfile, target: UnitState) {
   const t = Math.max(...alive(target).map((m) => profileOf(m).t))
   const duty = hasAbility(target, 'dutyEternal') && p.s > t
+  const fnp = feelNoPainOf(s, target)
   return {
     woundMod: duty ? -1 : 0,
     woundModNote: duty ? 'Duty Eternal: сила больше стойкости' : undefined,
     damageMod: hasAbility(target, 'dreadArd') || hasAbility(target, 'implacableResilience') ? -1 : 0,
+    ...(fnp ? { fnp } : {}),
+  }
+}
+
+/** Doctrina Imperatives / Breaching Command / Galvanic Field: attacker-side modifiers shared by shooting and melee. */
+function attackerBonuses(s: GameState, unit: UnitState) {
+  const imp = imperativeOf(s, unit)
+  const support = imp === 'conqueror' || hasAbility(unit, 'breachingCommand') ? battlelineSupport(s, unit) : false
+  return {
+    imp,
+    /** Conqueror: AP of every attack improved by 1 while BATTLELINE or near friendly BATTLELINE */
+    betterAp: imp === 'conqueror' && support,
+    /** Breaching Command: re-roll hit rolls of 1, or any failed hit near friendly BATTLELINE */
+    rerollHits: hasAbility(unit, 'breachingCommand') ? (battlelineSupport(s, unit) ? 'all' as const : 'ones' as const) : undefined,
+    /** Galvanic Field: a Manipulus leading the unit gives its weapons Lethal Hits */
+    galvanic: leadersOf(s, unit, 'galvanicField').length > 0,
   }
 }
 
@@ -115,7 +133,8 @@ export function shootPlan(
   const engaged = isEngaged(s, unit)
   const advanced = unit.move === 'advance'
   const onslaught = inOnslaught(s, unit)
-  const assaultAll = riled(s, unit) || onslaught
+  const bonus = attackerBonuses(s, unit)
+  const assaultAll = riled(s, unit) || onslaught || bonus.imp === 'conqueror'
   const mv = isMV(unit)
   if (engaged && advanced) return { ...plan, problem: 'Отряд продвинулся (Advance) и находится в контакте — стрелять нельзя.' }
   if (engaged && !engagedUnits(s, unit).some((e) => e.id === target.id))
@@ -189,28 +208,39 @@ export function shootPlan(
   if (byKey.size === 0)
     return { ...plan, problem: plan.skipped.length && closest < Infinity ? `Нет оружия, способного стрелять: ближайшая видимая модель цели на ${fmt(closest)}". ${plan.skipped[0]}` : 'Нет подходящего оружия.' }
 
-  plan.cover = hasCover(s, plan.firingModels, target)
+  // Stealth: the target always has the benefit of cover against ranged attacks
+  plan.cover = hasCover(s, plan.firingModels, target) || hasAbility(target, 'stealth')
+  const omnispex = hasWargear(unit, 'omnispex')
   const bolter = hasAbility(unit, 'boltDiscipline') && s.objectives.some((o) => unitNearObjective(unit, o) || unitNearObjective(target, o))
   const runts = !!opts.useAmmoRunts && hasAbility(unit, 'ammoRunts') && !unit.ammoRuntsUsed
   for (const g of byKey.values()) {
     const notes: string[] = []
     let hitMod = 0
-    if (g.profile.keywords.heavy && !engaged && unit.movedDistance <= 3 + EPS) { notes.push('Heavy +1'); hitMod++ }
+    if ((g.profile.keywords.heavy || bonus.imp === 'protector') && !engaged && unit.movedDistance <= 3 + EPS) { notes.push(g.profile.keywords.heavy ? 'Heavy +1' : 'Protector: Heavy +1'); hitMod++ }
     if (bolter) { notes.push('Болтерная дисциплина +1'); hitMod++ }
     if (runts) { notes.push('Гроты-подносчики +1'); hitMod++ }
     if (engaged && mv && !g.profile.keywords.closeQuarters) { notes.push('техника в контакте −1'); hitMod-- }
     if (guided(s, unit, target)) { notes.push('Guide +1'); hitMod++ }
     // Swift Demise (Windriders): re-roll hit rolls of 1; any failed hit if the target is the closest eligible one
-    let rerollHits: AttackContext['rerollHits']
+    let rerollHits: AttackContext['rerollHits'] = bonus.rerollHits
     if (hasAbility(unit, 'swiftDemise')) rerollHits = isClosestTarget(s, unit, target) ? 'all' : 'ones'
+    if (bonus.rerollHits) g.notes.push(bonus.rerollHits === 'all' ? 'Breaching Command: переброс попаданий' : 'Breaching Command: переброс 1')
+    // Ignores Cover (weapon keyword or Omnispex) cancels the cover bonus; Protector improves BS by 1
+    const ignores = g.profile.keywords.ignoresCover || omnispex
+    if (plan.cover && ignores) g.notes.push('игнорирует укрытие')
+    if (bonus.betterAp) { g.profile = { ...g.profile, ap: g.profile.ap - 1 }; g.notes.push('Conqueror: AP +1') }
+    if (bonus.galvanic) g.notes.push('Galvanic Field: Lethal Hits')
+    const protector = bonus.imp === 'protector'
     g.ctx = {
       hitMod,
       hitModNotes: notes,
-      skillWorsen: plan.cover ? 1 : 0,
-      lethalHits: lethalVs(g.profile, unit, target) || onslaught,
-      invulnOverride: riled(s, target) ? 5 : undefined,
+      skillWorsen: (plan.cover && !ignores ? 1 : 0) - (protector ? 1 : 0),
+      ...(protector ? { skillNote: 'Protector: BS на 1 лучше' } : {}),
+      lethalHits: lethalVs(g.profile, unit, target) || onslaught || bonus.galvanic,
+      invulnOverride: invulnOverrideOf(s, target),
+      ...(g.profile.keywords.precision ? { precision: true } : {}),
       ...(rerollHits ? { rerollHits } : {}),
-      ...defenceMods(g.profile, target),
+      ...defenceMods(s, g.profile, target),
     }
     if (onslaught && !g.notes.includes('Onslaught')) g.notes.push('Onslaught: Assault + Lethal Hits')
     plan.groups.push(g)
@@ -236,16 +266,29 @@ export function meleeSetup(s: GameState, unit: UnitState, target: UnitState, p0:
   }
   const hitModNotes: string[] = []
   let hitMod = 0
+  let skillWorsen = 0
+  let skillNote: string | undefined
   if (guided(s, unit, target)) { hitMod++; hitModNotes.push('Guide +1') }
+  // Doctrina Imperatives: Conqueror improves WS and (near BATTLELINE) AP; Protector of the target subtracts 1 from melee hit rolls
+  const bonus = attackerBonuses(s, unit)
+  if (bonus.imp === 'conqueror') { skillWorsen--; skillNote = 'Conqueror: WS на 1 лучше'; notes.push('Conqueror: WS +1') }
+  if (bonus.betterAp) { p = { ...p, ap: p.ap - 1 }; notes.push('Conqueror: AP +1') }
+  if (imperativeOf(s, target) === 'protector' && battlelineSupport(s, target)) { hitMod--; hitModNotes.push('Protector цели −1') }
+  // Data-spike: the unit's melee skill is worsened by 1 until the end of the Fight phase
+  if (unit.spiked) { skillWorsen++; notes.push('Data-spike: WS на 1 хуже') }
+  if (bonus.rerollHits) notes.push(bonus.rerollHits === 'all' ? 'Breaching Command: переброс попаданий' : 'Breaching Command: переброс 1')
+  if (bonus.galvanic) notes.push('Galvanic Field: Lethal Hits')
   // Whirling Onslaught (Skorpekh Destroyers): re-roll hit rolls of 1, or any hit roll after a charge
-  const rerollHits: AttackContext['rerollHits'] = hasAbility(unit, 'whirlingOnslaught') ? (unit.charged ? 'all' : 'ones') : undefined
+  const rerollHits: AttackContext['rerollHits'] = hasAbility(unit, 'whirlingOnslaught') ? (unit.charged ? 'all' : 'ones') : bonus.rerollHits
   if (rerollHits) notes.push(rerollHits === 'all' ? 'Whirling Onslaught: переброс попаданий' : 'Whirling Onslaught: переброс 1')
   const ctx: AttackContext = {
-    hitMod, hitModNotes, skillWorsen: 0,
-    lethalHits: lethalVs(p, unit, target) || (hasAbility(unit, 'tideOfMuscle') && unit.charged),
-    invulnOverride: riled(s, target) ? 5 : undefined,
+    hitMod, hitModNotes, skillWorsen,
+    ...(skillNote ? { skillNote } : {}),
+    lethalHits: lethalVs(p, unit, target) || (hasAbility(unit, 'tideOfMuscle') && unit.charged) || bonus.galvanic,
+    invulnOverride: invulnOverrideOf(s, target),
+    ...(p.keywords.precision ? { precision: true } : {}),
     ...(rerollHits ? { rerollHits } : {}),
-    ...defenceMods(p, target),
+    ...defenceMods(s, p, target),
   }
   return { profile: p, ctx, notes }
 }
@@ -332,6 +375,14 @@ export function validate(s: GameState, cmd: Command): Validation {
     return OK
   }
 
+  if (cmd.type === 'imperative') {
+    if (s.phase !== 'command') return fail('Империатив (Doctrina Imperative) выбирается в фазе командования.')
+    if (s.players[who].imperative === undefined) return fail('Доктрины Империатива — правило армии Адептус Механикус.')
+    if (s.players[who].imperative !== null) return fail('Империатив уже выбран в этом ходу.')
+    if (cmd.imperative !== 'protector' && cmd.imperative !== 'conqueror') return fail('Неизвестный Империатив.')
+    return OK
+  }
+
   const unit = findUnit(s, cmd.unitId)
   if (!unit || isDestroyed(unit)) return fail('Отряд не найден или уничтожен.')
   if (unit.owner !== who) return fail(`Сейчас решение принимает ${FACTION_NAME[who]}.`)
@@ -397,6 +448,11 @@ export function validate(s: GameState, cmd: Command): Validation {
       const targets = cmd.targetIds.map((t) => findUnit(s, t)!)
       if (!planCharge(s, unit, targets, s.pendingCharge.roll))
         return fail('Не удалось построить допустимое перемещение атаки (подставки мешают или нарушается связность).')
+      return OK
+    }
+    case 'divineWork': {
+      if (!hasAbility(unit, 'defendDivineWork')) return fail('У этого отряда нет способности «Защита божественного труда».')
+      if (s.players[unit.owner].divineUsed) return fail('Защита божественного труда уже применена в этой битве (раз за битву).')
       return OK
     }
     case 'guide': {
@@ -515,6 +571,8 @@ function resetTurnFlags(s: GameState) {
     u.charged = false
     u.fought = false
     delete u.guided
+    delete u.spiked
+    if (u.owner === s.activePlayer) delete u.warded
   }
 }
 
@@ -529,6 +587,7 @@ function enterPhase(s: GameState, phase: Phase, r: Roller) {
   if (phase === 'command') commandPhase(s, r)
   if (phase === 'fight') {
     selfDestruction(s, r)
+    fightStartMechanicus(s, r)
     pileInAll(s)
     s.fight = { selecting: s.activePlayer, step: 'first' }
     advanceFight(s)
@@ -548,14 +607,16 @@ function enterPhase(s: GameState, phase: Phase, r: Roller) {
 function leadershipRoll(s: GameState, u: UnitState, r: Roller, mod = 0) {
   const synapse = inSynapseRange(s, u)
   const dice = rollMany(r, synapse ? 3 : 2)
-  const total = dice.reduce((a, b) => a + b, 0) + mod
+  const interference = neurostaticMod(s, u)
+  const total = dice.reduce((a, b) => a + b, 0) + mod + interference
   const ld = profileOf(alive(u)[0]).ld
-  return { dice, total, ld, pass: total >= ld, label: synapse ? '3D6 (Synapse)' : '2D6' }
+  return { dice, total, ld, pass: total >= ld, label: `${synapse ? '3D6 (Synapse)' : '2D6'}${interference ? ` (помехи ${interference})` : ''}` }
 }
 
 function commandPhase(s: GameState, r: Roller) {
   for (const p of sidesOf(s)) s.players[p].cp++
   if (s.players[s.activePlayer].guide !== undefined) s.players[s.activePlayer].guide = null
+  if (s.players[s.activePlayer].imperative !== undefined) s.players[s.activePlayer].imperative = null
   addLog(s, 'Оба игрока получают 1 очко командования (CP).', 'beginner')
   for (const u of unitsOf(s, s.activePlayer)) {
     if (!u.battleShocked && !atHalfStrength(u)) continue
@@ -680,6 +741,41 @@ function selfDestruction(s: GameState, r: Roller) {
   checkWinner(s)
 }
 
+/** Start of the Fight phase, Adeptus Mechanicus: Data-spike (Tech-Priest Dominus vs engaged VEHICLEs: 4+ = D6 mortal wounds
+ * and WS −1 until the end of the phase) and Voices in the Code (every enemy unit engaged with Sicarians takes a Battle-shock test).
+ * Both are used automatically. */
+function fightStartMechanicus(s: GameState, r: Roller) {
+  const before = aliveIds(s)
+  const voiced = new Set<string>()
+  for (const u of s.units) {
+    if (isDestroyed(u) || !hasAbility(u, 'dataSpike')) continue
+    const target = engagedUnits(s, u).find((e) => hasKeyword(e, 'VEHICLE'))
+    if (!target) continue
+    const v = r.d6()
+    const hit = v >= 4
+    const mw = hit ? rollDie(r, 'D6') : 0
+    if (hit) target.spiked = true
+    pushDice(s, `Шип данных: ${u.name} → ${target.name}`, [{ label: 'D6', target: '4+', dice: [{ value: v, success: hit }], note: hit ? `Успех: D6 = ${mw} смертельных ран; WS оружия ближнего боя цели на 1 хуже до конца фазы.` : 'Провал: ничего не происходит.' }],
+      hit ? `${u.name}: Data-spike — «${target.name}» получает ${mw} смертельн. ран и теряет точность.` : `${u.name}: Data-spike не сработал.`)
+    addLog(s, `${u.name}: Data-spike против «${target.name}» — ${hit ? `${mw} смертельн. ран, WS −1` : 'не сработал'}.`, 'standard')
+    if (mw) applyMortalWounds(s, target, mw, 'Data-spike')
+  }
+  for (const u of s.units) {
+    if (isDestroyed(u) || !hasAbility(u, 'voicesInTheCode')) continue
+    for (const e of engagedUnits(s, u)) {
+      if (isDestroyed(e) || voiced.has(e.id)) continue
+      voiced.add(e.id)
+      const { dice, total, ld, pass, label } = leadershipRoll(s, e, r)
+      if (!pass) e.battleShocked = true
+      pushDice(s, `Голоса в коде: ${e.name}`, [{ label, target: `${ld}+`, dice: dice.map((x) => ({ value: x, success: pass })), note: `Сумма ${total} против Ld ${ld}+` }],
+        pass ? `${e.name}: проверка пройдена.` : `${e.name}: провал — отряд в боевом шоке (Voices in the Code).`)
+      addLog(s, `${e.name}: Voices in the Code — ${pass ? 'проверка боевого шока пройдена' : 'провал, боевой шок'} (${total} против ${ld}+).`, 'standard')
+    }
+  }
+  deadlyDemise(s, before, r)
+  checkWinner(s)
+}
+
 function pushDice(s: GameState, title: string, steps: DiceEntry['steps'], summary: string) {
   s.diceLog.push({ id: s.nextId++, round: s.round, player: actor(s), title, steps, summary })
   if (s.diceLog.length > 200) s.diceLog.splice(0, s.diceLog.length - 200)
@@ -729,7 +825,10 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       updateObjectiveControl(s)
       if (s.phase === 'movement')
         for (const u of s.units) if (u.advanceRoll !== null && u.move === 'none') u.move = 'advance'
-      if (s.phase === 'command') reanimate(s, r)
+      if (s.phase === 'command') {
+        reanimate(s, r)
+        holdScoutedObjectives(s, s.activePlayer)
+      }
       const i = PHASES.indexOf(s.phase)
       if (i === PHASES.length - 1) endTurn(s, r)
       else enterPhase(s, PHASES[i + 1], r)
@@ -753,6 +852,22 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
         pushDice(s, `Тень в Варпе: ${e.name}`, [{ label: '2D6', target: `${ld}+`, dice: dice.map((v) => ({ value: v, success: pass })), note: `Сумма ${total}${mod ? ' (−1 рядом с Synapse)' : ''} против Ld ${ld}+` }],
           pass ? `${e.name}: проверка пройдена.` : `${e.name}: провал — отряд в боевом шоке.`)
       }
+      break
+    }
+    case 'imperative': {
+      s.players[s.activePlayer].imperative = cmd.imperative
+      addLog(s, cmd.imperative === 'protector'
+        ? 'Протектор (Protector Imperative): оружие дальнего боя Адептус Механикус получает Heavy и BS на 1 лучше; линейные отряды трудно бить в ближнем бою.'
+        : 'Завоеватель (Conqueror Imperative): оружие дальнего боя получает Assault, WS ближнего боя на 1 лучше; линейные отряды получают AP +1.', 'minimal')
+      break
+    }
+    case 'divineWork': {
+      const u = findUnit(s, cmd.unitId)!
+      const led = ledUnitOf(s, u)
+      s.players[u.owner].divineUsed = true
+      u.warded = true
+      if (led) led.warded = true
+      addLog(s, `${u.name}: Защита божественного труда — ${led ? `«${led.name}» и техножрец получают` : 'техножрец получает'} 4+ непробиваемый спасбросок до начала вашего следующего хода.`, 'minimal')
       break
     }
     case 'guide': {
@@ -809,13 +924,21 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       if (cmd.useAmmoRunts && hasAbility(u, 'ammoRunts') && !u.ammoRuntsUsed) u.ammoRuntsUsed = true
       addLog(s, `${u.name} стреляет по отряду «${t.name}»${plan.cover ? ' (цель в укрытии: навык −1)' : ''}.`, 'minimal')
       for (const sk of plan.skipped) addLog(s, sk, 'beginner')
+      let repulsed = 0
       for (const g of plan.groups) {
         if (isDestroyed(t)) break
         const res = resolveGroup(r, u.name, g, t, g.ctx)
+        repulsed += res.repulsed
         pushDice(s, `${u.name} → ${t.name}: ${g.weaponName}${g.notes.length ? ` [${g.notes.join(', ')}]` : ''}`, res.steps, res.summary)
         addLog(s, res.summary, 'standard')
       }
       hazard(s, u, plan.hazardousModels, r, 'Перегрузка плазмы (Hazardous)')
+      // Repulsor Grid: every unmodified 6 on the target's saves = 1 mortal wound for the shooter, after it has shot
+      if (repulsed && !isDestroyed(u)) {
+        pushDice(s, `Отталкивающая решётка: ${t.name} → ${u.name}`, [{ label: 'Спасброски «6»', target: '6', dice: Array.from({ length: repulsed }, () => ({ value: 6, success: true })), note: `Натуральных «6» в спасбросках: ${repulsed} — столько смертельных ран получает стрелок.` }],
+          `${u.name} получает ${repulsed} смертельн. ран от Repulsor Grid «${t.name}».`)
+        applyMortalWounds(s, u, repulsed, `Repulsor Grid «${t.name}»`)
+      }
       deadlyDemise(s, before, r)
       if (isDestroyed(t)) addLog(s, `Отряд «${t.name}» уничтожен!`, 'minimal')
       checkWinner(s)
@@ -923,6 +1046,7 @@ export function unitActions(s: GameState, unitId: string): ActionInfo[] {
     if (hasAbility(u, 'guide'))
       for (const e of enemiesOf(s, u)) add(`guide:${e.id}`, `Guide: пометить «${e.name}»`, { type: 'guide', unitId, targetId: e.id })
   }
+  if (hasAbility(u, 'defendDivineWork')) add('divineWork', 'Защита божественного труда (4+ инвуль, раз за битву)', { type: 'divineWork', unitId })
   if (s.phase === 'shooting')
     for (const e of enemiesOf(s, u)) add(`shoot:${e.id}`, `Стрелять по «${e.name}»`, { type: 'shoot', unitId, targetId: e.id })
   if (s.phase === 'charge') {

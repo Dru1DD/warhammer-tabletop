@@ -117,7 +117,7 @@ export function nextStepHint(
 
   switch (s.phase) {
     case 'command':
-      return { text: `Фаза командования: очки командования получены.${human === 'orks' && !s.players.orks.waaaghUsed ? ' Можно объявить WAAAGH!' : ''}${s.players[human].shadowUsed === false ? ' Можно применить «Тень в Варпе» (раз за битву).' : ''} Нажмите «${nextPhaseLabel(s)}».`, tone: 'action' }
+      return { text: `Фаза командования: очки командования получены.${human === 'orks' && !s.players.orks.waaaghUsed ? ' Можно объявить WAAAGH!' : ''}${s.players[human].shadowUsed === false ? ' Можно применить «Тень в Варпе» (раз за битву).' : ''}${s.players[human].imperative === null ? ' Выберите Империатив (Протектор или Завоеватель) — это правило армии.' : ''} Нажмите «${nextPhaseLabel(s)}».`, tone: 'action' }
     case 'movement': {
       if (mine && mine.move !== 'none') {
         const after = mine.move === 'advance' ? ' После продвижения он не сможет атаковать (charge) и стреляет только оружием Assault.' : mine.move === 'fallBack' ? ' После отступления он не стреляет и не атакует в этот ход.' : ''

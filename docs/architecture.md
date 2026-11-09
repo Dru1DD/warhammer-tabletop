@@ -141,4 +141,4 @@ Intended integration (host-authoritative):
 - Setup randomness (battle seed, first-turn roll-off via `startGame`) is decided by one side; a host must also own it.
 - `settings.human` still drives the single-player UI (selection, hints); a two-human UI needs a per-viewer side.
 - No state checksum is exchanged, only dice values and RNG state per action.
-- `Command` has no `side`; faction abilities (`callWaaagh`) remain hard-wired to Orks in the engine.
+- `Command` has no `side`; faction abilities (`callWaaagh`) remain hard-wired to Orks in the engine. The Mechanicus commands `imperative` and `divineWork` are validated against the army's own state (`PlayerState.imperative`, the datasheet ability), not against a faction name, and travel through the match pipeline and the network protocol like any other command.

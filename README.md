@@ -6,7 +6,7 @@ This is a browser tabletop trainer for **Warhammer 40,000 (11th edition)**, buil
 
 The «Боевой патруль» scenario adds a bigger battle on a 44″×30″ board: two Intercessor squads, Assault Intercessors and a Redemptor Dreadnought against three mobs of 10 Boyz and a Deff Dread, with ruins, woods, containers, barricades and craters.
 
-Three more complete armies play on that large board: **Tyranids** (Hive Tyrant, 10 Termagants, 10 Hormagaunts, 3 Tyranid Warriors), **Necrons** (Overlord, 10 Necron Warriors, 3 Skorpekh Destroyers, 3 Canoptek Scarab Swarms) and **Aeldari** (Farseer, 10 Guardian Defenders with their platform, 5 Dire Avengers, 3 Windriders). Any two of the five armies can fight each other; see [docs/armies.md](docs/armies.md).
+Four more complete armies play on that large board: **Tyranids** (Hive Tyrant, 10 Termagants, 10 Hormagaunts, 3 Tyranid Warriors), **Necrons** (Overlord, 10 Necron Warriors, 3 Skorpekh Destroyers, 3 Canoptek Scarab Swarms), **Aeldari** (Farseer, 10 Guardian Defenders with their platform, 5 Dire Avengers, 3 Windriders) and **Adeptus Mechanicus** (Tech-Priest Dominus and Manipulus, 10 Skitarii Rangers, 10 Skitarii Vanguard, 3 Kataphron Breachers, 3 Kataphron Destroyers, 5 Sicarian Infiltrators, 3 Kastelan Robots). Any two of the six armies can fight each other; see [docs/armies.md](docs/armies.md) and [docs/mechanicus.md](docs/mechanicus.md).
 
 You pick a faction and an opponent, and a rules-driven AI plays the other side. The interface is entirely in Russian.
 
@@ -86,7 +86,7 @@ The full list, with what is exact and what is approximated, is in [docs/research
 - Weapon keywords: Rapid Fire, Heavy, Assault, Close-quarters, Blast, Lethal Hits, Hazardous, plus wound allocation rules.
 - Charge: 2D6 roll, then target selection; Fights First; pile-in; alternating fight order; consolidation.
 - Unit abilities: Bolter Discipline, Tactical Precision, Ammo Runts, Tide of Muscle, Waaagh! War Cry.
-- Five armies with their army rules: Tyranid Synapse and Shadow in the Warp, Necron Reanimation Protocols, Aeldari Battle Focus (Swift as the Wind) and Guide, plus the datasheet abilities and weapon keywords they need (Twin-linked, Extra Attacks, Devastating Wounds, Sustained Hits, Anti-X, Psychic, One Shot, FLY). Details and the explicit list of what is not implemented: [docs/armies.md](docs/armies.md).
+- Six armies with their army rules: Tyranid Synapse and Shadow in the Warp, Necron Reanimation Protocols, Aeldari Battle Focus (Swift as the Wind) and Guide, Adeptus Mechanicus Doctrina Imperatives (Protector / Conqueror), plus the datasheet abilities and weapon keywords they need (Twin-linked, Extra Attacks, Devastating Wounds, Sustained Hits, Anti-X, Psychic, One Shot, FLY, Feel No Pain, Ignores Cover, Stealth). Details and the explicit list of what is not implemented: [docs/armies.md](docs/armies.md).
 - Objective control by OC, end of game after 5 rounds or when an army is destroyed.
 - AI with two levels, faction-specific weights and Russian explanations of each decision.
 - 7-step tutorial that runs on the real engine, and three explanation levels.
@@ -102,13 +102,14 @@ The full list, with what is exact and what is approximated, is in [docs/research
   - Hit modifiers are capped at ±1.
   - Cleave and half-strength use assumed definitions.
   - Charge, pile-in and consolidation moves are placed automatically.
-- **Balance.** With the official profiles, the Space Marines win almost every AI-vs-AI game: 75 of 80 games, see research.md. Playing as Orks is hard. Use «Переулок в руинах» and stay behind ruins. Balance of all five armies: docs/armies.md.
-- **New armies: not implemented** (the engine has no out-of-turn moves, stratagems or attached leaders): Skulking Horrors, Fade Back and the other reactive Agile Manoeuvres, Fleet of Foot, Will of the Hive Mind, My Will Be Done, Branching Fates. Each is marked in the unit card.
+- **Balance.** With the official profiles, the Space Marines win almost every AI-vs-AI game: 75 of 80 games, see research.md. Playing as Orks is hard. Use «Переулок в руинах» and stay behind ruins. Balance of all six armies: docs/armies.md.
+- **New armies: not implemented** (the engine has no out-of-turn moves, stratagems or attached leaders): Skulking Horrors, Fade Back and the other reactive Agile Manoeuvres, Fleet of Foot, Will of the Hive Mind, My Will Be Done, Branching Fates, Sentinel Directives, Scouts 6″. Each is marked in the unit card. The Mechanicus Doctrina Imperatives and Tech-Priest leaders are training approximations (docs/mechanicus.md).
 
 ## Docs
 
 - [docs/architecture.md](docs/architecture.md): command pipeline, ownership, versioning, replay, persistence, future networking boundary.
-- [docs/armies.md](docs/armies.md): the Tyranid, Necron and Aeldari armies: sources, legality notes, rules abstractions, limitations, AI behaviour, balance.
+- [docs/armies.md](docs/armies.md): the Tyranid, Necron and Aeldari armies: sources, legality notes, rules abstractions, limitations, AI behaviour, balance of all six armies.
+- [docs/mechanicus.md](docs/mechanicus.md): the Adeptus Mechanicus army: 11th-edition sources, legality, datasheets, Doctrina Imperatives, approximations, AI, artwork.
 - [docs/research.md](docs/research.md): edition, sources, box contents, datasheets, exact vs approximated rules.
 - [docs/assets.md](docs/assets.md): asset inventory and licensing.
 

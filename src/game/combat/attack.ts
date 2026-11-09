@@ -31,6 +31,12 @@ export interface AttackContext {
   damageMod?: number
   /** re-roll hit rolls: only 1s, or every failed hit (e.g. Swift Demise, Whirling Onslaught) */
   rerollHits?: 'ones' | 'all'
+  /** Feel No Pain X+: each point of damage is ignored on a D6 of X or more (e.g. Lord of the Machine Cult) */
+  fnp?: number
+  /** Precision: wounds are allocated to a CHARACTER model of the target first */
+  precision?: boolean
+  /** why BS/WS is improved (skillWorsen < 0), for the dice log */
+  skillNote?: string
 }
 
 export function woundTarget(s: number, t: number): number {
@@ -50,11 +56,11 @@ export const hitRoll = (p: WeaponProfile, ctx: AttackContext) => ({
 })
 
 /** Allocation order: wounded non-characters first, then lowest-W non-characters, characters last. */
-export function pickModelForDamage(u: UnitState): ModelState | undefined {
+export function pickModelForDamage(u: UnitState, precision = false): ModelState | undefined {
   const a = alive(u)
   const score = (m: ModelState) => {
     const p = profileOf(m)
-    return (p.character ? 1000 : 0) + (m.wounds < p.w ? 0 : 100) + p.w
+    return (p.character ? (precision ? -1000 : 1000) : 0) + (m.wounds < p.w ? 0 : 100) + p.w
   }
   return [...a].sort((x, y) => score(x) - score(y))[0]
 }
@@ -87,6 +93,8 @@ export interface ResolveResult {
   summary: string
   killed: number
   damage: number
+  /** Repulsor Grid: unmodified 6s rolled on saves by the target against ranged attacks (mortal wounds for the shooter) */
+  repulsed: number
 }
 
 /**
@@ -144,8 +152,9 @@ export function resolveGroup(
       dice.push({ value: v, success, critical: crit, ...(from !== undefined ? { rerolledFrom: from } : {}) })
     }
     const notes = [
-      ctx.skillWorsen && !psy ? `укрытие: навык ${p.skill}+ → ${skill}+` : '',
-      psy && ctx.skillWorsen ? 'Psychic: укрытие и штрафы к попаданию игнорируются' : '',
+      ctx.skillWorsen > 0 && !psy ? `укрытие: навык ${p.skill}+ → ${skill}+` : '',
+      ctx.skillWorsen < 0 ? `${ctx.skillNote ?? 'бонус'}: навык ${p.skill}+ → ${skill}+` : '',
+      psy && ctx.skillWorsen > 0 ? 'Psychic: укрытие и штрафы к попаданию игнорируются' : '',
       mod ? `модификатор ${mod > 0 ? '+' : ''}${mod} (${ctx.hitModNotes.join(', ')})` : '',
       rerolls ? `переброс (${ctx.rerollHits === 'all' ? 'все промахи' : 'единицы'}): ${rerolls}` : '',
       ctx.lethalHits && autoWounds ? `Lethal Hits: ${autoWounds} крит. попадания ранят автоматически` : '',
@@ -193,14 +202,30 @@ export function resolveGroup(
   let damage = 0
   const sdice: DieRoll[] = []
   const ddice: DieRoll[] = []
+  const fdice: DieRoll[] = []
   let saveNote = ''
+  let repulsed = 0
+  const grid = p.range !== 'melee' && datasheetOf(target).abilities.includes('repulsorGrid')
+  /** Feel No Pain: roll for every point of damage, returns the damage that goes through */
+  const throughFnp = (n: number) => {
+    if (!ctx.fnp) return n
+    let left = n
+    for (let k = 0; k < n; k++) {
+      const v = roller.d6()
+      const ok = v >= ctx.fnp
+      fdice.push({ value: v, success: ok })
+      if (ok) left--
+    }
+    return left
+  }
   for (let i = 0; i < wounds && !isDestroyed(target); i++) {
-    const m = pickModelForDamage(target)!
+    const m = pickModelForDamage(target, ctx.precision)!
     const st = saveTarget(m, p.ap, ctx.invulnOverride)
     saveNote = `Спасбросок ${st.kind}: Sv ${profileOf(m).sv}+${p.ap ? `, AP ${p.ap}` : ''} → ${st.need}+`
     const v = roller.d6()
     const saved = v !== 1 && v >= st.need
     sdice.push({ value: v, success: saved })
+    if (grid && v === 6) repulsed++
     if (!saved) {
       const before = m.wounds
       let dmg = p.d
@@ -209,8 +234,8 @@ export function resolveGroup(
         ddice.push({ value: v, success: true })
         dmg += v
       }
-      dmg = Math.max(1, dmg + (ctx.damageMod ?? 0))
-      killed += applyDamage(target, dmg, m)
+      dmg = throughFnp(Math.max(1, dmg + (ctx.damageMod ?? 0)))
+      killed += dmg > 0 ? applyDamage(target, dmg, m) : 0
       damage += before - m.wounds
     }
   }
@@ -224,6 +249,7 @@ export function resolveGroup(
       ddice.push({ value: v, success: true })
       mw += v
     }
+    mw = throughFnp(mw)
     for (let k = 0; k < mw && !isDestroyed(target); k++) {
       const before = target.models.reduce((a, m) => a + m.wounds, 0)
       killed += applyDamage(target, 1)
@@ -242,5 +268,6 @@ export function resolveGroup(
     dice: ddice,
     note: `${ctx.damageMod ? `урон ${ctx.damageMod} (Dread 'Ard), не меньше 1; ` : ''}${damage} урона; уничтожено: ${killed}; в отряде осталось моделей: ${alive(target).length}`,
   })
-  return { steps, summary, killed, damage }
+  if (fdice.length) steps.push({ label: 'Feel No Pain', target: `${ctx.fnp}+`, dice: fdice, note: `Каждая потерянная рана отменяется на ${ctx.fnp}+ (Lord of the Machine Cult): отменено ${fdice.filter((d) => d.success).length} из ${fdice.length}.` })
+  return { steps, summary, killed, damage, repulsed }
 }

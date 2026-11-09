@@ -4,7 +4,7 @@
 import { FACTION_NAME } from '../data/datasheets'
 import { dist, withinRange } from '../geometry/geometry'
 import {
-  alive, CHARGE_RANGE, datasheetOf, engagedUnits, enemiesOf, hasAbility, inSynapseRange, isFlyer, isMV, modelInTerrain, objectiveLevels, other, profileOf,
+  alive, CHARGE_RANGE, datasheetOf, ledUnitOf, engagedUnits, enemiesOf, hasAbility, inSynapseRange, isFlyer, isMV, modelInTerrain, objectiveLevels, other, profileOf,
   sidesOf, unitDistance, unitNearObjective, unitsOf, fmt,
 } from '../gameState'
 import { actor, FLY_PENALTY, maxMove, meleePlan, meleeSetup, meleeWeaponsOf, shootPlan, SWIFT_BONUS, validate, moveModeFor } from '../engine'
@@ -27,6 +27,8 @@ export interface AiWeights {
   positioning: number
   /** Tyranids: value of keeping a non-Synapse unit inside Synapse Range */
   synapse?: number
+  /** Adeptus Mechanicus: value of a Tech-Priest standing next to the unit it leads */
+  support?: number
 }
 
 export const AI_WEIGHTS: Record<PlayerId, AiWeights> = {
@@ -38,6 +40,8 @@ export const AI_WEIGHTS: Record<PlayerId, AiWeights> = {
   necrons: { damageDealt: 0.9, damageTaken: 0.7, objective: 1.1, distance: 0.1, attackOpportunity: 0.7, survival: 0.9, positioning: 0.5 },
   // Aeldari: fragile hit-and-run shooters: value survival and cover, avoid melee, fall back when losing a fight
   aeldari: { damageDealt: 1.0, damageTaken: 0.9, objective: 1.0, distance: 0.1, attackOpportunity: 0.3, survival: 1.1, positioning: 0.6 },
+  // Adeptus Mechanicus: efficient ranged engagements, careful with expensive Kataphron and Tech-Priests, supports its escorts
+  adeptus_mechanicus: { damageDealt: 1.0, damageTaken: 0.85, objective: 1.1, distance: 0.1, attackOpportunity: 0.5, survival: 1.0, positioning: 0.6, support: 0.8 },
 }
 
 /** Faction temperament: `aggressive` closes the distance to the enemy (original Orks behaviour), `retreats` falls back from a lost melee. */
@@ -47,9 +51,12 @@ export const AI_STYLE: Record<PlayerId, { aggressive: boolean; retreats: boolean
   tyranids: { aggressive: true, retreats: false },
   necrons: { aggressive: false, retreats: false },
   aeldari: { aggressive: false, retreats: true },
+  adeptus_mechanicus: { aggressive: false, retreats: true },
 }
 /** Melee-first datasheets hunt the enemy even inside a shooting army. */
-const HUNTERS = new Set(['hiveTyrant', 'skorpekhDestroyers', 'scarabSwarms', 'hormagaunts'])
+const HUNTERS = new Set(['hiveTyrant', 'skorpekhDestroyers', 'scarabSwarms', 'hormagaunts', 'sicarians'])
+/** Expensive Adeptus Mechanicus platforms: the AI protects them (their expected losses weigh more). */
+const VALUABLE = new Set(['breachers', 'destroyers', 'kastelans'])
 const aggressive = (u: UnitState) => HUNTERS.has(u.datasheetId) || AI_STYLE[u.owner].aggressive
 /** Marines and Orks keep the exact original melee estimate (their behaviour is pinned by the golden-master test). */
 const legacyUnit = (u: UnitState) => datasheetOf(u).faction === 'marines' || datasheetOf(u).faction === 'orks'
@@ -91,7 +98,9 @@ export function expectedGroupDamage(g: AttackGroup & { ctx: AttackContext }, tar
   const m = alive(target)[0]
   const pr = profileOf(m)
   const need = Math.min(pr.sv - p.ap, pr.invuln ?? 99, g.ctx.invulnOverride ?? 99)
-  const pFail = pFace((v) => v === 1 || v < need)
+  // Feel No Pain: a fraction of the damage is ignored
+  const fnpLeft = g.ctx.fnp ? 1 - pFace((v) => v >= g.ctx.fnp!) : 1
+  const pFail = pFace((v) => v === 1 || v < need) * fnpLeft
   const avgW = alive(target).reduce((a, x) => a + profileOf(x).w, 0) / alive(target).length
   const attacks = g.attacks + (g.randomAttacks ?? 0) * avgDie(p.randomA)
   const dmg = Math.max(1, p.d + avgDie(p.randomD) + (g.ctx.damageMod ?? 0))
@@ -101,7 +110,7 @@ export function expectedGroupDamage(g: AttackGroup & { ctx: AttackContext }, tar
     if (p.keywords.twinLinked) pcw += (1 - pcw) * pcw
     const share = Math.min(1, pcw / Math.max(pw, 1e-9))
     const mortal = p.d + avgDie(p.randomD)
-    return attacks * woundsPerAttack * ((1 - share) * pFail * Math.min(dmg, avgW) + share * mortal)
+    return attacks * woundsPerAttack * ((1 - share) * pFail * Math.min(dmg, avgW) + share * mortal * fnpLeft)
   }
   return attacks * woundsPerAttack * pFail * Math.min(dmg, avgW)
 }
@@ -149,7 +158,7 @@ export const p2d6AtLeast = (n: number) => {
   return c / 36
 }
 
-const unitValue = (u: UnitState) => (alive(u).some((m) => profileOf(m).character) ? 1.5 : 1)
+const unitValue = (u: UnitState) => (alive(u).some((m) => profileOf(m).character) ? 1.5 : VALUABLE.has(u.datasheetId) ? 1.3 : 1)
 
 // ------------------------------------------------------------ evaluation
 
@@ -198,8 +207,12 @@ function scorePosition(s: GameState, u: UnitState, level: AiLevel, mode: 'normal
 
   const distTerm = aggressive(u) ? nearestEnemy * 0.5 + nearestObj * 0.5 : nearestObj
   const synapse = w.synapse && datasheetOf(u).faction === 'tyranids' && inSynapseRange(hs, hypo) ? w.synapse : 0
+  // Tech-Priests keep close to the unit they lead (Lord of the Machine Cult, Galvanic Field)
+  const leader = hasAbility(u, 'lordOfMachineCult') || hasAbility(u, 'galvanicField')
+  const support = w.support && leader && ledUnitOf(hs, hypo) ? w.support : 0
   const score =
     synapse +
+    support +
     w.damageDealt * dealt +
     w.attackOpportunity * charge -
     w.damageTaken * w.survival * unitValue(u) * taken +
@@ -211,6 +224,7 @@ function scorePosition(s: GameState, u: UnitState, level: AiLevel, mode: 'normal
     charge > 0.3 ? `шанс атаки (charge) с уроном ${fmt(charge)}` : '',
     obj ? 'контроль цели' : '',
     synapse ? 'остаётся в зоне Synapse' : '',
+    support ? 'рядом с ведомым отрядом' : '',
     cover ? 'укрытие' : '',
     taken > 0.5 ? `риск получить ${fmt(taken)} урона` : '',
   ].filter(Boolean)
@@ -220,6 +234,11 @@ function scorePosition(s: GameState, u: UnitState, level: AiLevel, mode: 'normal
 function candidateGoals(s: GameState, u: UnitState, level: AiLevel): { pos: Vec; label: string }[] {
   const enemies = enemiesOf(s, u)
   const goals: { pos: Vec; label: string }[] = []
+  if (hasAbility(u, 'lordOfMachineCult') || hasAbility(u, 'galvanicField')) {
+    const mates = unitsOf(s, u.owner).filter((x) => x.id !== u.id && hasAbility(x, 'ledUnit'))
+    const near = mates.sort((a, b) => unitDistance(u, a) - unitDistance(u, b))[0]
+    if (near) goals.push({ pos: alive(near)[0].pos, label: 'к ведомому отряду' })
+  }
   const nearestEnemy = enemies.reduce((b, e) => (unitDistance(u, e) < unitDistance(u, b) ? e : b), enemies[0])
   if (nearestEnemy) goals.push({ pos: alive(nearestEnemy)[0].pos, label: 'к врагу' })
   const objs = [...s.objectives].sort((a, b) => dist(alive(u)[0].pos, a.pos) - dist(alive(u)[0].pos, b.pos))
@@ -265,6 +284,42 @@ function bestMove(s: GameState, u: UnitState, level: AiLevel, mode: 'normal' | '
 const swiftAvailable = (s: GameState, u: UnitState) => datasheetOf(u).faction === 'aeldari' && (s.players[u.owner].focus ?? 0) > 0
 const longestStep = (u: UnitState, pos: Record<string, Vec>) => Math.max(0, ...alive(u).map((m) => (pos[m.id] ? dist(m.pos, pos[m.id]) : 0)))
 
+/** Doctrina Imperatives: Protector rewards standing and shooting (Heavy, BS) and blunts enemy charges; Conqueror rewards
+ * advancing (Assault) and fighting (WS, AP). The expected damage of both is compared, the better one is chosen. */
+function chooseImperative(s: GameState, me: PlayerId, level: AiLevel): { imperative: 'protector' | 'conqueror'; why: string } {
+  const mine = unitsOf(s, me).filter((u) => hasAbility(u, 'doctrina'))
+  const nearest = (u: UnitState) => Math.min(...enemiesOf(s, u).map((e) => unitDistance(u, e)))
+  if (level === 'beginner') {
+    const close = mine.some((u) => nearest(u) <= CHARGE_RANGE)
+    return close ? { imperative: 'conqueror', why: 'враг рядом, нужен ближний бой и натиск' } : { imperative: 'protector', why: 'враг далеко, лучше стрелять с места' }
+  }
+  const value = (imp: 'protector' | 'conqueror') => {
+    const hs: GameState = { ...s, players: { ...s.players, [me]: { ...s.players[me], imperative: imp } } }
+    let v = 0
+    for (const raw of mine) {
+      const u = hs.units.find((x) => x.id === raw.id)!
+      // out of range of everyone: the unit will have to move, so Heavy does not count
+      const hypo: UnitState = nearest(u) > 24 ? { ...u, movedDistance: 99 } : u
+      let shoot = 0, melee = 0, taken = 0
+      for (const e of enemiesOf(hs, u)) {
+        shoot = Math.max(shoot, shootValue(hs, hypo, e).dmg)
+        const d = unitDistance(u, e)
+        if (d <= CHARGE_RANGE) {
+          const p = p2d6AtLeast(Math.ceil(d))
+          melee = Math.max(melee, p * meleePotential(hs, u, e, true))
+          taken += p * meleePotential(hs, e, u, true) * 0.5
+        }
+      }
+      v += shoot + 0.6 * melee - 0.5 * taken
+    }
+    return v
+  }
+  const p = value('protector'), c = value('conqueror')
+  return c > p + 0.05
+    ? { imperative: 'conqueror', why: `ожидаемый результат ${fmt(c)} против ${fmt(p)}: натиск и ближний бой выгоднее` }
+    : { imperative: 'protector', why: `ожидаемый результат ${fmt(p)} против ${fmt(c)}: огонь с места и защита выгоднее` }
+}
+
 // ------------------------------------------------------------ decisions
 
 export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | null {
@@ -285,6 +340,10 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
 
   switch (s.phase) {
     case 'command': {
+      if (validate(s, { type: 'imperative', imperative: 'protector' }).ok) {
+        const imp = chooseImperative(s, me, level)
+        return { cmd: { type: 'imperative', imperative: imp.imperative }, explanation: `${fac}: Империатив «${imp.imperative === 'protector' ? 'Протектор' : 'Завоеватель'}» — ${imp.why}.` }
+      }
       if (me === 'orks' && validate(s, { type: 'callWaaagh' }).ok) {
         // Riled up lets Orks charge after advancing: worth it once M + D6 + 2D6 can plausibly reach.
         const reach = level === 'beginner' ? 9 : 6 + 3.5 + 7
@@ -338,6 +397,18 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
           const swift = swiftBonus > 0 && longestStep(u, nm.pos) > maxMove(u) - (nm.fly ? FLY_PENALTY : 0) + 0.01
           return { cmd: { type: 'move', unitId: u.id, mode: 'normal', positions: nm.pos, ...(nm.fly ? { fly: true } : {}), ...(swift ? { swift: true } : {}) }, explanation: `${fac}: отряд «${u.name}» двигается ${nm.label}${nm.why ? ` — ${nm.why}` : ''}${nm.fly ? ' (летит)' : ''}${swift ? ' — Swift as the Wind' : ''}.` }
         }
+      }
+      // Defend the Divine Work (Manipulus): once per battle, when its unit is about to take a beating
+      for (const u of mine) {
+        const cmd: Command = { type: 'divineWork', unitId: u.id }
+        if (!hasAbility(u, 'defendDivineWork') || !validate(s, cmd).ok) continue
+        const led = ledUnitOf(s, u)
+        const group = [u, ...(led ? [led] : [])]
+        const wounds = group.reduce((n, g) => n + alive(g).reduce((a, m) => a + m.wounds, 0), 0)
+        const risk = group.reduce((n, g) => n + enemiesOf(s, g).reduce((a, e) => a + shootValue(s, e, g).dmg + (unitDistance(e, g) <= CHARGE_RANGE ? p2d6AtLeast(Math.ceil(unitDistance(e, g))) * meleePotential(s, e, g, true) * 0.5 : 0), 0), 0)
+        const engaged = group.some((g) => engagedUnits(s, g).length > 0)
+        if (level === 'beginner' ? engaged : risk >= wounds * 0.6 || engaged)
+          return { cmd, explanation: `${fac}: «${u.name}» применяет Защиту божественного труда — отряду угрожает ≈ ${fmt(risk)} урона, 4+ непробиваемый спасбросок.` }
       }
       // Guide (Farseer) at the end of the Movement phase: mark the enemy unit our army can hurt most
       for (const u of mine) {

@@ -5,6 +5,7 @@ import { decide } from '../game/ai/ai'
 import { actor } from '../game/engine'
 import { sidesOf } from '../game/gameState'
 import { FACTIONS, type PlayerId } from '../game/types'
+import { FACTION_EMBLEM } from '../assets/manifest'
 import { AUTOSAVE_KEY, useStore } from '../store'
 
 // Konva needs a real canvas; the board is covered by engine tests.
@@ -32,6 +33,21 @@ describe('faction selection screen', () => {
     const ae = list('Аэльдари')
     for (const t of [/Фарсир/, /Стражи-защитники/, /Грозные мстители/, /Райдеры ветра/]) expect(ae.getByText(t)).toBeInTheDocument()
     expect(ae.getByText(/Всего моделей: 20/)).toBeInTheDocument()
+    const am = list('Адептус Механикус')
+    for (const t of [/Техножрец-Доминус/, /Техножрец-Манипулус/, /Скитарии-рейнджеры/, /Скитарии-авангард/, /Катафроны-пробойщики/, /Катафроны-разрушители/, /Сикарии-диверсанты/, /Роботы Кастелан/]) expect(am.getByText(t)).toBeInTheDocument()
+    expect(am.getByText(/Всего моделей: 36/)).toBeInTheDocument()
+    expect(FACTION_EMBLEM.adeptus_mechanicus).toMatch(/^data:image\/svg\+xml/)
+  })
+
+  it('Adeptus Mechanicus can be picked as the player army and as the opponent', () => {
+    render(<App />)
+    fireEvent.click(screen.getByText('Адептус Механикус'))
+    expect(useStore.getState().settings).toMatchObject({ human: 'adeptus_mechanicus', scenarioId: 'combat-patrol' })
+    fireEvent.click(screen.getByText('Космодесант'))
+    fireEvent.change(screen.getByLabelText(/Противник/), { target: { value: 'adeptus_mechanicus' } })
+    expect(useStore.getState().settings).toMatchObject({ human: 'marines', opponent: 'adeptus_mechanicus' })
+    fireEvent.click(screen.getByText('Начать новую битву'))
+    expect(sidesOf(useStore.getState().game!)).toEqual(['marines', 'adeptus_mechanicus'])
   })
 
   it('picking a new army moves to a board that has it and starts a battle against any opponent', () => {
@@ -91,5 +107,53 @@ describe('every army played by a human through the store (deployment, a full tur
     expect(st().game).toEqual(saved)
     expect(st().settings).toMatchObject({ human, opponent })
     expect(st().match!.history).toEqual(hist)
+  })
+})
+
+describe('Adeptus Mechanicus army rule and abilities in the UI', () => {
+  beforeEach(reset)
+
+  /** Human Mechanicus deployed against the Marines, brought to their own Command phase before an Imperative is chosen. */
+  const toCommand = () => {
+    const st = () => useStore.getState()
+    st().startDeployment({ human: 'adeptus_mechanicus', opponent: 'marines', scenarioId: 'combat-patrol', tutorial: false, explain: 'minimal', aiLevel: 'beginner' })
+    st().autoDeploy()
+    expect(st().finishDeployment()).toBe(true)
+    for (let i = 0; i < 400; i++) {
+      const g = st().game!
+      if (actor(g) === 'adeptus_mechanicus' && g.phase === 'command' && g.players.adeptus_mechanicus.imperative === null) return
+      if (actor(g) === 'adeptus_mechanicus') expect(st().dispatch(decide(g, 'beginner')!.cmd)).toBe(true)
+      else expect(st().aiStep()).toBe(true)
+    }
+    throw new Error('never reached the Command phase')
+  }
+
+  it('the human picks a Doctrina Imperative with a button, then sees which one is active', () => {
+    toCommand()
+    render(<App />)
+    fireEvent.click(screen.getByText(/Протектор: Heavy/))
+    expect(useStore.getState().game!.players.adeptus_mechanicus.imperative).toBe('protector')
+    expect(screen.getByText(/действует до вашей следующей фазы командования/)).toBeInTheDocument()
+    expect(screen.queryByText(/Завоеватель: Assault/)).toBeNull()
+  })
+
+  it('the Manipulus card offers Defend the Divine Work, which works once per battle', () => {
+    toCommand()
+    useStore.setState({ selectedUnitId: 'manipulus' })
+    render(<App />)
+    const btn = screen.getByRole('button', { name: /Защита божественного труда/ })
+    expect(btn).toBeEnabled()
+    fireEvent.click(btn)
+    expect(useStore.getState().game!.players.adeptus_mechanicus.divineUsed).toBe(true)
+    expect(useStore.getState().game!.units.find((u) => u.id === 'manipulus')!.warded).toBe(true)
+    expect(screen.getByRole('button', { name: /Защита божественного труда/ })).toBeDisabled()
+  })
+
+  it('the unit card shows the role description and the ability rules in Russian', () => {
+    toCommand()
+    useStore.setState({ selectedUnitId: 'kastelans', layout: { ...useStore.getState().layout, roster: true } })
+    render(<App />)
+    expect(screen.getByText(/Тяжёлые боевые платформы/)).toBeInTheDocument()
+    expect(screen.getByText(/Отталкивающая решётка \(Repulsor Grid\)/)).toBeInTheDocument()
   })
 })

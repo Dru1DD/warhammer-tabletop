@@ -1,5 +1,5 @@
-import { basesOverlap, EPS, pointInPolygon, pointSegmentDistance } from '../geometry/geometry'
-import { alive, checkCoherency, profileOf, radiusOf, sidesOf, unitsOf } from '../gameState'
+import { basesOverlap, circlePolygonDistance, EPS, pointInPolygon, pointSegmentDistance } from '../geometry/geometry'
+import { alive, checkCoherency, enemiesOf, hasAbility, modelDistance, other, profileOf, radiusOf, sidesOf, unitsOf } from '../gameState'
 import { terrainBlock } from './movement'
 import { scenarioById } from '../scenarios/scenarios'
 import type { GameState, PlayerId, UnitState, Vec } from '../types'
@@ -18,17 +18,28 @@ export function baseWhollyWithin(c: Vec, r: number, poly: Vec[]): boolean {
   return true
 }
 
+/** Infiltrators: no deployment-zone limit, but more than this far from the enemy zone and every enemy model. */
+export const INFILTRATE_DISTANCE = 8
+
 /** Reason the unit cannot be set up at `positions` (missing = current), or null. */
 export function deploymentProblem(s: GameState, unit: UnitState, positions: Record<string, Vec>): string | null {
   const zone = deploymentZone(s, unit.owner)
   const final = alive(unit).map((m) => ({ m, pos: positions[m.id] ?? m.pos }))
   const others = s.units.flatMap((u) => (u.id === unit.id ? [] : alive(u)))
+  const infiltrates = hasAbility(unit, 'infiltrators')
+  const foes = infiltrates ? enemiesOf(s, unit).flatMap(alive) : []
   for (const { m, pos } of final) {
     const r = radiusOf(m)
     const name = profileOf(m).name
     if (pos.x - r < -EPS || pos.y - r < -EPS || pos.x + r > s.board.width + EPS || pos.y + r > s.board.height + EPS)
       return `${name}: подставка выходит за край поля.`
-    if (!baseWhollyWithin(pos, r, zone))
+    if (infiltrates) {
+      const foeZone = deploymentZone(s, other(s, unit.owner))
+      if (circlePolygonDistance(pos, r, foeZone) <= INFILTRATE_DISTANCE + EPS)
+        return `${name}: диверсанты (Infiltrators) ставятся дальше ${INFILTRATE_DISTANCE}″ от зоны развёртывания противника.`
+      if (foes.some((f) => modelDistance(m, f, pos) <= INFILTRATE_DISTANCE + EPS))
+        return `${name}: диверсанты (Infiltrators) ставятся дальше ${INFILTRATE_DISTANCE}″ от моделей противника.`
+    } else if (!baseWhollyWithin(pos, r, zone))
       return `${name}: подставка должна целиком стоять в вашей зоне развёртывания — передвиньте модель внутрь подсвеченной области.`
     for (const o of others) if (basesOverlap(pos, r, o.pos, radiusOf(o))) return `${name}: подставка пересекается с моделью другого отряда.`
     const tb = terrainBlock(s, unit, r, pos, pos, true)

@@ -7,8 +7,8 @@ export interface Vec {
 }
 
 /** A side on the table is identified by its faction. A battle has exactly two distinct sides. */
-export type PlayerId = 'marines' | 'orks' | 'tyranids' | 'necrons' | 'aeldari'
-export const FACTIONS: PlayerId[] = ['marines', 'orks', 'tyranids', 'necrons', 'aeldari']
+export type PlayerId = 'marines' | 'orks' | 'tyranids' | 'necrons' | 'aeldari' | 'adeptus_mechanicus'
+export const FACTIONS: PlayerId[] = ['marines', 'orks', 'tyranids', 'necrons', 'aeldari', 'adeptus_mechanicus']
 export type Phase = 'command' | 'movement' | 'shooting' | 'charge' | 'fight'
 export const PHASES: Phase[] = ['command', 'movement', 'shooting', 'charge', 'fight']
 
@@ -36,6 +36,10 @@ export interface WeaponKeywords {
   psychic?: boolean
   /** One Shot: can be used once per battle */
   oneShot?: boolean
+  /** Ignores Cover: the target gets no benefit of cover against this weapon */
+  ignoresCover?: boolean
+  /** Precision: wounds are allocated to a CHARACTER model of the target unit first */
+  precision?: boolean
 }
 
 export interface WeaponProfile {
@@ -78,8 +82,12 @@ export interface ModelProfile {
   character?: boolean
   /** weapon platform: crew model that dies with its unit's last non-platform model (Crewed Platform) */
   platform?: boolean
+  /** unit-wide wargear carried by this model (e.g. Omnispex: the whole unit ignores cover) */
+  wargear?: Wargear[]
   weapons: string[]
 }
+
+export type Wargear = 'omnispex'
 
 export type AbilityId =
   | 'boltDiscipline'
@@ -116,6 +124,24 @@ export type AbilityId =
   | 'bladestorm'
   | 'crewedPlatform'
   | 'fleetOfFoot'
+  // Adeptus Mechanicus
+  | 'doctrina'
+  | 'ledUnit'
+  | 'lordOfMachineCult'
+  | 'dataSpike'
+  | 'galvanicField'
+  | 'defendDivineWork'
+  | 'objectiveScouted'
+  | 'radSaturation'
+  | 'breachingCommand'
+  | 'infiltrators'
+  | 'stealth'
+  | 'voicesInTheCode'
+  | 'neurostaticInterference'
+  | 'repulsorGrid'
+  | 'sentinelDirectives'
+  | 'scouts'
+  | 'roboticBodyguard'
 
 export interface Datasheet {
   id: string
@@ -123,6 +149,8 @@ export interface Datasheet {
   faction: PlayerId
   keywords: string[]
   abilities: AbilityId[]
+  /** short role description shown on the unit card */
+  description?: string
 }
 
 export interface ModelState {
@@ -159,6 +187,10 @@ export interface UnitState {
   spent?: string[]
   /** Guide already used by this unit this turn (absent otherwise) */
   guided?: boolean
+  /** Defend the Divine Work: 4+ invulnerable save until the start of its owner's next turn (absent otherwise) */
+  warded?: boolean
+  /** Data-spike: melee weapon skill worsened by 1 until the end of the Fight phase (absent otherwise) */
+  spiked?: boolean
 }
 
 /** crater = exposed; barricade = light; ruin / woods / container = dense (container is also solid) */
@@ -177,8 +209,10 @@ export interface Terrain {
 export interface Objective {
   id: string
   pos: Vec
-  /** player that holds it as "secured" (sticky) or null */
+  /** player that currently controls it (recomputed from Objective Control) or null */
   controller: PlayerId | null
+  /** Objective Scouted: this player keeps control until the opponent's level exceeds theirs (absent otherwise) */
+  held?: PlayerId
 }
 
 export interface PlayerState {
@@ -193,7 +227,14 @@ export interface PlayerState {
   focus?: number
   /** Aeldari: enemy unit marked by Guide until this player's next Command phase */
   guide?: string | null
+  /** Adeptus Mechanicus: Doctrina Imperative chosen for the current round (null = not chosen yet; only present for that army) */
+  imperative?: Imperative | null
+  /** Adeptus Mechanicus: Defend the Divine Work already used this battle (only present for that army) */
+  divineUsed?: boolean
 }
+
+export type Imperative = 'protector' | 'conqueror'
+export const IMPERATIVES: Imperative[] = ['protector', 'conqueror']
 
 export interface PendingCharge {
   unitId: string
@@ -297,6 +338,8 @@ export type Command =
   | { type: 'callWaaagh' }
   | { type: 'callShadow' }
   | { type: 'guide'; unitId: string; targetId: string }
+  | { type: 'imperative'; imperative: Imperative }
+  | { type: 'divineWork'; unitId: string }
   | { type: 'endPhase' }
 
 export type Validation = { ok: true } | { ok: false; reason: string }

@@ -6,9 +6,28 @@ import type { GameState, ModelState, Terrain, UnitState, Vec } from '../types'
 // (centre + 8 edge points). Obscuring terrain blocks a line unless one of the
 // two models is inside that terrain area. Models do not block line of sight.
 
+// A line between two bases lies inside the bounding box of both bases, so terrain whose bounding box misses that box
+// can neither block the line nor contain either base: skip it without the expensive polygon tests (same result).
+const boxCache = new WeakMap<Terrain, [number, number, number, number]>()
+const boxOf = (t: Terrain) => {
+  let b = boxCache.get(t)
+  if (!b) {
+    const xs = t.poly.map((p) => p.x), ys = t.poly.map((p) => p.y)
+    b = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]
+    boxCache.set(t, b)
+  }
+  return b
+}
+const inReach = (t: Terrain, a: ModelState, b: ModelState) => {
+  const [x0, y0, x1, y1] = boxOf(t)
+  const ra = radiusOf(a), rb = radiusOf(b)
+  return x1 >= Math.min(a.pos.x - ra, b.pos.x - rb) && x0 <= Math.max(a.pos.x + ra, b.pos.x + rb) &&
+    y1 >= Math.min(a.pos.y - ra, b.pos.y - rb) && y0 <= Math.max(a.pos.y + ra, b.pos.y + rb)
+}
+
 const relevantTerrain = (s: GameState, a: ModelState, b: ModelState): Terrain[] =>
   s.terrain.filter(
-    (t) => t.obscuring && circlePolygonDistance(a.pos, radiusOf(a), t.poly) > 0 && circlePolygonDistance(b.pos, radiusOf(b), t.poly) > 0,
+    (t) => t.obscuring && inReach(t, a, b) && circlePolygonDistance(a.pos, radiusOf(a), t.poly) > 0 && circlePolygonDistance(b.pos, radiusOf(b), t.poly) > 0,
   )
 
 const clear = (p: Vec, q: Vec, terrain: Terrain[]) => !terrain.some((t) => segmentCrossesPolygon(p, q, t.poly))

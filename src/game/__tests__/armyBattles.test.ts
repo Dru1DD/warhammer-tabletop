@@ -7,7 +7,7 @@ import { deserialize, serialize } from '../persistence'
 import { scenarioById } from '../scenarios/scenarios'
 import { FACTIONS, type GameState, type PlayerId } from '../types'
 
-// Complete AI-vs-AI battles through the real match pipeline for every pair of the five armies:
+// Complete AI-vs-AI battles through the real match pipeline for every pair of the six armies:
 // legal commands only, a finished battle, casualties, objective control, a full turn for both sides.
 
 const LEVEL = 'beginner' as const
@@ -35,7 +35,7 @@ function play(a: PlayerId, b: PlayerId, seed: number, level: 'beginner' | 'stand
   return { initial, m, turns: turns.size }
 }
 
-describe('AI-vs-AI battles, all ten pairings (seed 1)', () => {
+describe('AI-vs-AI battles, all fifteen pairings (seed 1)', () => {
   it.each(PAIRS)('%s vs %s: a complete battle', (a, b) => {
     const { initial, m, turns } = play(a, b, 1)
     const s = m.state
@@ -60,7 +60,7 @@ describe('AI-vs-AI battles, all ten pairings (seed 1)', () => {
   })
 
   // the tactical ('standard') AI is the one players face: one battle per new army against the Space Marines
-  it.each([['marines', 'tyranids'], ['marines', 'necrons'], ['marines', 'aeldari']] as [PlayerId, PlayerId][])('%s vs %s with the standard AI finishes with legal commands only', (a, b) => {
+  it.each([['marines', 'tyranids'], ['marines', 'necrons'], ['marines', 'aeldari'], ['marines', 'adeptus_mechanicus'], ['orks', 'adeptus_mechanicus']] as [PlayerId, PlayerId][])('%s vs %s with the standard AI finishes with legal commands only', (a, b) => {
     const { m } = play(a, b, 2, 'standard')
     expect(m.state.winner).not.toBeNull()
     expect(m.history.length).toBeGreaterThan(20)
@@ -78,9 +78,9 @@ describe('AI-vs-AI battles, all ten pairings (seed 1)', () => {
   })
 
   afterAll(() => {
-    // every army, across its four battles, fired, fought, took casualties and scored from objectives
+    // every army, across its five battles, fired, fought, took casualties and scored from objectives
     for (const f of FACTIONS) {
-      expect(stats[f].games, f).toBe(4)
+      expect(stats[f].games, f).toBe(FACTIONS.length - 1)
       expect(stats[f].shots + stats[f].fights, `${f} attacked`).toBeGreaterThan(0)
       expect(stats[f].modelsLost, `${f} took casualties`).toBeGreaterThan(0)
       expect(stats[f].vp, `${f} controlled objectives`).toBeGreaterThan(0)

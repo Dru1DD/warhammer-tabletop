@@ -41,6 +41,7 @@ function playerState(p: PlayerId): PlayerState {
   const base: PlayerState = { cp: 0, vp: 0, waaaghUsed: false, riledTurns: 0 }
   if (p === 'tyranids') return { ...base, shadowUsed: false }
   if (p === 'aeldari') return { ...base, focus: 0, guide: null }
+  if (p === 'adeptus_mechanicus') return { ...base, imperative: null, divineUsed: false }
   return base
 }
 
@@ -174,12 +175,47 @@ const aeldariPatrol: Roster = (at) => [
   ]),
 ]
 
+/**
+ * Adeptus Mechanicus: Tech-Priest Dominus, Tech-Priest Manipulus, 10 Skitarii Rangers, 10 Skitarii Vanguard,
+ * 3 Kataphron Breachers, 3 Kataphron Destroyers, 5 Sicarian Infiltrators, 3 Kastelan Robots (docs/mechanicus.md).
+ * The Tech-Priests stand within 3″ of the Rangers / Vanguard they escort.
+ */
+const mechanicusPatrol: Roster = (at) => [
+  unit('dominus', 'techDominus', 'adeptus_mechanicus', 'Техножрец-Доминус', [['techDominus', at(5.2, 8)]]),
+  unit('manipulus', 'techManipulus', 'adeptus_mechanicus', 'Техножрец-Манипулус', [['techManipulus', at(5.2, 22.5)]]),
+  unit('rangers', 'rangers', 'adeptus_mechanicus', 'Скитарии-рейнджеры', formation(at, 10, (i) => (i === 0 ? 'rangerAlpha' : i === 3 ? 'rangerArc' : i === 6 ? 'rangerCaliver' : i === 8 ? 'rangerOmnispex' : 'ranger'), 8.6, 3.5, 1.4, 1.2)),
+  unit('vanguard', 'vanguard', 'adeptus_mechanicus', 'Скитарии-авангард', formation(at, 10, (i) => (i === 0 ? 'vanguardAlpha' : i === 3 ? 'vanguardArc' : i === 6 ? 'vanguardCaliver' : 'vanguard'), 8.6, 19.5, 1.4, 1.2)),
+  unit('breachers', 'breachers', 'adeptus_mechanicus', 'Катафроны-пробойщики', [
+    ['breacher', at(5.5, 11.5)],
+    ['breacherTorsion', at(5.5, 14.1)],
+    ['breacherHydraulic', at(5.5, 16.7)],
+  ]),
+  unit('destroyers', 'destroyers', 'adeptus_mechanicus', 'Катафроны-разрушители', [
+    ['destroyer', at(2.6, 11.5)],
+    ['destroyer', at(2.6, 14.1)],
+    ['destroyerCulverin', at(2.6, 16.7)],
+  ]),
+  unit('sicarians', 'sicarians', 'adeptus_mechanicus', 'Сикарии-диверсанты', [
+    ['sicarianPrinceps', at(3.2, 20.5)],
+    ['sicarian', at(3.2, 22.3)],
+    ['sicarianTaser', at(3.2, 24.1)],
+    ['sicarian', at(3.2, 25.9)],
+    ['sicarianTaser', at(3.2, 27.7)],
+  ]),
+  unit('kastelans', 'kastelans', 'adeptus_mechanicus', 'Роботы Кастелан', [
+    ['kastelanGun', at(8.4, 12.2)],
+    ['kastelan', at(8.4, 15)],
+    ['kastelanGun', at(8.4, 17.8)],
+  ]),
+]
+
 export const PATROL_ROSTERS: Record<PlayerId, Roster> = {
   marines: marinesPatrol,
   orks: orksPatrol,
   tyranids: tyranidsPatrol,
   necrons: necronsPatrol,
   aeldari: aeldariPatrol,
+  adeptus_mechanicus: mechanicusPatrol,
 }
 
 function units(width: number, sides: [PlayerId, PlayerId], roster: (faction: PlayerId, depthOf?: 'west' | 'east') => Roster): UnitState[] {
@@ -259,12 +295,12 @@ export const SCENARIOS: Scenario[] = [
     id: 'combat-patrol',
     name: 'Боевой патруль (большая битва)',
     description:
-      'Поле 44″×30″ и армии крупнее; здесь доступны все пять армий (Космодесант, Орки, Тираниды, Некроны, Аэльдари) в любых парах — состав смотрите на экране выбора армии. Разнообразный тиррейн: руины и лес (техника не проходит), контейнеры (внутри нельзя стоять), баррикады, воронки. Игра длиннее и тактически богаче.',
+      'Поле 44″×30″ и армии крупнее; здесь доступны все шесть армий (Космодесант, Орки, Тираниды, Некроны, Аэльдари, Адептус Механикус) в любых парах — состав смотрите на экране выбора армии. Разнообразный тиррейн: руины и лес (техника не проходит), контейнеры (внутри нельзя стоять), баррикады, воронки. Игра длиннее и тактически богаче.',
     victory: VICTORY,
     deployment: { west: rect(0, 0, 10, 30), east: rect(34, 0, 10, 30) },
-    factions: ['marines', 'orks', 'tyranids', 'necrons', 'aeldari'],
+    factions: ['marines', 'orks', 'tyranids', 'necrons', 'aeldari', 'adeptus_mechanicus'],
     build: (sides = DEFAULT_SIDES) => {
-      assertSides(['marines', 'orks', 'tyranids', 'necrons', 'aeldari'], sides)
+      assertSides(['marines', 'orks', 'tyranids', 'necrons', 'aeldari', 'adeptus_mechanicus'], sides)
       return baseState(
         'combat-patrol',
         { width: 44, height: 30 },
