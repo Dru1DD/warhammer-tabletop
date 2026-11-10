@@ -137,7 +137,7 @@ Unit costs live in `src/game/data/points.ts`: Munitorum Field Manual values as l
 
 ## Army builder
 
-The Orks have four more units for army lists (Warboss, Nobz, Gretchin, Kommandos): see [orks.md](orks.md). So do the Space Marines (Captain, Hellblasters, Infernus, Bladeguard Veterans): see [marines.md](marines.md), the Tyranids (Winged Prime, Zoanthropes, Carnifexes, Barbgaunts): see [tyranids.md](tyranids.md), and the Necrons (Royal Warden, Immortals, Lychguard, Canoptek Wraiths): see [necrons.md](necrons.md).
+The Orks have four more units for army lists (Warboss, Nobz, Gretchin, Kommandos): see [orks.md](orks.md). So do the Space Marines (Captain, Hellblasters, Infernus, Bladeguard Veterans): see [marines.md](marines.md), the Tyranids (Winged Prime, Zoanthropes, Carnifexes, Barbgaunts): see [tyranids.md](tyranids.md), the Necrons (Royal Warden, Immortals, Lychguard, Canoptek Wraiths): see [necrons.md](necrons.md), and the Aeldari (Autarch, Rangers, Wraithguard, Swooping Hawks): see [aeldari.md](aeldari.md).
 
 The start screen has an army builder for both sides (yours and the AI's). Each faction keeps its own list in this browser.
 
@@ -154,7 +154,7 @@ The start screen has an army builder for both sides (yours and the AI's). Each f
 | Orks | 495 | 975 |
 | Tyranids | 480 | 1000 |
 | Necrons | 495 | 990 |
-| Aeldari | 480 | 950 |
+| Aeldari | 480 | 980 |
 | Adeptus Mechanicus | 490 | 970 |
 
 **Known limitation: AI speed.** The AI's movement planning and line-of-sight checks grow with the number of models. Measured in Node on the first round:
