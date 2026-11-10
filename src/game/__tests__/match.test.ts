@@ -262,7 +262,8 @@ describe('architecture boundary', () => {
     expect(importers).toEqual(['peer.ts'])
   })
   it('match layer has no clock or randomness', () => {
-    const matchFiles = sources.filter(([f]) => f.includes('/match/'))
+    // paths use "\" on Windows
+    const matchFiles = sources.filter(([f]) => f.replace(/\\/g, '/').includes('/match/'))
     expect(matchFiles.length).toBeGreaterThanOrEqual(3)
     for (const [f, code] of matchFiles) expect(code, f).not.toMatch(/Date\.now|new Date|Math\.random|crypto\.|performance\.now/)
   })
