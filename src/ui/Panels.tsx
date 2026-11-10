@@ -298,6 +298,7 @@ export function ActionPanel() {
 }
 
 function PhaseTrack({ game, myTurn }: { game: GameState; myTurn: boolean }) {
+  const thinking = useStore((st) => st.aiThinking)
   const human = useStore((s) => s.settings.human)
   const explain = useStore((s) => s.settings.explain)
   const cur = PHASES.indexOf(game.phase)
@@ -315,6 +316,12 @@ function PhaseTrack({ game, myTurn }: { game: GameState; myTurn: boolean }) {
         ))}
       </ol>
       <div className="mt-2 font-semibold">{myTurn ? 'Ваш ход' : `Ходит ${rivalName()} (${FACTION_NAME[actor(game)]})…`} — {PHASE_NAME[game.phase].split(' (')[0]}</div>
+      {!myTurn && thinking && (
+        <p className="mt-1 flex items-center gap-1.5 text-xs text-sky-300" role="status" aria-label="ИИ думает">
+          <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-sky-300" aria-hidden />
+          ИИ думает над ходом…
+        </p>
+      )}
       {explain !== 'minimal' && <p className="text-xs text-stone-300">{PHASE_GOAL[game.phase]}</p>}
       {myTurn && !status.canEnd && status.reason && <p className="mt-1 text-xs text-amber-300">Сначала: {status.reason}</p>}
       {myTurn && status.canEnd && verb[game.phase] && (

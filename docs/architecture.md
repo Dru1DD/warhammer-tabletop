@@ -26,6 +26,18 @@ two-human (PeerJS / WebRTC) mode plugs into. The online mode is now implemented 
 Konva, `peerjs`/WebRTC libraries or `store`/`ui`, if the match layer touches `Date`/`Math.random`/`crypto`,
 or if any networking dependency other than `peerjs` appears (only `src/multiplayer/peer.ts` may import it).
 
+## AI off the main thread
+
+The AI's `decide` is a pure function of the state, so where it runs does not change the answer.
+
+- **Where it runs in the browser.** `useAiLoop` (`App.tsx`) calls `store.aiStepAsync()`. That computes the decision in a Web Worker: `src/game/ai/worker.ts`, called through `src/game/ai/aiClient.ts`. The page keeps responding while the AI thinks.
+- **What is sent.** The state goes to the worker without `log` and `diceLog`: the AI never reads them, and they are the largest part of the state.
+- **Stale answers.** If the game moved on while the AI was thinking (undo, quit, a new battle), the answer is dropped. Only one decision is in flight at a time.
+- **The submit path is unchanged.** The decision goes through the same pipeline as before (`nextEnvelope` → `submit`), including the forced `endPhase` safeguard.
+- **Fallbacks.** Without workers (tests, jsdom, old browsers), when the worker reports an error, or when it crashes, `decideAsync` computes on the main thread instead.
+- **Synchronous path.** `store.aiStep()` stays synchronous. Tests and tools use it, and it makes exactly the same move.
+- **Indicator.** The side panel shows «ИИ думает над ходом…» while a decision is in flight (`store.aiThinking`).
+
 ## Sides, participants, controllers
 
 - `PlayerId` (`'marines' | 'orks'`) is the **side** on the table: it owns the army (`UnitState.owner`)
