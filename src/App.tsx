@@ -3,6 +3,7 @@ import { OnlineBanner, OnlineHeader, OnlineScreen } from './multiplayer/OnlineSc
 import { joinRoom, leaveRoom, openOnlineMenu, parseRoomCode, savedGuestRoom, useMp } from './multiplayer/session'
 import { FACTION_EMBLEM, FACTION_STYLE, tokenImageFor } from './assets/manifest'
 import { FACTION_NAME } from './game/data/datasheets'
+import { armyPoints, fmtPoints, POINTS_SOURCE, unitPoints } from './game/data/points'
 import { actor } from './game/engine'
 import { deserialize, readStorage } from './game/persistence'
 import { armyOf, SCENARIOS } from './game/scenarios/scenarios'
@@ -62,11 +63,40 @@ function ArmyList({ faction, scenarioId }: { faction: PlayerId; scenarioId: stri
   const total = army.reduce((n, u) => n + u.models.length, 0)
   return (
     <ul className="mt-1 space-y-0.5 text-[11px] text-stone-300" aria-label={`Состав: ${FACTION_NAME[faction]}`}>
-      {army.map((u) => (
-        <li key={u.id}>{u.name} <span className="text-stone-400">× {u.models.length}</span></li>
-      ))}
+      {army.map((u) => {
+        const cost = unitPoints(u.datasheetId, u.startingModels)
+        return (
+          <li key={u.id}>
+            {u.name} <span className="text-stone-400">× {u.models.length}</span>{' '}
+            <span className="text-stone-500" title={cost.exact ? undefined : 'Такого размера отряда нет в Munitorum Field Manual — стоимость пересчитана по модели'}>
+              · {fmtPoints(cost)}
+            </span>
+          </li>
+        )
+      })}
       <li className="text-stone-400">Всего моделей: {total}</li>
+      <li className="font-semibold text-amber-200">Стоимость армии: {fmtPoints(armyPoints(army))}</li>
     </ul>
+  )
+}
+
+/** Compares the two armies' points so a lopsided pairing is visible before the battle. */
+function PointsMatchup({ human, opponent, scenarioId }: { human: PlayerId; opponent: PlayerId; scenarioId: string }) {
+  const mine = armyOf(scenarioId, human) ?? armyOf('combat-patrol', human)
+  const theirs = armyOf(scenarioId, opponent) ?? armyOf('combat-patrol', opponent)
+  if (!mine || !theirs) return null
+  const a = armyPoints(mine)
+  const b = armyPoints(theirs)
+  const ratio = Math.max(a.points, b.points) / Math.max(1, Math.min(a.points, b.points))
+  const lopsided = ratio >= 1.25
+  return (
+    <p className={`mt-3 rounded p-2 text-xs ${lopsided ? 'bg-amber-950 text-amber-200' : 'bg-stone-900 text-stone-300'}`} aria-label="Баланс армий по очкам">
+      {FACTION_NAME[human]}: <b>{fmtPoints(a)}</b> против {FACTION_NAME[opponent]}: <b>{fmtPoints(b)}</b>
+      {lopsided && <> — перевес примерно в {ratio.toFixed(1)} раза, бой будет неравным.</>}
+      <span className="block text-[10px] text-stone-500">
+        Ориентировочно, по {POINTS_SOURCE.name} от {POINTS_SOURCE.updated}. «≈» — размер отряда не из справочника, стоимость пересчитана по модели.
+      </span>
+    </p>
   )
 }
 
@@ -136,6 +166,7 @@ function StartScreen() {
             </select>
           </label>
         </div>
+        <PointsMatchup human={human} opponent={opponent} scenarioId={scenarioId} />
         <LearningStylePicker />
         <p className="mt-3 rounded bg-stone-900 p-2 text-xs text-stone-300">
           {SCENARIOS.find((s) => s.id === scenarioId)?.description}
