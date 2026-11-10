@@ -26,6 +26,16 @@ export const other = (s: Pick<GameState, 'sides'>, p: PlayerId): PlayerId => {
 
 export const profileOf = (m: ModelState): ModelProfile => PROFILES[m.profileId]
 export const radiusOf = (m: ModelState) => baseRadius(profileOf(m).baseMm)
+
+/** A fresh unit at the start of a battle: models at `models` positions with full wounds. */
+export function newUnit(id: string, datasheetId: string, owner: PlayerId, name: string, models: [string, Vec][]): UnitState {
+  const ms: ModelState[] = models.map(([profileId, pos], i) => ({ id: `${id}-${i}`, profileId, pos, wounds: PROFILES[profileId]?.w ?? 0, destroyed: false }))
+  return {
+    id, datasheetId, owner, name, models: ms, startingModels: ms.length, battleShocked: false,
+    move: 'none', movedDistance: 0, advanceRoll: null, advanceRerolled: false, shot: false,
+    chargeDeclared: false, charged: false, fought: false, ammoRuntsUsed: false,
+  }
+}
 export const datasheetOf = (u: UnitState) => DATASHEETS[u.datasheetId]
 export const hasAbility = (u: UnitState, a: string) => datasheetOf(u).abilities.includes(a as never)
 export const alive = (u: UnitState) => u.models.filter((m) => !m.destroyed)

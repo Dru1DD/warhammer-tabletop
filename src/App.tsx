@@ -3,12 +3,14 @@ import { OnlineBanner, OnlineHeader, OnlineScreen } from './multiplayer/OnlineSc
 import { joinRoom, leaveRoom, openOnlineMenu, parseRoomCode, savedGuestRoom, useMp } from './multiplayer/session'
 import { FACTION_EMBLEM, FACTION_STYLE, tokenImageFor } from './assets/manifest'
 import { FACTION_NAME } from './game/data/datasheets'
-import { armyPoints, fmtPoints, POINTS_SOURCE, unitPoints } from './game/data/points'
+import { armyPoints, copyIndex, fmtPoints, POINTS_SOURCE, unitPoints } from './game/data/points'
 import { actor } from './game/engine'
 import { deserialize, readStorage } from './game/persistence'
-import { armyOf, SCENARIOS } from './game/scenarios/scenarios'
-import { FACTIONS, type ExplainLevel, type PlayerId } from './game/types'
-import { AI_STEP_MS, AUTOSAVE_KEY, MANUAL_KEY, useStore } from './store'
+import { SCENARIOS } from './game/scenarios/scenarios'
+import { FACTIONS, type ExplainLevel, type PlayerId, type UnitState } from './game/types'
+import { AI_STEP_MS, AUTOSAVE_KEY, MANUAL_KEY, useStore, type Settings } from './store'
+import { ArmyBuilder } from './ui/ArmyBuilder'
+import { armyUnits, battleListProblems } from './ui/armyUnits'
 import { BattleOverDialog } from './ui/BattleOverDialog'
 import { Board } from './ui/Board'
 import { ActionPanel, AttackReview, BottomPanel, DiceFaces, RosterPanel } from './ui/Panels'
@@ -56,15 +58,13 @@ const EXPLAIN: Record<ExplainLevel, string> = {
   minimal: 'Минимум — только результаты',
 }
 
-/** Lists the army of `faction` in the chosen scenario: unit, model count and loadout. */
-function ArmyList({ faction, scenarioId }: { faction: PlayerId; scenarioId: string }) {
-  const army = armyOf(scenarioId, faction)
-  if (!army) return <div className="text-[11px] text-amber-300">В этом сценарии нет армии — будет выбран «Боевой патруль».</div>
+/** Lists the army of `faction`: unit, model count and cost (its army list, or the scenario's training roster). */
+function ArmyList({ faction, army }: { faction: PlayerId; army: UnitState[] }) {
   const total = army.reduce((n, u) => n + u.models.length, 0)
   return (
     <ul className="mt-1 space-y-0.5 text-[11px] text-stone-300" aria-label={`Состав: ${FACTION_NAME[faction]}`}>
       {army.map((u) => {
-        const cost = unitPoints(u.datasheetId, u.startingModels)
+        const cost = unitPoints(u.datasheetId, u.startingModels, copyIndex(army, u))
         return (
           <li key={u.id}>
             {u.name} <span className="text-stone-400">× {u.models.length}</span>{' '}
@@ -81,10 +81,10 @@ function ArmyList({ faction, scenarioId }: { faction: PlayerId; scenarioId: stri
 }
 
 /** Compares the two armies' points so a lopsided pairing is visible before the battle. */
-function PointsMatchup({ human, opponent, scenarioId }: { human: PlayerId; opponent: PlayerId; scenarioId: string }) {
-  const mine = armyOf(scenarioId, human) ?? armyOf('combat-patrol', human)
-  const theirs = armyOf(scenarioId, opponent) ?? armyOf('combat-patrol', opponent)
-  if (!mine || !theirs) return null
+function PointsMatchup({ settings }: { settings: Settings }) {
+  const { human, opponent } = settings
+  const mine = armyUnits(settings, human)
+  const theirs = armyUnits(settings, opponent)
   const a = armyPoints(mine)
   const b = armyPoints(theirs)
   const ratio = Math.max(a.points, b.points) / Math.max(1, Math.min(a.points, b.points))
@@ -106,6 +106,9 @@ function StartScreen() {
   const auto = deserialize(readStorage(AUTOSAVE_KEY))
   const manual = deserialize(readStorage(MANUAL_KEY))
   const both = (s: (typeof SCENARIOS)[number]) => s.factions.includes(human) && s.factions.includes(opponent)
+  const lists = !!(st.settings.armies?.[human] || st.settings.armies?.[opponent])
+  const playable = (s: (typeof SCENARIOS)[number]) => both(s) && (!lists || !!s.customArmies)
+  const listIssues = battleListProblems(st.settings)
   return (
     <div className="min-h-full bg-stone-900 p-4 text-stone-100">
       <div className="mx-auto max-w-5xl rounded-lg border border-stone-700 bg-stone-800 p-6 shadow-xl">
@@ -123,7 +126,7 @@ function StartScreen() {
         <h2 className="mt-5 font-semibold">Ваша армия</h2>
         <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {FACTIONS.map((p) => {
-            const army = armyOf(scenarioId, p) ?? armyOf('combat-patrol', p)!
+            const army = armyUnits(st.settings, p)
             const faces = [...new Set(army.flatMap((u) => u.models.map((m) => m.profileId)))].slice(0, 4)
             return (
               <button
@@ -142,7 +145,7 @@ function StartScreen() {
                   </div>
                 </div>
                 <div className="font-semibold">{FACTION_NAME[p]}</div>
-                <ArmyList faction={p} scenarioId={armyOf(scenarioId, p) ? scenarioId : 'combat-patrol'} />
+                <ArmyList faction={p} army={army} />
               </button>
             )
           })}
@@ -156,7 +159,11 @@ function StartScreen() {
           </label>
           <label className="text-sm">Сценарий
             <select className="input" value={scenarioId} onChange={(e) => st.setSettings({ scenarioId: e.target.value })}>
-              {SCENARIOS.map((s) => <option key={s.id} value={s.id} disabled={!both(s)}>{s.name}{both(s) ? '' : ' — нет армий для этой пары'}</option>)}
+              {SCENARIOS.map((s) => (
+                <option key={s.id} value={s.id} disabled={!playable(s)}>
+                  {s.name}{!both(s) ? ' — нет армий для этой пары' : !playable(s) ? ' — свои составы только в «Боевом патруле»' : ''}
+                </option>
+              ))}
             </select>
           </label>
           <label className="text-sm">Уровень ИИ
@@ -166,7 +173,12 @@ function StartScreen() {
             </select>
           </label>
         </div>
-        <PointsMatchup human={human} opponent={opponent} scenarioId={scenarioId} />
+        <h2 className="mt-5 font-semibold">Состав армий</h2>
+        <div className="mt-2 grid gap-3 md:grid-cols-2">
+          <ArmyBuilder faction={human} role="Ваша армия" />
+          <ArmyBuilder faction={opponent} role="Противник (ИИ)" />
+        </div>
+        <PointsMatchup settings={st.settings} />
         <LearningStylePicker />
         <p className="mt-3 rounded bg-stone-900 p-2 text-xs text-stone-300">
           {SCENARIOS.find((s) => s.id === scenarioId)?.description}
@@ -174,14 +186,15 @@ function StartScreen() {
           <span className="text-amber-300">{SCENARIOS.find((s) => s.id === scenarioId)?.victory}</span>
         </p>
         <div className="mt-4 flex gap-2">
-          <button className="btn btn-primary flex-1" onClick={() => st.startDeployment()}>Начать новую битву</button>
+          <button className="btn btn-primary flex-1" disabled={listIssues.length > 0} title={listIssues[0] ?? ''} onClick={() => st.startDeployment()}>Начать новую битву</button>
           <button className="btn" disabled={!manual.ok} onClick={() => st.load(MANUAL_KEY)} title={manual.ok ? '' : manual.reason}>Загрузить сохранение</button>
         </div>
         <button className="btn mt-2 w-full" onClick={() => openOnlineMenu()}>🌐 Играть онлайн вдвоём</button>
         <p className="mt-2 text-xs text-stone-400">
           Сначала вы расставите армию в своей зоне, затем начнётся раунд 1.{' '}
-          <button className="text-sky-300 underline" onClick={() => st.newGame()}>Быстрый старт</button> — сразу в бой, отряды на стандартных позициях.
+          <button className="text-sky-300 underline disabled:text-stone-500 disabled:no-underline" disabled={listIssues.length > 0} onClick={() => st.newGame()}>Быстрый старт</button> — сразу в бой, отряды на стандартных позициях.
         </p>
+        {listIssues.length > 0 && <p className="mt-2 text-sm text-rose-300">Исправьте состав армии, чтобы начать: {listIssues[0]}</p>}
         {st.message && <p className="mt-2 text-sm text-rose-300">{st.message.text}</p>}
       </div>
     </div>
