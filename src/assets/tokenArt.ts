@@ -36,7 +36,7 @@ const f = (c: string, o = 0.22) => `fill="${c}" fill-opacity="${o}"`
 
 // ---------------------------------------------------------------- Space Marines
 
-type MarineGear = 'rifle' | 'rifleGL' | 'swordPistol' | 'chainPistol'
+type MarineGear = 'rifle' | 'rifleGL' | 'swordPistol' | 'chainPistol' | 'bolterSword' | 'plasma' | 'pyre' | 'swordShield'
 
 function marine(gear: MarineGear, opts: { sergeant?: boolean; officer?: boolean } = {}): string {
   const c = BLUEPRINT_LINE.marines
@@ -55,7 +55,14 @@ function marine(gear: MarineGear, opts: { sergeant?: boolean; officer?: boolean 
   const sword = `<line x1="54" y1="32" x2="90" y2="22" stroke-width="2.6"/><line x1="55" y1="27" x2="58" y2="37" stroke-width="2"/>`
   const pistol = `<rect x="57" y="61" width="15" height="5" rx="1.5" ${f(c, 0.3)}/>`
   const chainsword = `<line x1="54" y1="32" x2="86" y2="24" stroke-width="4"/><line x1="58" y1="31" x2="84" y2="24.5" stroke-width="1" stroke-dasharray="1.5 1.5" stroke="${PAPER}"/>`
-  const weapon = { rifle, rifleGL: rifle + gl, swordPistol: sword + pistol, chainPistol: chainsword + pistol }[gear]
+  // plasma incinerator: a long barrel with coolant rings; pyreblaster: a short nozzle fed by a fuel line
+  const plasma = `<rect x="55" y="55" width="36" height="7" rx="2" ${f(c, 0.3)}/><circle cx="66" cy="58.5" r="4.2" ${f(c, 0.45)}/><circle cx="76" cy="58.5" r="4.2" ${f(c, 0.45)}/><line x1="88" y1="58.5" x2="94" y2="58.5" stroke-width="2.8"/>`
+  const pyre = `<rect x="55" y="55" width="26" height="8" rx="3" ${f(c, 0.3)}/><path d="M81 54 L92 51 L92 67 L81 64 Z" ${f(c, 0.45)}/><path d="M36 62 Q44 72 58 64" fill="none" stroke-dasharray="2 1.5"/>`
+  const shield = `<path d="M52 60 L70 58 L72 72 L60 80 L50 72 Z" ${f(c, 0.35)}/><line x1="60" y1="62" x2="61" y2="76" opacity="0.7"/>`
+  const weapon = {
+    rifle, rifleGL: rifle + gl, swordPistol: sword + pistol, chainPistol: chainsword + pistol,
+    bolterSword: sword + rifle, plasma, pyre, swordShield: sword + shield,
+  }[gear]
   return base(c, cape + backpack + torso + pauldron(30) + pauldron(70) + chevron + head + weapon, false)
 }
 
@@ -489,6 +496,13 @@ const SVGS: Record<string, string> = {
   kastelan: kastelan('combustor'),
   kastelanGun: kastelan('guns'),
   lieutenant: marine('swordPistol', { officer: true }),
+  captain: marine('bolterSword', { officer: true }),
+  hellblasterSergeant: marine('plasma', { sergeant: true }),
+  hellblaster: marine('plasma'),
+  infernusSergeant: marine('pyre', { sergeant: true }),
+  infernusMarine: marine('pyre'),
+  bladeguardSergeant: marine('swordShield', { sergeant: true }),
+  bladeguardVeteran: marine('swordShield'),
   intercessorSergeant: marine('rifle', { sergeant: true }),
   intercessor: marine('rifle'),
   intercessorGL: marine('rifleGL'),

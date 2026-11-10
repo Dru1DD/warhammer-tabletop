@@ -38,6 +38,10 @@ export const COMPOSITION: Record<string, { leader?: string; pattern: string[] }>
   intercessors: { leader: 'intercessorSergeant', pattern: ['intercessor', 'intercessorGL', 'intercessor', 'intercessor'] },
   assaultIntercessors: { leader: 'assaultSergeant', pattern: ['assaultIntercessor'] },
   redemptor: { pattern: ['redemptor'] },
+  captain: { pattern: ['captain'] },
+  hellblasters: { leader: 'hellblasterSergeant', pattern: ['hellblaster'] },
+  infernus: { leader: 'infernusSergeant', pattern: ['infernusMarine'] },
+  bladeguard: { leader: 'bladeguardSergeant', pattern: ['bladeguardVeteran'] },
   boyz: {
     leader: 'nob',
     pattern: ['boy', 'boy', 'boy', 'boy', 'boyBigShoota', 'boy', 'boy', 'boy', 'boy', 'boy', 'boy', 'boy', 'boy', 'boyRokkit', 'boy', 'boy', 'boy', 'boy'],
@@ -115,8 +119,8 @@ const u = (datasheetId: string, size: number, copies = 1): ListEntry[] => Array.
 /** Ready-made lists for every faction at both limits (each one is legal and within its limit; see tests). */
 export const PRESETS: Record<PlayerId, Record<PointsLimit, ListEntry[]>> = {
   marines: {
-    500: [...u('lieutenant', 1), ...u('intercessors', 5, 2), ...u('assaultIntercessors', 5), ...u('redemptor', 1)],
-    1000: [...u('lieutenant', 1), ...u('intercessors', 10, 2), ...u('intercessors', 5), ...u('assaultIntercessors', 10), ...u('redemptor', 1, 2)],
+    500: [...u('captain', 1), ...u('lieutenant', 1), ...u('intercessors', 5), ...u('hellblasters', 5), ...u('infernus', 5), ...u('bladeguard', 3)],
+    1000: [...u('captain', 1), ...u('lieutenant', 1, 2), ...u('intercessors', 10), ...u('hellblasters', 10), ...u('infernus', 5), ...u('bladeguard', 6), ...u('redemptor', 1)],
   },
   orks: {
     500: [...u('warboss', 1), ...u('boyz', 20), ...u('nobz', 5), ...u('kommandos', 10), ...u('gretchin', 10)],

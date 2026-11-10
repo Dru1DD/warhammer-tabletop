@@ -74,7 +74,7 @@ describe('army list rules', () => {
       }
     // the table in docs/armies.md
     const totals = Object.fromEntries(FACTIONS.map((f) => [f, POINTS_LIMITS.map((l) => listPoints(presetList(f, l)))]))
-    expect(totals).toEqual({ marines: [475, 965], orks: [495, 975], tyranids: [485, 970], necrons: [500, 980], aeldari: [480, 950], adeptus_mechanicus: [490, 970] })
+    expect(totals).toEqual({ marines: [480, 980], orks: [495, 975], tyranids: [485, 970], necrons: [500, 980], aeldari: [480, 950], adeptus_mechanicus: [490, 970] })
   })
 
   it('reads lists back from storage and drops broken ones', () => {
@@ -85,7 +85,7 @@ describe('army list rules', () => {
 
   it('numbers repeated units and keeps their ids unique', () => {
     const units = listUnits('marines', presetList('marines', 1000))
-    expect(units.map((u) => u.name)).toEqual(['Лейтенант', 'Отделение интерсессоров I', 'Отделение интерсессоров II', 'Отделение интерсессоров III', 'Штурмовые интерсессоры', 'Дредноут «Редемптор» I', 'Дредноут «Редемптор» II'])
+    expect(units.map((u) => u.name)).toEqual(['Капитан', 'Лейтенант I', 'Лейтенант II', 'Отделение интерсессоров', 'Отделение адских бластеров', 'Отделение Инфернус', 'Ветераны Bladeguard', 'Дредноут «Редемптор»'])
     expect(new Set(units.flatMap((u) => u.models.map((m) => m.id))).size).toBe(units.reduce((n, u) => n + u.models.length, 0))
     for (const u of units) for (const m of u.models) expect(m.wounds).toBe(PROFILES[m.profileId].w)
   })

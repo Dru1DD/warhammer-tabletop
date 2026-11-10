@@ -144,6 +144,12 @@ export type AbilityId =
   | 'getOutDaWay'
   | 'thievinScavengers'
   | 'bombSquig'
+  // Space Marines beyond the Introductory Set
+  | 'finestHour'
+  | 'strategicAcumen'
+  | 'thermalAppeasement'
+  | 'drivenFromCover'
+  | 'bladeguard'
   | 'repulsorGrid'
   | 'sentinelDirectives'
   | 'scouts'
@@ -199,6 +205,12 @@ export interface UnitState {
   spiked?: boolean
   /** Bomb Squig already used (once per battle; absent until then) */
   bombSquigUsed?: boolean
+  /** Finest Hour already used (once per battle; absent until then) */
+  finestHourUsed?: boolean
+  /** Finest Hour is on for the fight this unit is resolving right now */
+  finestHour?: boolean
+  /** Driven from Cover: this unit gets no cover against ranged attacks of this army until the end of the turn */
+  drivenFromCover?: PlayerId
 }
 
 /** crater = exposed; barricade = light; ruin / woods / container = dense (container is also solid) */
@@ -342,7 +354,7 @@ export type Command =
   | { type: 'declareCharge'; unitId: string }
   | { type: 'chargeMove'; unitId: string; targetIds: string[] }
   | { type: 'skipCharge'; unitId: string }
-  | { type: 'fight'; unitId: string; targetId: string }
+  | { type: 'fight'; unitId: string; targetId: string; finestHour?: boolean }
   | { type: 'callWaaagh' }
   | { type: 'callShadow' }
   | { type: 'guide'; unitId: string; targetId: string }

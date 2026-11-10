@@ -470,7 +470,9 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
       return end(`${fac}: движение завершено.`)
     }
     case 'shooting': {
-      for (const u of mine) {
+      // Driven from Cover (Infernus) shoots first, so the rest of the army fires at a target without cover
+      const order = [...mine].sort((a, b) => Number(hasAbility(b, 'drivenFromCover')) - Number(hasAbility(a, 'drivenFromCover')))
+      for (const u of order) {
         if (u.shot) continue
         let best: { cmd: Command; dmg: number; target: string } | null = null
         for (const e of enemiesOf(s, u)) {
@@ -510,7 +512,13 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
       for (const u of mine) {
         for (const e of engagedUnits(s, u).sort((a, b) => expectedMelee(s, u, b) - expectedMelee(s, u, a))) {
           const cmd: Command = { type: 'fight', unitId: u.id, targetId: e.id }
-          if (validate(s, cmd).ok) return { cmd, explanation: `${fac}: отряд «${u.name}» сражается с «${e.name}».` }
+          if (!validate(s, cmd).ok) continue
+          // Finest Hour (once per battle): spend it on a target worth it (a character, a vehicle or monster, or a tough unit)
+          const finest: Command = { ...cmd, finestHour: true }
+          const worthy = isMV(e) || alive(e).some((m) => profileOf(m).character) || alive(e).reduce((n, m) => n + m.wounds, 0) >= 8
+          if (worthy && validate(s, finest).ok)
+            return { cmd: finest, explanation: `${fac}: «${u.name}» сражается с «${e.name}» — «Звёздный час» (+3 атаки, Devastating Wounds).` }
+          return { cmd, explanation: `${fac}: отряд «${u.name}» сражается с «${e.name}».` }
         }
       }
       return null

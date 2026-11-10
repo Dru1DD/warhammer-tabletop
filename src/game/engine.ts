@@ -240,8 +240,9 @@ export function shootPlan(
     if (hasAbility(unit, 'swiftDemise')) rerollHits = isClosestTarget(s, unit, target) ? 'all' : 'ones'
     if (bonus.rerollHits) g.notes.push(bonus.rerollHits === 'all' ? 'Breaching Command: переброс попаданий' : 'Breaching Command: переброс 1')
     // Ignores Cover (weapon keyword or Omnispex) cancels the cover bonus; Protector improves BS by 1
-    const ignores = g.profile.keywords.ignoresCover || omnispex
-    if (plan.cover && ignores) g.notes.push('игнорирует укрытие')
+    const exposed = target.drivenFromCover === unit.owner
+    const ignores = g.profile.keywords.ignoresCover || omnispex || exposed
+    if (plan.cover && ignores) g.notes.push(exposed && !g.profile.keywords.ignoresCover && !omnispex ? 'Driven from Cover: без укрытия' : 'игнорирует укрытие')
     if (bonus.betterAp) { g.profile = { ...g.profile, ap: g.profile.ap - 1 }; g.notes.push('Conqueror: AP +1') }
     if (bonus.galvanic) g.notes.push('Galvanic Field: Lethal Hits')
     const protector = bonus.imp === 'protector'
@@ -273,6 +274,11 @@ export function meleeSetup(s: GameState, unit: UnitState, target: UnitState, p0:
     p = { ...p, s: p.s + 1, ap: p.ap - 1 }
     notes.push('Targeted Intercession +1 S/AP')
   }
+  // Finest Hour (Captain): +3 A and Devastating Wounds for this fight
+  if (unit.finestHour) {
+    p = { ...p, attacks: p.attacks + 3, keywords: { ...p.keywords, devastatingWounds: true } }
+    notes.push('Finest Hour +3 A, Devastating Wounds')
+  }
   // Might Is Right (Warboss): +3 A and +2 S after charging
   if (hasAbility(unit, 'mightIsRight') && unit.charged) {
     p = { ...p, attacks: p.attacks + 3, s: p.s + 2 }
@@ -288,6 +294,8 @@ export function meleeSetup(s: GameState, unit: UnitState, target: UnitState, p0:
   let skillWorsen = 0
   let skillNote: string | undefined
   if (guided(s, unit, target)) { hitMod++; hitModNotes.push('Guide +1') }
+  // Bladeguard: once per turn, when selected to fight, +1 to melee hit rolls (a unit fights once per turn here)
+  if (hasAbility(unit, 'bladeguard')) { hitMod++; hitModNotes.push('Bladeguard +1') }
   // Doctrina Imperatives: Conqueror improves WS and (near BATTLELINE) AP; Protector of the target subtracts 1 from melee hit rolls
   const bonus = attackerBonuses(s, unit)
   if (bonus.imp === 'conqueror') { skillWorsen--; skillNote = 'Conqueror: WS на 1 лучше'; notes.push('Conqueror: WS +1') }
@@ -501,6 +509,8 @@ export function validate(s: GameState, cmd: Command): Validation {
         return fail(s.fight.step === 'first' ? 'Сначала сражаются отряды с правом «Бьёт первым» (Fights First) — например, совершившие атаку.' : 'Этот отряд не может сражаться (уже сражался или не в контакте).')
       const target = findUnit(s, cmd.targetId)
       if (!target || !engagedUnits(s, unit).some((e) => e.id === target.id)) return fail('Цель должна быть в зоне контакта с отрядом.')
+      if (cmd.finestHour && !hasAbility(unit, 'finestHour')) return fail('У этого отряда нет способности «Звёздный час» (Finest Hour).')
+      if (cmd.finestHour && unit.finestHourUsed) return fail('«Звёздный час» уже использован в этой битве (раз за битву).')
       return OK
     }
   }
@@ -602,6 +612,7 @@ function resetTurnFlags(s: GameState) {
     u.fought = false
     delete u.guided
     delete u.spiked
+    delete u.drivenFromCover
     if (u.owner === s.activePlayer) delete u.warded
   }
 }
@@ -837,8 +848,10 @@ function deadlyDemise(s: GameState, before: Set<string>, r: Roller) {
 function hazard(s: GameState, u: UnitState, n: number, r: Roller, why: string) {
   if (n <= 0) return
   const dice = rollMany(r, n)
-  const failed = dice.filter((v) => v <= 2).length
-  pushDice(s, `Опасность (Hazard): ${u.name}`, [{ label: 'Hazard', target: '3+', dice: dice.map((v) => ({ value: v, success: v > 2 })), note: `${why}: 1–2 = 1 смертельная рана` }],
+  // Rites of Thermal Appeasement (Hellblasters): +1 to Hazardous rolls, so only a 1 fails
+  const failOn = hasAbility(u, 'thermalAppeasement') ? 1 : 2
+  const failed = dice.filter((v) => v <= failOn).length
+  pushDice(s, `Опасность (Hazard): ${u.name}`, [{ label: 'Hazard', target: `${failOn + 1}+`, dice: dice.map((v) => ({ value: v, success: v > failOn })), note: `${why}: ${failOn === 1 ? '1 (Rites of Thermal Appeasement +1)' : '1–2'} = 1 смертельная рана` }],
     failed ? `${failed} провал(а) — смертельные раны.` : 'Все броски опасности пройдены.')
   if (failed) applyMortalWounds(s, u, failed, why)
 }
@@ -972,12 +985,19 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       addLog(s, `${u.name} стреляет по отряду «${t.name}»${plan.cover ? ' (цель в укрытии: навык −1)' : ''}.`, 'minimal')
       for (const sk of plan.skipped) addLog(s, sk, 'beginner')
       let repulsed = 0
+      let scored = false
       for (const g of plan.groups) {
         if (isDestroyed(t)) break
         const res = resolveGroup(r, u.name, g, t, g.ctx)
         repulsed += res.repulsed
+        if (res.steps.some((st) => st.label === 'Попадание' && (st.target === 'авто' || st.dice.some((d) => d.success)))) scored = true
         pushDice(s, `${u.name} → ${t.name}: ${g.weaponName}${g.notes.length ? ` [${g.notes.join(', ')}]` : ''}`, res.steps, res.summary)
         addLog(s, res.summary, 'standard')
+      }
+      // Driven from Cover (Infernus): the target it hit loses cover against this army's shooting until the end of the turn
+      if (scored && hasAbility(u, 'drivenFromCover') && !isDestroyed(t) && t.drivenFromCover !== u.owner) {
+        t.drivenFromCover = u.owner
+        addLog(s, `${u.name}: «${t.name}» выкурен из укрытия (Driven from Cover) — до конца хода союзная стрельба по нему не учитывает укрытие.`, 'standard')
       }
       hazard(s, u, plan.hazardousModels, r, 'Перегрузка плазмы (Hazardous)')
       // Repulsor Grid: every unmodified 6 on the target's saves = 1 mortal wound for the shooter, after it has shot
@@ -1027,8 +1047,13 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       const t = findUnit(s, cmd.targetId)!
       const before = aliveIds(s)
       u.fought = true
+      if (cmd.finestHour) {
+        u.finestHourUsed = true
+        u.finestHour = true
+      }
       const groups = meleePlan(s, u, t)
-      addLog(s, `${u.name} сражается с отрядом «${t.name}».`, 'minimal')
+      delete u.finestHour
+      addLog(s, `${u.name} сражается с отрядом «${t.name}»${cmd.finestHour ? ' — «Звёздный час»: +3 атаки, Devastating Wounds' : ''}.`, 'minimal')
       for (const g of groups) {
         if (isDestroyed(t)) break
         const res = resolveGroup(r, u.name, g, t, g.ctx)
@@ -1105,7 +1130,11 @@ export function unitActions(s: GameState, unitId: string): ActionInfo[] {
     } else add('declareCharge', 'Объявить атаку (Charge): бросок 2D6', { type: 'declareCharge', unitId })
   }
   if (s.phase === 'fight')
-    for (const e of enemiesOf(s, u)) add(`fight:${e.id}`, `Сражаться с «${e.name}»`, { type: 'fight', unitId, targetId: e.id })
+    for (const e of enemiesOf(s, u)) {
+      add(`fight:${e.id}`, `Сражаться с «${e.name}»`, { type: 'fight', unitId, targetId: e.id })
+      if (hasAbility(u, 'finestHour') && !u.finestHourUsed)
+        add(`finest:${e.id}`, `⭐ Сражаться с «${e.name}» — Звёздный час (+3 A, Devastating Wounds, раз за битву)`, { type: 'fight', unitId, targetId: e.id, finestHour: true })
+    }
   return out.filter((a) => a.id !== 'reroll' || hasAbility(u, 'waaagh'))
 }
 
