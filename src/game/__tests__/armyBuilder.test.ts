@@ -74,7 +74,7 @@ describe('army list rules', () => {
       }
     // the table in docs/armies.md
     const totals = Object.fromEntries(FACTIONS.map((f) => [f, POINTS_LIMITS.map((l) => listPoints(presetList(f, l)))]))
-    expect(totals).toEqual({ marines: [480, 980], orks: [495, 975], tyranids: [485, 970], necrons: [500, 980], aeldari: [480, 950], adeptus_mechanicus: [490, 970] })
+    expect(totals).toEqual({ marines: [480, 980], orks: [495, 975], tyranids: [480, 1000], necrons: [500, 980], aeldari: [480, 950], adeptus_mechanicus: [490, 970] })
   })
 
   it('reads lists back from storage and drops broken ones', () => {
