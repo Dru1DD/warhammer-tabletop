@@ -14,7 +14,7 @@ vi.mock('./Board', () => ({ Board: () => <div data-testid="board" /> }))
 const reset = () => {
   localStorage.clear()
   useStore.setState({ game: null, match: null, history: [], message: null, deploying: null, review: null, deployHistory: [], draft: {} })
-  useStore.getState().setSettings({ human: 'marines', opponent: 'orks', scenarioId: 'training-outpost' })
+  useStore.getState().setSettings({ human: 'marines', opponent: 'orks', scenarioId: 'training-outpost', armies: {} })
 }
 
 describe('faction selection screen', () => {
@@ -167,5 +167,48 @@ describe('Adeptus Mechanicus army rule and abilities in the UI', () => {
     render(<App />)
     expect(screen.getByText(/Тяжёлые боевые платформы/)).toBeInTheDocument()
     expect(screen.getByText(/Отталкивающая решётка \(Repulsor Grid\)/)).toBeInTheDocument()
+  })
+})
+
+describe('army builder on the start screen', () => {
+  beforeEach(reset)
+
+  it('a preset switches to the Combat Patrol board, edits update the points, going over the limit blocks the start', () => {
+    render(<App />)
+    const mine = within(screen.getByLabelText('Состав армии: Космодесант'))
+    fireEvent.click(mine.getByText('Пресет 500'))
+    expect(useStore.getState().settings).toMatchObject({ scenarioId: 'combat-patrol', armies: { marines: { limit: 500 } } })
+    expect(mine.getByLabelText('Очки армии')).toHaveTextContent('475 / 500')
+    // the opponent's builder is separate
+    const theirs = within(screen.getByLabelText('Состав армии: Орки'))
+    fireEvent.click(theirs.getByText('Пресет 500'))
+    expect(theirs.getByLabelText('Очки армии')).toHaveTextContent('485 / 500')
+    expect(screen.getByLabelText('Баланс армий по очкам')).toHaveTextContent(/475 очк\..*485 очк\./)
+    // a bigger unit, then a second Redemptor over the limit
+    fireEvent.change(mine.getAllByLabelText('Размер отряда «Отделение интерсессоров»')[0], { target: { value: '10' } })
+    expect(mine.getByLabelText('Очки армии')).toHaveTextContent('545 / 500')
+    expect(mine.getByText('Свой список')).toBeInTheDocument()
+    expect(screen.getByText('Начать новую битву')).toBeDisabled()
+    expect(mine.getByLabelText('Ошибки состава')).toHaveTextContent('Перебор очков: 545 из 500.')
+    // raising the limit makes it playable again; the battle uses the list
+    fireEvent.change(mine.getByDisplayValue('500 очков'), { target: { value: '1000' } })
+    expect(screen.getByText('Начать новую битву')).toBeEnabled()
+    fireEvent.click(screen.getByText('Быстрый старт'))
+    const g = useStore.getState().game!
+    expect(g.scenarioId).toBe('combat-patrol')
+    expect(g.units.filter((u) => u.owner === 'marines').map((u) => u.name)).toEqual(['Лейтенант', 'Отделение интерсессоров I', 'Отделение интерсессоров II', 'Штурмовые интерсессоры', 'Дредноут «Редемптор»'])
+    expect(g.units.find((u) => u.name === 'Отделение интерсессоров I')!.models).toHaveLength(10)
+    expect(g.units.filter((u) => u.owner === 'orks')).toHaveLength(5)
+  })
+
+  it('removing units and going back to the training roster', () => {
+    render(<App />)
+    const mine = within(screen.getByLabelText('Состав армии: Космодесант'))
+    fireEvent.click(mine.getByText('Пресет 500'))
+    fireEvent.click(mine.getByLabelText('Убрать «Дредноут «Редемптор»»'))
+    expect(mine.getByLabelText('Очки армии')).toHaveTextContent('280 / 500')
+    fireEvent.click(mine.getByText('Учебный состав'))
+    expect(useStore.getState().settings.armies).toEqual({})
+    expect(within(screen.getByLabelText('Состав: Космодесант')).getByText(/Стоимость армии: 475 очк\./)).toBeInTheDocument() // the Combat Patrol training roster (the board stays)
   })
 })

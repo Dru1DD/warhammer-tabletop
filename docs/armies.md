@@ -135,6 +135,36 @@ Unit costs live in `src/game/data/points.ts`: Munitorum Field Manual values as l
 | Aeldari | 315 |
 | Necrons | 295 |
 
+## Army builder
+
+The start screen has an army builder for both sides (yours and the AI's). Each faction keeps its own list in this browser.
+
+- **Учебный состав**: the scenario's training roster, no points limit. This is the old behaviour and the default.
+- **Пресет 500 / Пресет 1000**: a ready-made list for the limit. A preset is loaded into the list and can then be edited: change a unit size, remove a unit, add one.
+- **Rules checked** (`listProblems` in `src/game/army/armyList.ts`): only unit sizes the Field Manual lists, at most 3 copies of a datasheet (6 for BATTLELINE), total within the limit. Later copies of some units cost more (`POINTS_LATER` in `points.ts`). The start buttons stay disabled while a list breaks a rule.
+- **Board**: own lists play on «Боевой патруль». Picking a preset switches to it, and the duel boards are disabled while a list is in use. Online battles still use the training rosters.
+- **Loadouts** come from `COMPOSITION`: the leader model, then a repeating pattern, so a 10-model unit carries twice the special weapons of a 5-model one. Wargear choices are not in the builder yet.
+- **Set-up** (`src/game/army/placement.ts`): every unit is placed legally in its deployment zone with the same check as the deployment step. The bulkiest units go first from the front line back. Characters go last, next to a unit they can lead. If a list does not fit, the start screen says which unit has no room.
+
+| Preset | 500 | 1000 |
+|---|---|---|
+| Space Marines | 475 | 965 |
+| Orks | 485 | 970 |
+| Tyranids | 485 | 970 |
+| Necrons | 500 | 980 |
+| Aeldari | 480 | 950 |
+| Adeptus Mechanicus | 490 | 970 |
+
+**Known limitation: AI speed.** The AI's movement planning and line-of-sight checks grow with the number of models. Measured in Node on the first round:
+
+| Armies | Average AI decision | Slowest decision |
+|---|---|---|
+| Training rosters | 0.5 s | 2.5 s |
+| 500-point presets | 1.8 s | 25 s |
+| 1000-point presets | 2.7 s | 15.6 s |
+
+The browser freezes while the AI thinks. Speeding the AI up is separate work.
+
 ## Balance observations
 
 Measured on 2026-11-09: the tactical (**«Стандарт»**) AI plays both sides, «Боевой патруль», **seeds 1–4, both seatings** of every pairing = **80 battles** (8 per pairing, 32 per army). Reproduce with

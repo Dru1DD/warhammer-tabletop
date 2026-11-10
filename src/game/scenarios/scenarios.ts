@@ -1,7 +1,12 @@
 import { PROFILES } from '../data/datasheets'
 import { rect } from '../geometry/geometry'
-import { DEFAULT_SIDES, SCHEMA_VERSION, seats } from '../gameState'
-import type { GameState, ModelState, PlayerId, PlayerState, Terrain, UnitState, Vec } from '../types'
+import { DEFAULT_SIDES, newUnit, SCHEMA_VERSION, seats } from '../gameState'
+import type { GameState, PlayerId, PlayerState, Terrain, UnitState, Vec } from '../types'
+import type { ArmyList } from '../army/armyList'
+import { musterArmy } from '../army/placement'
+
+/** Army lists by faction; a faction without one fields its default training roster. */
+export type Armies = Partial<Record<PlayerId, ArmyList>>
 
 export interface Scenario {
   id: string
@@ -13,7 +18,9 @@ export interface Scenario {
   /** factions that have an army for this board */
   factions: PlayerId[]
   /** `sides` = [west, east] factions; default Space Marines (west) vs Orks (east) */
-  build: (sides?: [PlayerId, PlayerId]) => GameState
+  build: (sides?: [PlayerId, PlayerId], armies?: Armies, terrain?: Terrain[]) => GameState
+  /** true when the board takes army lists from the army builder (`armies` in `build`, set up around `terrain` if given) */
+  customArmies?: boolean
 }
 
 /** Maps (depth from the side's own board edge, y) to board coordinates, so any faction can stand on either side. */
@@ -21,14 +28,7 @@ type At = (depth: number, y: number) => Vec
 const westAt: At = (depth, y) => ({ x: depth, y })
 const eastAt = (width: number): At => (depth, y) => ({ x: width - depth, y })
 
-function unit(id: string, datasheetId: string, owner: PlayerId, name: string, models: [string, Vec][]): UnitState {
-  const ms: ModelState[] = models.map(([profileId, pos], i) => ({ id: `${id}-${i}`, profileId, pos, wounds: 0, destroyed: false }))
-  return {
-    id, datasheetId, owner, name, models: ms, startingModels: ms.length, battleShocked: false,
-    move: 'none', movedDistance: 0, advanceRoll: null, advanceRerolled: false, shot: false,
-    chargeDeclared: false, charged: false, fought: false, ammoRuntsUsed: false,
-  }
-}
+const unit = newUnit
 
 // Wounds come from profiles so data lives in one place.
 const fillWounds = (s: GameState) => {
@@ -299,12 +299,13 @@ export const SCENARIOS: Scenario[] = [
     victory: VICTORY,
     deployment: { west: rect(0, 0, 10, 30), east: rect(34, 0, 10, 30) },
     factions: ['marines', 'orks', 'tyranids', 'necrons', 'aeldari', 'adeptus_mechanicus'],
-    build: (sides = DEFAULT_SIDES) => {
+    customArmies: true,
+    build: (sides = DEFAULT_SIDES, armies = {}, layout) => {
       assertSides(['marines', 'orks', 'tyranids', 'necrons', 'aeldari', 'adeptus_mechanicus'], sides)
-      return baseState(
+      const state = baseState(
         'combat-patrol',
         { width: 44, height: 30 },
-        [
+        layout ?? [
           ruin('t1', 'Руины мануфактории', rect(15, 2, 5, 4)),
           ruin('t2', 'Руины часовни', rect(24, 24, 5, 4)),
           woods('t3', rect(12, 17, 4, 5)),
@@ -317,9 +318,11 @@ export const SCENARIOS: Scenario[] = [
           crater('t10', rect(24.5, 3, 3, 3)),
         ],
         [{ x: 22, y: 15 }, { x: 14, y: 9 }, { x: 30, y: 21 }],
-        units(44, sides, (f) => PATROL_ROSTERS[f]),
+        units(44, sides, (f) => (armies[f] ? () => [] : PATROL_ROSTERS[f])),
         sides,
       )
+      for (const f of sides) if (armies[f]) musterArmy(state, f, armies[f])
+      return state
     },
   },
 ]

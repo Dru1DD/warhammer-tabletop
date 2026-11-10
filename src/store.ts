@@ -9,6 +9,7 @@ import {
 import type { ActionRecord, CommandEnvelope, MatchState, PlayerAssignments, SubmitResult } from './game/match/types'
 import { deserialize, readStorage, saveMatch, saveToStorage } from './game/persistence'
 import { scenarioById } from './game/scenarios/scenarios'
+import { parseArmies, type ArmyList } from './game/army/armyList'
 import { deploymentIssues, deploymentProblem } from './game/rules/deployment'
 import { parseLayout } from './game/terrainLayout'
 import { FACTIONS, type Command, type ExplainLevel, type GameState, type PlayerId, type Terrain, type Vec } from './game/types'
@@ -51,6 +52,8 @@ export interface Settings {
   explain: ExplainLevel
   tutorial: boolean
   scenarioId: string
+  /** army-builder lists by faction; a faction without one fields its default training roster */
+  armies?: Partial<Record<PlayerId, ArmyList>>
 }
 
 /** A measuring endpoint: a point, or a model base (r > 0) for edge-to-edge distance. */
@@ -187,9 +190,20 @@ export function normalizeSettings(s: Settings): Settings {
   const human = FACTIONS.includes(s.human) ? s.human : 'marines'
   let opponent = FACTIONS.includes(s.opponent) && s.opponent !== human ? s.opponent : human === 'orks' ? 'marines' : 'orks'
   if (opponent === human) opponent = FACTIONS.find((f) => f !== human)!
+  const armies = parseArmies(s.armies)
   const sc = scenarioById(s.scenarioId)
-  const scenarioId = sc.factions.includes(human) && sc.factions.includes(opponent) ? sc.id : 'combat-patrol'
-  return { ...s, human, opponent, scenarioId }
+  // own army lists play on a board that takes them (the Combat Patrol board)
+  const custom = !!(armies[human] || armies[opponent])
+  const scenarioId = sc.factions.includes(human) && sc.factions.includes(opponent) && (!custom || sc.customArmies) ? sc.id : 'combat-patrol'
+  return { ...s, human, opponent, scenarioId, armies }
+}
+
+/** The army lists that play in a battle with these settings (only the two sides', only on a board that takes them). */
+export function battleArmies(s: Settings): Partial<Record<PlayerId, ArmyList>> {
+  if (!scenarioById(s.scenarioId).customArmies) return {}
+  const out: Partial<Record<PlayerId, ArmyList>> = {}
+  for (const f of [s.human, s.opponent]) if (s.armies?.[f]) out[f] = s.armies[f]
+  return out
 }
 
 /** [west, east]: the lower faction in the standard order stands in the west (Marines vs Orks stays as it always was). */
@@ -215,12 +229,22 @@ function savedLayouts(): Record<string, unknown> {
   }
 }
 
-/** Scenario state with the player's saved terrain layout (if valid). */
+/** Scenario state with the player's saved terrain layout (if valid) and the army lists. Throws when a list does not fit. */
 function buildScenario(s: Settings): GameState {
-  const g = scenarioById(s.scenarioId).build(sidesFor(s.human, s.opponent))
-  const custom = parseLayout(savedLayouts()[g.scenarioId])
+  const sc = scenarioById(s.scenarioId)
+  const custom = parseLayout(savedLayouts()[sc.id])
+  const g = sc.build(sidesFor(s.human, s.opponent), battleArmies(s), custom ?? undefined)
   if (custom) g.terrain = custom
   return g
+}
+
+/** `buildScenario`, or the reason it failed (shown on the start screen). */
+function tryBuild(s: Settings): { game: GameState } | { error: string } {
+  try {
+    return { game: buildScenario(s) }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
 }
 
 function saveLayout(scenarioId: string, terrain: Terrain[] | null) {
@@ -279,7 +303,9 @@ export const useStore = create<Store>((set, get) => ({
     persistSettings(settings)
     const seed = (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0
     const r = seededRoller(seed)
-    const game = startGame(buildScenario(settings), r)
+    const built = tryBuild(settings)
+    if ('error' in built) return set({ settings, message: { text: built.error, kind: 'error' } })
+    const game = startGame(built.game, r)
     const match = createMatch(game, soloAssignments(settings.human, settings.opponent), { gameId: newGameId(seed) })
     saveMatch(AUTOSAVE_KEY, match, settings.human)
     set({ game, match, settings, selectedUnitId: autoSelect(game, null, settings.human, null), draft: {}, history: [], aiNotes: [], message: null, deploying: null, deployHistory: [], review: null, aimTargetId: null, tutorialStart: tutorialStartOf(game), aiActionsThisTurn: 0, measure: { a: null, b: null, range: 12 } })
@@ -292,7 +318,9 @@ export const useStore = create<Store>((set, get) => ({
     if (get().shared) return // an online match is left through `leaveRoom`
     const settings = normalizeSettings({ ...get().settings, ...patch })
     persistSettings(settings)
-    const game = buildScenario(settings)
+    const built = tryBuild(settings)
+    if ('error' in built) return set({ settings, message: { text: built.error, kind: 'error' } })
+    const game = built.game
     const first = game.units.find((u) => u.owner === settings.human)?.id ?? null
     set({ game, match: null, settings, deploying: { placed: [] }, deployHistory: [], review: null, aimTargetId: null, selectedUnitId: first, draft: {}, history: [], aiNotes: [], message: null, groupDrag: true, measuring: false, aiActionsThisTurn: 0, measure: { a: null, b: null, range: 12 } })
   },
@@ -387,7 +415,8 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   startSharedHost: ({ scenarioId, hostSide, guestSide, assignments }) => {
-    const settings = normalizeSettings({ ...get().settings, human: hostSide, opponent: guestSide, scenarioId })
+    // online battles use the training rosters: army lists are not part of the lobby yet
+    const settings = normalizeSettings({ ...get().settings, human: hostSide, opponent: guestSide, scenarioId, armies: {} })
     const seed = (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0
     const game = startGame(buildScenario(settings), seededRoller(seed))
     const match = createMatch(game, assignments, { gameId: newGameId(seed), mode: 'shared' })

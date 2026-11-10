@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { FACTION_STYLE, TOKENS, tokenImageFor } from '../assets/manifest'
 import { ABILITY_TEXT, FACTION_NAME, PROFILES } from '../game/data/datasheets'
-import { fmtPoints, pointsPerModel, unitPoints } from '../game/data/points'
+import { copyIndex, fmtPoints, pointsPerModel, unitPoints } from '../game/data/points'
 import { actor, moveAllowance, moveCommand, moveModeFor, PHASE_NAME, shootPlan, unitActions, validate } from '../game/engine'
 import { alive, datasheetOf, engagedUnits, fmt, hasAbility, isDestroyed, other, profileOf, sidesOf, unitsOf, weaponsOf } from '../game/gameState'
 import { hitRoll, saveTarget, toughness, woundTarget } from '../game/combat/attack'
@@ -141,6 +141,8 @@ function UnitStatus({ u }: { u: UnitState }) {
 
 function UnitDetails({ u }: { u: UnitState }) {
   const ds = datasheetOf(u)
+  const units = useStore((s) => s.game?.units)
+  const copy = copyIndex(units ?? [u], units?.find((x) => x.id === u.id) ?? u)
   const profiles = [...new Set(u.models.map((m) => m.profileId))].map((id) => PROFILES[id])
   const weapons = [...new Map(u.models.flatMap((m) => weaponsOf(m)).map((w) => [w.id, w])).values()]
   return (
@@ -152,8 +154,8 @@ function UnitDetails({ u }: { u: UnitState }) {
       <p className="text-stone-400">{FACTION_NAME[u.owner]} · {ds.keywords.join(', ')}</p>
       {ds.description && <p className="mt-1 text-stone-200">{ds.description}</p>}
       <p className="mt-1 text-amber-200" aria-label="Стоимость отряда">
-        Стоимость: {fmtPoints(unitPoints(u.datasheetId, u.startingModels))}
-        <span className="text-stone-400"> · {u.startingModels} мод., ≈ {pointsPerModel(u.datasheetId, u.startingModels)} очк. за модель</span>
+        Стоимость: {fmtPoints(unitPoints(u.datasheetId, u.startingModels, copy))}
+        <span className="text-stone-400"> · {u.startingModels} мод., ≈ {pointsPerModel(u.datasheetId, u.startingModels, copy)} очк. за модель</span>
       </p>
       <table className="mt-1 w-full text-center">
         <thead className="text-stone-400"><tr><th className="text-left">Модель</th>{['M', 'T', 'Sv', 'W', 'Ld', 'OC'].map((k) => <StatTh key={k} k={k} />)}</tr></thead>
