@@ -31,6 +31,8 @@ export interface AttackContext {
   damageMod?: number
   /** re-roll hit rolls: only 1s, or every failed hit (e.g. Swift Demise, Whirling Onslaught) */
   rerollHits?: 'ones' | 'all'
+  /** re-roll wound rolls: only 1s, or every failed wound (e.g. Implacable Eradication) */
+  rerollWounds?: 'ones' | 'all'
   /** Feel No Pain X+: each point of damage is ignored on a D6 of X or more (e.g. Lord of the Machine Cult) */
   fnp?: number
   /** Precision: wounds are allocated to a CHARACTER model of the target first */
@@ -177,7 +179,7 @@ export function resolveGroup(
   for (let i = 0; i < hits; i++) {
     let v = roller.d6()
     let from: number | undefined
-    if (!wins(v) && p.keywords.twinLinked) {
+    if (!wins(v) && (p.keywords.twinLinked || ctx.rerollWounds === 'all' || (ctx.rerollWounds === 'ones' && v === 1))) {
       from = v
       v = roller.d6()
       woundRerolls++

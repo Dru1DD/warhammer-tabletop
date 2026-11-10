@@ -113,6 +113,7 @@ The full list, with what is exact and what is approximated, is in [docs/research
 - [docs/orks.md](docs/orks.md): the extra Ork units for army lists (Warboss, Nobz, Gretchin, Kommandos): sources, points, rules and what is not implemented.
 - [docs/marines.md](docs/marines.md): the extra Space Marine units for army lists (Captain, Hellblasters, Infernus, Bladeguard Veterans): sources, points, rules and what is not implemented.
 - [docs/tyranids.md](docs/tyranids.md): the extra Tyranid units for army lists (Winged Prime, Zoanthropes, Carnifexes, Barbgaunts): sources, points, rules and what is not implemented.
+- [docs/necrons.md](docs/necrons.md): the extra Necron units for army lists (Royal Warden, Immortals, Lychguard, Canoptek Wraiths): sources, points, rules and what is not implemented.
 - [docs/research.md](docs/research.md): edition, sources, box contents, datasheets, exact vs approximated rules.
 - [docs/assets.md](docs/assets.md): asset inventory and licensing.
 

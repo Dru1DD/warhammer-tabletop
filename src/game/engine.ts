@@ -3,9 +3,9 @@
 
 import { FACTION_NAME } from './data/datasheets'
 import { rollDie, rollMany, type Roller } from './dice/dice'
-import { dist, withinRange, EPS, add, sub, scale, len } from './geometry/geometry'
+import { dist, withinRange, EPS, add, sub, scale, len, sweptCircleHits } from './geometry/geometry'
 import {
-  alphaWarrior, battlelineSupport, feelNoPainOf, hasWargear, holdScoutedObjectives, imperativeOf, invulnOverrideOf, ledUnitOf, leadersOf, neurostaticMod,
+  alphaWarrior, battlelineSupport, feelNoPainOf, nobleLeads, ENGRAMMATIC_RANGE, hasWargear, holdScoutedObjectives, imperativeOf, invulnOverrideOf, ledUnitOf, leadersOf, neurostaticMod,
   addLog, alive, atHalfStrength, CHARGE_RANGE, checkCoherency, CONSOLIDATE, datasheetOf, engagedUnits, ENGAGEMENT_RANGE,
   enemiesOf, findUnit, fmt, hasAbility, hasKeyword, inSynapseRange, isDestroyed, isEngaged, isFlyer, isMV, modelDistance, modelEngagedWith,
   other, PILE_IN, profileOf, radiusOf, sidesOf, SYNAPSE_RANGE, unitDistance, unitNearObjective, unitsOf,
@@ -69,7 +69,7 @@ export function meleeWeaponsOf(m: ModelState): Weapon[] {
 
 /** The unit's army can still "charge/shoot" in the situation (Bounding Leap, Adaptable Predators, Waaagh!). */
 const canChargeAfterAdvance = (s: GameState, u: UnitState) => riled(s, u) || hasAbility(u, 'boundingLeap')
-const canActAfterFallBack = (u: UnitState) => hasAbility(u, 'adaptablePredators')
+const canActAfterFallBack = (u: UnitState) => hasAbility(u, 'adaptablePredators') || hasAbility(u, 'adaptiveStrategy')
 
 /** Lethal Hits marked "non-MONSTER/VEHICLE" (and Tactical Precision) don't work against M/V targets. */
 const lethalVs = (p: WeaponProfile, attacker: UnitState, target: UnitState) => {
@@ -82,13 +82,22 @@ const lethalVs = (p: WeaponProfile, attacker: UnitState, target: UnitState) => {
 function defenceMods(s: GameState, p: WeaponProfile, target: UnitState) {
   const t = Math.max(...alive(target).map((m) => profileOf(m).t))
   const duty = hasAbility(target, 'dutyEternal') && p.s > t
+  const guard = !duty && hasAbility(target, 'guardianProtocols') && p.s > t && nobleLeads(s, target)
   const fnp = feelNoPainOf(s, target)
   return {
-    woundMod: duty ? -1 : 0,
-    woundModNote: duty ? 'Duty Eternal: сила больше стойкости' : undefined,
+    woundMod: duty || guard ? -1 : 0,
+    woundModNote: duty ? 'Duty Eternal: сила больше стойкости' : guard ? 'Guardian Protocols: сила больше стойкости' : undefined,
     damageMod: hasAbility(target, 'dreadArd') || hasAbility(target, 'implacableResilience') ? -1 : 0,
     ...(fnp ? { fnp } : {}),
   }
+}
+
+/** Implacable Eradication (Immortals): re-roll wound rolls of 1, or every failed one against a target within range of an objective. */
+function eradication(s: GameState, unit: UnitState, target: UnitState, notes: string[]): { rerollWounds?: 'ones' | 'all' } {
+  if (!hasAbility(unit, 'implacableEradication')) return {}
+  const all = s.objectives.some((o) => unitNearObjective(target, o))
+  notes.push(all ? 'Implacable Eradication: переброс ранений (цель у объекта)' : 'Implacable Eradication: переброс 1 на ранение')
+  return { rerollWounds: all ? 'all' : 'ones' }
 }
 
 /** Doctrina Imperatives / Breaching Command / Galvanic Field: attacker-side modifiers shared by shooting and melee. */
@@ -259,6 +268,7 @@ export function shootPlan(
       invulnOverride: invulnOverrideOf(s, target),
       ...(g.profile.keywords.precision ? { precision: true } : {}),
       ...(rerollHits ? { rerollHits } : {}),
+      ...eradication(s, unit, target, g.notes),
       ...defenceMods(s, g.profile, target),
     }
     if (onslaught && !g.notes.includes('Onslaught')) g.notes.push('Onslaught: Assault + Lethal Hits')
@@ -324,6 +334,7 @@ export function meleeSetup(s: GameState, unit: UnitState, target: UnitState, p0:
     invulnOverride: invulnOverrideOf(s, target),
     ...(p.keywords.precision ? { precision: true } : {}),
     ...(rerollHits ? { rerollHits } : {}),
+    ...eradication(s, unit, target, notes),
     ...defenceMods(s, p, target),
   }
   return { profile: p, ctx, notes }
@@ -491,6 +502,21 @@ export function validate(s: GameState, cmd: Command): Validation {
       if (s.players[unit.owner].divineUsed) return fail('Защита божественного труда уже применена в этой битве (раз за битву).')
       return OK
     }
+    case 'engrammatic': {
+      if (!hasAbility(unit, 'engrammaticLogic')) return fail('У этого отряда нет Энграмматической логики (Engrammatic Logic).')
+      if (unit.engrammaticUsed) return fail('Энграмматическая логика уже применена в этой битве (раз за битву).')
+      const target = findUnit(s, cmd.targetId)
+      if (!target || isDestroyed(target) || target.owner !== unit.owner) return fail('Цель — союзный отряд.')
+      if (!target.battleShocked) return fail('Этот отряд не в боевом шоке.')
+      if (target.id !== unit.id && unitDistance(unit, target) > ENGRAMMATIC_RANGE + 1e-6) return fail(`Отряд дальше ${ENGRAMMATIC_RANGE}″.`)
+      return OK
+    }
+    case 'wraithForm': {
+      if (!hasAbility(unit, 'wraithForm')) return fail('У этого отряда нет Фазовой формы (Wraith Form).')
+      if (s.phase !== 'movement' || unit.move !== 'normal') return fail('Фазовая форма применяется сразу после обычного движения.')
+      if (!unit.wraithTargets?.includes(cmd.targetId)) return fail('Отряд не пролетал сквозь эту цель в последнем движении.')
+      return OK
+    }
     case 'bombSquig': {
       if (!hasAbility(unit, 'bombSquig')) return fail('У этого отряда нет бомбосквига.')
       if (unit.bombSquigUsed) return fail('Бомбосквиг уже взорван в этой битве (раз за битву).')
@@ -622,6 +648,7 @@ function resetTurnFlags(s: GameState) {
     delete u.guided
     delete u.spiked
     delete u.drivenFromCover
+    delete u.wraithTargets
     if (u.owner === s.activePlayer) delete u.warded
   }
 }
@@ -926,6 +953,27 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       addLog(s, `${u.name}: Защита божественного труда — ${led ? `«${led.name}» и техножрец получают` : 'техножрец получает'} 4+ непробиваемый спасбросок до начала вашего следующего хода.`, 'minimal')
       break
     }
+    case 'engrammatic': {
+      const u = findUnit(s, cmd.unitId)!
+      const t = findUnit(s, cmd.targetId)!
+      u.engrammaticUsed = true
+      t.battleShocked = false
+      addLog(s, `${u.name}: Энграмматическая логика — «${t.name}» выходит из боевого шока.`, 'minimal')
+      break
+    }
+    case 'wraithForm': {
+      const u = findUnit(s, cmd.unitId)!
+      const t = findUnit(s, cmd.targetId)!
+      delete u.wraithTargets
+      const dice = rollMany(r, alive(u).length)
+      const n = dice.filter((v) => v >= 4).length
+      pushDice(s, `Фазовая форма: ${u.name} → ${t.name}`, [{ label: 'D6 за модель', target: '4+', dice: dice.map((v) => ({ value: v, success: v >= 4 })), note: `Каждая 4+ — 1 смертельная рана: ${n}.` }],
+        n ? `${u.name} проходит сквозь «${t.name}»: ${n} смертельн. ран.` : `${u.name} проходит сквозь «${t.name}» без вреда.`)
+      if (n) applyMortalWounds(s, t, n, `Фазовая форма «${u.name}»`)
+      if (isDestroyed(t)) addLog(s, `Отряд «${t.name}» уничтожен!`, 'minimal')
+      checkWinner(s)
+      break
+    }
     case 'bombSquig': {
       const u = findUnit(s, cmd.unitId)!
       const t = findUnit(s, cmd.targetId)!
@@ -963,6 +1011,15 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
     }
     case 'move': {
       const u = findUnit(s, cmd.unitId)!
+      // Wraith Form: the enemy units some model passed over (its base swept across theirs) during this Normal move
+      delete u.wraithTargets
+      if (cmd.mode === 'normal' && hasAbility(u, 'wraithForm')) {
+        const over = enemiesOf(s, u).filter((e) => alive(u).some((m) => {
+          const to = cmd.positions[m.id]
+          return !!to && alive(e).some((em) => sweptCircleHits(m.pos, to, radiusOf(m), em.pos, radiusOf(em)))
+        }))
+        if (over.length) u.wraithTargets = over.map((e) => e.id)
+      }
       movedTo(u, cmd.positions)
       u.move = cmd.mode
       if (cmd.swift) {
@@ -1133,9 +1190,13 @@ export function unitActions(s: GameState, unitId: string): ActionInfo[] {
     add('reroll', 'Перебросить продвижение (Waaagh!)', { type: 'rerollAdvance', unitId })
     if (hasAbility(u, 'guide'))
       for (const e of enemiesOf(s, u)) add(`guide:${e.id}`, `Guide: пометить «${e.name}»`, { type: 'guide', unitId, targetId: e.id })
+    for (const id of u.wraithTargets ?? []) add(`wraith:${id}`, `👻 Фазовая форма сквозь «${findUnit(s, id)?.name ?? id}» (D6 за модель, 4+ — смертельная рана)`, { type: 'wraithForm', unitId, targetId: id })
     if (hasAbility(u, 'bombSquig') && !u.bombSquigUsed && u.move === 'normal')
       for (const e of enemiesOf(s, u)) add(`squig:${e.id}`, `💣 Бомбосквиг в «${e.name}» (3+: D3 смертельн. ран)`, { type: 'bombSquig', unitId, targetId: e.id })
   }
+  if (hasAbility(u, 'engrammaticLogic') && !u.engrammaticUsed)
+    for (const f of s.units.filter((x) => x.owner === u.owner && !isDestroyed(x) && x.battleShocked))
+      add(`engram:${f.id}`, `Энграмматическая логика: снять боевой шок с «${f.name}» (раз за битву)`, { type: 'engrammatic', unitId, targetId: f.id })
   if (hasAbility(u, 'defendDivineWork')) add('divineWork', 'Защита божественного труда (4+ инвуль, раз за битву)', { type: 'divineWork', unitId })
   if (s.phase === 'shooting')
     for (const e of enemiesOf(s, u)) add(`shoot:${e.id}`, `Стрелять по «${e.name}»`, { type: 'shoot', unitId, targetId: e.id })

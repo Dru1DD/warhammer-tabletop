@@ -157,6 +157,12 @@ export type AbilityId =
   | 'spiritLeech'
   | 'blisteringAssault'
   | 'disruptionBombardment'
+  // Necrons beyond the first four units
+  | 'adaptiveStrategy'
+  | 'engrammaticLogic'
+  | 'implacableEradication'
+  | 'guardianProtocols'
+  | 'wraithForm'
   | 'repulsorGrid'
   | 'sentinelDirectives'
   | 'scouts'
@@ -220,6 +226,10 @@ export interface UnitState {
   drivenFromCover?: PlayerId
   /** Disruption Bombardment (Barbgaunts): −2″ Move, −2 to Advance and Charge rolls until the end of its owner's next turn */
   disrupted?: boolean
+  /** Engrammatic Logic already used (once per battle; absent until then) */
+  engrammaticUsed?: boolean
+  /** Wraith Form: enemy units this unit moved over in its last Normal move this turn (absent when none or used) */
+  wraithTargets?: string[]
 }
 
 /** crater = exposed; barricade = light; ruin / woods / container = dense (container is also solid) */
@@ -370,6 +380,8 @@ export type Command =
   | { type: 'imperative'; imperative: Imperative }
   | { type: 'divineWork'; unitId: string }
   | { type: 'bombSquig'; unitId: string; targetId: string }
+  | { type: 'engrammatic'; unitId: string; targetId: string }
+  | { type: 'wraithForm'; unitId: string; targetId: string }
   | { type: 'endPhase' }
 
 export type Validation = { ok: true } | { ok: false; reason: string }

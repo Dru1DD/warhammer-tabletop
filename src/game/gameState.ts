@@ -133,6 +133,14 @@ export function alphaWarrior(s: GameState, u: UnitState): boolean {
   return u.datasheetId === 'tyranidWarriors' && s.units.some((p) => p.owner === u.owner && primeLeads(s, p)?.id === u.id)
 }
 
+// ---------------------------------------------------------------- Necrons beyond the first four units
+
+export const ENGRAMMATIC_RANGE = 12
+
+/** Guardian Protocols (Lychguard): a friendly NOBLE within 3″ counts as leading the unit (approximation of attached units). */
+export const nobleLeads = (s: GameState, u: UnitState) =>
+  s.units.some((x) => x.id !== u.id && x.owner === u.owner && !isDestroyed(x) && hasKeyword(x, 'NOBLE') && unitDistance(u, x) <= LEADER_RANGE + EPS)
+
 /** Neurostatic Interference: modifier to Battle-shock and Leadership tests of `u` caused by enemy Sicarians within 6″. */
 export function neurostaticMod(s: GameState, u: UnitState): number {
   let mod = 0
