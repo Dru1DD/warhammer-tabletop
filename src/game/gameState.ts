@@ -25,7 +25,16 @@ export const other = (s: Pick<GameState, 'sides'>, p: PlayerId): PlayerId => {
 }
 
 export const profileOf = (m: ModelState): ModelProfile => PROFILES[m.profileId]
-export const radiusOf = (m: ModelState) => baseRadius(profileOf(m).baseMm)
+const radii = new Map<string, number>()
+/** Base radius in inches (cached per profile: it is asked for constantly by line of sight and movement checks). */
+export const radiusOf = (m: ModelState) => {
+  let r = radii.get(m.profileId)
+  if (r === undefined) {
+    r = baseRadius(profileOf(m).baseMm)
+    radii.set(m.profileId, r)
+  }
+  return r
+}
 
 /** A fresh unit at the start of a battle: models at `models` positions with full wounds. */
 export function newUnit(id: string, datasheetId: string, owner: PlayerId, name: string, models: [string, Vec][]): UnitState {
@@ -156,8 +165,28 @@ export function unitDistance(a: UnitState, b: UnitState): number {
 export const modelEngagedWith = (m: ModelState, enemy: UnitState, pos: Vec = m.pos) =>
   alive(enemy).some((e) => withinRange(modelDistance(m, e, pos), ENGAGEMENT_RANGE))
 
-export const engagedUnits = (s: GameState, u: UnitState) =>
-  enemiesOf(s, u).filter((e) => withinRange(unitDistance(u, e), ENGAGEMENT_RANGE))
+/** Bounding box of a unit's living bases: [minX, minY, maxX, maxY]. */
+function basesBox(u: UnitState): [number, number, number, number] {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+  for (const m of alive(u)) {
+    const r = radiusOf(m)
+    x0 = Math.min(x0, m.pos.x - r); y0 = Math.min(y0, m.pos.y - r)
+    x1 = Math.max(x1, m.pos.x + r); y1 = Math.max(y1, m.pos.y + r)
+  }
+  return [x0, y0, x1, y1]
+}
+
+/** `withinRange(unitDistance(a, b), range)`, answered without measuring every pair of models: units whose bases'
+ * bounding boxes are farther apart than the range are out of it, otherwise the first pair in range settles it. */
+export function unitsWithin(a: UnitState, b: UnitState, range: number): boolean {
+  const [ax0, ay0, ax1, ay1] = basesBox(a), [bx0, by0, bx1, by1] = basesBox(b)
+  const gap = range + 1
+  if (bx0 - ax1 > gap || ax0 - bx1 > gap || by0 - ay1 > gap || ay0 - by1 > gap) return false
+  for (const ma of alive(a)) for (const mb of alive(b)) if (withinRange(modelDistance(ma, mb), range)) return true
+  return false
+}
+
+export const engagedUnits = (s: GameState, u: UnitState) => enemiesOf(s, u).filter((e) => unitsWithin(u, e, ENGAGEMENT_RANGE))
 
 export const isEngaged = (s: GameState, u: UnitState) => engagedUnits(s, u).length > 0
 

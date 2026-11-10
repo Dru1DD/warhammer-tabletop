@@ -14,7 +14,7 @@ import {
 import { healUnit } from './rules/heal'
 import { applyMortalWounds, resolveGroup, type AttackContext, type AttackGroup } from './combat/attack'
 import { moveProblem, planMove } from './rules/movement'
-import { hasCover, visibleTargets } from './rules/visibility'
+import { hasCover, nearestVisibleDistance, seesAny } from './rules/visibility'
 import { baseRadius } from './geometry/geometry'
 import type { Command, DiceEntry, GameState, ModelState, Phase, PlayerId, UnitState, Validation, Vec, Weapon, WeaponProfile } from './types'
 import { PHASES } from './types'
@@ -122,14 +122,21 @@ export interface ShootPlan {
 /** `target` is the closest enemy unit that `unit` could target (visible enemy units, nearest by distance). */
 function isClosestTarget(s: GameState, unit: UnitState, target: UnitState): boolean {
   const d = unitDistance(unit, target)
-  return !enemiesOf(s, unit).some((e) => e.id !== target.id && unitDistance(unit, e) < d - 1e-9 && alive(unit).some((m) => visibleTargets(s, m, e).length > 0))
+  return !enemiesOf(s, unit).some((e) => e.id !== target.id && unitDistance(unit, e) < d - 1e-9 && alive(unit).some((m) => seesAny(s, m, e)))
 }
 
 export function shootPlan(
   s: GameState,
   unit: UnitState,
   target: UnitState,
-  opts: { profiles?: Record<string, number>; usePistols?: boolean; useAmmoRunts?: boolean } = {},
+  opts: {
+    profiles?: Record<string, number>
+    usePistols?: boolean
+    useAmmoRunts?: boolean
+    /** AI scoring: skip the line of sight check for a model none of whose weapons reaches any target model. The
+     * groups (and so the damage and Hazardous count) are unchanged; only `skipped` and the `problem` text may differ. */
+    rangeFirst?: boolean
+  } = {},
 ): ShootPlan {
   const plan: ShootPlan = { groups: [], firingModels: [], oneShots: [], hazardousModels: 0, skipped: [], cover: false, problem: null }
   const engaged = isEngaged(s, unit)
@@ -161,13 +168,18 @@ export function shootPlan(
       if (before > chosen.length) plan.skipped.push(`${profileOf(m).name}: после продвижения (Advance) стреляет только оружие Assault.`)
     }
     chosen = chosen.filter((w) => !(w.profiles[0].keywords.oneShot && isSpent(unit, m, w)))
-    const vis = visibleTargets(s, m, target)
-    if (vis.length === 0) {
+    if (opts.rangeFirst) {
+      // a weapon fires only at a visible target model within its range, so no model in reach means nothing fires
+      let reach = -Infinity
+      for (const w of chosen) reach = Math.max(reach, w.profiles[Math.min(opts.profiles?.[w.id] ?? 0, w.profiles.length - 1)].range as number)
+      if (!alive(target).some((t) => withinRange(modelDistance(m, t), reach))) continue
+    }
+    const d = nearestVisibleDistance(s, m, target)
+    if (d === Infinity) {
       if (chosen.length) plan.skipped.push(`${profileOf(m).name}: нет линии видимости до цели.`)
       continue
     }
     anyVisible = true
-    const d = Math.min(...vis.map((t) => modelDistance(m, t)))
     closest = Math.min(closest, d)
     let fired = false
     for (const w of chosen) {
@@ -480,7 +492,7 @@ export function validate(s: GameState, cmd: Command): Validation {
       const target = findUnit(s, cmd.targetId)
       if (!target || isDestroyed(target) || target.owner === unit.owner) return fail('Недопустимая цель для Guide.')
       if (unitDistance(unit, target) > GUIDE_RANGE + 1e-6) return fail(`Guide: цель дальше ${GUIDE_RANGE}″.`)
-      if (!alive(unit).some((m) => visibleTargets(s, m, target).length > 0)) return fail('Guide: цель не видна.')
+      if (!alive(unit).some((m) => seesAny(s, m, target))) return fail('Guide: цель не видна.')
       return OK
     }
     case 'fight': {
