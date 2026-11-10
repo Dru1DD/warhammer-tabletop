@@ -211,12 +211,15 @@ export function updateObjectiveControl(s: GameState) {
   }
 }
 
-/** Objective Scouted: at the end of the owner's Command phase a unit near an objective its army controls keeps it. */
-export function holdScoutedObjectives(s: GameState, p: PlayerId) {
+const HOLD_RULE: Record<'objectiveScouted' | 'thievinScavengers', string> = { objectiveScouted: 'Objective Scouted', thievinScavengers: 'Thievin’ Scavengers' }
+
+/** Objective Scouted (end of the owner's Command phase) and Thievin' Scavengers (end of the owner's Movement phase):
+ * a unit with `ability` near an objective its army controls keeps it. */
+export function holdScoutedObjectives(s: GameState, p: PlayerId, ability: 'objectiveScouted' | 'thievinScavengers' = 'objectiveScouted') {
   for (const o of s.objectives)
-    if (o.held !== p && o.controller === p && s.units.some((u) => u.owner === p && !isDestroyed(u) && hasAbility(u, 'objectiveScouted') && !u.battleShocked && unitNearObjective(u, o))) {
+    if (o.held !== p && o.controller === p && s.units.some((u) => u.owner === p && !isDestroyed(u) && hasAbility(u, ability) && !u.battleShocked && unitNearObjective(u, o))) {
       o.held = p
-      addLog(s, `Цель ${o.id} закреплена за вами (Objective Scouted): контроль сохраняется, пока уровень врага не станет выше вашего.`, 'standard')
+      addLog(s, `Цель ${o.id} закреплена за вами (${HOLD_RULE[ability]}): контроль сохраняется, пока уровень врага не станет выше вашего.`, 'standard')
     }
 }
 

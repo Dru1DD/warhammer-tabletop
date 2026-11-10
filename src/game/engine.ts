@@ -31,6 +31,8 @@ export const VP_PER_OBJECTIVE = 5
 export const SWIFT_BONUS = 2
 export const FLY_PENALTY = 2
 export const GUIDE_RANGE = 18
+/** Bomb Squig (Kommandos): range to the target unit */
+export const BOMB_SQUIG_RANGE = 12
 /** Battle Focus tokens per battle round (Incursion). */
 export const BATTLE_FOCUS_TOKENS = 2
 
@@ -259,6 +261,11 @@ export function meleeSetup(s: GameState, unit: UnitState, target: UnitState, p0:
     p = { ...p, s: p.s + 1, ap: p.ap - 1 }
     notes.push('Targeted Intercession +1 S/AP')
   }
+  // Might Is Right (Warboss): +3 A and +2 S after charging
+  if (hasAbility(unit, 'mightIsRight') && unit.charged) {
+    p = { ...p, attacks: p.attacks + 3, s: p.s + 2 }
+    notes.push('Might Is Right +3 A, +2 S')
+  }
   // Synapse: +1 Strength on melee attacks of a TYRANIDS unit in Synapse Range
   if (inSynapseRange(s, unit)) {
     p = { ...p, s: p.s + 1 }
@@ -453,6 +460,17 @@ export function validate(s: GameState, cmd: Command): Validation {
     case 'divineWork': {
       if (!hasAbility(unit, 'defendDivineWork')) return fail('У этого отряда нет способности «Защита божественного труда».')
       if (s.players[unit.owner].divineUsed) return fail('Защита божественного труда уже применена в этой битве (раз за битву).')
+      return OK
+    }
+    case 'bombSquig': {
+      if (!hasAbility(unit, 'bombSquig')) return fail('У этого отряда нет бомбосквига.')
+      if (unit.bombSquigUsed) return fail('Бомбосквиг уже взорван в этой битве (раз за битву).')
+      if (s.phase !== 'movement') return fail('Бомбосквиг выпускают в фазе движения.')
+      if (unit.move !== 'normal') return fail('Бомбосквиг выпускают после обычного движения отряда (не после продвижения или отступления).')
+      const target = findUnit(s, cmd.targetId)
+      if (!target || isDestroyed(target) || target.owner === unit.owner) return fail('Недопустимая цель для бомбосквига.')
+      if (unitDistance(unit, target) > BOMB_SQUIG_RANGE + 1e-6) return fail(`Бомбосквиг: цель дальше ${BOMB_SQUIG_RANGE}″.`)
+      if (!alive(unit).some((m) => visibleTargets(s, m, target).length > 0)) return fail('Бомбосквиг: цель не видна.')
       return OK
     }
     case 'guide': {
@@ -823,8 +841,10 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
   switch (cmd.type) {
     case 'endPhase': {
       updateObjectiveControl(s)
-      if (s.phase === 'movement')
+      if (s.phase === 'movement') {
         for (const u of s.units) if (u.advanceRoll !== null && u.move === 'none') u.move = 'advance'
+        holdScoutedObjectives(s, s.activePlayer, 'thievinScavengers')
+      }
       if (s.phase === 'command') {
         reanimate(s, r)
         holdScoutedObjectives(s, s.activePlayer)
@@ -868,6 +888,21 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       u.warded = true
       if (led) led.warded = true
       addLog(s, `${u.name}: Защита божественного труда — ${led ? `«${led.name}» и техножрец получают` : 'техножрец получает'} 4+ непробиваемый спасбросок до начала вашего следующего хода.`, 'minimal')
+      break
+    }
+    case 'bombSquig': {
+      const u = findUnit(s, cmd.unitId)!
+      const t = findUnit(s, cmd.targetId)!
+      u.bombSquigUsed = true
+      const v = r.d6()
+      if (v < 3) {
+        pushDice(s, `Бомбосквиг: ${u.name}`, [{ label: 'D6', target: '3+', dice: [{ value: v, success: false }], note: 'На 3+ сквиг добегает и взрывается.' }], `Сквиг «${u.name}» не добежал до «${t.name}».`)
+        addLog(s, `${u.name}: бомбосквиг не добежал до «${t.name}» (выпало ${v}).`, 'standard')
+        break
+      }
+      const n = rollDie(r, 'D3')
+      pushDice(s, `Бомбосквиг: ${u.name}`, [{ label: 'D6', target: '3+', dice: [{ value: v, success: true }], note: `Взрыв: ${n} смертельн. ран.` }], `Бомбосквиг взрывается у «${t.name}».`)
+      applyMortalWounds(s, t, n, `бомбосквиг «${u.name}»`)
       break
     }
     case 'guide': {
@@ -1045,6 +1080,8 @@ export function unitActions(s: GameState, unitId: string): ActionInfo[] {
     add('reroll', 'Перебросить продвижение (Waaagh!)', { type: 'rerollAdvance', unitId })
     if (hasAbility(u, 'guide'))
       for (const e of enemiesOf(s, u)) add(`guide:${e.id}`, `Guide: пометить «${e.name}»`, { type: 'guide', unitId, targetId: e.id })
+    if (hasAbility(u, 'bombSquig') && !u.bombSquigUsed && u.move === 'normal')
+      for (const e of enemiesOf(s, u)) add(`squig:${e.id}`, `💣 Бомбосквиг в «${e.name}» (3+: D3 смертельн. ран)`, { type: 'bombSquig', unitId, targetId: e.id })
   }
   if (hasAbility(u, 'defendDivineWork')) add('divineWork', 'Защита божественного труда (4+ инвуль, раз за битву)', { type: 'divineWork', unitId })
   if (s.phase === 'shooting')

@@ -137,6 +137,8 @@ Unit costs live in `src/game/data/points.ts`: Munitorum Field Manual values as l
 
 ## Army builder
 
+The Orks have four more units for army lists (Warboss, Nobz, Gretchin, Kommandos): see [orks.md](orks.md).
+
 The start screen has an army builder for both sides (yours and the AI's). Each faction keeps its own list in this browser.
 
 - **Учебный состав**: the scenario's training roster, no points limit. This is the old behaviour and the default.
@@ -149,7 +151,7 @@ The start screen has an army builder for both sides (yours and the AI's). Each f
 | Preset | 500 | 1000 |
 |---|---|---|
 | Space Marines | 475 | 965 |
-| Orks | 485 | 970 |
+| Orks | 495 | 975 |
 | Tyranids | 485 | 970 |
 | Necrons | 500 | 980 |
 | Aeldari | 480 | 950 |

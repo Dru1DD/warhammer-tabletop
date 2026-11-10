@@ -43,6 +43,10 @@ export const COMPOSITION: Record<string, { leader?: string; pattern: string[] }>
     pattern: ['boy', 'boy', 'boy', 'boy', 'boyBigShoota', 'boy', 'boy', 'boy', 'boy', 'boy', 'boy', 'boy', 'boy', 'boyRokkit', 'boy', 'boy', 'boy', 'boy'],
   },
   deffDread: { pattern: ['deffDread'] },
+  warboss: { pattern: ['warboss'] },
+  nobz: { pattern: ['nobzNob'] },
+  gretchin: { pattern: ['gretchin'] },
+  kommandos: { leader: 'kommandoNob', pattern: ['kommando'] },
   hiveTyrant: { pattern: ['hiveTyrant'] },
   termagants: { pattern: ['termagant', 'termagant', 'termagantShard', 'termagant', 'termagant', 'termagantSpike', 'termagant', 'termagant', 'termagantWeb', 'termagant'] },
   hormagaunts: { pattern: ['hormagaunt'] },
@@ -115,8 +119,8 @@ export const PRESETS: Record<PlayerId, Record<PointsLimit, ListEntry[]>> = {
     1000: [...u('lieutenant', 1), ...u('intercessors', 10, 2), ...u('intercessors', 5), ...u('assaultIntercessors', 10), ...u('redemptor', 1, 2)],
   },
   orks: {
-    500: [...u('boyz', 20), ...u('boyz', 10, 3), ...u('deffDread', 1)],
-    1000: [...u('boyz', 20, 4), ...u('boyz', 10, 2), ...u('deffDread', 1, 2)],
+    500: [...u('warboss', 1), ...u('boyz', 20), ...u('nobz', 5), ...u('kommandos', 10), ...u('gretchin', 10)],
+    1000: [...u('warboss', 1), ...u('boyz', 20, 2), ...u('boyz', 10), ...u('nobz', 5), ...u('kommandos', 10), ...u('gretchin', 20), ...u('deffDread', 1, 2)],
   },
   tyranids: {
     500: [...u('hiveTyrant', 1), ...u('termagants', 20), ...u('hormagaunts', 20), ...u('tyranidWarriors', 3)],

@@ -38,6 +38,11 @@ export const TOKENS: Record<string, TokenStyle> = {
   assaultIntercessor: { fill: '#2b5fb5', stroke: '#c9d6ee', text: '#ffffff', label: 'Ш' },
   redemptor: { fill: '#1f4e9c', stroke: '#e4b33a', text: '#ffffff', label: 'Дрд' },
   deffDread: { fill: '#3f7a2a', stroke: '#b83a2b', text: '#ffffff', label: 'ДД' },
+  warboss: { fill: '#3f7a2a', stroke: '#e4b33a', text: '#ffffff', label: 'ВБ' },
+  nobzNob: { fill: '#3f7a2a', stroke: '#b83a2b', text: '#ffffff', label: 'Н' },
+  gretchin: { fill: '#6a9a3a', stroke: '#d7e5c3', text: '#ffffff', label: 'Г' },
+  kommandoNob: { fill: '#2f5a24', stroke: '#b83a2b', text: '#ffffff', label: 'КН' },
+  kommando: { fill: '#3a6a2c', stroke: '#d7e5c3', text: '#ffffff', label: 'К' },
   // Tyranids
   hiveTyrant: { fill: '#8c2f4a', stroke: '#ff7a8a', text: '#ffffff', label: 'ТУ' },
   termagant: { fill: '#a33a58', stroke: '#f3c4cc', text: '#ffffff', label: 'Тр' },
