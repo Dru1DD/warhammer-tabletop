@@ -138,6 +138,12 @@ export type AbilityId =
   | 'stealth'
   | 'voicesInTheCode'
   | 'neurostaticInterference'
+  // Orks beyond the Introductory Set
+  | 'mightIsRight'
+  | 'intimidatingMotivation'
+  | 'getOutDaWay'
+  | 'thievinScavengers'
+  | 'bombSquig'
   | 'repulsorGrid'
   | 'sentinelDirectives'
   | 'scouts'
@@ -191,6 +197,8 @@ export interface UnitState {
   warded?: boolean
   /** Data-spike: melee weapon skill worsened by 1 until the end of the Fight phase (absent otherwise) */
   spiked?: boolean
+  /** Bomb Squig already used (once per battle; absent until then) */
+  bombSquigUsed?: boolean
 }
 
 /** crater = exposed; barricade = light; ruin / woods / container = dense (container is also solid) */
@@ -340,6 +348,7 @@ export type Command =
   | { type: 'guide'; unitId: string; targetId: string }
   | { type: 'imperative'; imperative: Imperative }
   | { type: 'divineWork'; unitId: string }
+  | { type: 'bombSquig'; unitId: string; targetId: string }
   | { type: 'endPhase' }
 
 export type Validation = { ok: true } | { ok: false; reason: string }

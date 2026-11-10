@@ -26,6 +26,11 @@ export const POINTS: Record<string, PointsBracket[]> = {
   // Orks
   boyz: [{ models: 10, points: 75 }, { models: 20, points: 150 }],
   deffDread: [{ models: 1, points: 110 }],
+  warboss: [{ models: 1, points: 75 }],
+  nobz: [{ models: 5, points: 105 }, { models: 10, points: 210 }],
+  // Dakkapedia lists 11 / 22 models (Runtherd included in an older composition); the 11th-edition datasheet is 10–20 Gretchin
+  gretchin: [{ models: 10, points: 45 }, { models: 20, points: 80 }],
+  kommandos: [{ models: 10, points: 120 }],
   // Tyranids
   hiveTyrant: [{ models: 1, points: 195 }],
   termagants: [{ models: 10, points: 60 }, { models: 20, points: 110 }],
@@ -59,6 +64,7 @@ export const POINTS: Record<string, PointsBracket[]> = {
 export const POINTS_LATER: Record<string, { fromCopy: number; brackets: PointsBracket[] }> = {
   redemptor: { fromCopy: 3, brackets: [{ models: 1, points: 210 }] },
   deffDread: { fromCopy: 3, brackets: [{ models: 1, points: 120 }] },
+  nobz: { fromCopy: 3, brackets: [{ models: 5, points: 115 }, { models: 10, points: 220 }] },
   skorpekhDestroyers: { fromCopy: 3, brackets: [{ models: 3, points: 95 }, { models: 6, points: 180 }] },
   sicarians: { fromCopy: 3, brackets: [{ models: 5, points: 85 }, { models: 10, points: 165 }] },
   kastelans: { fromCopy: 2, brackets: [{ models: 2, points: 180 }, { models: 4, points: 340 }] },

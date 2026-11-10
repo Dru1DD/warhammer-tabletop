@@ -58,8 +58,25 @@ const HUNTERS = new Set(['hiveTyrant', 'skorpekhDestroyers', 'scarabSwarms', 'ho
 /** Expensive Adeptus Mechanicus platforms: the AI protects them (their expected losses weigh more). */
 const VALUABLE = new Set(['breachers', 'destroyers', 'kastelans'])
 const aggressive = (u: UnitState) => HUNTERS.has(u.datasheetId) || AI_STYLE[u.owner].aggressive
-/** Marines and Orks keep the exact original melee estimate (their behaviour is pinned by the golden-master test). */
-const legacyUnit = (u: UnitState) => datasheetOf(u).faction === 'marines' || datasheetOf(u).faction === 'orks'
+/** The Introductory Set and Combat Patrol units of Marines and Orks keep the exact original melee estimate (their
+ * behaviour is pinned by the golden-master test); units added later use the full melee setup. */
+const LEGACY_DATASHEETS = new Set(['lieutenant', 'intercessors', 'assaultIntercessors', 'redemptor', 'boyz', 'deffDread'])
+const legacyUnit = (u: UnitState) => LEGACY_DATASHEETS.has(u.datasheetId)
+
+/** Bomb Squig: expected models of `t` destroyed by D3 mortal wounds (after the 3+ roll), weighted by how much they matter. */
+function squigValue(t: UnitState): number {
+  const ws = alive(t).map((m) => m.wounds).sort((a, b) => a - b)
+  let kills = 0
+  for (const n of [1, 2, 3]) {
+    let left = n
+    for (const w of ws) {
+      if (left < w) break
+      left -= w
+      kills += 1 / 3
+    }
+  }
+  return (2 / 3) * (kills + 0.1) * unitValue(t)
+}
 
 export interface AiDecision {
   cmd: Command
@@ -418,6 +435,15 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
           .filter((x) => validate(s, x.cmd).ok)
           .sort((a, b) => unitDistance(u, a.e) - unitDistance(u, b.e))
         if (marks[0]) return { cmd: marks[0].cmd, explanation: `${fac}: «${u.name}» направляет союзников на «${marks[0].e.name}» (Guide: +1 к попаданию).` }
+      }
+      // Bomb Squig (Kommandos): once per battle after a normal move, at the enemy unit it hurts most
+      for (const u of mine) {
+        if (!hasAbility(u, 'bombSquig') || u.bombSquigUsed || u.move !== 'normal') continue
+        const best = enemiesOf(s, u)
+          .map((e) => ({ e, cmd: { type: 'bombSquig', unitId: u.id, targetId: e.id } as Command, v: squigValue(e) }))
+          .filter((x) => validate(s, x.cmd).ok)
+          .sort((a, b) => b.v - a.v)[0]
+        if (best) return { cmd: best.cmd, explanation: `${fac}: «${u.name}» выпускает бомбосквига в «${best.e.name}» (3+: D3 смертельные раны).` }
       }
       return end(`${fac}: движение завершено.`)
     }

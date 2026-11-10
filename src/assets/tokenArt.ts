@@ -100,11 +100,12 @@ function deffDread(): string {
 
 // ---------------------------------------------------------------- Orks
 
-type OrkGear = 'sluggaChoppa' | 'bigShoota' | 'rokkit' | 'bigChoppa'
+type OrkGear = 'sluggaChoppa' | 'bigShoota' | 'rokkit' | 'bigChoppa' | 'kustomChoppa' | 'krumpa'
 
-function ork(gear: OrkGear, opts: { nob?: boolean } = {}): string {
+/** `nob`: bigger, with shoulder spikes; `boss`: bigger still, with a horned helmet; `kommando`: a bandana and a knife. */
+function ork(gear: OrkGear, opts: { nob?: boolean; boss?: boolean; kommando?: boolean } = {}): string {
   const c = BLUEPRINT_LINE.orks
-  const k = opts.nob ? 1.12 : 1
+  const k = opts.boss ? 1.22 : opts.nob ? 1.12 : 1
   const plate = (y: number, s: number) => `<path d="M34 ${y - 9 * s} L50 ${y - 12 * s} L56 ${y - 2 * s} L52 ${y + 9 * s} L36 ${y + 10 * s} L30 ${y} Z" ${f(c, 0.2)}/><line x1="38" y1="${y - 4 * s}" x2="48" y2="${y + 4 * s}" opacity="0.6"/>`
   const body = `<g transform="translate(46 50) scale(${k}) translate(-46 -50)">
     <ellipse cx="44" cy="50" rx="16" ry="21" ${f(c)}/>
@@ -112,7 +113,9 @@ function ork(gear: OrkGear, opts: { nob?: boolean } = {}): string {
     <circle cx="61" cy="50" r="8.5" ${f(c, 0.25)}/>
     <path d="M67 45.5 L71 44 L68.5 48 Z M67 54.5 L71 56 L68.5 52 Z" fill="${c}" stroke="none"/>
     <circle cx="64" cy="47" r="1.2" fill="${c}" stroke="none"/><circle cx="64" cy="53" r="1.2" fill="${c}" stroke="none"/>
-    ${opts.nob ? `<path d="M56 42 L50 33 L60 41 Z M56 58 L50 67 L60 59 Z" ${f(c, 0.5)}/><circle cx="44" cy="50" r="27" fill="none" stroke-dasharray="1.5 3" opacity="0.6"/>` : ''}
+    ${opts.nob || opts.boss ? `<path d="M56 42 L50 33 L60 41 Z M56 58 L50 67 L60 59 Z" ${f(c, 0.5)}/><circle cx="44" cy="50" r="27" fill="none" stroke-dasharray="1.5 3" opacity="0.6"/>` : ''}
+    ${opts.boss ? `<path d="M58 42 L52 30 L64 40 Z M58 58 L52 70 L64 60 Z" ${f(c, 0.7)}/><path d="M30 34 L22 26 M30 66 L22 74 M26 50 L16 50" stroke-width="2.6"/>` : ''}
+    ${opts.kommando ? `<path d="M55 43 L66 44 L66 47 L55 46 Z" ${f(c, 0.8)}/><path d="M55 44 L49 39 M55 45 L48 43" stroke-width="1.4"/>` : ''}
   </g>`
   const choppa = (big: boolean) => `<line x1="52" y1="${big ? 30 : 32}" x2="${big ? 84 : 76}" y2="${big ? 18 : 24}" stroke-width="2.4"/><path d="M${big ? 78 : 71} ${big ? 12 : 18} L${big ? 90 : 81} ${big ? 10 : 17} L${big ? 92 : 82} ${big ? 24 : 28} L${big ? 82 : 74} ${big ? 24 : 27} Z" ${f(c, 0.35)}/>`
   const slugga = `<rect x="58" y="61" width="15" height="6" rx="1.5" ${f(c, 0.3)}/>`
@@ -121,8 +124,22 @@ function ork(gear: OrkGear, opts: { nob?: boolean } = {}): string {
     bigChoppa: choppa(true) + slugga,
     bigShoota: `<rect x="55" y="55" width="35" height="10" rx="2" ${f(c, 0.3)}/><line x1="80" y1="58" x2="93" y2="58"/><line x1="80" y1="62" x2="93" y2="62"/><circle cx="62" cy="69" r="4.5" ${f(c, 0.35)}/>`,
     rokkit: `<rect x="34" y="59" width="54" height="9" rx="4.5" ${f(c, 0.3)}/><path d="M88 59 L96 63.5 L88 68 Z" ${f(c, 0.6)}/><line x1="44" y1="59" x2="44" y2="68"/>`,
+    kustomChoppa: choppa(true) + `<rect x="56" y="58" width="26" height="9" rx="2" ${f(c, 0.3)}/><line x1="76" y1="60.5" x2="88" y2="60.5"/><line x1="76" y1="64.5" x2="88" y2="64.5"/><circle cx="64" cy="70" r="3.5" ${f(c, 0.35)}/>`,
+    krumpa: `<path d="M54 26 L74 22 L84 30 L80 40 L66 40 L56 36 Z" ${f(c, 0.45)}/><path d="M74 22 L88 18 M80 30 L92 28 M80 38 L90 40" stroke-width="2.6"/>` + `<rect x="56" y="58" width="24" height="8" rx="2" ${f(c, 0.3)}/><line x1="74" y1="60.5" x2="86" y2="60.5"/>`,
   }[gear]
   return base(c, body + weapon, false)
+}
+
+/** Gretchin: a small grot with big ears and a little blasta. */
+function gretchin(): string {
+  const c = BLUEPRINT_LINE.orks
+  return base(c, `
+    <ellipse cx="46" cy="50" rx="11" ry="14" ${f(c)}/>
+    <circle cx="60" cy="50" r="7" ${f(c, 0.25)}/>
+    <path d="M58 43 L52 30 L62 42 Z M58 57 L52 70 L62 58 Z" ${f(c, 0.35)}/>
+    <circle cx="63" cy="47.5" r="1" fill="${c}" stroke="none"/><circle cx="63" cy="52.5" r="1" fill="${c}" stroke="none"/>
+    <rect x="54" y="58" width="22" height="5" rx="1.5" ${f(c, 0.3)}/><line x1="70" y1="60.5" x2="80" y2="60.5"/>
+  `, false)
 }
 
 // ---------------------------------------------------------------- Tyranids
@@ -483,6 +500,11 @@ const SVGS: Record<string, string> = {
   boy: ork('sluggaChoppa'),
   boyBigShoota: ork('bigShoota'),
   boyRokkit: ork('rokkit'),
+  warboss: ork('kustomChoppa', { boss: true }),
+  nobzNob: ork('krumpa', { nob: true }),
+  gretchin: gretchin(),
+  kommandoNob: ork('bigChoppa', { nob: true, kommando: true }),
+  kommando: ork('sluggaChoppa', { kommando: true }),
 }
 
 export const svgDataUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`

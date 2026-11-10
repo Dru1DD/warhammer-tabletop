@@ -182,8 +182,8 @@ describe('army builder on the start screen', () => {
     // the opponent's builder is separate
     const theirs = within(screen.getByLabelText('Состав армии: Орки'))
     fireEvent.click(theirs.getByText('Пресет 500'))
-    expect(theirs.getByLabelText('Очки армии')).toHaveTextContent('485 / 500')
-    expect(screen.getByLabelText('Баланс армий по очкам')).toHaveTextContent(/475 очк\..*485 очк\./)
+    expect(theirs.getByLabelText('Очки армии')).toHaveTextContent('495 / 500')
+    expect(screen.getByLabelText('Баланс армий по очкам')).toHaveTextContent(/475 очк\..*495 очк\./)
     // a bigger unit, then a second Redemptor over the limit
     fireEvent.change(mine.getAllByLabelText('Размер отряда «Отделение интерсессоров»')[0], { target: { value: '10' } })
     expect(mine.getByLabelText('Очки армии')).toHaveTextContent('545 / 500')
