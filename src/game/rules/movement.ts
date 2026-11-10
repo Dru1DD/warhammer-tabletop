@@ -1,10 +1,44 @@
-import { basesOverlap, circlePolygonDistance, dist, EPS, sweptCircleHits, sweptCircleHitsPolygon, withinRange } from '../geometry/geometry'
+import { basesOverlap, circlePolygonDistance, dist, edgeDistance, EPS, sweptCircleHits, sweptCircleHitsPolygon, withinRange } from '../geometry/geometry'
 import {
   alive, checkCoherency, enemiesOf, ENGAGEMENT_RANGE, fmt, isInfantry, isMV, modelDistance, profileOf, radiusOf, TERRAIN_CATEGORY,
 } from '../gameState'
-import type { GameState, ModelState, UnitState, Vec } from '../types'
+import type { GameState, ModelState, Terrain, UnitState, Vec } from '../types'
 
 export type MoveMode = 'normal' | 'advance' | 'fallBack' | 'charge' | 'pileIn' | 'consolidate'
+
+// Speed-ups (exact: they only skip checks that cannot fail). Every check below needs the moving base to come
+// within its radius of a terrain area, or within `ENGAGEMENT_RANGE` + both radii of another model, somewhere
+// along a straight move of at most `maxDist`. Anything farther away is dropped before the per-position loops.
+const SLACK = 1
+const boxes = new WeakMap<Terrain, [number, number, number, number]>()
+function boxOf(t: Terrain) {
+  let b = boxes.get(t)
+  if (!b) {
+    const xs = t.poly.map((p) => p.x), ys = t.poly.map((p) => p.y)
+    b = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]
+    boxes.set(t, b)
+  }
+  return b
+}
+/** The base (radius r) moving from `from` to `to` cannot touch the terrain's bounding box. */
+function clearOf(t: Terrain, r: number, from: Vec, to: Vec) {
+  const [x0, y0, x1, y1] = boxOf(t)
+  const m = r + SLACK
+  return Math.max(from.x, to.x) + m < x0 || Math.min(from.x, to.x) - m > x1 || Math.max(from.y, to.y) + m < y0 || Math.min(from.y, to.y) - m > y1
+}
+/** Every point of the terrain's bounding box is more than `reach` (+ slack) from `at` along some axis. A base of
+ * radius r moving from `at` by at most `reach - r` then passes `clearOf` the terrain. */
+function farFrom(t: Terrain, at: Vec, reach: number) {
+  const [x0, y0, x1, y1] = boxOf(t)
+  const m = reach + SLACK
+  return at.x + m < x0 || at.x - m > x1 || at.y + m < y0 || at.y - m > y1
+}
+/** Items whose bases are close enough to a model at `at` moving up to `reach` to block it or end in engagement. */
+const nearby = <T>(items: T[], posOf: (x: T) => ModelState, at: Vec, r: number, reach: number) =>
+  items.filter((x) => {
+    const o = posOf(x)
+    return dist(at, o.pos) <= reach + r + radiusOf(o) + ENGAGEMENT_RANGE + SLACK
+  })
 
 /** Terrain that stops this model moving from `from` to `to` (13.06): solid features
  * can't be ended in; dense ones can only be crossed by INFANTRY. */
@@ -12,6 +46,7 @@ export function terrainBlock(s: GameState, unit: UnitState, r: number, from: Vec
   if (!placing && dist(from, to) <= EPS) return null
   const infantry = isInfantry(unit)
   for (const t of s.terrain) {
+    if (clearOf(t, r, from, to)) continue
     const cat = TERRAIN_CATEGORY[t.kind] ?? { category: 'exposed' }
     if (cat.solid && circlePolygonDistance(to, r, t.poly) === 0) return `нельзя заканчивать движение внутри «${t.name}» (сплошной тиррейн).`
     if (cat.category === 'dense' && !infantry && !fly && sweptCircleHitsPolygon(from, to, r, t.poly))
@@ -50,24 +85,25 @@ export function moveProblem(
       return `${name(m)}: подставка выходит за край поля.`
     // MONSTER/VEHICLE may move through non-M/V models in normal and advance moves (17.01)
     const overModels = isMV(unit) && (mode === 'normal' || mode === 'advance')
+    const nearEnemies = nearby(enemyModels, (e) => e.m, m.pos, r, d)
     if (d > EPS) {
-      for (const e of enemyModels)
+      for (const e of nearEnemies)
         if (!fly && !(overModels && !isMV(e.unit)) && sweptCircleHits(m.pos, pos, r, e.m.pos, radiusOf(e.m)))
           return `${name(m)}: нельзя проходить сквозь вражеские модели.`
     }
     const tb = terrainBlock(s, unit, r, m.pos, pos, false, fly)
     if (tb) return `${name(m)}: ${tb}`
-    for (const o of others)
+    for (const o of nearby(others, (x) => x, m.pos, r, d))
       if (basesOverlap(pos, r, o.pos, radiusOf(o))) return `${name(m)}: подставка пересекается с другой моделью.`
     for (const f of final)
       if (f.m !== m && basesOverlap(pos, r, f.pos, radiusOf(f.m))) return `${name(m)}: подставки моделей отряда пересекаются.`
 
     if (mode === 'normal' || mode === 'advance' || mode === 'fallBack') {
-      for (const e of enemyModels)
+      for (const e of nearEnemies)
         if (withinRange(modelDistance(m, e.m, pos), ENGAGEMENT_RANGE))
           return `${name(m)}: нельзя заканчивать движение в зоне контакта (engagement range, ${ENGAGEMENT_RANGE}") с врагом.`
     } else {
-      for (const e of enemyModels)
+      for (const e of nearEnemies)
         if (!allowedEngage.includes(e.unit.id) && withinRange(modelDistance(m, e.m, pos), ENGAGEMENT_RANGE))
           return `${name(m)}: нельзя входить в контакт с отрядом, который не является целью.`
     }
@@ -99,27 +135,45 @@ export function planMove(
   const engageLimit = mode === 'normal' || mode === 'advance' || mode === 'fallBack'
 
   const overModels = isMV(unit) && (mode === 'normal' || mode === 'advance')
-  const ok = (m: ModelState, pos: Vec) => {
+  type Near = {
+    /** this model's view of the board: only terrain it could reach */
+    s: GameState
+    enemies: { m: ModelState; unit: UnitState; r: number }[]
+    /** bases it must not overlap: other units' models, then its own unit's (placed or not yet moved) */
+    others: { pos: Vec; r: number }[]
+    own: { pos: Vec; r: number }[]
+  }
+  // `near` holds what can matter for `m` (see `nearby`): every position tried is within `maxDist` of the model,
+  // so anything farther away can never block it. Radii are looked up once per model, not once per position.
+  const ok = (m: ModelState, pos: Vec, near: Near) => {
     const r = radiusOf(m)
     if (pos.x - r < 0 || pos.y - r < 0 || pos.x + r > s.board.width || pos.y + r > s.board.height) return false
     if (dist(m.pos, pos) > maxDist + EPS) return false
-    if (terrainBlock(s, unit, r, m.pos, pos, false, fly)) return false
-    for (const e of enemyModels) {
-      if (!fly && !(overModels && !isMV(e.unit)) && sweptCircleHits(m.pos, pos, r, e.m.pos, radiusOf(e.m))) return false
-      const ed = modelDistance(m, e.m, pos)
+    if (terrainBlock(near.s, unit, r, m.pos, pos, false, fly)) return false
+    for (const e of near.enemies) {
+      if (!fly && !(overModels && !isMV(e.unit)) && sweptCircleHits(m.pos, pos, r, e.m.pos, e.r)) return false
+      const ed = edgeDistance(pos, r, e.m.pos, e.r)
       if (withinRange(ed, ENGAGEMENT_RANGE) && (engageLimit || !allowedEngage.includes(e.unit.id))) return false
     }
-    for (const o of others) if (basesOverlap(pos, r, o.pos, radiusOf(o))) return false
-    for (const other of models) {
-      const p = placed[other.id] ?? (other === m ? null : other.pos)
-      if (p && basesOverlap(pos, r, p, radiusOf(other))) return false
-    }
+    for (const o of near.others) if (basesOverlap(pos, r, o.pos, o.r)) return false
+    for (const o of near.own) if (basesOverlap(pos, r, o.pos, o.r)) return false
     return true
   }
 
   for (const m of models) {
     const g = goal(m)
     const r = radiusOf(m)
+    const reach = maxDist + EPS
+    const close = (p: Vec, ro: number) => dist(m.pos, p) <= reach + r + ro + ENGAGEMENT_RANGE + SLACK
+    const near: Near = {
+      s: { ...s, terrain: s.terrain.filter((t) => !farFrom(t, m.pos, reach + r)) },
+      enemies: nearby(enemyModels, (e) => e.m, m.pos, r, reach).map((e) => ({ ...e, r: radiusOf(e.m) })),
+      others: nearby(others, (x) => x, m.pos, r, reach).map((o) => ({ pos: o.pos, r: radiusOf(o) })),
+      own: models.flatMap((o) => {
+        const p = placed[o.id] ?? (o === m ? null : o.pos)
+        return p && close(p, radiusOf(o)) ? [{ pos: p, r: radiusOf(o) }] : []
+      }),
+    }
     const toGoal = dist(m.pos, g.pos)
     const want = Math.max(0, toGoal - r - g.radius - stopAt)
     let best: Vec = m.pos
@@ -131,13 +185,15 @@ export function planMove(
         for (const k of [1, 0.85, 0.7, 0.5, 0.3]) {
           const dd = step * k
           const pos = { x: m.pos.x + Math.cos(baseAngle + off) * dd, y: m.pos.y + Math.sin(baseAngle + off) * dd }
-          if (!ok(m, pos)) continue
+          // only a strictly better position can be picked, so a worse one needs no legality check
           const score = dist(pos, g.pos)
-          if (score < bestScore - EPS) { bestScore = score; best = pos }
+          if (!(score < bestScore - EPS) || !ok(m, pos, near)) continue
+          bestScore = score
+          best = pos
         }
       }
     }
-    if (!ok(m, best)) best = m.pos
+    if (!ok(m, best, near)) best = m.pos
     placed[m.id] = best
   }
   return placed

@@ -5,7 +5,7 @@ import { FACTION_NAME } from '../data/datasheets'
 import { dist, withinRange } from '../geometry/geometry'
 import {
   alive, CHARGE_RANGE, datasheetOf, ledUnitOf, engagedUnits, enemiesOf, hasAbility, inSynapseRange, isFlyer, isMV, modelInTerrain, objectiveLevels, other, profileOf,
-  sidesOf, unitDistance, unitNearObjective, unitsOf, fmt,
+  sidesOf, unitDistance, unitNearObjective, unitsOf, unitsWithin, weaponsOf, fmt,
 } from '../gameState'
 import { actor, FLY_PENALTY, maxMove, meleePlan, meleeSetup, meleeWeaponsOf, shootPlan, SWIFT_BONUS, validate, moveModeFor } from '../engine'
 import { moveProblem, planMove } from '../rules/movement'
@@ -116,10 +116,23 @@ export function expectedGroupDamage(g: AttackGroup & { ctx: AttackContext }, tar
 }
 
 const shootValue = (s: GameState, u: UnitState, t: UnitState, opts: Parameters<typeof shootPlan>[3] = {}) => {
-  const plan = shootPlan(s, u, t, opts)
+  const plan = shootPlan(s, u, t, { ...opts, rangeFirst: true })
   if (plan.problem) return { dmg: 0, plan }
   return { dmg: plan.groups.reduce((a, g) => a + expectedGroupDamage(g, t), 0), plan }
 }
+
+/** Longest range among the ranged weapons of the unit's living models (any profile). */
+function maxRange(u: UnitState) {
+  let r = -Infinity
+  for (const m of alive(u)) for (const w of weaponsOf(m)) for (const p of w.profiles) if (p.range !== 'melee') r = Math.max(r, p.range)
+  return r
+}
+
+/** Expected shooting damage only. A target beyond every weapon's range takes exactly 0 (shootPlan fires a weapon only
+ * when the nearest visible target model is within range, and no model is nearer than `unitDistance`), so the line of
+ * sight checks are skipped for it. */
+const shootDamage = (s: GameState, u: UnitState, t: UnitState, d?: number) =>
+  (d === undefined ? unitsWithin(u, t, maxRange(u)) : withinRange(d, maxRange(u))) ? shootValue(s, u, t).dmg : 0
 
 /** Melee damage if every model got into combat (optimistic, used for planning). */
 function meleePotential(s: GameState, u: UnitState, t: UnitState, charged: boolean) {
@@ -177,20 +190,22 @@ function scorePosition(s: GameState, u: UnitState, level: AiLevel, mode: 'normal
   const hs: GameState = { ...s, units: s.units.map((x) => (x.id === u.id ? hypo : x)) }
 
   let dealt = 0
-  if (mode !== 'fallBack') for (const e of enemies) dealt = Math.max(dealt, shootValue(hs, hypo, e).dmg)
+  // edge distance from this position to each enemy (asked for several times below)
+  const dTo = new Map(enemies.map((e) => [e, unitDistance(hypo, e)]))
+  if (mode !== 'fallBack') for (const e of enemies) dealt = Math.max(dealt, shootDamage(hs, hypo, e, dTo.get(e)))
 
   let charge = 0
   if (mode !== 'fallBack' && (mode !== 'advance' || s.players[u.owner].riledTurns > 0 || hasAbility(u, 'boundingLeap')))
     for (const e of enemies) {
-      const d = unitDistance(hypo, e)
+      const d = dTo.get(e)!
       if (d <= CHARGE_RANGE) charge = Math.max(charge, p2d6AtLeast(Math.ceil(d)) * meleePotential(s, hypo, e, true))
     }
 
   let taken = 0
   if (level === 'standard')
     for (const e of enemies) {
-      taken += shootValue(hs, e, hypo).dmg
-      const d = unitDistance(hypo, e)
+      taken += shootDamage(hs, e, hypo)
+      const d = dTo.get(e)!
       if (d <= CHARGE_RANGE) taken += p2d6AtLeast(Math.ceil(d)) * meleePotential(s, e, hypo, true) * 0.5
     }
 
@@ -202,7 +217,7 @@ function scorePosition(s: GameState, u: UnitState, level: AiLevel, mode: 'normal
     if (unitNearObjective(hypo, o)) obj += mine > theirs ? 1 : 0.5
     nearestObj = Math.min(nearestObj, Math.min(...alive(hypo).map((m) => dist(m.pos, o.pos))))
   }
-  const nearestEnemy = Math.min(...enemies.map((e) => unitDistance(hypo, e)))
+  const nearestEnemy = Math.min(...enemies.map((e) => dTo.get(e)!))
   const cover = alive(hypo).every((m) => modelInTerrain(s, m)) ? 1 : 0
 
   const distTerm = aggressive(u) ? nearestEnemy * 0.5 + nearestObj * 0.5 : nearestObj
@@ -264,6 +279,8 @@ function bestMove(s: GameState, u: UnitState, level: AiLevel, mode: 'normal' | '
   const goals = mode === 'fallBack'
     ? [{ pos: { x: ownEdge, y: centroid.y }, label: 'назад' }]
     : candidateGoals(s, u, level)
+  // different goals often plan the very same positions (a blocked unit, goals in one direction): score each once
+  const scored = new Map<string, { score: number; why: string }>()
   for (const fly of isFlyer(u) ? [false, true] : [false]) {
     const reach = max - (fly ? FLY_PENALTY : 0)
     for (const g of goals) {
@@ -272,7 +289,12 @@ function bestMove(s: GameState, u: UnitState, level: AiLevel, mode: 'normal' | '
         const pos = planMove(s, u, (m) => ({ pos: { x: m.pos.x + offset.x, y: m.pos.y + offset.y }, radius: 0 }), reach * k, mode, [], 0, fly)
         if (moveProblem(s, u, pos, reach, mode, [], fly)) continue
         if (!Object.keys(pos).some((id) => dist(pos[id], alive(u).find((m) => m.id === id)!.pos) > 0.05)) continue
-        const sc = scorePosition(withPositions(s, u, pos), u, level, mode)
+        const key = JSON.stringify(pos)
+        let sc = scored.get(key)
+        if (!sc) {
+          sc = scorePosition(withPositions(s, u, pos), u, level, mode)
+          scored.set(key, sc)
+        }
         if (!best || sc.score > best.score) best = { pos, score: sc.score, why: sc.why, label: g.label, fly }
       }
     }
@@ -302,7 +324,7 @@ function chooseImperative(s: GameState, me: PlayerId, level: AiLevel): { imperat
       const hypo: UnitState = nearest(u) > 24 ? { ...u, movedDistance: 99 } : u
       let shoot = 0, melee = 0, taken = 0
       for (const e of enemiesOf(hs, u)) {
-        shoot = Math.max(shoot, shootValue(hs, hypo, e).dmg)
+        shoot = Math.max(shoot, shootDamage(hs, hypo, e))
         const d = unitDistance(u, e)
         if (d <= CHARGE_RANGE) {
           const p = p2d6AtLeast(Math.ceil(d))
@@ -361,7 +383,6 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
       for (const u of mine) {
         if (u.move !== 'none') continue
         const mode = moveModeFor(s, u)
-        const stay = scorePosition(s, u, level, 'stay')
         if (mode === 'fallBack') {
           if (level === 'beginner') continue
           const fb = bestMove(s, u, level, 'fallBack')
@@ -372,6 +393,7 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
             return { cmd: { type: 'move', unitId: u.id, mode: 'fallBack', positions: fb.pos, ...(fb.fly ? { fly: true } : {}) }, explanation: `${fac}: отряд «${u.name}» отступает — в рукопашной противник сильнее (ожид. урон по нам ${fmt(mTaken)} против ${fmt(mDealt)}).` }
           continue
         }
+        const stay = scorePosition(s, u, level, 'stay')
         const swiftBonus = swiftAvailable(s, u) ? SWIFT_BONUS : 0
         if (u.advanceRoll !== null) {
           const adv = bestMove(s, u, level, 'advance', maxMove(u) + swiftBonus)
@@ -405,7 +427,7 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
         const led = ledUnitOf(s, u)
         const group = [u, ...(led ? [led] : [])]
         const wounds = group.reduce((n, g) => n + alive(g).reduce((a, m) => a + m.wounds, 0), 0)
-        const risk = group.reduce((n, g) => n + enemiesOf(s, g).reduce((a, e) => a + shootValue(s, e, g).dmg + (unitDistance(e, g) <= CHARGE_RANGE ? p2d6AtLeast(Math.ceil(unitDistance(e, g))) * meleePotential(s, e, g, true) * 0.5 : 0), 0), 0)
+        const risk = group.reduce((n, g) => n + enemiesOf(s, g).reduce((a, e) => a + shootDamage(s, e, g) + (unitDistance(e, g) <= CHARGE_RANGE ? p2d6AtLeast(Math.ceil(unitDistance(e, g))) * meleePotential(s, e, g, true) * 0.5 : 0), 0), 0)
         const engaged = group.some((g) => engagedUnits(s, g).length > 0)
         if (level === 'beginner' ? engaged : risk >= wounds * 0.6 || engaged)
           return { cmd, explanation: `${fac}: «${u.name}» применяет Защиту божественного труда — отряду угрожает ≈ ${fmt(risk)} урона, 4+ непробиваемый спасбросок.` }
