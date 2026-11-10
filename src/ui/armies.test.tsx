@@ -39,6 +39,18 @@ describe('faction selection screen', () => {
     expect(FACTION_EMBLEM.adeptus_mechanicus).toMatch(/^data:image\/svg\+xml/)
   })
 
+  it('shows unit and army points and warns about a lopsided pairing', () => {
+    useStore.getState().setSettings({ human: 'adeptus_mechanicus', opponent: 'orks', scenarioId: 'combat-patrol' })
+    render(<App />)
+    const am = within(screen.getByLabelText('Состав: Адептус Механикус'))
+    expect(am.getByText(/Стоимость армии: ≈ 865 очк\./)).toBeInTheDocument()
+    expect(am.getByText(/· 85 очк\./)).toBeInTheDocument() // Skitarii Rangers
+    expect(within(screen.getByLabelText('Состав: Орки')).getByText(/Стоимость армии: 335 очк\./)).toBeInTheDocument()
+    const matchup = screen.getByLabelText('Баланс армий по очкам')
+    expect(matchup).toHaveTextContent(/≈ 865 очк\..*335 очк\./)
+    expect(matchup).toHaveTextContent(/перевес примерно в 2\.6 раза/)
+  })
+
   it('Adeptus Mechanicus can be picked as the player army and as the opponent', () => {
     render(<App />)
     fireEvent.click(screen.getByText('Адептус Механикус'))

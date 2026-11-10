@@ -122,6 +122,19 @@ All armies use the same utility AI (`ai/ai.ts`) with faction weights and a few h
 - `armyBattles.test.ts`: complete AI-vs-AI battles for all 10 pairings through the real match pipeline (`aiProposal` → `submit`): every command legal, a full turn each, attacks with dice, casualties, objective VP, and replay of a saved history to a byte-identical final state.
 - `ui/armies.test.tsx`: the selection screen lists the real composition; each of the five armies is deployed and played by a human through the store for two rounds against the AI, autosaved and reloaded.
 
+## Points
+
+Unit costs live in `src/game/data/points.ts`: Munitorum Field Manual values as listed by Dakkapedia (updated 2026-06-17), first-unit price only. A unit size the Field Manual does not list (the duel's 6 Boyz, 3 Kastelan Robots) is pro-rated from the smallest bracket and shown with «≈». The start screen shows each unit's cost, the army total and a warning when one army is 25% or more above the other. The unit card shows the unit cost and an indicative cost per model.
+
+| Army (Боевой патруль) | Points |
+|---|---|
+| Adeptus Mechanicus | ≈ 865 |
+| Space Marines | 475 |
+| Tyranids | 385 |
+| Orks | 335 |
+| Aeldari | 315 |
+| Necrons | 295 |
+
 ## Balance observations
 
 Measured on 2026-11-09: the tactical (**«Стандарт»**) AI plays both sides, «Боевой патруль», **seeds 1–4, both seatings** of every pairing = **80 battles** (8 per pairing, 32 per army). Reproduce with
@@ -199,7 +212,7 @@ Measured on 2026-11-09: the tactical (**«Стандарт»**) AI plays both si
 
 1. **The Mechanicus win every battle (40 of 40), with 3.6 times the damage ratio and almost no losses** (7.8 of 8 units alive). They beat the Space Marines, until now the strongest army (97 %), 8–0 and with a clear damage lead. For this AI, these lists and this scoring they are the strongest army by a wide margin. This is **not** a statement about the real game.
 2. **Likely causes, not isolated by experiments:**
-   - The training roster is the largest of the six: **36 models** (Marines 17, Necrons 17, Aeldari 20, Tyranids 24) and, by the points printed on the datasheet pages, about 830 points (Kastelans interpolated). The lists are not points-matched, as before.
+   - The training roster is the largest of the six: **36 models** (Marines 17, Necrons 17, Aeldari 20, Tyranids 24) and, by the points printed on the datasheet pages, about 865 points by the Field Manual (Kastelans pro-rated, see Points above). The lists are not points-matched, as before.
    - **Long guns and stacking bonuses.** 30–36″ BS 4+ weapons, and the Protector Imperative (chosen in 82 % of turns) adds *Heavy* (+1 to hit when stationary) **and** BS +1 on top, so most shots hit on 2+.
    - **Durable bodies.** T7 / T9 platforms with 3+ / 2+ saves and 5–6+ invulnerable saves, Feel No Pain 5+ for the led unit and Skitarii invulnerable saves of 5+ make the AI armies' small-calibre fire inefficient.
    - **Objective play.** Objective Scouted keeps objectives after the unit leaves, Rad-saturation lowers the OC of enemies near objectives and Neurostatic Interference makes their battle-shock tests fail more often. The Mechanicus earn four to seven times the VP of their opponents.
