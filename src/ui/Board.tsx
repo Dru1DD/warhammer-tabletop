@@ -1,5 +1,5 @@
 import type Konva from 'konva'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { Circle, Ellipse, Group, Image as KImage, Layer, Line, Rect, Stage, Text } from 'react-konva'
 import { BOARD_STYLE, FACTION_LINE, FACTION_STYLE, TERRAIN_STYLE, TOKENS, tokenImageFor } from '../assets/manifest'
 import { boxOf, fitBox, withBox, type Box } from '../game/terrainLayout'
@@ -12,6 +12,7 @@ import { useStore } from '../store'
 import { clampToRadius, fitBoard, screenToWorld, worldToScreen, zoomAt, type Viewport } from '../view/transform'
 import { actedThisPhase, canActNow, deploymentHint, endPhaseWarning, nextPhaseLabel, nextStepHint, targetCommand } from './guidance'
 import { deploymentProblem } from '../game/rules/deployment'
+import { movePreview, type MovePreview } from '../game/movePreview'
 
 const flat = (pts: Vec[]) => pts.flatMap((p) => [p.x, p.y])
 
@@ -60,6 +61,7 @@ export function Board() {
   useKeyboard()
 
   const zoomBy = (f: number) => setVp(zoomAt(view, { x: size.w / 2, y: size.h / 2 }, f))
+  const sight = useSightPreview()
 
   return (
     <div ref={ref} className="relative h-full w-full overflow-hidden bg-stone-800" data-testid="board">
@@ -81,9 +83,10 @@ export function Board() {
           if (p) setVp(zoomAt(view, p, e.evt.deltaY < 0 ? 1.12 : 1 / 1.12))
         }}
       >
-        <BoardLayers game={game} view={view} stageRef={stageRef} setHover={setHover} />
+        <BoardLayers game={game} view={view} stageRef={stageRef} setHover={setHover} sight={sight} />
       </Stage>
       <GuideBanner />
+      {sight && <SightPanel sight={sight} />}
       <div className="absolute right-2 top-14 flex flex-col gap-1">
         <button className="board-btn" onClick={() => zoomBy(1.25)} aria-label="Приблизить" title="Приблизить (колесо мыши)">+</button>
         <button className="board-btn" onClick={() => zoomBy(0.8)} aria-label="Отдалить" title="Отдалить">−</button>
@@ -93,6 +96,46 @@ export function Board() {
       {hover && <ModelTooltip hover={hover} view={view} width={size.w} />}
       <ActionBar />
     </div>
+  )
+}
+
+// ---------------------------------------------------------------- line of sight preview (movement phase)
+
+type Sight = MovePreview & { planned: boolean }
+
+/** Movement phase: for the selected own unit that has not moved yet, who it would see and who could hit it, from the
+ * planned spot (the draft) or from where it stands. The draft is deferred so dragging stays smooth. */
+function useSightPreview(): Sight | null {
+  const game = useStore((s) => s.game)!
+  const human = useStore((s) => s.settings.human)
+  const selectedId = useStore((s) => s.selectedUnitId)
+  const deploying = useStore((s) => !!s.deploying)
+  const draft = useDeferredValue(useStore((s) => s.draft))
+  return useMemo(() => {
+    if (deploying || game.winner || game.phase !== 'movement' || actor(game) !== human) return null
+    const u = selectedId ? findUnit(game, selectedId) : undefined
+    if (!u || u.owner !== human || u.move !== 'none') return null
+    const p = movePreview(game, u.id, draft, moveModeFor(game, u))
+    return p && { ...p, planned: Object.keys(draft).length > 0 }
+  }, [game, human, selectedId, draft, deploying])
+}
+
+function SightPanel({ sight }: { sight: Sight }) {
+  const list = (rows: { name: string; extra?: string }[]) =>
+    rows.length ? rows.map((r) => (r.extra ? `${r.name} (${r.extra})` : r.name)).join(', ') : 'никого'
+  const pct = (p: number) => `${Math.round(p * 100)}%`
+  return (
+    <details open className="absolute left-2 top-[5.5rem] z-[1] w-[min(19rem,calc(100%-4rem))] rounded-lg border border-sky-700 bg-stone-950/90 px-2 py-1.5 text-[11px] leading-snug text-stone-200 shadow-lg" data-testid="sight-panel">
+      <summary className="cursor-pointer font-semibold text-sky-300">👁 {sight.planned ? 'Если встать здесь' : 'С текущей позиции'}</summary>
+      <ul className="mt-1 flex flex-col gap-1">
+        <li><span className="text-emerald-300">🎯 Сможете стрелять:</span> {list(sight.canShoot.map((r) => ({ name: r.name, extra: `~${fmt(r.dmg)} ран` })))}</li>
+        {sight.seenOutOfRange.length > 0 && <li><span className="text-amber-300">👁 Видно, но не достать:</span> {list(sight.seenOutOfRange)}</li>}
+        <li><span className="text-rose-300">⚠ По вам смогут стрелять:</span> {list(sight.shotBy.map((r) => ({ name: r.name, extra: `~${fmt(r.dmg)} ран` })))}</li>
+        <li><span className="text-orange-300">⚔ Могут атаковать:</span> {list(sight.chargedBy.map((r) => ({ name: r.name, extra: pct(r.p) })))}</li>
+        {sight.note && <li className="text-stone-400">{sight.note}</li>}
+      </ul>
+      <p className="mt-1 text-[10px] text-stone-500">Раны — средние. Угрозы — если враг останется на месте; для атаки — после его хода, без учёта руин на пути.</p>
+    </details>
   )
 }
 
@@ -241,7 +284,7 @@ function Legend() {
   const row = (mark: React.ReactNode, text: string) => <li className="flex items-center gap-2">{mark}<span>{text}</span></li>
   const ring = (cls: string) => <span className={`inline-block h-3.5 w-3.5 shrink-0 rounded-full border-2 ${cls}`} />
   return (
-    <details className="absolute left-2 top-14 z-[1] max-w-56 rounded bg-black/70 px-2 py-1 text-[11px] text-stone-200">
+    <details className="absolute left-2 top-14 z-[2] max-w-56 rounded bg-black/70 px-2 py-1 text-[11px] text-stone-200">
       <summary className="cursor-pointer">Обозначения</summary>
       <ul className="mt-1 flex flex-col gap-0.5">
         {row(ring('border-yellow-400'), 'выбранный отряд')}
@@ -250,6 +293,9 @@ function Legend() {
         {row(ring('border-green-400 border-[3px]'), 'законная цель (клик — атаковать)')}
         {row(ring('border-red-500'), 'недоступная цель / недопустимая позиция')}
         {row(ring('border-dashed border-white/70'), 'исходная позиция (черновик хода)')}
+        {row(ring('border-dashed border-green-400'), 'фаза движения: отсюда сможете стрелять по нему')}
+        {row(ring('border-dotted border-amber-400'), 'фаза движения: видно, но оружие не достаёт')}
+        {row(ring('border-dotted border-rose-500'), 'фаза движения: опасен для вас (стрельба или атака)')}
         {row(<span className="inline-block h-3 w-4 shrink-0 border-2 border-dashed border-yellow-400 bg-blue-800/50" />, 'зона развёртывания')}
       </ul>
     </details>
@@ -415,8 +461,18 @@ function ModelTooltip({ hover, view, width }: { hover: Hover; view: Viewport; wi
 
 // ---------------------------------------------------------------- canvas
 
-function BoardLayers({ game, view, stageRef, setHover }: { game: GameState; view: Viewport; stageRef: React.RefObject<Konva.Stage | null>; setHover: (h: Hover | null) => void }) {
+function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameState; view: Viewport; stageRef: React.RefObject<Konva.Stage | null>; setHover: (h: Hover | null) => void; sight: Sight | null }) {
   const st = useStore()
+  const sightOf = useMemo(() => {
+    const m = new Map<string, { shoot: boolean; far: boolean; threat: boolean }>()
+    if (!sight) return m
+    const get = (id: string) => m.get(id) ?? m.set(id, { shoot: false, far: false, threat: false }).get(id)!
+    for (const r of sight.canShoot) get(r.unitId).shoot = true
+    for (const r of sight.seenOutOfRange) get(r.unitId).far = true
+    for (const r of sight.shotBy) get(r.unitId).threat = true
+    for (const r of sight.chargedBy) if (r.p >= 0.3) get(r.unitId).threat = true
+    return m
+  }, [sight])
   const human = st.settings.human
   const sel = game.units.find((u) => u.id === st.selectedUnitId) ?? null
   const mine = sel && sel.owner === human ? sel : null
@@ -552,6 +608,9 @@ function BoardLayers({ game, view, stageRef, setHover }: { game: GameState; view
             {selected && <Circle radius={r + 0.2} stroke={draftValidity && !draftValidity.ok && moved ? '#ef4444' : '#facc15'} strokeWidth={0.12} listening={false} />}
             {target && <Circle radius={r + 0.22} stroke={target.ok ? '#4ade80' : '#ef4444'} strokeWidth={target.ok ? 0.14 : 0.07} opacity={target.ok ? 1 : 0.6} listening={false} />}
             {st.aimTargetId === u.id && <Circle radius={r + 0.45} stroke="#facc15" strokeWidth={0.12} dash={[0.3, 0.15]} listening={false} />}
+            {sightOf.get(u.id)?.shoot && <Circle radius={r + 0.22} stroke="#4ade80" strokeWidth={0.1} dash={[0.25, 0.12]} listening={false} />}
+            {sightOf.get(u.id)?.far && <Circle radius={r + 0.22} stroke="#fbbf24" strokeWidth={0.07} dash={[0.12, 0.12]} listening={false} />}
+            {sightOf.get(u.id)?.threat && <Circle radius={r + 0.42} stroke="#f43f5e" strokeWidth={0.06} dash={[0.08, 0.1]} listening={false} />}
             <Group opacity={unplaced && !moved ? 0.75 : 1}>
             <Circle radius={r} fill={tok.fill} shadowColor="black" shadowBlur={0.25} shadowOpacity={0.6} shadowOffsetY={0.05} />
             {img ? (
