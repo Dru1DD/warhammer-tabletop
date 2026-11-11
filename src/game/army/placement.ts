@@ -28,10 +28,11 @@ export function listUnits(faction: PlayerId, list: ArmyList): UnitState[] {
 
 /**
  * Offsets of a unit's models in a grid: columns go from the front line back, rows along the edge.
- * As many columns as the zone is deep (the densest packing), but never so wide that two models end
- * up farther apart than coherency allows.
+ * 'deep' (default): as many columns as the zone is deep (the densest packing); 'wide': as few columns as
+ * possible (a line along the front). Never so spread out that two models end up farther apart than
+ * coherency allows.
  */
-function formation(u: UnitState, maxDepth: number): { dx: number; dy: number }[] {
+export function formation(u: UnitState, maxDepth: number, shape: 'deep' | 'wide' = 'deep'): { dx: number; dy: number }[] {
   const radii = u.models.map(radiusOf)
   const n = radii.length
   // rows of `cols` models, each base touching the next with GAP between them (bases differ: a Nob is bigger than a Boy)
@@ -59,6 +60,11 @@ function formation(u: UnitState, maxDepth: number): { dx: number; dy: number }[]
     }
     return true
   }
+  if (shape === 'wide')
+    for (let cols = 1; cols <= n; cols++) {
+      const offs = layout(cols)
+      if (fits(offs)) return offs
+    }
   for (let cols = n; cols > 1; cols--) {
     const offs = layout(cols)
     if (fits(offs)) return offs
@@ -67,7 +73,7 @@ function formation(u: UnitState, maxDepth: number): { dx: number; dy: number }[]
 }
 
 /** Area the unit's bases cover, to set up the bulkiest units first. */
-const footprint = (u: UnitState) => u.models.reduce((a, m) => a + (2 * radiusOf(m) + GAP) ** 2, 0)
+export const footprint = (u: UnitState) => u.models.reduce((a, m) => a + (2 * radiusOf(m) + GAP) ** 2, 0)
 
 const centre = (ps: Vec[]): Vec => ({ x: ps.reduce((a, p) => a + p.x, 0) / ps.length, y: ps.reduce((a, p) => a + p.y, 0) / ps.length })
 

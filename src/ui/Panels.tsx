@@ -12,6 +12,7 @@ import { scenarioById } from '../game/scenarios/scenarios'
 import type { Command, DiceEntry, GameState, UnitState, WeaponKeywords } from '../game/types'
 import { PHASES } from '../game/types'
 import { useStore } from '../store'
+import { DeployPresetCards } from './DeployPresets'
 import { scoreText } from './score'
 import { explainStep, LESSONS, PHASE_GOAL, PHASE_HELP, PHASE_NEXT, showAt, STAT_HELP, UNIT_ROLE } from './help'
 import { canActNow, draftDistance, nextPhaseLabel, PHASE_SHORT, phaseStatus } from './guidance'
@@ -394,6 +395,8 @@ function DeploymentPanel() {
       </div>
 
       <TerrainEditor />
+
+      <DeployPresetCards />
 
       <div>
         <h3 className="mb-1 text-xs font-semibold uppercase text-stone-400">1. Ваша армия</h3>
