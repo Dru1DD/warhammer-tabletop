@@ -13,6 +13,7 @@ import type { Command, DiceEntry, GameState, UnitState, WeaponKeywords, WeaponPr
 import { PHASES } from '../game/types'
 import { useStore } from '../store'
 import { weaponAdvice } from '../game/weaponAdvice'
+import { STRATAGEM_IDS, STRATAGEMS } from '../game/rules/stratagems'
 import { adviceLine, adviceWarnings, shotAdvice, type TargetAdvice } from '../game/shotAdvice'
 import { DeployPresetCards } from './DeployPresets'
 import { scoreText } from './score'
@@ -308,10 +309,56 @@ export function ActionPanel() {
         <ActionButton cmd={{ type: 'callShadow' }} label="Тень в Варпе (Shadow in the Warp, раз за битву)" />
       )}
       {!game.winner && myTurn && game.phase === 'command' && game.players[human].imperative !== undefined && <ImperativePicker />}
+      {!game.winner && <StratagemsPanel />}
       {sel ? <UnitActions u={sel} /> : <p className="text-stone-400">Выберите отряд на поле или в списке.</p>}
       <LastAttack />
       <AiNotes />
     </div>
+  )
+}
+
+/** Command points, the Stratagems usable right now (for any of the player's units), and what each one does. */
+function StratagemsPanel() {
+  const st = useStore()
+  const game = st.game!
+  const human = st.settings.human
+  const beginner = st.settings.explain === 'beginner'
+  const myTurn = actor(game) === human
+  const cp = game.players[human].cp
+  const now = myTurn ? unitsOf(game, human).flatMap((u) => unitActions(game, u.id).filter((a) => a.id.startsWith('strat:')).map((a) => ({ ...a, unit: u }))) : []
+  return (
+    <section className="rounded border border-violet-700/70 bg-violet-950/30 p-2 text-xs" aria-label="Стратагемы">
+      <div className="flex items-center justify-between">
+        <b className="text-violet-200">📜 Стратагемы</b>
+        <span className="rounded bg-violet-800 px-1.5 text-violet-50" title="Очки командования (Command points): +1 каждому игроку в каждой фазе командования">CP: {cp}</span>
+      </div>
+      {now.length > 0 ? (
+        <div className="mt-1 flex flex-col gap-1">
+          {now.map((a) => (
+            <div key={a.unit.id + a.id}>
+              <ActionButton cmd={a.cmd!} label={`${a.label} — «${a.unit.name}»`} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        myTurn && <p className="mt-1 text-stone-400">{cp === 0 ? 'Нет очков командования — они прибавляются в каждой фазе командования.' : 'Сейчас применить нечего.'}</p>
+      )}
+      <details className="mt-1" open={beginner && now.length > 0}>
+        <summary className="cursor-pointer text-sky-300">Что они делают</summary>
+        <ul className="mt-1 flex flex-col gap-1 text-[11px] text-stone-300">
+          {STRATAGEM_IDS.map((id) => {
+            const x = STRATAGEMS[id]
+            return (
+              <li key={id}>
+                <b className="text-stone-100">{x.name}</b> ({x.nameEn}, {x.cost} CP, {x.phases.map((p) => PHASE_SHORT[p]).join(' / ')}): {x.text}
+                <span className="block text-emerald-300">Когда выгодно: {x.when}</span>
+              </li>
+            )
+          })}
+        </ul>
+        <p className="mt-1 text-[10px] text-stone-500">Каждая стратагема — раз за фазу, на отряд — одна за фазу; на отряд в боевом шоке их применять нельзя. Стратагемы в ход противника (огонь на опережение, дымовая завеса и др.) появятся позже.</p>
+      </details>
+    </section>
   )
 }
 
@@ -515,7 +562,7 @@ function UnitActions({ u }: { u: UnitState }) {
       {game.phase === 'command' && <p className="text-xs text-stone-300">В фазе командования отрядам нечего делать — нажмите «Завершить фазу».</p>}
       {game.phase === 'movement' && <MoveControls u={u} />}
       {game.phase === 'shooting' && <ShootControls u={u} />}
-      {actions.filter((a) => !a.id.startsWith('shoot:')).map((a) => (
+      {actions.filter((a) => !a.id.startsWith('shoot:') && !a.id.startsWith('strat:')).map((a) => (
         <ActionButton key={a.id} cmd={a.cmd!} label={a.label} />
       ))}
       {game.phase === 'fight' && !game.fight && <p className="text-xs text-stone-300">Бои завершены — завершите фазу.</p>}

@@ -211,6 +211,8 @@ export interface UnitState {
   advanceRoll: number | null
   advanceRerolled: boolean
   shot: boolean
+  /** failed its battle-shock test in the current Command phase (Insane Bravery can turn it into a pass) */
+  shockedThisPhase?: boolean
   chargeDeclared: boolean
   charged: boolean
   fought: boolean
@@ -280,9 +282,17 @@ export interface PlayerState {
   imperative?: Imperative | null
   /** Adeptus Mechanicus: Defend the Divine Work already used this battle (only present for that army) */
   divineUsed?: boolean
+  /** Stratagems used in the current phase (each once per phase); reset when a phase starts */
+  stratagemsThisPhase?: StratagemId[]
+  /** own units targeted by a Stratagem in the current phase (one Stratagem per unit per phase) */
+  stratagemUnitsThisPhase?: string[]
+  /** Insane Bravery already used this battle */
+  braveryUsed?: boolean
 }
 
 export type Imperative = 'protector' | 'conqueror'
+
+export type StratagemId = 'commandReroll' | 'insaneBravery' | 'explosives' | 'crushingImpact'
 export const IMPERATIVES: Imperative[] = ['protector', 'conqueror']
 
 export interface PendingCharge {
@@ -348,6 +358,8 @@ export interface GameState {
   activePlayer: PlayerId
   phase: Phase
   pendingCharge: PendingCharge | null
+  /** The charge roll just made (kept until the next command) so a Command Re-roll can re-roll it, even a failed one */
+  lastCharge?: { unitId: string; dice: number[] } | null
   fight: FightState | null
   rng: number
   log: LogEntry[]
@@ -393,6 +405,8 @@ export type Command =
   | { type: 'engrammatic'; unitId: string; targetId: string }
   | { type: 'wraithForm'; unitId: string; targetId: string }
   | { type: 'grenadePack'; unitId: string; targetId: string }
+  /** Core Stratagem in the player's own turn (see rules/stratagems.ts) */
+  | { type: 'stratagem'; id: StratagemId; unitId: string; targetId?: string }
   | { type: 'endPhase' }
 
 export type Validation = { ok: true } | { ok: false; reason: string }
