@@ -9,11 +9,15 @@ import {
 } from '../gameState'
 import { actor, FLY_PENALTY, maxMove, meleePlan, meleeSetup, meleeWeaponsOf, shootPlan, SWIFT_BONUS, validate, moveModeFor } from '../engine'
 import { moveProblem, planMove } from '../rules/movement'
-import { EXPLOSIVES_DICE } from '../rules/stratagems'
+import { EXPLOSIVES_DICE, STRATAGEMS } from '../rules/stratagems'
+
+/** Army Stratagems the AI spends on a good volley / a good fight. */
+const SHOOTING_BUFFS: StratagemId[] = ['stormOfDevastation', 'closeRangeDakka', 'conqueringTyrant', 'blitzingFirepower', 'lethalDosage']
+const FIGHT_BUFFS: StratagemId[] = ['hitEmHarder', 'hungryVoid', 'adrenalSurge']
 import type { AttackContext, AttackGroup } from '../combat/attack'
 import { woundTarget } from '../combat/attack'
 import { avgDie } from '../dice/dice'
-import type { Command, GameState, PlayerId, UnitState, Vec } from '../types'
+import type { Command, GameState, PlayerId, StratagemId, UnitState, Vec } from '../types'
 import { WEAPONS } from '../data/datasheets'
 
 export type AiLevel = 'beginner' | 'standard'
@@ -102,12 +106,14 @@ export function expectedGroupDamage(g: AttackGroup & { ctx: AttackContext }, tar
     const psy = !!p.keywords.psychic
     const skill = Math.min(6, Math.max(2, p.skill + (psy ? 0 : g.ctx.skillWorsen)))
     const mod = psy ? Math.max(0, Math.max(-1, Math.min(1, g.ctx.hitMod))) : Math.max(-1, Math.min(1, g.ctx.hitMod))
-    pCrit = 1 / 6
-    pHitNormal = pFace((v) => v !== 1 && v !== 6 && v + mod >= skill)
+    const critOn = g.ctx.critHitOn ?? 6
+    pCrit = (7 - critOn) / 6
+    pHitNormal = pFace((v) => v !== 1 && v < critOn && v + mod >= skill)
     if (g.ctx.rerollHits) {
       const r = g.ctx.rerollHits === 'ones' ? 1 / 6 : 1 - (pHitNormal + pCrit)
+      const crit0 = pCrit
       pHitNormal += r * pHitNormal
-      pCrit += r * (1 / 6)
+      pCrit += r * crit0
     }
   }
   const lethal = g.ctx.lethalHits
@@ -389,6 +395,14 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
         if (onObjective || (level !== 'beginner' && alive(u).length >= 5 && s.round >= 3))
           return { cmd, explanation: `${fac}: стратагема «Безумная храбрость» — «${u.name}» не поддаётся панике${onObjective ? ' и держит цель' : ''}.` }
       }
+      // Extinction Order (Tech-Priest): an objective with enemy units on it
+      if (level !== 'beginner' && s.players[me].cp >= 2)
+        for (const u of mine)
+          for (const o of s.objectives) {
+            const cmd: Command = { type: 'stratagem', id: 'extinctionOrder', unitId: u.id, targetId: o.id }
+            if (validate(s, cmd).ok && enemiesOf(s, u).some((e) => alive(e).length && unitNearObjective(e, o)))
+              return { cmd, explanation: `${fac}: стратагема «Приказ об истреблении» — «${u.name}» бьёт по врагам на цели.` }
+          }
       // Engrammatic Logic (Royal Warden): free a battle-shocked unit, the one that matters most for objectives
       for (const u of mine) {
         if (!hasAbility(u, 'engrammaticLogic') || u.engrammaticUsed) continue
@@ -530,6 +544,13 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
             if (!best || dmg > best.dmg) best = { cmd, dmg, target: e.name }
           }
         }
+        // an army's shooting Stratagem on a volley worth it, keeping 1 CP in reserve
+        if (best && level !== 'beginner' && best.dmg >= 2.5 && s.players[me].cp >= 2) {
+          for (const id of SHOOTING_BUFFS) {
+            const buff: Command = { type: 'stratagem', id, unitId: u.id }
+            if (validate(s, buff).ok) return { cmd: buff, explanation: `${fac}: стратагема «${STRATAGEMS[id].name}» для «${u.name}» перед залпом по «${best.target}».` }
+          }
+        }
         if (best && best.dmg > 0.05)
           return { cmd: best.cmd, explanation: `${fac}: отряд «${u.name}» стреляет по «${best.target}» (ожидаемый урон ≈ ${fmt(best.dmg)}).` }
       }
@@ -575,6 +596,13 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
           const worthy = isMV(e) || alive(e).some((m) => profileOf(m).character) || alive(e).reduce((n, m) => n + m.wounds, 0) >= 8
           if (worthy && validate(s, finest).ok)
             return { cmd: finest, explanation: `${fac}: «${u.name}» сражается с «${e.name}» — «Звёздный час» (+3 атаки, Devastating Wounds).` }
+          // an army's melee Stratagem before a fight worth it, keeping 1 CP in reserve
+          if (level !== 'beginner' && expectedMelee(s, u, e) >= 2)
+            for (const id of FIGHT_BUFFS) {
+              const buff: Command = { type: 'stratagem', id, unitId: u.id }
+              if (s.players[me].cp >= STRATAGEMS[id].cost + 1 && validate(s, buff).ok)
+                return { cmd: buff, explanation: `${fac}: стратагема «${STRATAGEMS[id].name}» — «${u.name}» бьёт по «${e.name}».` }
+            }
           return { cmd, explanation: `${fac}: отряд «${u.name}» сражается с «${e.name}».` }
         }
       }

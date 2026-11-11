@@ -49,3 +49,52 @@ The EXPLOSIVES keyword was added where the 11th edition datasheets have it (chec
 The datasheets added earlier (Captain, Hellblasters, Infernus, Bladeguard, Warboss, Nobz, Kommandos) already had it. Aeldari units have the older GRENADES keyword, which also counts. Skitarii have neither.
 
 The code is in `src/game/rules/stratagems.ts` (data and shared checks), `stratagemProblem` / `applyStratagem` in `engine.ts`, and the tests in `stratagems.test.ts`.
+
+# Army Stratagems (detachments)
+
+Each army plays the generic detachment of its 11th edition faction page on Wahapedia:
+
+| Army | Detachment | Playable now (own turn) | Listed as «later» |
+|---|---|---|---|
+| Space Marines | Gladius Task Force | Storm of Devastation | Armour of Contempt, A Worthy Death, Responsive Tactics (opponent's turn); Might of Angels (needs Lance); Adaptive Strategy (needs combat doctrines) |
+| Orks | War Horde | Close-Range Dakka, Fungus-Fuel Injection, Hit 'Em Harder | Orks Is Never Beaten (opponent's turn); Breakin' Heads; Mow 'Em Down (no non-WALKER vehicles here) |
+| Tyranids | Invasion Fleet | Adrenal Surge (one unit at a time) | Rapid Regeneration, Death Frenzy (opponent's turn); Overrun, Predatory Imperative, Endless Swarm |
+| Necrons | Awakened Dynasty | Sudden Storm, Conquering Tyrant, Hungry Void | Eternal Revenant, Undying Legions, Vengeful Stars |
+| Aeldari | Warhost | Blitzing Firepower, Feigned Retreat | Lightning-Fast Reactions, Skyborne Sanctuary, Fire and Fade, Webway Tunnel |
+| Adeptus Mechanicus | Rad-Zone Corps | Lethal Dosage, Aggressor Imperative, Extinction Order | Baleful Halo, Bulwark Imperative (opponent's turn); Pre-Calibrated Purge Solution |
+
+The detachment rules themselves (Get Stuck In, Hyper-adaptations, Rad-bombardment, Command Protocols and so on) are not part of this change. They would change every battle and are worth a separate discussion.
+
+## Which Stratagems an army can use
+
+A Stratagem may require a unit with certain keywords (`requires` in `rules/stratagems.ts`). For example:
+
+- Explosives needs EXPLOSIVES or GRENADES;
+- Crushing Impact needs a MONSTER or VEHICLE;
+- Fungus-Fuel Injection needs a VEHICLE or MOUNTED unit;
+- Aggressor Imperative needs SKITARII;
+- Extinction Order needs a TECH-PRIEST.
+
+The same data is used in two places:
+
+- **The army screen:** each army's card has a «📜 Стратагемы: N из M доступны» line. Missing ones are marked ✗ with the reason, for example «нет отряда: нужен отряд с EXPLOSIVES или GRENADES». The detachment's other Stratagems are marked ⏳ with why they are not playable yet. This works for the training roster, the presets and a custom list.
+- **In battle:** the engine refuses a Stratagem on a unit that does not fit it, or on a unit from another army.
+
+## Effects
+
+Lasting effects are stored on the unit (`phaseBuffs` and `turnBuffs`), which expire at the end of the phase or turn. The attack and move rules read them:
+
+- Ignores Cover;
+- Rapid Fire +1;
+- Sustained Hits within 12″;
+- hit re-rolls within half range;
+- Lethal Hits;
+- +1 S / +1 AP;
+- critical hits on 5+ (a new `critHitOn` in the attack context, also used by the AI's expected damage);
+- +2″ Move;
+- Assault after Advance;
+- shooting and charging after Falling Back.
+
+Fight-phase Stratagems (Hit 'Em Harder, Hungry Void) work in either player's turn, because choosing which unit fights is that player's own decision.
+
+The AI spends army Stratagems on a volley or a fight worth it (2.5 or more expected wounds when shooting, 2 or more in melee), always keeping 1 CP in reserve. It also uses Extinction Order on an objective with enemies on it.

@@ -15,7 +15,7 @@ import { healUnit } from './rules/heal'
 import { applyMortalWounds, resolveGroup, type AttackContext, type AttackGroup } from './combat/attack'
 import { moveProblem, planMove } from './rules/movement'
 import { hasCover, nearestVisibleDistance, seesAny, unitCanSee } from './rules/visibility'
-import { CRUSHING_MAX, EXPLOSIVES_DICE, EXPLOSIVES_RANGE, explosivesReach, hasExplosives, STRATAGEMS, targetedThisPhase, usedThisPhase } from './rules/stratagems'
+import { CRUSHING_MAX, EXPLOSIVES_DICE, EXPLOSIVES_RANGE, explosivesReach, hasBuff, meetsRequirement, STRATAGEMS, targetedThisPhase, usedThisPhase } from './rules/stratagems'
 import { baseRadius } from './geometry/geometry'
 import type { Command, DiceEntry, GameState, ModelState, Phase, PlayerId, StratagemId, UnitState, Validation, Vec, Weapon, WeaponProfile } from './types'
 import { PHASES } from './types'
@@ -70,7 +70,19 @@ export function meleeWeaponsOf(m: ModelState): Weapon[] {
 
 /** The unit's army can still "charge/shoot" in the situation (Bounding Leap, Adaptable Predators, Waaagh!). */
 const canChargeAfterAdvance = (s: GameState, u: UnitState) => riled(s, u) || hasAbility(u, 'boundingLeap')
-const canActAfterFallBack = (u: UnitState) => hasAbility(u, 'adaptablePredators') || hasAbility(u, 'adaptiveStrategy')
+const canActAfterFallBack = (u: UnitState) => hasAbility(u, 'adaptablePredators') || hasAbility(u, 'adaptiveStrategy') || hasBuff(u, 'feignedRetreat')
+
+// notes that mark Stratagem effects on an attack group (see shootPlan)
+const BLITZ_CRIT = 'Молниеносный огонь: крит на 5+'
+const TYRANT_ALL = 'Тиран-завоеватель: переброс промахов'
+const TYRANT_ONES = 'Тиран-завоеватель: переброс 1'
+/** Fungus-Fuel Injection: extra Move */
+const FUNGUS_BONUS = 2
+/** Extinction Order: the objective must be within this distance of the Tech-Priest */
+const EXTINCTION_RANGE = 24
+
+/** A CHARACTER of the same army leads this unit. */
+const isLed = (s: GameState, u: UnitState) => s.units.some((l) => l.owner === u.owner && !isDestroyed(l) && hasKeyword(l, 'CHARACTER') && ledUnitOf(s, l)?.id === u.id)
 
 /** Lethal Hits marked "non-MONSTER/VEHICLE" (and Tactical Precision) don't work against M/V targets. */
 const lethalVs = (p: WeaponProfile, attacker: UnitState, target: UnitState) => {
@@ -159,7 +171,7 @@ export function shootPlan(
   const advanced = unit.move === 'advance'
   const onslaught = inOnslaught(s, unit)
   const bonus = attackerBonuses(s, unit)
-  const assaultAll = riled(s, unit) || onslaught || bonus.imp === 'conqueror'
+  const assaultAll = riled(s, unit) || onslaught || bonus.imp === 'conqueror' || hasBuff(unit, 'suddenStorm')
   const mv = isMV(unit)
   if (engaged && advanced) return { ...plan, problem: 'Отряд продвинулся (Advance) и находится в контакте — стрелять нельзя.' }
   if (engaged && !engagedUnits(s, unit).some((e) => e.id === target.id))
@@ -211,18 +223,27 @@ export function shootPlan(
       if (p.keywords.oneShot) plan.oneShots.push(spentKey(m, w))
       // Bladestorm (Dire Avengers): Sustained Hits 1 against a target within half range; such models form their own group
       const bladestorm = hasAbility(unit, 'bladestorm') && withinRange(d, range / 2)
-      const key = `${w.id}:${idx}${bladestorm ? ':bs' : ''}`
+      // Blitzing Firepower (within 12″) and Conquering Tyrant (within half range) depend on this model's distance
+      const blitz = hasBuff(unit, 'blitzingFirepower') && withinRange(d, 12)
+      const tyrant = hasBuff(unit, 'conqueringTyrant') && withinRange(d, range / 2)
+      const key = `${w.id}:${idx}${bladestorm ? ':bs' : ''}${blitz ? ':bf' : ''}${tyrant ? ':ct' : ''}`
       let g = byKey.get(key)
       if (!g) {
         g = { weaponName: w.name, profile: p, models: 0, attacks: 0, randomAttacks: 0, notes: bladestorm ? ['Bladestorm: Sustained Hits 1'] : [], sustainedHits: bladestorm ? Math.max(1, p.keywords.sustainedHits ?? 0) : undefined, ctx: { hitMod: 0, hitModNotes: [], skillWorsen: 0, lethalHits: false } }
+        if (blitz) {
+          if (g.sustainedHits ?? p.keywords.sustainedHits) g.notes.push(BLITZ_CRIT)
+          else { g.sustainedHits = 1; g.notes.push('Blitzing Firepower: Sustained Hits 1') }
+        }
+        if (tyrant) g.notes.push(isLed(s, unit) ? TYRANT_ALL : TYRANT_ONES)
         byKey.set(key, g)
       }
       g.models++
       if (p.randomA) g.randomAttacks = (g.randomAttacks ?? 0) + 1
       let a = p.attacks
-      if (p.keywords.rapidFire && withinRange(d, range / 2)) {
-        a += p.keywords.rapidFire
-        if (!g.notes.includes('Rapid Fire')) g.notes.push('Rapid Fire')
+      const rapid = (p.keywords.rapidFire ?? 0) + (hasBuff(unit, 'closeRangeDakka') ? 1 : 0)
+      if (rapid && withinRange(d, range / 2)) {
+        a += rapid
+        if (!g.notes.includes('Rapid Fire')) g.notes.push(hasBuff(unit, 'closeRangeDakka') ? 'Rapid Fire (Дакка в упор)' : 'Rapid Fire')
       }
       if (p.keywords.blast) {
         const extra = p.keywords.blast * Math.floor(alive(target).length / 5)
@@ -262,8 +283,13 @@ export function shootPlan(
       g.notes.push('Alpha Warrior: Sustained Hits 1')
     }
     const exposed = target.drivenFromCover === unit.owner
-    const ignores = g.profile.keywords.ignoresCover || omnispex || exposed
-    if (plan.cover && ignores) g.notes.push(exposed && !g.profile.keywords.ignoresCover && !omnispex ? 'Driven from Cover: без укрытия' : 'игнорирует укрытие')
+    const storm = hasBuff(unit, 'stormOfDevastation')
+    const ignores = g.profile.keywords.ignoresCover || omnispex || exposed || storm
+    if (plan.cover && ignores) g.notes.push(exposed && !g.profile.keywords.ignoresCover && !omnispex && !storm ? 'Driven from Cover: без укрытия' : storm && !g.profile.keywords.ignoresCover && !omnispex ? 'Опустошительный шторм: без укрытия' : 'игнорирует укрытие')
+    const dosage = hasBuff(unit, 'lethalDosage')
+    if (dosage) g.notes.push('Смертельная доза: Lethal Hits')
+    const tyrantReroll: AttackContext['rerollHits'] = g.notes.includes(TYRANT_ALL) ? 'all' : g.notes.includes(TYRANT_ONES) ? 'ones' : undefined
+    if (tyrantReroll && rerollHits !== 'all') rerollHits = tyrantReroll
     if (bonus.betterAp) { g.profile = { ...g.profile, ap: g.profile.ap - 1 }; g.notes.push('Conqueror: AP +1') }
     if (bonus.galvanic) g.notes.push('Galvanic Field: Lethal Hits')
     const protector = bonus.imp === 'protector'
@@ -272,8 +298,9 @@ export function shootPlan(
       hitModNotes: notes,
       skillWorsen: (plan.cover && !ignores ? 1 : 0) - (protector ? 1 : 0),
       ...(protector ? { skillNote: 'Protector: BS на 1 лучше' } : {}),
-      lethalHits: lethalVs(g.profile, unit, target) || onslaught || bonus.galvanic,
+      lethalHits: lethalVs(g.profile, unit, target) || onslaught || bonus.galvanic || dosage,
       invulnOverride: rangedInvuln(s, target),
+      ...(g.notes.includes(BLITZ_CRIT) ? { critHitOn: 5 } : {}),
       ...(g.profile.keywords.precision ? { precision: true } : {}),
       ...(rerollHits ? { rerollHits } : {}),
       ...eradication(s, unit, target, g.notes),
@@ -311,6 +338,14 @@ export function meleeSetup(s: GameState, unit: UnitState, target: UnitState, p0:
     p = { ...p, attacks: p.attacks + 3, s: p.s + 2 }
     notes.push('Might Is Right +3 A, +2 S')
   }
+  // Protocol of the Hungry Void: +1 S, and +1 AP when a CHARACTER leads the unit
+  if (hasBuff(unit, 'hungryVoid')) {
+    const led = isLed(s, unit)
+    p = { ...p, s: p.s + 1, ap: led ? p.ap - 1 : p.ap }
+    notes.push(led ? 'Голодная пустота +1 S, +1 AP' : 'Голодная пустота +1 S')
+  }
+  if (hasBuff(unit, 'hitEmHarder')) notes.push('Бей сильнее!: Lethal Hits')
+  if (hasBuff(unit, 'adrenalSurge')) notes.push('Адреналиновый всплеск: крит на 5+')
   // Synapse: +1 Strength on melee attacks of a TYRANIDS unit in Synapse Range
   if (inSynapseRange(s, unit)) {
     p = { ...p, s: p.s + 1 }
@@ -339,8 +374,9 @@ export function meleeSetup(s: GameState, unit: UnitState, target: UnitState, p0:
   const ctx: AttackContext = {
     hitMod, hitModNotes, skillWorsen,
     ...(skillNote ? { skillNote } : {}),
-    lethalHits: lethalVs(p, unit, target) || (hasAbility(unit, 'tideOfMuscle') && unit.charged) || bonus.galvanic,
+    lethalHits: lethalVs(p, unit, target) || (hasAbility(unit, 'tideOfMuscle') && unit.charged) || bonus.galvanic || hasBuff(unit, 'hitEmHarder'),
     invulnOverride: invulnOverrideOf(s, target),
+    ...(hasBuff(unit, 'adrenalSurge') ? { critHitOn: 5 } : {}),
     ...(p.keywords.precision ? { precision: true } : {}),
     ...(rerollHits ? { rerollHits } : {}),
     ...eradication(s, unit, target, notes),
@@ -465,7 +501,7 @@ export function validate(s: GameState, cmd: Command): Validation {
       if (cmd.mode !== 'fallBack' && engaged) return fail('Отряд в контакте с врагом: обычное движение невозможно, только отступление (Fall Back).')
       if (cmd.mode === 'advance' && unit.advanceRoll === null) return fail('Сначала объявите продвижение и бросьте D6.')
       if (cmd.mode !== 'advance' && unit.advanceRoll !== null) return fail('Продвижение уже объявлено — двигайтесь в режиме продвижения.')
-      const m = Math.min(...alive(unit).map((x) => profileOf(x).m))
+      const m = Math.min(...alive(unit).map((x) => profileOf(x).m)) + (hasBuff(unit, 'fungusFuelInjection') ? FUNGUS_BONUS : 0)
       const max = (cmd.mode === 'advance' ? m + (unit.advanceRoll ?? 0) : m) + (cmd.swift ? SWIFT_BONUS : 0) - (cmd.fly ? FLY_PENALTY : 0)
       const p = moveProblem(s, unit, cmd.positions, max, cmd.mode, [], !!cmd.fly)
       return p ? fail(p) : OK
@@ -666,6 +702,7 @@ function resetTurnFlags(s: GameState) {
     u.chargeDeclared = false
     u.charged = false
     u.fought = false
+    if (u.turnBuffs?.length) u.turnBuffs = []
     delete u.guided
     delete u.spiked
     delete u.drivenFromCover
@@ -686,7 +723,10 @@ function enterPhase(s: GameState, phase: Phase, r: Roller) {
     s.players[p].stratagemsThisPhase = []
     s.players[p].stratagemUnitsThisPhase = []
   }
-  for (const u of s.units) if (u.shockedThisPhase) u.shockedThisPhase = false
+  for (const u of s.units) {
+    if (u.shockedThisPhase) u.shockedThisPhase = false
+    if (u.phaseBuffs?.length) u.phaseBuffs = []
+  }
   addLog(s, `— ${PHASE_NAME[phase]}: ${FACTION_NAME[s.activePlayer]} —`, 'minimal')
   if (phase === 'command') commandPhase(s, r)
   if (phase === 'fight') {
@@ -1272,6 +1312,13 @@ export function unitActions(s: GameState, unitId: string): ActionInfo[] {
     strat(`strat:explosives:${e.id}`, `💣 Взрывчатка (${cost('explosives')}) в «${e.name}»: 6D6, 4+ — смертельная рана`, { type: 'stratagem', id: 'explosives', unitId, targetId: e.id })
     strat(`strat:crush:${e.id}`, `🐘 Сокрушительный удар (${cost('crushingImpact')}) по «${e.name}»: D6 × Стойкость, 5+ — рана врагу, 1 — себе`, { type: 'stratagem', id: 'crushingImpact', unitId, targetId: e.id })
   }
+  // the army's own (detachment) Stratagems
+  for (const info of Object.values(STRATAGEMS)) {
+    if (info.faction !== u.owner) continue
+    if (info.id === 'extinctionOrder')
+      s.objectives.forEach((o, i) => strat(`strat:${info.id}:${o.id}`, `📜 ${info.name} (${info.cost} CP): цель Ц${i + 1}`, { type: 'stratagem', id: info.id, unitId, targetId: o.id }))
+    else strat(`strat:${info.id}`, `📜 ${info.name} (${info.cost} CP)`, { type: 'stratagem', id: info.id, unitId })
+  }
   return out.filter((a) => a.id !== 'reroll' || hasAbility(u, 'waaagh') || hasAbility(u, 'superlativeStrategist'))
 }
 
@@ -1281,10 +1328,12 @@ function stratagemProblem(s: GameState, unit: UnitState, cmd: Extract<Command, {
   const info = STRATAGEMS[cmd.id]
   if (!info) return fail('Неизвестная стратагема.')
   const me = unit.owner
-  if (s.activePlayer !== me) return fail('Пока стратагемы применяются только в свой ход.')
+  if ((info.turn ?? 'own') === 'own' && s.activePlayer !== me) return fail(`«${info.name}» применяется только в свой ход.`)
   if (!info.phases.includes(s.phase)) return fail(`«${info.name}» применяется в фазе: ${info.phases.map((p) => PHASE_NAME[p]).join(' или ')}.`)
   if (s.players[me].cp < info.cost) return fail(`Не хватает очков командования: нужно ${info.cost} CP, есть ${s.players[me].cp}.`)
   if (usedThisPhase(s, me, cmd.id)) return fail(`«${info.name}» уже применялась в этой фазе (каждая стратагема — раз за фазу).`)
+  if (info.faction && info.faction !== me) return fail(`«${info.name}» — стратагема другой армии.`)
+  if (!meetsRequirement(unit, info)) return fail(`«${info.name}»: нужен ${info.requires!.label}.`)
   if (targetedThisPhase(s, unit)) return fail('На этот отряд уже применяли стратагему в этой фазе (одна стратагема на отряд за фазу).')
   if (cmd.id !== 'insaneBravery' && unit.battleShocked) return fail('Отряд в боевом шоке: на него нельзя применять стратагемы.')
   const target = cmd.targetId ? findUnit(s, cmd.targetId) : undefined
@@ -1301,7 +1350,6 @@ function stratagemProblem(s: GameState, unit: UnitState, cmd: Extract<Command, {
       if (s.players[me].braveryUsed) return fail('«Безумная храбрость» уже применялась в этой битве (раз за битву).')
       return unit.battleShocked && unit.shockedThisPhase ? OK : fail('Только для отряда, который провалил проверку боевого шока в этой фазе командования.')
     case 'explosives': {
-      if (!hasExplosives(unit)) return fail('Взрывчатку бросает только отряд с ключевым словом EXPLOSIVES (или GRENADES).')
       if (unit.shot) return fail('Отряд уже стрелял в этой фазе.')
       if (unit.move === 'advance' || unit.move === 'fallBack') return fail('После продвижения или отступления взрывчатку не бросить.')
       if (isEngaged(s, unit)) return fail('Отряд в контакте с врагом.')
@@ -1311,8 +1359,32 @@ function stratagemProblem(s: GameState, unit: UnitState, cmd: Extract<Command, {
       if (!unitCanSee(s, unit, target)) return fail('Цель не видна: линию видимости перекрывает укрытие.')
       return OK
     }
+    case 'stormOfDevastation':
+    case 'closeRangeDakka':
+    case 'conqueringTyrant':
+    case 'blitzingFirepower':
+    case 'lethalDosage':
+      return unit.shot ? fail('Отряд уже стрелял в этой фазе.') : OK
+    case 'fungusFuelInjection':
+      return unit.move === 'none' ? OK : fail('Отряд уже двигался в этой фазе.')
+    case 'suddenStorm':
+      return OK
+    case 'feignedRetreat':
+      return unit.move === 'fallBack' ? OK : fail('Только для отряда, который отступил (Fall Back) в этой фазе.')
+    case 'aggressorImperative':
+      if (unit.move !== 'none' || unit.advanceRoll !== null) return fail('Отряд уже двигался или объявил продвижение.')
+      return isEngaged(s, unit) ? fail('Отряд в контакте с врагом — продвигаться нельзя.') : OK
+    case 'hitEmHarder':
+    case 'hungryVoid':
+    case 'adrenalSurge':
+      return enemiesOf(s, unit).some((e) => validate(s, { type: 'fight', unitId: unit.id, targetId: e.id }).ok) ? OK : fail('Отряд сейчас не может сражаться.')
+    case 'extinctionOrder': {
+      const o = s.objectives.find((x) => x.id === cmd.targetId)
+      if (!o) return fail('Выберите цель на поле.')
+      if (Math.min(...alive(unit).map((m) => dist(m.pos, o.pos))) > EXTINCTION_RANGE + EPS) return fail(`Цель дальше ${EXTINCTION_RANGE}″ от Техножреца.`)
+      return OK
+    }
     case 'crushingImpact': {
-      if (!isMV(unit)) return fail('«Сокрушительный удар» доступен только монстрам и технике (MONSTER, VEHICLE).')
       if (!unit.charged) return fail('Применяется после того, как этот отряд завершил атаку (charge).')
       if (!target || target.owner === me || isDestroyed(target)) return fail('Выберите вражеский отряд.')
       if (!engagedUnits(s, unit).some((e) => e.id === target.id)) return fail('Цель должна быть в контакте с техникой.')
@@ -1329,8 +1401,38 @@ function applyStratagem(s: GameState, cmd: Extract<Command, { type: 'stratagem' 
   ;(s.players[me].stratagemsThisPhase ??= []).push(cmd.id)
   ;(s.players[me].stratagemUnitsThisPhase ??= []).push(u.id)
   addLog(s, `${FACTION_NAME[me]}: стратагема «${info.name}» (${info.nameEn}) — ${u.name}, −${info.cost} CP.`, 'minimal')
+  if (info.buff) {
+    ;(info.buff === 'phase' ? (u.phaseBuffs ??= []) : (u.turnBuffs ??= [])).push(cmd.id)
+    addLog(s, `${u.name}: ${info.text}`, 'standard')
+  }
   const t = cmd.targetId ? findUnit(s, cmd.targetId) : undefined
   switch (cmd.id) {
+    case 'aggressorImperative': {
+      u.advanceRoll = 6
+      u.advanceRerolled = true
+      addLog(s, `${u.name}: продвижение без броска — M + 6".`, 'minimal')
+      break
+    }
+    case 'extinctionOrder': {
+      const o = s.objectives.find((x) => x.id === cmd.targetId)!
+      const foes = enemiesOf(s, u).filter((e) => alive(e).length && unitNearObjective(e, o))
+      if (!foes.length) addLog(s, 'На этой цели нет вражеских отрядов — приказ ничего не дал.', 'minimal')
+      for (const e of foes) {
+        const v = r.d6()
+        pushDice(s, `Приказ об истреблении: ${e.name}`, [{ label: 'D6', target: '4+', dice: [{ value: v, success: v >= 4 }], note: '4+ — смертельная рана и проверка боевого шока' }],
+          v >= 4 ? `${e.name}: смертельная рана и проверка боевого шока.` : `${e.name}: без последствий.`)
+        if (v < 4) continue
+        applyMortalWounds(s, e, 1, `приказ об истреблении «${u.name}»`)
+        if (isDestroyed(e)) { addLog(s, `Отряд «${e.name}» уничтожен!`, 'minimal'); continue }
+        const { dice, total, ld, pass, label } = leadershipRoll(s, e, r)
+        if (!pass) e.battleShocked = true
+        pushDice(s, `Боевой шок: ${e.name}`, [{ label, target: `${ld}+`, dice: dice.map((x) => ({ value: x, success: pass })), note: `Сумма ${total} против Ld ${ld}+` }],
+          pass ? `${e.name}: проверка пройдена.` : `${e.name}: провал — отряд в боевом шоке.`)
+      }
+      updateObjectiveControl(s)
+      checkWinner(s)
+      break
+    }
     case 'commandReroll': {
       if (s.phase === 'charge') {
         const prev = s.lastCharge!.dice
@@ -1404,7 +1506,7 @@ export const DISRUPTION = 2
 
 export function maxMove(u: UnitState): number {
   const cut = u.disrupted ? DISRUPTION : 0
-  const m = Math.max(0, Math.min(...alive(u).map((x) => profileOf(x).m)) - cut)
+  const m = Math.max(0, Math.min(...alive(u).map((x) => profileOf(x).m)) - cut) + (hasBuff(u, 'fungusFuelInjection') ? FUNGUS_BONUS : 0)
   return u.advanceRoll !== null ? m + Math.max(0, u.advanceRoll - cut) : m
 }
 

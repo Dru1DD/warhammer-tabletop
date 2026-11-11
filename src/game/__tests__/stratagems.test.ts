@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { decide } from '../ai/ai'
 import { scriptedRoller } from '../dice/dice'
-import { apply, validate } from '../engine'
+import { apply, maxMove, meleeSetup, meleeWeaponsOf, shootPlan, validate } from '../engine'
+import { rect } from '../geometry/geometry'
+import { stratagemAvailability } from '../rules/stratagems'
 import { alive } from '../gameState'
 import type { Command, GameState } from '../types'
 import { battle, column, place, unit } from './helpers'
@@ -162,4 +164,118 @@ it('Stratagems used in a phase are forgotten when the next phase starts', () => 
   s = apply(s, { type: 'endPhase' }, scriptedRoller([]))
   expect(s.players.marines.stratagemsThisPhase).toEqual([])
   expect(s.players.marines.stratagemUnitsThisPhase).toEqual([])
+})
+
+// ---------------------------------------------------------------- army (detachment) Stratagems
+
+describe('army Stratagems', () => {
+  it('the army screen tells which Stratagems a list can use and why not', () => {
+    const mech = stratagemAvailability('adeptus_mechanicus', ['techDominus', 'rangers', 'vanguard', 'kastelans'])
+    const by = (id: string) => mech.find((a) => a.info.id === id)!
+    expect(by('explosives').available).toBe(false)
+    expect(by('explosives').why).toContain('EXPLOSIVES')
+    expect(by('crushingImpact').available).toBe(true) // Kastelans are VEHICLE
+    expect(by('lethalDosage').available).toBe(true)
+    expect(by('aggressorImperative').available).toBe(true) // Skitarii
+    expect(by('extinctionOrder').available).toBe(true) // Tech-Priest
+    expect(stratagemAvailability('adeptus_mechanicus', ['rangers']).find((a) => a.info.id === 'extinctionOrder')!.available).toBe(false)
+    // another army's Stratagems are not listed
+    expect(mech.some((a) => a.info.faction && a.info.faction !== 'adeptus_mechanicus')).toBe(false)
+  })
+
+  it('a unit that does not fit the requirement cannot be targeted', () => {
+    const s = table('movement', 'orks', ['boyz', 'dread'])
+    expect(validate(s, { type: 'stratagem', id: 'fungusFuelInjection', unitId: 'boyz' }).ok).toBe(false)
+    expect(validate(s, { type: 'stratagem', id: 'fungusFuelInjection', unitId: 'dread' }).ok).toBe(true)
+    // and an army cannot use another army's Stratagem
+    expect(validate(s, { type: 'stratagem', id: 'lethalDosage', unitId: 'boyz' }).ok).toBe(false)
+  })
+
+  it('Fungus-Fuel Injection: +2 inches of Move for this phase only', () => {
+    let s = table('movement', 'orks', ['boyz', 'dread'])
+    const m0 = maxMove(unit(s, 'dread'))
+    s = apply(s, { type: 'stratagem', id: 'fungusFuelInjection', unitId: 'dread' }, scriptedRoller([]))
+    expect(maxMove(unit(s, 'dread'))).toBe(m0 + 2)
+    s = apply(s, { type: 'endPhase' }, scriptedRoller([]))
+    expect(maxMove(unit(s, 'dread'))).toBe(m0)
+  })
+
+  it('Storm of Devastation: the target loses the benefit of cover', () => {
+    const s = table('shooting', 'marines', ['int', 'boyz'])
+    place(s, 'int', column(10, 10, 5))
+    place(s, 'boyz', column(25, 10, 10, 1.1))
+    s.terrain = [{ id: 'c', name: 'crater', kind: 'crater', obscuring: false, poly: rect(24, 8, 3, 14) }]
+    const plain = shootPlan(s, unit(s, 'int'), unit(s, 'boyz'))
+    expect(plain.cover).toBe(true)
+    expect(plain.groups.every((g) => g.ctx.skillWorsen >= 1)).toBe(true)
+    const after = apply(s, { type: 'stratagem', id: 'stormOfDevastation', unitId: 'int' }, scriptedRoller([]))
+    const storm = shootPlan(after, unit(after, 'int'), unit(after, 'boyz'))
+    expect(storm.groups.every((g) => g.ctx.skillWorsen < 1)).toBe(true)
+  })
+
+  it('Close-Range Dakka adds Rapid Fire 1 within half range; Lethal Dosage gives Lethal Hits', () => {
+    const s = table('shooting', 'orks', ['int', 'boyz'])
+    place(s, 'int', column(10, 10, 5))
+    place(s, 'boyz', column(14, 10, 10, 1.1))
+    const attacks = (x: GameState) => shootPlan(x, unit(x, 'boyz'), unit(x, 'int')).groups.reduce((a, g) => a + g.attacks, 0)
+    const after = apply(s, { type: 'stratagem', id: 'closeRangeDakka', unitId: 'boyz' }, scriptedRoller([]))
+    expect(attacks(after)).toBeGreaterThan(attacks(s))
+
+    const m = battle('adeptus_mechanicus', 'orks', 'shooting', 'adeptus_mechanicus')
+    for (const u of m.units) if (!['rangers', 'boyz'].includes(u.id)) place(m, u.id, [])
+    m.players.adeptus_mechanicus.cp = 2
+    place(m, 'rangers', column(10, 5, 10))
+    place(m, 'boyz', column(20, 5, 10, 1.1))
+    const dosed = apply(m, { type: 'stratagem', id: 'lethalDosage', unitId: 'rangers' }, scriptedRoller([]))
+    expect(shootPlan(dosed, unit(dosed, 'rangers'), unit(dosed, 'boyz')).groups.every((g) => g.ctx.lethalHits)).toBe(true)
+  })
+
+  it('Aggressor Imperative: Advance without the roll, +6 inches', () => {
+    const m = battle('adeptus_mechanicus', 'orks', 'movement', 'adeptus_mechanicus')
+    m.players.adeptus_mechanicus.cp = 1
+    const after = apply(m, { type: 'stratagem', id: 'aggressorImperative', unitId: 'rangers' }, scriptedRoller([]))
+    expect(unit(after, 'rangers').advanceRoll).toBe(6)
+    expect(after.players.adeptus_mechanicus.cp).toBe(0)
+  })
+
+  it('Extinction Order: each enemy unit on the objective takes a mortal wound on 4+ and tests battle-shock', () => {
+    const m = battle('adeptus_mechanicus', 'orks', 'command', 'adeptus_mechanicus')
+    for (const u of m.units) if (!['dominus', 'boyz'].includes(u.id)) place(m, u.id, [])
+    m.players.adeptus_mechanicus.cp = 1
+    place(m, 'dominus', [{ x: 10, y: 10 }])
+    place(m, 'boyz', column(25, 8, 10, 1.1))
+    m.objectives = [{ id: 'o1', pos: { x: 25, y: 12 }, controller: null }]
+    const cmd: Command = { type: 'stratagem', id: 'extinctionOrder', unitId: 'dominus', targetId: 'o1' }
+    expect(validate(m, cmd).ok).toBe(true)
+    const before = woundsOf(m, 'boyz')
+    const after = apply(m, cmd, scriptedRoller([5, 1, 1])) // 4+, then a failed 2D6 battle-shock test
+    expect(before - woundsOf(after, 'boyz')).toBe(1)
+    expect(unit(after, 'boyz').battleShocked).toBe(true)
+  })
+
+  it('Adrenal Surge makes 5+ a critical hit in melee', () => {
+    const s = battle('tyranids', 'marines', 'fight', 'tyranids')
+    const gaunts = s.units.find((u) => u.owner === 'tyranids' && alive(u).length > 1)!
+    unit(s, gaunts.id).phaseBuffs = ['adrenalSurge']
+    const target = s.units.find((u) => u.owner === 'marines')!
+    const w = alive(unit(s, gaunts.id))[0]
+    const p0 = meleeWeaponsOf(w)[0].profiles[0]
+    expect(meleeSetup(s, unit(s, gaunts.id), target, p0).ctx.critHitOn).toBe(5)
+  })
+
+  it('the AI spends an army Stratagem on a good volley', () => {
+    const s = table('shooting', 'marines', ['int', 'boyz'])
+    place(s, 'int', column(10, 10, 5))
+    place(s, 'boyz', column(20, 10, 10, 1.1))
+    s.players.marines.cp = 3
+    let x = s
+    const used: string[] = []
+    for (let i = 0; i < 4 && !x.winner; i++) {
+      const d = decide(x, 'standard')!
+      if (d.cmd.type === 'stratagem') used.push(d.cmd.id)
+      if (d.cmd.type === 'endPhase') break
+      x = apply(x, d.cmd, scriptedRoller(Array.from({ length: 200 }, () => 4)))
+    }
+    expect(used).toContain('stormOfDevastation')
+  })
 })

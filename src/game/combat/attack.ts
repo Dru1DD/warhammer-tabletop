@@ -39,6 +39,8 @@ export interface AttackContext {
   precision?: boolean
   /** why BS/WS is improved (skillWorsen < 0), for the dice log */
   skillNote?: string
+  /** unmodified hit roll at or above this is a Critical Hit (default 6; Adrenal Surge, Blitzing Firepower: 5) */
+  critHitOn?: number
 }
 
 export function woundTarget(s: number, t: number): number {
@@ -136,7 +138,8 @@ export function resolveGroup(
     const hr = hitRoll(p, ctx)
     const skill = psy ? Math.min(6, Math.max(2, p.skill)) : (hr.skill as number)
     const mod = psy ? Math.max(0, hr.mod) : hr.mod
-    const passes = (x: number) => x !== 1 && (x === 6 || x + mod >= skill)
+    const critOn = ctx.critHitOn ?? 6
+    const passes = (x: number) => x !== 1 && (x >= critOn || x + mod >= skill)
     const dice: DieRoll[] = []
     for (let i = 0; i < attacks; i++) {
       let v = roller.d6()
@@ -146,7 +149,7 @@ export function resolveGroup(
         v = roller.d6()
         rerolls++
       }
-      const crit = v === 6
+      const crit = v >= critOn
       const success = passes(v)
       if (success && crit && ctx.lethalHits) autoWounds++
       else if (success) hits++
