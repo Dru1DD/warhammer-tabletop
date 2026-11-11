@@ -5,6 +5,7 @@ import { MARINE_ABILITY_TEXT, MARINE_DATASHEETS, MARINE_PROFILES, MARINE_WEAPONS
 import { NECRON_ABILITY_TEXT, NECRON_DATASHEETS, NECRON_PROFILES, NECRON_WEAPONS } from './necrons'
 import { ORK_ABILITY_TEXT, ORK_DATASHEETS, ORK_PROFILES, ORK_WEAPONS } from './orks'
 import { TYRANID_ABILITY_TEXT, TYRANID_DATASHEETS, TYRANID_PROFILES, TYRANID_WEAPONS } from './tyranids'
+import { TYRANID_EXTRA_ABILITY_TEXT, TYRANID_EXTRA_DATASHEETS, TYRANID_EXTRA_PROFILES, TYRANID_EXTRA_WEAPONS } from './tyranidsExtra'
 
 // Profiles from 11th-edition datasheets as transcribed by Wahapedia (checked
 // 2026-10-18; Redemptor, Deff Dread, Assault Intercessors 2026-10-29). Loadouts follow the Introductory Set miniatures. See
@@ -234,10 +235,10 @@ const CORE_ABILITY_TEXT: Record<string, string> = {
   waaagh: 'Waaagh! (правило армии): переброс броска продвижения; раз за битву — «Боевой клич»: до конца следующего хода отряд «разъярён» — 5+ непробиваемый спас, оружие дальнего боя получает Assault, можно атаковать после продвижения.',
 }
 
-export const WEAPONS: Record<string, Weapon> = { ...CORE_WEAPONS, ...TYRANID_WEAPONS, ...NECRON_WEAPONS, ...AELDARI_WEAPONS, ...MECHANICUS_WEAPONS, ...ORK_WEAPONS, ...MARINE_WEAPONS }
-export const PROFILES: Record<string, ModelProfile> = { ...CORE_PROFILES, ...TYRANID_PROFILES, ...NECRON_PROFILES, ...AELDARI_PROFILES, ...MECHANICUS_PROFILES, ...ORK_PROFILES, ...MARINE_PROFILES }
-export const DATASHEETS: Record<string, Datasheet> = { ...CORE_DATASHEETS, ...TYRANID_DATASHEETS, ...NECRON_DATASHEETS, ...AELDARI_DATASHEETS, ...MECHANICUS_DATASHEETS, ...ORK_DATASHEETS, ...MARINE_DATASHEETS }
-export const ABILITY_TEXT: Record<string, string> = { ...CORE_ABILITY_TEXT, ...TYRANID_ABILITY_TEXT, ...NECRON_ABILITY_TEXT, ...AELDARI_ABILITY_TEXT, ...MECHANICUS_ABILITY_TEXT, ...ORK_ABILITY_TEXT, ...MARINE_ABILITY_TEXT }
+export const WEAPONS: Record<string, Weapon> = { ...CORE_WEAPONS, ...TYRANID_WEAPONS, ...NECRON_WEAPONS, ...AELDARI_WEAPONS, ...MECHANICUS_WEAPONS, ...ORK_WEAPONS, ...MARINE_WEAPONS, ...TYRANID_EXTRA_WEAPONS }
+export const PROFILES: Record<string, ModelProfile> = { ...CORE_PROFILES, ...TYRANID_PROFILES, ...NECRON_PROFILES, ...AELDARI_PROFILES, ...MECHANICUS_PROFILES, ...ORK_PROFILES, ...MARINE_PROFILES, ...TYRANID_EXTRA_PROFILES }
+export const DATASHEETS: Record<string, Datasheet> = { ...CORE_DATASHEETS, ...TYRANID_DATASHEETS, ...NECRON_DATASHEETS, ...AELDARI_DATASHEETS, ...MECHANICUS_DATASHEETS, ...ORK_DATASHEETS, ...MARINE_DATASHEETS, ...TYRANID_EXTRA_DATASHEETS }
+export const ABILITY_TEXT: Record<string, string> = { ...CORE_ABILITY_TEXT, ...TYRANID_ABILITY_TEXT, ...NECRON_ABILITY_TEXT, ...AELDARI_ABILITY_TEXT, ...MECHANICUS_ABILITY_TEXT, ...ORK_ABILITY_TEXT, ...MARINE_ABILITY_TEXT, ...TYRANID_EXTRA_ABILITY_TEXT }
 
 export const FACTION_NAME: Record<PlayerId, string> = {
   marines: 'Космодесант',

@@ -40,6 +40,10 @@ export const POINTS: Record<string, PointsBracket[]> = {
   termagants: [{ models: 10, points: 60 }, { models: 20, points: 110 }],
   hormagaunts: [{ models: 10, points: 70 }, { models: 20, points: 120 }],
   tyranidWarriors: [{ models: 3, points: 60 }, { models: 6, points: 120 }],
+  wingedPrime: [{ models: 1, points: 65 }],
+  zoanthropes: [{ models: 3, points: 100 }, { models: 6, points: 200 }],
+  carnifexes: [{ models: 1, points: 90 }, { models: 2, points: 180 }],
+  barbgaunts: [{ models: 5, points: 55 }, { models: 10, points: 110 }],
   // Necrons
   overlord: [{ models: 1, points: 90 }],
   necronWarriors: [{ models: 10, points: 80 }, { models: 20, points: 190 }],

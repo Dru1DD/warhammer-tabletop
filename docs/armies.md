@@ -137,7 +137,7 @@ Unit costs live in `src/game/data/points.ts`: Munitorum Field Manual values as l
 
 ## Army builder
 
-The Orks have four more units for army lists (Warboss, Nobz, Gretchin, Kommandos): see [orks.md](orks.md). So do the Space Marines (Captain, Hellblasters, Infernus, Bladeguard Veterans): see [marines.md](marines.md).
+The Orks have four more units for army lists (Warboss, Nobz, Gretchin, Kommandos): see [orks.md](orks.md). So do the Space Marines (Captain, Hellblasters, Infernus, Bladeguard Veterans): see [marines.md](marines.md), and the Tyranids (Winged Prime, Zoanthropes, Carnifexes, Barbgaunts): see [tyranids.md](tyranids.md).
 
 The start screen has an army builder for both sides (yours and the AI's). Each faction keeps its own list in this browser.
 
@@ -152,7 +152,7 @@ The start screen has an army builder for both sides (yours and the AI's). Each f
 |---|---|---|
 | Space Marines | 480 | 980 |
 | Orks | 495 | 975 |
-| Tyranids | 485 | 970 |
+| Tyranids | 480 | 1000 |
 | Necrons | 500 | 980 |
 | Aeldari | 480 | 950 |
 | Adeptus Mechanicus | 490 | 970 |

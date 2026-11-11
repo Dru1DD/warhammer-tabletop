@@ -55,6 +55,10 @@ export const COMPOSITION: Record<string, { leader?: string; pattern: string[] }>
   termagants: { pattern: ['termagant', 'termagant', 'termagantShard', 'termagant', 'termagant', 'termagantSpike', 'termagant', 'termagant', 'termagantWeb', 'termagant'] },
   hormagaunts: { pattern: ['hormagaunt'] },
   tyranidWarriors: { leader: 'tyranidPrime', pattern: ['tyranidWarriorVenom', 'tyranidWarriorStrangler', 'tyranidWarrior', 'tyranidWarrior', 'tyranidWarrior'] },
+  wingedPrime: { pattern: ['wingedPrime'] },
+  zoanthropes: { leader: 'neurothrope', pattern: ['zoanthrope'] },
+  carnifexes: { pattern: ['carnifex'] },
+  barbgaunts: { pattern: ['barbgaunt'] },
   overlord: { pattern: ['overlord'] },
   necronWarriors: { pattern: ['necronWarrior'] },
   skorpekhDestroyers: { pattern: ['skorpekh'] },
@@ -127,8 +131,8 @@ export const PRESETS: Record<PlayerId, Record<PointsLimit, ListEntry[]>> = {
     1000: [...u('warboss', 1), ...u('boyz', 20, 2), ...u('boyz', 10), ...u('nobz', 5), ...u('kommandos', 10), ...u('gretchin', 20), ...u('deffDread', 1, 2)],
   },
   tyranids: {
-    500: [...u('hiveTyrant', 1), ...u('termagants', 20), ...u('hormagaunts', 20), ...u('tyranidWarriors', 3)],
-    1000: [...u('hiveTyrant', 1, 2), ...u('termagants', 20, 2), ...u('hormagaunts', 20, 2), ...u('tyranidWarriors', 6)],
+    500: [...u('wingedPrime', 1), ...u('tyranidWarriors', 3), ...u('termagants', 20), ...u('zoanthropes', 3), ...u('carnifexes', 1), ...u('barbgaunts', 5)],
+    1000: [...u('hiveTyrant', 1), ...u('wingedPrime', 1), ...u('tyranidWarriors', 6), ...u('termagants', 20), ...u('hormagaunts', 20), ...u('zoanthropes', 3), ...u('carnifexes', 2), ...u('barbgaunts', 10)],
   },
   necrons: {
     500: [...u('overlord', 1), ...u('necronWarriors', 10, 2), ...u('skorpekhDestroyers', 3, 2), ...u('scarabSwarms', 3, 2)],

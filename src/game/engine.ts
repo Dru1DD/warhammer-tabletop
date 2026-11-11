@@ -5,7 +5,7 @@ import { FACTION_NAME } from './data/datasheets'
 import { rollDie, rollMany, type Roller } from './dice/dice'
 import { dist, withinRange, EPS, add, sub, scale, len } from './geometry/geometry'
 import {
-  battlelineSupport, feelNoPainOf, hasWargear, holdScoutedObjectives, imperativeOf, invulnOverrideOf, ledUnitOf, leadersOf, neurostaticMod,
+  alphaWarrior, battlelineSupport, feelNoPainOf, hasWargear, holdScoutedObjectives, imperativeOf, invulnOverrideOf, ledUnitOf, leadersOf, neurostaticMod,
   addLog, alive, atHalfStrength, CHARGE_RANGE, checkCoherency, CONSOLIDATE, datasheetOf, engagedUnits, ENGAGEMENT_RANGE,
   enemiesOf, findUnit, fmt, hasAbility, hasKeyword, inSynapseRange, isDestroyed, isEngaged, isFlyer, isMV, modelDistance, modelEngagedWith,
   other, PILE_IN, profileOf, radiusOf, sidesOf, SYNAPSE_RANGE, unitDistance, unitNearObjective, unitsOf,
@@ -240,6 +240,10 @@ export function shootPlan(
     if (hasAbility(unit, 'swiftDemise')) rerollHits = isClosestTarget(s, unit, target) ? 'all' : 'ones'
     if (bonus.rerollHits) g.notes.push(bonus.rerollHits === 'all' ? 'Breaching Command: переброс попаданий' : 'Breaching Command: переброс 1')
     // Ignores Cover (weapon keyword or Omnispex) cancels the cover bonus; Protector improves BS by 1
+    if (alphaWarrior(s, unit) && !(g.profile.keywords.sustainedHits ?? 0)) {
+      g.profile = { ...g.profile, keywords: { ...g.profile.keywords, sustainedHits: 1 } }
+      g.notes.push('Alpha Warrior: Sustained Hits 1')
+    }
     const exposed = target.drivenFromCover === unit.owner
     const ignores = g.profile.keywords.ignoresCover || omnispex || exposed
     if (plan.cover && ignores) g.notes.push(exposed && !g.profile.keywords.ignoresCover && !omnispex ? 'Driven from Cover: без укрытия' : 'игнорирует укрытие')
@@ -273,6 +277,11 @@ export function meleeSetup(s: GameState, unit: UnitState, target: UnitState, p0:
   if (hasAbility(unit, 'targetedIntercession') && unit.charged) {
     p = { ...p, s: p.s + 1, ap: p.ap - 1 }
     notes.push('Targeted Intercession +1 S/AP')
+  }
+  // Alpha Warrior (Winged Prime): Sustained Hits 1 for the Prime and the Tyranid Warriors it leads
+  if (alphaWarrior(s, unit) && !(p.keywords.sustainedHits ?? 0)) {
+    p = { ...p, keywords: { ...p.keywords, sustainedHits: 1 } }
+    notes.push('Alpha Warrior: Sustained Hits 1')
   }
   // Finest Hour (Captain): +3 A and Devastating Wounds for this fight
   if (unit.finestHour) {
@@ -691,6 +700,8 @@ function endTurn(s: GameState, r: Roller) {
     if (removed) addLog(s, `${u.name}: ${removed} модель(и) убраны в конце хода из-за нарушения связности (coherency).`, 'minimal')
   }
   for (const p of sidesOf(s)) if (s.players[p].riledTurns > 0) s.players[p].riledTurns--
+  // Disruption Bombardment lasts until the end of the disrupted unit's owner's turn
+  for (const u of s.units) if (u.owner === s.activePlayer) delete u.disrupted
   updateObjectiveControl(s)
   checkWinner(s)
   if (s.winner) return
@@ -994,6 +1005,11 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
         pushDice(s, `${u.name} → ${t.name}: ${g.weaponName}${g.notes.length ? ` [${g.notes.join(', ')}]` : ''}`, res.steps, res.summary)
         addLog(s, res.summary, 'standard')
       }
+      // Disruption Bombardment (Barbgaunts): an INFANTRY target it hit is disrupted until the end of its owner's next turn
+      if (scored && hasAbility(u, 'disruptionBombardment') && !isDestroyed(t) && hasKeyword(t, 'INFANTRY') && !t.disrupted) {
+        t.disrupted = true
+        addLog(s, `${u.name}: «${t.name}» под подавляющим обстрелом (Disruption Bombardment) — до конца своего следующего хода −2″ к движению, −2 к броскам продвижения и атаки.`, 'standard')
+      }
       // Driven from Cover (Infernus): the target it hit loses cover against this army's shooting until the end of the turn
       if (scored && hasAbility(u, 'drivenFromCover') && !isDestroyed(t) && t.drivenFromCover !== u.owner) {
         t.drivenFromCover = u.owner
@@ -1015,9 +1031,9 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       const u = findUnit(s, cmd.unitId)!
       u.chargeDeclared = true
       const dice = rollMany(r, 2)
-      const roll = dice[0] + dice[1]
+      const roll = Math.max(0, dice[0] + dice[1] - (u.disrupted ? DISRUPTION : 0))
       const targets = chargeTargetsFor(s, u, roll)
-      pushDice(s, `Бросок атаки: ${u.name}`, [{ label: '2D6', target: '—', dice: dice.map((x) => ({ value: x, success: targets.length > 0 })), note: `Максимальная дистанция атаки ${roll}"` }],
+      pushDice(s, `Бросок атаки: ${u.name}`, [{ label: '2D6', target: '—', dice: dice.map((x) => ({ value: x, success: targets.length > 0 })), note: `Максимальная дистанция атаки ${roll}"${u.disrupted ? ` (−${DISRUPTION}: Disruption Bombardment)` : ''}` }],
         targets.length ? `Бросок ${roll}": доступные цели — ${targets.map((x) => x.name).join(', ')}.` : `Бросок ${roll}" — недостаточно, атака провалена.`)
       if (targets.length) s.pendingCharge = { unitId: u.id, roll, dice, targets: targets.map((x) => x.id) }
       else {
@@ -1138,9 +1154,13 @@ export function unitActions(s: GameState, unitId: string): ActionInfo[] {
   return out.filter((a) => a.id !== 'reroll' || hasAbility(u, 'waaagh'))
 }
 
+/** Disruption Bombardment: −2″ to Move and −2 to Advance and Charge rolls */
+export const DISRUPTION = 2
+
 export function maxMove(u: UnitState): number {
-  const m = Math.min(...alive(u).map((x) => profileOf(x).m))
-  return u.advanceRoll !== null ? m + u.advanceRoll : m
+  const cut = u.disrupted ? DISRUPTION : 0
+  const m = Math.max(0, Math.min(...alive(u).map((x) => profileOf(x).m)) - cut)
+  return u.advanceRoll !== null ? m + Math.max(0, u.advanceRoll - cut) : m
 }
 
 /** Move options the player may toggle: FLY ("take to the skies") and Aeldari Swift as the Wind. */

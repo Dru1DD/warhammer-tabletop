@@ -218,6 +218,56 @@ function warrior(gear: WarriorGear, prime = false): string {
 // ---------------------------------------------------------------- Necrons
 
 /** Necron Warrior: skeletal metal body, rib lines, gauss flayer. */
+/** Winged Tyranid Prime: a warrior body with broad membranous wings and long talons. */
+function wingedPrime(): string {
+  const c = BLUEPRINT_LINE.tyranids
+  return base(c, `
+    <path d="M36 34 Q10 8 4 34 Q18 34 30 44 Z" ${f(c, 0.14)}/><path d="M36 66 Q10 92 4 66 Q18 66 30 56 Z" ${f(c, 0.14)}/>
+    <path d="M10 20 L26 38 M8 30 L26 42 M10 80 L26 62 M8 70 L26 58" fill="none" opacity="0.6"/>
+    <ellipse cx="44" cy="50" rx="16" ry="19" ${f(c)}/>
+    <path d="M58 43 L71 41 L77 50 L71 59 L58 57 Z" ${f(c, 0.3)}/><path d="M66 39 L75 29 L71 41 Z M66 61 L75 71 L71 59 Z" ${f(c, 0.5)}/>
+    <path d="M52 34 L88 22 L80 32 L58 40 Z M52 66 L88 78 L80 68 L58 60 Z" ${f(c, 0.4)}/>
+    <path d="M44 50 m-24 0 a24 24 0 1 0 48 0 a24 24 0 1 0 -48 0" fill="none" stroke-dasharray="1.5 3" opacity="0.6"/>
+  `, false)
+}
+
+/** Zoanthrope: a huge psychic head over a withered body; the Neurothrope has a crest of synapse nodes. */
+function zoanthrope(neuro = false): string {
+  const c = BLUEPRINT_LINE.tyranids
+  return base(c, `
+    <path d="M30 44 Q20 50 30 56 L40 54 L40 46 Z" ${f(c, 0.15)}/>
+    <ellipse cx="56" cy="50" rx="22" ry="24" ${f(c, 0.28)}/>
+    <path d="M42 38 Q56 30 70 38 M40 50 Q56 44 72 50 M42 62 Q56 70 70 62" fill="none" opacity="0.6"/>
+    <circle cx="74" cy="44" r="2" fill="${c}" stroke="none"/><circle cx="74" cy="56" r="2" fill="${c}" stroke="none"/>
+    <circle cx="56" cy="50" r="31" fill="none" stroke-dasharray="2 3" opacity="0.5"/>
+    ${neuro ? `<circle cx="46" cy="32" r="3" ${f(c, 0.6)}/><circle cx="56" cy="27" r="3" ${f(c, 0.6)}/><circle cx="66" cy="32" r="3" ${f(c, 0.6)}/>` : ''}
+  `, false)
+}
+
+/** Carnifex: a hulking armoured beast with two pairs of scything talons. */
+function carnifex(): string {
+  const c = BLUEPRINT_LINE.tyranids
+  return base(c, `
+    <ellipse cx="42" cy="50" rx="24" ry="27" ${f(c)}/>
+    <path d="M24 36 Q42 28 60 36 M22 50 H62 M24 64 Q42 72 60 64" fill="none" opacity="0.55"/>
+    <path d="M62 40 L78 38 L86 50 L78 62 L62 60 Z" ${f(c, 0.35)}/><path d="M80 44 L90 40 M80 56 L90 60" stroke-width="2.6"/>
+    <path d="M50 26 L84 10 L80 20 L58 32 Z M50 74 L84 90 L80 80 L58 68 Z" ${f(c, 0.4)}/>
+    <path d="M56 30 L90 24 L84 32 Z M56 70 L90 76 L84 68 Z" ${f(c, 0.3)}/>
+    <path d="M28 30 L22 20 M36 26 L34 16 M28 70 L22 80 M36 74 L34 84" stroke-width="2.4"/>
+  `, false)
+}
+
+/** Barbgaunt: a squat gaunt carrying a long barblauncher on its back. */
+function barbgaunt(): string {
+  const c = BLUEPRINT_LINE.tyranids
+  return base(c, `
+    <ellipse cx="44" cy="50" rx="15" ry="17" ${f(c)}/>
+    <circle cx="61" cy="50" r="7.5" ${f(c, 0.25)}/><path d="M66 45 L72 42 M66 55 L72 58" stroke-width="2"/>
+    <path d="M30 42 L84 34 L88 40 L32 50 Z" ${f(c, 0.35)}/><circle cx="86" cy="37" r="4" ${f(c, 0.5)}/>
+    <path d="M40 36 L36 28 M50 34 L48 26" stroke-width="1.8"/>
+  `, false)
+}
+
 function necronWarrior(): string {
   const c = BLUEPRINT_LINE.necrons
   return base(c, `
@@ -459,6 +509,11 @@ const SVGS: Record<string, string> = {
   termagantWeb: termagant('web'),
   hormagaunt: hormagaunt(),
   tyranidPrime: warrior('devourer', true),
+  wingedPrime: wingedPrime(),
+  neurothrope: zoanthrope(true),
+  zoanthrope: zoanthrope(),
+  carnifex: carnifex(),
+  barbgaunt: barbgaunt(),
   tyranidWarrior: warrior('devourer'),
   tyranidWarriorVenom: warrior('venom'),
   tyranidWarriorStrangler: warrior('strangler'),

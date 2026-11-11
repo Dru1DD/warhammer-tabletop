@@ -102,8 +102,35 @@ export function invulnOverrideOf(s: GameState, u: UnitState): number | undefined
   const v = [
     hasAbility(u, 'waaagh') && s.players[u.owner].riledTurns > 0 ? 5 : undefined,
     u.warded ? 4 : undefined,
+    warpField(s, u) ? 6 : undefined,
   ].filter((x): x is number => x !== undefined)
   return v.length ? Math.min(...v) : undefined
+}
+
+// ---------------------------------------------------------------- Tyranids beyond the first four units
+
+export const WARP_FIELD_RANGE = 6
+
+/** Warp Field (Zoanthropes, aura): a friendly TYRANIDS unit within 6″ (or the Zoanthropes themselves) has a 6+ invulnerable save. */
+export function warpField(s: GameState, u: UnitState): boolean {
+  if (datasheetOf(u).faction !== 'tyranids' || isDestroyed(u)) return false
+  return s.units.some((x) => x.owner === u.owner && !isDestroyed(x) && hasAbility(x, 'warpField') && (x.id === u.id || unitDistance(u, x) <= WARP_FIELD_RANGE + EPS))
+}
+
+/** The Tyranid Warriors unit a Winged Prime leads: the nearest one within 3″ (approximation of attached units). */
+export function primeLeads(s: GameState, prime: UnitState): UnitState | null {
+  if (!hasAbility(prime, 'alphaWarrior') || isDestroyed(prime)) return null
+  return s.units
+    .filter((x) => x.owner === prime.owner && !isDestroyed(x) && x.datasheetId === 'tyranidWarriors')
+    .map((x) => ({ x, d: unitDistance(prime, x) }))
+    .filter((e) => e.d <= LEADER_RANGE + EPS)
+    .sort((a, b) => a.d - b.d || (a.x.id < b.x.id ? -1 : 1))[0]?.x ?? null
+}
+
+/** Alpha Warrior: the Prime and the Tyranid Warriors it leads have Sustained Hits 1 on every weapon. */
+export function alphaWarrior(s: GameState, u: UnitState): boolean {
+  if (hasAbility(u, 'alphaWarrior')) return primeLeads(s, u) !== null
+  return u.datasheetId === 'tyranidWarriors' && s.units.some((p) => p.owner === u.owner && primeLeads(s, p)?.id === u.id)
 }
 
 /** Neurostatic Interference: modifier to Battle-shock and Leadership tests of `u` caused by enemy Sicarians within 6″. */

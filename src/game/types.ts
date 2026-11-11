@@ -150,6 +150,13 @@ export type AbilityId =
   | 'thermalAppeasement'
   | 'drivenFromCover'
   | 'bladeguard'
+  // Tyranids beyond the first four units
+  | 'alphaWarrior'
+  | 'deathBlow'
+  | 'warpField'
+  | 'spiritLeech'
+  | 'blisteringAssault'
+  | 'disruptionBombardment'
   | 'repulsorGrid'
   | 'sentinelDirectives'
   | 'scouts'
@@ -211,6 +218,8 @@ export interface UnitState {
   finestHour?: boolean
   /** Driven from Cover: this unit gets no cover against ranged attacks of this army until the end of the turn */
   drivenFromCover?: PlayerId
+  /** Disruption Bombardment (Barbgaunts): −2″ Move, −2 to Advance and Charge rolls until the end of its owner's next turn */
+  disrupted?: boolean
 }
 
 /** crater = exposed; barricade = light; ruin / woods / container = dense (container is also solid) */
