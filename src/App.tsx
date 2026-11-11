@@ -14,6 +14,7 @@ import { armyUnits, battleListProblems } from './ui/armyUnits'
 import { BattleOverDialog } from './ui/BattleOverDialog'
 import { Board } from './ui/Board'
 import { ActionPanel, AttackReview, BottomPanel, DiceFaces, RosterPanel } from './ui/Panels'
+import { PanelBoundary } from './ui/PanelBoundary'
 import { LEARNING_STYLE, learningStyleOf, type LearningStyle } from './ui/help'
 import { scoreText } from './ui/score'
 
@@ -258,7 +259,7 @@ function GameScreen() {
       </header>
 
       <main className={`grid min-h-0 grid-cols-1 overflow-y-auto md:grid-cols-2 lg:overflow-hidden ${st.layout.roster ? 'lg:grid-cols-[240px_1fr_270px] 2xl:grid-cols-[300px_1fr_320px]' : 'lg:grid-cols-[60px_1fr_280px] 2xl:grid-cols-[60px_1fr_320px]'}`}>
-        <aside className="order-2 border-r border-stone-700 p-2 lg:order-1 lg:overflow-y-auto"><RosterPanel /></aside>
+        <aside className="order-2 border-r border-stone-700 p-2 lg:order-1 lg:overflow-y-auto"><PanelBoundary name="Отряды" resetKey={st.selectedUnitId}><RosterPanel /></PanelBoundary></aside>
         <section className="relative order-1 h-[60vh] min-w-0 overflow-hidden md:col-span-2 lg:order-2 lg:col-span-1 lg:h-auto">
           <Board />
           <OnlineBanner />
@@ -271,10 +272,10 @@ function GameScreen() {
             </div>
           )}
         </section>
-        <aside className="order-3 border-l border-stone-700 p-2 lg:overflow-y-auto"><ActionPanel /></aside>
+        <aside className="order-3 border-l border-stone-700 p-2 lg:overflow-y-auto"><PanelBoundary name="Действия" resetKey={st.selectedUnitId}><ActionPanel /></PanelBoundary></aside>
       </main>
 
-      <footer className={`${st.layout.log ? 'h-48' : ''} border-t border-stone-700 p-2`}><BottomPanel /></footer>
+      <footer className={`${st.layout.log ? 'h-48' : ''} border-t border-stone-700 p-2`}><PanelBoundary name="Журнал"><BottomPanel /></PanelBoundary></footer>
       {game.winner && !st.deploying && overClosedFor !== game && (
         <BattleOverDialog game={{ ...game, winner: game.winner }} human={st.settings.human} onClose={() => setOverClosedFor(game)} onNewBattle={() => (st.shared ? leaveRoom() : st.startDeployment())} />
       )}

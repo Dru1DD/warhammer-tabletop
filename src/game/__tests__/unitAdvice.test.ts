@@ -50,3 +50,18 @@ describe('unit advice', () => {
     expect(shielded / plain).toBeCloseTo(0.5, 6)
   })
 })
+
+describe('a destroyed unit', () => {
+  // the unit card stays open after the selected unit dies; it used to crash the page (white screen)
+  it('is still described from its datasheet, with no battle targets', () => {
+    const s = patrol()
+    const rangers = byDatasheet(s, 'rangers')
+    for (const m of rangers.models) m.destroyed = true
+    const a = unitAdvice(rangers, s)
+    expect(a.role).toBe('shooter')
+    expect(a.fears).toContain('бронебойного')
+    expect(a.strongVs).toContain('стрельба')
+    expect(a.bestTargets).toEqual([])
+    expect(a.worstThreats).toEqual([])
+  })
+})

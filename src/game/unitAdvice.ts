@@ -97,7 +97,9 @@ function fearsOf(u: UnitState): string {
   return 'бронебойного оружия — AP −2 и лучше, урон 2+ (плазма, тяжёлые болтеры): обычные винтовки по нему слабы'
 }
 
-export function unitAdvice(u: UnitState, s?: GameState): UnitAdvice {
+export function unitAdvice(unit: UnitState, s?: GameState): UnitAdvice {
+  // a destroyed unit is still described from its datasheet: every model as it started (the card stays open after it dies)
+  const u = alive(unit).length ? unit : { ...unit, models: unit.models.map((m) => ({ ...m, destroyed: false, wounds: profileOf(m).w })) }
   const role = unitProfile(u).role
   const lean = { ranged: leanOf(u, 'ranged'), melee: leanOf(u, 'melee') }
   // a shooting unit's close combat weapons are not what it is for, so only its guns are rated
@@ -107,7 +109,7 @@ export function unitAdvice(u: UnitState, s?: GameState): UnitAdvice {
   ].filter(Boolean).join('; ')
   let bestTargets: string[] = []
   let worstThreats: string[] = []
-  if (s && alive(u).length) {
+  if (s && alive(unit).length) {
     const me = asReference(u)
     const foes = enemiesOf(s, u).filter((e) => alive(e).length)
     const dealt = (e: UnitState) => {
