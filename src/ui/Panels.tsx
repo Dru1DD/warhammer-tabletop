@@ -13,7 +13,25 @@ import type { Command, DiceEntry, GameState, UnitState, WeaponKeywords, WeaponPr
 import { PHASES } from '../game/types'
 import { useStore } from '../store'
 import { weaponAdvice } from '../game/weaponAdvice'
-import { STRATAGEM_IDS, STRATAGEMS } from '../game/rules/stratagems'
+import { DETACHMENT, LATER_STRATAGEMS, STRATAGEM_IDS, STRATAGEMS } from '../game/rules/stratagems'
+import type { StratagemId } from '../game/types'
+
+/** Stratagems shown for any unit, not only the selected one: they are tied to a moment (a roll, a failed test). */
+const ANY_UNIT: StratagemId[] = ['commandReroll', 'insaneBravery', 'crushingImpact', 'feignedRetreat']
+
+/** The moment-bound Stratagems usable now by `u`, as action buttons (cheap checks only). */
+function momentStratagems(game: GameState, u: UnitState) {
+  const out: { id: string; label: string; ok: boolean; cmd: Command }[] = []
+  for (const id of ANY_UNIT) {
+    const x = STRATAGEMS[id]
+    const targets = id === 'crushingImpact' ? engagedUnits(game, u) : [undefined]
+    for (const t of targets) {
+      const cmd: Command = { type: 'stratagem', id, unitId: u.id, ...(t ? { targetId: t.id } : {}) }
+      if (validate(game, cmd).ok) out.push({ id: `strat:${id}:${t?.id ?? ''}`, label: `📜 ${x.name} (${x.cost} CP)${t ? ` по «${t.name}»` : ''}`, ok: true, cmd })
+    }
+  }
+  return out
+}
 import { adviceLine, adviceWarnings, shotAdvice, type TargetAdvice } from '../game/shotAdvice'
 import { DeployPresetCards } from './DeployPresets'
 import { scoreText } from './score'
@@ -325,7 +343,16 @@ function StratagemsPanel() {
   const beginner = st.settings.explain === 'beginner'
   const myTurn = actor(game) === human
   const cp = game.players[human].cp
-  const now = myTurn ? unitsOf(game, human).flatMap((u) => unitActions(game, u.id).filter((a) => a.id.startsWith('strat:')).map((a) => ({ ...a, unit: u }))) : []
+  // the selected unit's Stratagems, plus the ones that are about a moment rather than a unit choice (re-rolls, bravery…)
+  // the selected unit: every usable Stratagem; other units: only the cheap, moment-bound ones (no line of sight checks)
+  const sel = st.selectedUnitId ? unitsOf(game, human).find((u) => u.id === st.selectedUnitId) : undefined
+  const now = myTurn
+    ? [
+        ...(sel ? unitActions(game, sel.id).filter((a) => a.id.startsWith('strat:')).map((a) => ({ ...a, unit: sel })) : []),
+        ...unitsOf(game, human).filter((u) => u.id !== sel?.id).flatMap((u) => momentStratagems(game, u).map((a) => ({ ...a, unit: u }))),
+      ]
+    : []
+  const later = LATER_STRATAGEMS.filter((x) => x.faction === human)
   return (
     <section className="rounded border border-violet-700/70 bg-violet-950/30 p-2 text-xs" aria-label="Стратагемы">
       <div className="flex items-center justify-between">
@@ -346,7 +373,7 @@ function StratagemsPanel() {
       <details className="mt-1" open={beginner && now.length > 0}>
         <summary className="cursor-pointer text-sky-300">Что они делают</summary>
         <ul className="mt-1 flex flex-col gap-1 text-[11px] text-stone-300">
-          {STRATAGEM_IDS.map((id) => {
+          {STRATAGEM_IDS.filter((id) => !STRATAGEMS[id].faction || STRATAGEMS[id].faction === human).map((id) => {
             const x = STRATAGEMS[id]
             return (
               <li key={id}>
@@ -356,7 +383,10 @@ function StratagemsPanel() {
             )
           })}
         </ul>
-        <p className="mt-1 text-[10px] text-stone-500">Каждая стратагема — раз за фазу, на отряд — одна за фазу; на отряд в боевом шоке их применять нельзя. Стратагемы в ход противника (огонь на опережение, дымовая завеса и др.) появятся позже.</p>
+        {later.length > 0 && (
+          <p className="mt-1 text-[11px] text-stone-500">Ещё в детачменте «{DETACHMENT[human]}», пока нет: {later.map((x) => `${x.name} (${x.why})`).join('; ')}.</p>
+        )}
+        <p className="mt-1 text-[10px] text-stone-500">Каждая стратагема — раз за фазу, на отряд — одна за фазу; на отряд в боевом шоке их применять нельзя. Кнопки показаны для выбранного отряда. Стратагемы в ход противника (огонь на опережение, дымовая завеса и др.) появятся позже.</p>
       </details>
     </section>
   )

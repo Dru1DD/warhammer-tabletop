@@ -213,6 +213,9 @@ export interface UnitState {
   shot: boolean
   /** failed its battle-shock test in the current Command phase (Insane Bravery can turn it into a pass) */
   shockedThisPhase?: boolean
+  /** Stratagem effects lasting until the end of the phase / of the turn */
+  phaseBuffs?: StratagemId[]
+  turnBuffs?: StratagemId[]
   chargeDeclared: boolean
   charged: boolean
   fought: boolean
@@ -292,7 +295,12 @@ export interface PlayerState {
 
 export type Imperative = 'protector' | 'conqueror'
 
-export type StratagemId = 'commandReroll' | 'insaneBravery' | 'explosives' | 'crushingImpact'
+export type StratagemId =
+  | 'commandReroll' | 'insaneBravery' | 'explosives' | 'crushingImpact'
+  // army (detachment) Stratagems, see rules/stratagems.ts
+  | 'stormOfDevastation' | 'closeRangeDakka' | 'fungusFuelInjection' | 'hitEmHarder' | 'adrenalSurge' | 'suddenStorm'
+  | 'conqueringTyrant' | 'hungryVoid' | 'blitzingFirepower' | 'feignedRetreat' | 'lethalDosage' | 'aggressorImperative'
+  | 'extinctionOrder'
 export const IMPERATIVES: Imperative[] = ['protector', 'conqueror']
 
 export interface PendingCharge {

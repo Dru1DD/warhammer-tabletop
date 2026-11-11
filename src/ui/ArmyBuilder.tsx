@@ -5,6 +5,8 @@ import { FACTION_NAME } from '../game/data/datasheets'
 import { legalSizes, listedCost } from '../game/data/points'
 import type { PlayerId } from '../game/types'
 import { useStore } from '../store'
+import { armyOf } from '../game/scenarios/scenarios'
+import { ArmyStratagems } from './ArmyStratagems'
 
 const samePreset = (faction: PlayerId, list: ArmyList, limit: PointsLimit) =>
   list.limit === limit && JSON.stringify(list.units) === JSON.stringify(presetList(faction, limit).units)
@@ -44,6 +46,8 @@ export function ArmyBuilder({ faction, role }: { faction: PlayerId; role: string
       </div>
 
       {!list && <p className="mt-2 text-xs text-stone-400">Состав сценария без лимита очков. Выберите пресет, чтобы собрать армию под 500 или 1000 очков.</p>}
+
+      <ArmyStratagems faction={faction} datasheetIds={list ? list.units.map((e) => e.datasheetId) : (armyOf(settings.scenarioId, faction) ?? []).map((u) => u.datasheetId)} />
 
       {list && (
         <>
