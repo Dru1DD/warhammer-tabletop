@@ -14,9 +14,10 @@ import {
 import { healUnit } from './rules/heal'
 import { applyMortalWounds, resolveGroup, type AttackContext, type AttackGroup } from './combat/attack'
 import { moveProblem, planMove } from './rules/movement'
-import { hasCover, nearestVisibleDistance, seesAny } from './rules/visibility'
+import { hasCover, nearestVisibleDistance, seesAny, unitCanSee } from './rules/visibility'
+import { CRUSHING_MAX, EXPLOSIVES_DICE, EXPLOSIVES_RANGE, explosivesReach, hasExplosives, STRATAGEMS, targetedThisPhase, usedThisPhase } from './rules/stratagems'
 import { baseRadius } from './geometry/geometry'
-import type { Command, DiceEntry, GameState, ModelState, Phase, PlayerId, UnitState, Validation, Vec, Weapon, WeaponProfile } from './types'
+import type { Command, DiceEntry, GameState, ModelState, Phase, PlayerId, StratagemId, UnitState, Validation, Vec, Weapon, WeaponProfile } from './types'
 import { PHASES } from './types'
 
 export const PHASE_NAME: Record<Phase, string> = {
@@ -408,7 +409,7 @@ function planCharge(s: GameState, unit: UnitState, targets: UnitState[], roll: n
 export function validate(s: GameState, cmd: Command): Validation {
   if (s.winner) return fail('Битва окончена.')
   const who = actor(s)
-  if (s.pendingCharge && cmd.type !== 'chargeMove' && cmd.type !== 'skipCharge')
+  if (s.pendingCharge && cmd.type !== 'chargeMove' && cmd.type !== 'skipCharge' && !(cmd.type === 'stratagem' && cmd.id === 'commandReroll'))
     return fail('Сначала завершите объявленную атаку (charge): выберите цели или откажитесь от перемещения.')
 
   if (cmd.type === 'endPhase') {
@@ -443,6 +444,8 @@ export function validate(s: GameState, cmd: Command): Validation {
   if (unit.owner !== who) return fail(`Сейчас решение принимает ${FACTION_NAME[who]}.`)
 
   switch (cmd.type) {
+    case 'stratagem':
+      return stratagemProblem(s, unit, cmd)
     case 'declareAdvance':
     case 'move': {
       if (s.phase !== 'movement') return fail('Двигаться можно только в фазе движения.')
@@ -679,6 +682,11 @@ function refreshFocus(s: GameState) {
 
 function enterPhase(s: GameState, phase: Phase, r: Roller) {
   s.phase = phase
+  for (const p of sidesOf(s)) {
+    s.players[p].stratagemsThisPhase = []
+    s.players[p].stratagemUnitsThisPhase = []
+  }
+  for (const u of s.units) if (u.shockedThisPhase) u.shockedThisPhase = false
   addLog(s, `— ${PHASE_NAME[phase]}: ${FACTION_NAME[s.activePlayer]} —`, 'minimal')
   if (phase === 'command') commandPhase(s, r)
   if (phase === 'fight') {
@@ -719,6 +727,7 @@ function commandPhase(s: GameState, r: Roller) {
     const { dice, total, ld, pass, label } = leadershipRoll(s, u, r)
     const was = u.battleShocked
     u.battleShocked = !pass
+    if (!pass) u.shockedThisPhase = true
     pushDice(s, `Боевой шок: ${u.name}`, [{ label, target: `${ld}+`, dice: dice.map((v) => ({ value: v, success: pass })), note: `Сумма ${total} против Ld ${ld}+` }],
       pass ? `${u.name}: проверка пройдена${was ? ' — боевой шок снят' : ''}.` : `${u.name}: провал — отряд в боевом шоке (OC = 0, отступление опасно).`)
     addLog(s, pass ? `${u.name} проходит проверку боевого шока (${total} ≥ ${ld}).` : `${u.name} проваливает проверку боевого шока (${total} < ${ld}) и получает Battle-shock.`, 'minimal')
@@ -919,8 +928,13 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
   const v = validate(state, cmd)
   if (!v.ok) throw new Error(v.reason)
   const s: GameState = structuredClone(state)
+  // a charge roll can be re-rolled (Command Re-roll) only right after it was made
+  if (!(cmd.type === 'stratagem' && cmd.id === 'commandReroll')) s.lastCharge = null
 
   switch (cmd.type) {
+    case 'stratagem':
+      applyStratagem(s, cmd, r)
+      break
     case 'endPhase': {
       updateObjectiveControl(s)
       if (s.phase === 'movement') {
@@ -1124,6 +1138,7 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       const targets = chargeTargetsFor(s, u, roll)
       pushDice(s, `Бросок атаки: ${u.name}`, [{ label: '2D6', target: '—', dice: dice.map((x) => ({ value: x, success: targets.length > 0 })), note: `Максимальная дистанция атаки ${roll}"${u.disrupted ? ` (−${DISRUPTION}: Disruption Bombardment)` : ''}` }],
         targets.length ? `Бросок ${roll}": доступные цели — ${targets.map((x) => x.name).join(', ')}.` : `Бросок ${roll}" — недостаточно, атака провалена.`)
+      s.lastCharge = { unitId: u.id, dice }
       if (targets.length) s.pendingCharge = { unitId: u.id, roll, dice, targets: targets.map((x) => x.id) }
       else {
         const d = Math.min(...enemiesOf(s, u).map((e) => unitDistance(u, e)))
@@ -1246,8 +1261,143 @@ export function unitActions(s: GameState, unitId: string): ActionInfo[] {
       if (hasAbility(u, 'finestHour') && !u.finestHourUsed)
         add(`finest:${e.id}`, `⭐ Сражаться с «${e.name}» — Звёздный час (+3 A, Devastating Wounds, раз за битву)`, { type: 'fight', unitId, targetId: e.id, finestHour: true })
     }
+  // Stratagems: listed only when usable now, so the panel is not cluttered with greyed-out options
+  const strat = (id: string, label: string, cmd: Command) => {
+    if (validate(s, cmd).ok) out.push({ id, label, ok: true, cmd })
+  }
+  const cost = (id: StratagemId) => `${STRATAGEMS[id].cost} CP`
+  strat('strat:reroll', `🎲 Командный переброс (${cost('commandReroll')}): перебросить ${s.phase === 'charge' ? 'бросок атаки' : 'продвижение'}`, { type: 'stratagem', id: 'commandReroll', unitId })
+  strat('strat:bravery', `🦁 Безумная храбрость (${cost('insaneBravery')}): снять боевой шок, раз за битву`, { type: 'stratagem', id: 'insaneBravery', unitId })
+  for (const e of enemiesOf(s, u)) {
+    strat(`strat:explosives:${e.id}`, `💣 Взрывчатка (${cost('explosives')}) в «${e.name}»: 6D6, 4+ — смертельная рана`, { type: 'stratagem', id: 'explosives', unitId, targetId: e.id })
+    strat(`strat:crush:${e.id}`, `🐘 Сокрушительный удар (${cost('crushingImpact')}) по «${e.name}»: D6 × Стойкость, 5+ — рана врагу, 1 — себе`, { type: 'stratagem', id: 'crushingImpact', unitId, targetId: e.id })
+  }
   return out.filter((a) => a.id !== 'reroll' || hasAbility(u, 'waaagh') || hasAbility(u, 'superlativeStrategist'))
 }
+
+// ---------------------------------------------------------------- stratagems (stage 1: own turn only)
+
+function stratagemProblem(s: GameState, unit: UnitState, cmd: Extract<Command, { type: 'stratagem' }>): Validation {
+  const info = STRATAGEMS[cmd.id]
+  if (!info) return fail('Неизвестная стратагема.')
+  const me = unit.owner
+  if (s.activePlayer !== me) return fail('Пока стратагемы применяются только в свой ход.')
+  if (!info.phases.includes(s.phase)) return fail(`«${info.name}» применяется в фазе: ${info.phases.map((p) => PHASE_NAME[p]).join(' или ')}.`)
+  if (s.players[me].cp < info.cost) return fail(`Не хватает очков командования: нужно ${info.cost} CP, есть ${s.players[me].cp}.`)
+  if (usedThisPhase(s, me, cmd.id)) return fail(`«${info.name}» уже применялась в этой фазе (каждая стратагема — раз за фазу).`)
+  if (targetedThisPhase(s, unit)) return fail('На этот отряд уже применяли стратагему в этой фазе (одна стратагема на отряд за фазу).')
+  if (cmd.id !== 'insaneBravery' && unit.battleShocked) return fail('Отряд в боевом шоке: на него нельзя применять стратагемы.')
+  const target = cmd.targetId ? findUnit(s, cmd.targetId) : undefined
+  switch (cmd.id) {
+    case 'commandReroll': {
+      if (s.phase === 'charge') return s.lastCharge?.unitId === unit.id ? OK : fail('Перебросить можно только что брошенный бросок атаки (charge) этого отряда.')
+      if (unit.advanceRoll === null || unit.move !== 'none') return fail('Нет броска продвижения для переброса.')
+      if (unit.advanceRerolled) return fail('Кубик нельзя перебрасывать больше одного раза.')
+      return OK
+    }
+    case 'insaneBravery':
+      // the engine rolls battle-shock tests automatically when the Command phase starts, so the Stratagem is offered
+      // right after a failed test and turns it into a pass (see docs/stratagems.md)
+      if (s.players[me].braveryUsed) return fail('«Безумная храбрость» уже применялась в этой битве (раз за битву).')
+      return unit.battleShocked && unit.shockedThisPhase ? OK : fail('Только для отряда, который провалил проверку боевого шока в этой фазе командования.')
+    case 'explosives': {
+      if (!hasExplosives(unit)) return fail('Взрывчатку бросает только отряд с ключевым словом EXPLOSIVES (или GRENADES).')
+      if (unit.shot) return fail('Отряд уже стрелял в этой фазе.')
+      if (unit.move === 'advance' || unit.move === 'fallBack') return fail('После продвижения или отступления взрывчатку не бросить.')
+      if (isEngaged(s, unit)) return fail('Отряд в контакте с врагом.')
+      if (!target || target.owner === me || isDestroyed(target)) return fail('Выберите вражеский отряд.')
+      if (isEngaged(s, target)) return fail('Цель в контакте с другим отрядом — бросать в свалку нельзя.')
+      if (!explosivesReach(unit, target)) return fail(`Взрывчатку бросают не дальше ${EXPLOSIVES_RANGE}″.`)
+      if (!unitCanSee(s, unit, target)) return fail('Цель не видна: линию видимости перекрывает укрытие.')
+      return OK
+    }
+    case 'crushingImpact': {
+      if (!isMV(unit)) return fail('«Сокрушительный удар» доступен только монстрам и технике (MONSTER, VEHICLE).')
+      if (!unit.charged) return fail('Применяется после того, как этот отряд завершил атаку (charge).')
+      if (!target || target.owner === me || isDestroyed(target)) return fail('Выберите вражеский отряд.')
+      if (!engagedUnits(s, unit).some((e) => e.id === target.id)) return fail('Цель должна быть в контакте с техникой.')
+      return OK
+    }
+  }
+}
+
+function applyStratagem(s: GameState, cmd: Extract<Command, { type: 'stratagem' }>, r: Roller) {
+  const u = findUnit(s, cmd.unitId)!
+  const me = u.owner
+  const info = STRATAGEMS[cmd.id]
+  s.players[me].cp -= info.cost
+  ;(s.players[me].stratagemsThisPhase ??= []).push(cmd.id)
+  ;(s.players[me].stratagemUnitsThisPhase ??= []).push(u.id)
+  addLog(s, `${FACTION_NAME[me]}: стратагема «${info.name}» (${info.nameEn}) — ${u.name}, −${info.cost} CP.`, 'minimal')
+  const t = cmd.targetId ? findUnit(s, cmd.targetId) : undefined
+  switch (cmd.id) {
+    case 'commandReroll': {
+      if (s.phase === 'charge') {
+        const prev = s.lastCharge!.dice
+        const dice = rollMany(r, 2)
+        const roll = Math.max(0, dice[0] + dice[1] - (u.disrupted ? DISRUPTION : 0))
+        const targets = chargeTargetsFor(s, u, roll)
+        s.lastCharge = null
+        pushDice(s, `Командный переброс атаки: ${u.name}`, [{ label: '2D6', target: '—', dice: dice.map((x, i) => ({ value: x, success: targets.length > 0, rerolledFrom: prev[i] })), note: `Было ${prev[0] + prev[1]}, стало ${roll}"` }],
+          targets.length ? `Переброс: ${roll}" — доступные цели: ${targets.map((x) => x.name).join(', ')}.` : `Переброс: ${roll}" — снова недостаточно, атака провалена.`)
+        if (targets.length) s.pendingCharge = { unitId: u.id, roll, dice, targets: targets.map((x) => x.id) }
+        else {
+          s.pendingCharge = null
+          addLog(s, `${u.name}: после переброса выпало ${roll}" — атака провалена.`, 'minimal')
+        }
+      } else {
+        const prev = u.advanceRoll
+        const v2 = r.d6()
+        u.advanceRoll = v2
+        u.advanceRerolled = true
+        pushDice(s, `Командный переброс продвижения: ${u.name}`, [{ label: 'D6', target: '—', dice: [{ value: v2, success: true, rerolledFrom: prev ?? undefined }], note: `Было ${prev}` }], `${u.name}: продвижение теперь M + ${v2}".`)
+        addLog(s, `${u.name}: переброс продвижения — D6 = ${v2}.`, 'minimal')
+      }
+      break
+    }
+    case 'insaneBravery': {
+      u.battleShocked = false
+      s.players[me].braveryUsed = true
+      // the objectives were scored when the phase started; score again what the passed test now holds
+      const before = s.objectives.filter((o) => o.controller === me).length
+      updateObjectiveControl(s)
+      const after = s.objectives.filter((o) => o.controller === me).length
+      if (s.round >= 2 && after > before) {
+        s.players[me].vp += (after - before) * VP_PER_OBJECTIVE
+        addLog(s, `${FACTION_NAME[me]}: +${(after - before) * VP_PER_OBJECTIVE} ПО — отряд снова удерживает цель.`, 'minimal')
+      }
+      addLog(s, `${u.name}: проверка боевого шока считается пройденной — OC снова в силе.`, 'minimal')
+      break
+    }
+    case 'explosives': {
+      u.shot = true
+      const dice = rollMany(r, EXPLOSIVES_DICE)
+      const n = dice.filter((v) => v >= 4).length
+      pushDice(s, `Взрывчатка: ${u.name} → ${t!.name}`, [{ label: `${EXPLOSIVES_DICE}D6`, target: '4+', dice: dice.map((v) => ({ value: v, success: v >= 4 })), note: `Каждая 4+ — 1 смертельная рана: ${n}.` }],
+        n ? `${u.name} бросает взрывчатку в «${t!.name}»: ${n} смертельн. ран.` : `Взрывчатка «${u.name}» не причинила вреда «${t!.name}».`)
+      if (n) applyMortalWounds(s, t!, n, `взрывчатка «${u.name}»`)
+      if (isDestroyed(t!)) addLog(s, `Отряд «${t!.name}» уничтожен!`, 'minimal')
+      checkWinner(s)
+      break
+    }
+    case 'crushingImpact': {
+      // the model with the highest Toughness among those engaged with the target
+      const T = Math.max(...alive(u).filter((m) => modelEngagedWith(m, t!)).map((m) => profileOf(m).t))
+      const dice = rollMany(r, T)
+      const hit = Math.min(CRUSHING_MAX, dice.filter((v) => v >= 5).length)
+      const self = Math.min(CRUSHING_MAX, dice.filter((v) => v === 1).length)
+      pushDice(s, `Сокрушительный удар: ${u.name} → ${t!.name}`, [{ label: `${T}D6 (Стойкость)`, target: '5+', dice: dice.map((v) => ({ value: v, success: v >= 5 })), note: `5+ — рана врагу: ${hit}; 1 — рана себе: ${self} (не больше ${CRUSHING_MAX} каждому).` }],
+        `${u.name} врезается в «${t!.name}»: ${hit} смертельн. ран врагу${self ? `, ${self} — себе` : ''}.`)
+      if (hit) applyMortalWounds(s, t!, hit, `сокрушительный удар «${u.name}»`)
+      if (self) applyMortalWounds(s, u, self, 'отдача сокрушительного удара')
+      if (isDestroyed(t!)) addLog(s, `Отряд «${t!.name}» уничтожен!`, 'minimal')
+      if (isDestroyed(u)) addLog(s, `Отряд «${u.name}» уничтожен!`, 'minimal')
+      checkWinner(s)
+      break
+    }
+  }
+}
+
 
 /** Disruption Bombardment: −2″ to Move and −2 to Advance and Charge rolls */
 export const DISRUPTION = 2

@@ -354,6 +354,9 @@ function ActionBar() {
     }
   }
   if (game.phase === 'charge' && mine) {
+    // right after the charge roll (even a failed one): Command Re-roll, 1 CP
+    const reroll: Command = { type: 'stratagem', id: 'commandReroll', unitId: mine.id }
+    if (game.lastCharge?.unitId === mine.id && validate(game, reroll).ok) btn('cmdReroll', reroll, '🎲 Перебросить атаку (1 CP)')
     if (game.pendingCharge?.unitId === mine.id) btn('skip', { type: 'skipCharge', unitId: mine.id }, 'Отказаться от атаки')
     else if (canActNow(game, mine)) btn('charge', { type: 'declareCharge', unitId: mine.id }, '🎲 Объявить атаку (2D6)')
   }

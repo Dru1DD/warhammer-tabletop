@@ -200,15 +200,15 @@ const CORE_PROFILES: Record<string, ModelProfile> = {
 const CORE_DATASHEETS: Record<string, Datasheet> = {
   lieutenant: {
     id: 'lieutenant', name: 'Лейтенант (Lieutenant)', faction: 'marines',
-    keywords: ['INFANTRY', 'CHARACTER', 'IMPERIUM', 'TACTICUS'], abilities: ['tacticalPrecision'],
+    keywords: ['INFANTRY', 'CHARACTER', 'EXPLOSIVES', 'IMPERIUM', 'TACTICUS'], abilities: ['tacticalPrecision'],
   },
   intercessors: {
     id: 'intercessors', name: 'Отделение интерсессоров (Intercessor Squad)', faction: 'marines',
-    keywords: ['INFANTRY', 'BATTLELINE', 'IMPERIUM', 'TACTICUS'], abilities: ['boltDiscipline'],
+    keywords: ['INFANTRY', 'BATTLELINE', 'EXPLOSIVES', 'IMPERIUM', 'TACTICUS'], abilities: ['boltDiscipline'],
   },
   assaultIntercessors: {
     id: 'assaultIntercessors', name: 'Штурмовые интерсессоры (Assault Intercessor Squad)', faction: 'marines',
-    keywords: ['INFANTRY', 'BATTLELINE', 'IMPERIUM', 'TACTICUS'], abilities: ['targetedIntercession'],
+    keywords: ['INFANTRY', 'BATTLELINE', 'EXPLOSIVES', 'IMPERIUM', 'TACTICUS'], abilities: ['targetedIntercession'],
   },
   redemptor: {
     id: 'redemptor', name: 'Дредноут «Редемптор» (Redemptor Dreadnought)', faction: 'marines',
@@ -220,7 +220,7 @@ const CORE_DATASHEETS: Record<string, Datasheet> = {
   },
   boyz: {
     id: 'boyz', name: 'Бойз (Boyz)', faction: 'orks',
-    keywords: ['INFANTRY', 'BATTLELINE', 'MOB'], abilities: ['ammoRunts', 'tideOfMuscle', 'waaagh'],
+    keywords: ['INFANTRY', 'BATTLELINE', 'EXPLOSIVES', 'MOB'], abilities: ['ammoRunts', 'tideOfMuscle', 'waaagh'],
   },
 }
 

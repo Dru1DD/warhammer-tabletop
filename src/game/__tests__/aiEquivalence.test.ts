@@ -27,7 +27,8 @@ const GAMES: Record<string, Game> = {
 
 // recorded on feature/army-builder (bfe917d), before the speed-ups
 const RECORDED: Record<string, { actions: number; commands: string }> = {
-  'patrol marines-orks standard': { actions: 104, commands: 'eb6bc23e' },
+  // re-recorded with the core Stratagems (Explosives for Intercessors and Boyz, Crushing Impact, Command Re-roll)
+  'patrol marines-orks standard': { actions: 104, commands: 'fa0a9e96' },
   'patrol aeldari-mechanicus beginner': { actions: 63, commands: '6e29935e' },
   '500 tyranids-necrons standard': { actions: 60, commands: '1e7dfd25' },
   '1000 orks-aeldari standard': { actions: 40, commands: 'e650b68a' },

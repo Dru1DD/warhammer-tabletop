@@ -9,6 +9,7 @@ import {
 } from '../gameState'
 import { actor, FLY_PENALTY, maxMove, meleePlan, meleeSetup, meleeWeaponsOf, shootPlan, SWIFT_BONUS, validate, moveModeFor } from '../engine'
 import { moveProblem, planMove } from '../rules/movement'
+import { EXPLOSIVES_DICE } from '../rules/stratagems'
 import type { AttackContext, AttackGroup } from '../combat/attack'
 import { woundTarget } from '../combat/attack'
 import { avgDie } from '../dice/dice'
@@ -380,6 +381,14 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
 
   switch (s.phase) {
     case 'command': {
+      // Insane Bravery (once per battle): the failed test of a unit holding or contesting an objective, or a big unit
+      for (const u of mine) {
+        const cmd: Command = { type: 'stratagem', id: 'insaneBravery', unitId: u.id }
+        if (!validate(s, cmd).ok) continue
+        const onObjective = s.objectives.some((o) => unitNearObjective(u, o))
+        if (onObjective || (level !== 'beginner' && alive(u).length >= 5 && s.round >= 3))
+          return { cmd, explanation: `${fac}: стратагема «Безумная храбрость» — «${u.name}» не поддаётся панике${onObjective ? ' и держит цель' : ''}.` }
+      }
       // Engrammatic Logic (Royal Warden): free a battle-shocked unit, the one that matters most for objectives
       for (const u of mine) {
         if (!hasAbility(u, 'engrammaticLogic') || u.engrammaticUsed) continue
@@ -500,6 +509,16 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
       const order = [...mine].sort((a, b) => Number(hasAbility(b, 'drivenFromCover')) - Number(hasAbility(a, 'drivenFromCover')))
       for (const u of order) {
         if (u.shot) continue
+        if (level !== 'beginner') {
+          const own = Math.max(0, ...enemiesOf(s, u).map((e) => shootValue(s, u, e).dmg))
+          const boom = enemiesOf(s, u)
+            .map((e) => ({ e, cmd: { type: 'stratagem', id: 'explosives', unitId: u.id, targetId: e.id } as Command }))
+            .filter((x) => validate(s, x.cmd).ok)
+            .map((x) => ({ ...x, dmg: Math.min(EXPLOSIVES_DICE / 2, alive(x.e).reduce((a, m) => a + m.wounds, 0)) }))
+            .sort((a, b) => b.dmg - a.dmg)[0]
+          if (boom && boom.dmg >= own + 1)
+            return { cmd: boom.cmd, explanation: `${fac}: стратагема «Взрывчатка» — «${u.name}» бросает её в «${boom.e.name}» (≈ ${fmt(boom.dmg)} смертельн. ран против ≈ ${fmt(own)} от стрельбы).` }
+        }
         let best: { cmd: Command; dmg: number; target: string } | null = null
         for (const e of enemiesOf(s, u)) {
           for (const opts of shootOptions(u, level)) {
@@ -517,6 +536,18 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
       return end(`${fac}: подходящих целей для стрельбы больше нет.`)
     }
     case 'charge': {
+      for (const u of mine) {
+        for (const e of engagedUnits(s, u)) {
+          const cmd: Command = { type: 'stratagem', id: 'crushingImpact', unitId: u.id, targetId: e.id }
+          if (validate(s, cmd).ok) return { cmd, explanation: `${fac}: стратагема «Сокрушительный удар» — «${u.name}» врезается в «${e.name}».` }
+        }
+        const reroll: Command = { type: 'stratagem', id: 'commandReroll', unitId: u.id }
+        if (level !== 'beginner' && validate(s, reroll).ok) {
+          const d = Math.min(...enemiesOf(s, u).map((e) => unitDistance(u, e)).filter((x) => withinRange(x, CHARGE_RANGE)))
+          if (Number.isFinite(d) && p2d6AtLeast(Math.ceil(d)) >= 0.3)
+            return { cmd: reroll, explanation: `${fac}: стратагема «Командный переброс» — атака «${u.name}» сорвалась, перебрасываем (нужно ${Math.ceil(d)}", шанс ≈ ${Math.round(p2d6AtLeast(Math.ceil(d)) * 100)}%).` }
+        }
+      }
       for (const u of mine) {
         const cmd: Command = { type: 'declareCharge', unitId: u.id }
         if (!validate(s, cmd).ok) continue
