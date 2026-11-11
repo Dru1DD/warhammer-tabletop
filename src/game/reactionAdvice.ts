@@ -1,8 +1,8 @@
 import { expectedGroupDamage, meleePotential, p2d6AtLeast } from './ai/ai'
-import { reactionCommands, shockFailChance, shootPlan } from './engine'
-import { alive, findUnit, fmt, unitDistance, unitNearObjective } from './gameState'
-import { STRATAGEMS } from './rules/stratagems'
-import type { Command, GameState, UnitState } from './types'
+import { meleePlan, reactionCommands, shockFailChance, shootPlan } from './engine'
+import { alive, findUnit, fmt, hasAbility, hasKeyword, ledUnitOf, profileOf, unitDistance, unitNearObjective } from './gameState'
+import { LAST_STAND, STRATAGEMS } from './rules/stratagems'
+import type { Command, GameState, PendingReroll, StratagemId, UnitState } from './types'
 
 // Which reactions are worth their Command points right now, for the AI and for the pause dialog («only when useful»).
 // Pure; expected values only.
@@ -22,6 +22,31 @@ const woundsLeft = (u: UnitState) => alive(u).reduce((a, m) => a + m.wounds, 0)
 const shotDamage = (s: GameState, shooter: UnitState, target: UnitState, snap = false) => {
   const plan = shootPlan(s, shooter, target, { snap })
   return plan.problem ? 0 : Math.min(woundsLeft(target), plan.groups.reduce((a, g) => a + expectedGroupDamage(g, target), 0))
+}
+
+/** Expected damage of a waiting attack (capped by the target's wounds). */
+function attackDamage(s: GameState, cmd: PendingReroll['cmd']) {
+  const a = findUnit(s, cmd.unitId)!
+  const t = findUnit(s, cmd.targetId)!
+  const groups = cmd.type === 'shoot' ? shootPlan(s, a, t, cmd).groups : meleePlan(s, a, t)
+  return Math.min(woundsLeft(t), groups.reduce((x, g) => x + expectedGroupDamage(g, t), 0))
+}
+
+/** The same state with the Stratagem's effect already on the unit (no clone of the whole game). */
+const withBuff = (s: GameState, unitId: string, id: StratagemId): GameState => ({
+  ...s,
+  units: s.units.map((u) => (u.id === unitId ? { ...u, phaseBuffs: [...(u.phaseBuffs ?? []), id] } : u)),
+})
+
+/** Worth the CP: at least this much expected damage saved (or dealt) per Command point. */
+const PER_CP = 1.5
+
+const DEFENCE_HOW: Partial<Record<StratagemId, string>> = {
+  armourOfContempt: 'AP атак хуже на 1',
+  rapidRegeneration: '«Не чувствует боли»',
+  lightningFastReactions: '−1 к попаданию',
+  balefulHalo: '−1 к ранению',
+  bulwarkImperative: 'непробиваемый 4+',
 }
 
 export function reactionAdvice(s: GameState): ReactionOption[] {
@@ -45,6 +70,30 @@ export function reactionAdvice(s: GameState): ReactionOption[] {
       const taken = Math.min(woundsLeft(u), meleePotential(s, t, u, false))
       const worth = p >= 0.5 && p * dealt >= 1.5 && dealt >= taken * 0.75
       out.push({ cmd: c, title, value: p * dealt, worth, why: `Шанс дойти ${Math.round(p * 100)}%, в бою ≈ ${fmt(dealt)} ран врагу и ≈ ${fmt(taken)} вам.` })
+    } else if (c.id in DEFENCE_HOW && s.reaction?.attack) {
+      // damage the waiting attack would do, without and with the effect
+      const cmd = s.reaction.attack
+      const base = attackDamage(s, cmd)
+      const saved = Math.max(0, base - attackDamage(withBuff(s, u.id, c.id), cmd))
+      const worth = saved >= PER_CP * info.cost
+      out.push({ cmd: c, title, value: saved / info.cost, worth, why: `Атака «${findUnit(s, cmd.unitId)!.name}» нанесёт ≈ ${fmt(base)} ран; ${DEFENCE_HOW[c.id]} сбережёт ≈ ${fmt(saved)}${worth ? '' : ' — мало для ' + info.cost + ' CP'}.` })
+    } else if (LAST_STAND.includes(c.id) && s.reaction?.attack) {
+      // models the attack is expected to kill, the share that rolls 4+ (3+ for riled-up Orks), and what each one hits back for
+      const cmd = s.reaction.attack
+      const foe = findUnit(s, cmd.unitId)!
+      const models = alive(u)
+      const avgW = models.reduce((a, m) => a + profileOf(m).w, 0) / models.length
+      const killed = Math.min(models.length, attackDamage(s, cmd) / avgW)
+      const riled = c.id === 'orksNeverBeaten' && hasAbility(u, 'waaagh') && s.players[u.owner].riledTurns > 0
+      const perModel = meleePotential(s, u, foe, false) / models.length
+      const dealt = Math.min(woundsLeft(foe), killed * (riled ? 2 / 3 : 1 / 2) * perModel)
+      out.push({ cmd: c, title, value: dealt, worth: dealt >= PER_CP * info.cost, why: `Враг убьёт ≈ ${fmt(killed)} модел.; ${riled ? 'на 3+' : 'на 4+'} они ударят перед смертью — ≈ ${fmt(dealt)} ран «${foe.name}».` })
+    } else if (c.id === 'undyingLegions') {
+      // each healed wound is a wound back or a model back on its feet (at 1 wound)
+      const room = alive(u).reduce((a, m) => a + profileOf(m).w - m.wounds, 0) + u.models.filter((m) => m.destroyed && !profileOf(m).character).length
+      const led = s.units.some((l) => l.owner === u.owner && hasKeyword(l, 'CHARACTER') && alive(l).length > 0 && ledUnitOf(s, l)?.id === u.id)
+      const healed = Math.min(room, led ? 3 : 2)
+      out.push({ cmd: c, title, value: healed, worth: healed >= PER_CP * info.cost, why: `Реанимация сейчас вернёт ≈ ${fmt(healed)} ран или моделей${led ? ' (D3+1: отряд ведёт персонаж)' : ''}, не дожидаясь вашей фазы командования.` })
     } else if (c.id === 'insaneBravery') {
       // once per battle: spend it where a failed test costs an objective, or on a big unit late in the game
       const fail = shockFailChance(s, u)

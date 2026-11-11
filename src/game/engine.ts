@@ -15,7 +15,7 @@ import { healUnit } from './rules/heal'
 import { applyMortalWounds, resolveGroup, type AttackContext, type AttackGroup, type RerollHook, type RerollKind } from './combat/attack'
 import { moveProblem, planMove } from './rules/movement'
 import { hasCover, nearestVisibleDistance, seesAny, unitCanSee } from './rules/visibility'
-import { CRUSHING_MAX, EXPLOSIVES_DICE, EXPLOSIVES_RANGE, explosivesReach, hasBuff, meetsRequirement, reactionsIn, STRATAGEMS, targetedThisPhase, usedThisPhase } from './rules/stratagems'
+import { CRUSHING_MAX, EXPLOSIVES_DICE, EXPLOSIVES_RANGE, explosivesReach, hasBuff, LAST_STAND, meetsRequirement, reactionsIn, STRATAGEMS, targetedThisPhase, usedThisPhase } from './rules/stratagems'
 import { baseRadius } from './geometry/geometry'
 import type { Command, DiceEntry, GameState, ModelState, PendingReroll, Phase, PlayerId, ReactionWindow, StratagemId, UnitState, Validation, Vec, Weapon, WeaponProfile } from './types'
 import { PHASES } from './types'
@@ -100,10 +100,16 @@ function defenceMods(s: GameState, p: WeaponProfile, target: UnitState) {
   const t = Math.max(...alive(target).map((m) => profileOf(m).t))
   const duty = hasAbility(target, 'dutyEternal') && p.s > t
   const guard = !duty && hasAbility(target, 'guardianProtocols') && p.s > t && nobleLeads(s, target)
-  const fnp = feelNoPainOf(s, target)
+  // Rapid Regeneration: Feel No Pain 6+, or 5+ within Synapse Range, for the rest of the phase
+  const regen = hasBuff(target, 'rapidRegeneration') ? (inSynapseRange(s, target) ? 5 : 6) : undefined
+  const fnps = [feelNoPainOf(s, target), regen].filter((x): x is number => x !== undefined)
+  const fnp = fnps.length ? Math.min(...fnps) : undefined
+  // Baleful Halo: −1 to wound rolls; a roll is never modified by more than −1
+  const halo = hasBuff(target, 'balefulHalo')
+  const woundNotes = [duty ? 'Duty Eternal: сила больше стойкости' : guard ? 'Guardian Protocols: сила больше стойкости' : '', halo ? 'Зловещий ореол' : ''].filter(Boolean)
   return {
-    woundMod: duty || guard ? -1 : 0,
-    woundModNote: duty ? 'Duty Eternal: сила больше стойкости' : guard ? 'Guardian Protocols: сила больше стойкости' : undefined,
+    woundMod: duty || guard || halo ? -1 : 0,
+    woundModNote: woundNotes.length ? woundNotes.join(', ') : undefined,
     damageMod: hasAbility(target, 'dreadArd') || hasAbility(target, 'implacableResilience') ? -1 : 0,
     ...(fnp ? { fnp } : {}),
   }
@@ -111,7 +117,7 @@ function defenceMods(s: GameState, p: WeaponProfile, target: UnitState) {
 
 /** Invulnerable save against ranged attacks: the general override, and the Rangers' 5+ (ranged attacks only). */
 function rangedInvuln(s: GameState, target: UnitState): number | undefined {
-  const v = [invulnOverrideOf(s, target), hasAbility(target, 'cameleoline') ? 5 : undefined].filter((x): x is number => x !== undefined)
+  const v = [invulnOverrideOf(s, target), hasAbility(target, 'cameleoline') ? 5 : undefined, hasBuff(target, 'bulwarkImperative') ? 4 : undefined].filter((x): x is number => x !== undefined)
   return v.length ? Math.min(...v) : undefined
 }
 
@@ -279,6 +285,7 @@ export function shootPlan(
     if (engaged && mv && !g.profile.keywords.closeQuarters) { notes.push('техника в контакте −1'); hitMod-- }
     if (guided(s, unit, target)) { notes.push('Guide +1'); hitMod++ }
     if (psychicGuidance(s, unit)) { notes.push('Psychic Guidance +1'); hitMod++ }
+    if (hasBuff(target, 'lightningFastReactions')) { notes.push('Молниеносная реакция −1'); hitMod-- }
     // Swift Demise (Windriders): re-roll hit rolls of 1; any failed hit if the target is the closest eligible one
     let rerollHits: AttackContext['rerollHits'] = bonus.rerollHits
     if (hasAbility(unit, 'swiftDemise')) rerollHits = isClosestTarget(s, unit, target) ? 'all' : 'ones'
@@ -297,6 +304,7 @@ export function shootPlan(
     const tyrantReroll: AttackContext['rerollHits'] = g.notes.includes(TYRANT_ALL) ? 'all' : g.notes.includes(TYRANT_ONES) ? 'ones' : undefined
     if (tyrantReroll && rerollHits !== 'all') rerollHits = tyrantReroll
     if (bonus.betterAp) { g.profile = { ...g.profile, ap: g.profile.ap - 1 }; g.notes.push('Conqueror: AP +1') }
+    if (hasBuff(target, 'armourOfContempt') && g.profile.ap < 0) { g.profile = { ...g.profile, ap: g.profile.ap + 1 }; g.notes.push('Доспех презрения: AP хуже на 1') }
     if (bonus.galvanic) g.notes.push('Galvanic Field: Lethal Hits')
     const protector = bonus.imp === 'protector'
     g.ctx = {
@@ -376,6 +384,8 @@ export function meleeSetup(s: GameState, unit: UnitState, target: UnitState, p0:
   if (bonus.imp === 'conqueror') { skillWorsen--; skillNote = 'Conqueror: WS на 1 лучше'; notes.push('Conqueror: WS +1') }
   if (bonus.betterAp) { p = { ...p, ap: p.ap - 1 }; notes.push('Conqueror: AP +1') }
   if (imperativeOf(s, target) === 'protector' && battlelineSupport(s, target)) { hitMod--; hitModNotes.push('Protector цели −1') }
+  if (hasBuff(target, 'lightningFastReactions')) { hitMod--; hitModNotes.push('Молниеносная реакция −1') }
+  if (hasBuff(target, 'armourOfContempt') && p.ap < 0) { p = { ...p, ap: p.ap + 1 }; notes.push('Доспех презрения: AP хуже на 1') }
   // Data-spike: the unit's melee skill is worsened by 1 until the end of the Fight phase
   if (unit.spiked) { skillWorsen++; notes.push('Data-spike: WS на 1 хуже') }
   if (bonus.rerollHits) notes.push(bonus.rerollHits === 'all' ? 'Breaching Command: переброс попаданий' : 'Breaching Command: переброс 1')
@@ -397,10 +407,11 @@ export function meleeSetup(s: GameState, unit: UnitState, target: UnitState, p0:
   return { profile: p, ctx, notes }
 }
 
-export function meleePlan(s: GameState, unit: UnitState, target: UnitState) {
+/** `models`: who swings (default: the unit's living models; the fallen of A Worthy Death and its cousins otherwise). */
+export function meleePlan(s: GameState, unit: UnitState, target: UnitState, models: ModelState[] = alive(unit)) {
   const groups: (AttackGroup & { ctx: AttackContext })[] = []
   const byKey = new Map<string, AttackGroup & { ctx: AttackContext }>()
-  for (const m of alive(unit)) {
+  for (const m of models) {
     if (!modelEngagedWith(m, target)) continue
     for (const w of meleeWeaponsOf(m)) {
       const { profile: p, ctx, notes } = meleeSetup(s, unit, target, w.profiles[0])
@@ -888,21 +899,29 @@ function enforceCrews(s: GameState) {
 function reanimate(s: GameState, r: Roller) {
   for (const u of unitsOf(s, s.activePlayer)) {
     if (!hasAbility(u, 'reanimation')) continue
-    const lost = u.models.some((m) => (m.destroyed && !profileOf(m).character) || (!m.destroyed && m.wounds < profileOf(m).w))
-    if (!lost) continue
-    let v = rollDie(r, 'D3')
-    const dice = [{ value: v, success: true } as DiceEntry['steps'][number]['dice'][number]]
-    // Their Number is Legion: re-roll the dice that determine how many wounds are reanimated (we re-roll a 1)
-    if (hasAbility(u, 'legion') && v === 1) {
-      const again = rollDie(r, 'D3')
-      dice.push({ value: again, success: true, rerolledFrom: v })
-      v = again
-    }
-    const { healed, revived } = healUnit(s, u, v)
-    pushDice(s, `Реанимация: ${u.name}`, [{ label: 'D3', target: '—', dice, note: `Лечение ${v} ран: восстановлено ${healed}, возвращено моделей ${revived}.` }],
-      `${u.name}: Reanimation Protocols — ${healed} ран восстановлено, ${revived} модел. возвращено.`)
-    addLog(s, `${u.name}: Reanimation Protocols — лечение D3 = ${v}${healed ? `, восстановлено ран: ${healed}` : ''}${revived ? `, возвращено моделей: ${revived}` : ''}.`, 'standard')
+    if (!reanimationNeeded(u)) continue
+    reanimateUnit(s, u, r)
   }
+}
+
+/** The unit has wounds to heal or models to bring back. */
+const reanimationNeeded = (u: UnitState) => u.models.some((m) => (m.destroyed && !profileOf(m).character) || (!m.destroyed && m.wounds < profileOf(m).w))
+
+/** Reanimation Protocols: heal D3 (+ `bonus`) wounds, bringing destroyed models back. */
+function reanimateUnit(s: GameState, u: UnitState, r: Roller, bonus = 0, source = 'Reanimation Protocols') {
+  let v = rollDie(r, 'D3')
+  const dice = [{ value: v, success: true } as DiceEntry['steps'][number]['dice'][number]]
+  // Their Number is Legion: re-roll the dice that determine how many wounds are reanimated (we re-roll a 1)
+  if (hasAbility(u, 'legion') && v === 1) {
+    const again = rollDie(r, 'D3')
+    dice.push({ value: again, success: true, rerolledFrom: v })
+    v = again
+  }
+  v += bonus
+  const { healed, revived } = healUnit(s, u, v)
+  pushDice(s, `Реанимация: ${u.name}`, [{ label: bonus ? `D3+${bonus}` : 'D3', target: '—', dice, note: `Лечение ${v} ран: восстановлено ${healed}, возвращено моделей ${revived}.` }],
+    `${u.name}: ${source} — ${healed} ран восстановлено, ${revived} модел. возвращено.`)
+  addLog(s, `${u.name}: ${source} — лечение ${bonus ? `D3+${bonus}` : 'D3'} = ${v}${healed ? `, восстановлено ран: ${healed}` : ''}${revived ? `, возвращено моделей: ${revived}` : ''}.`, 'standard')
 }
 
 /** Self-destruction (Canoptek Scarabs): at the start of the Fight phase an engaged swarm may sacrifice a model
@@ -1183,13 +1202,13 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       break
     }
     case 'shoot':
-      runAttack(s, cmd, r)
+      if (!openTargetReaction(s, cmd)) attack(s, cmd, r)
       break
     case 'rerollChoice': {
       const pr = s.pendingReroll!
       s.pendingReroll = null
       if (!cmd.reroll) addLog(s, `${FACTION_NAME[pr.player]}: без переброса.`, 'beginner')
-      runAttack(s, pr.cmd, r, pr.dice, { ...pr.decided, [pr.dice.length - 1]: cmd.reroll })
+      attack(s, pr.cmd, r, pr.dice, { ...pr.decided, [pr.dice.length - 1]: cmd.reroll })
       break
     }
     case 'declareCharge': {
@@ -1225,7 +1244,7 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       break
     }
     case 'fight':
-      runAttack(s, cmd, r)
+      if (!openTargetReaction(s, cmd)) attack(s, cmd, r)
       break
   }
   enforceCrews(s)
@@ -1253,6 +1272,7 @@ function resolveFight(s: GameState, cmd: Extract<Command, { type: 'fight' }>, r:
     addLog(s, res.summary, 'standard')
   }
   if (!groups.length) addLog(s, `${u.name}: ни одна модель не в зоне контакта (${ENGAGEMENT_RANGE}").`, 'standard')
+  lastStand(s, u, t, before, r)
   deadlyDemise(s, before, r)
   if (isDestroyed(t)) addLog(s, `Отряд «${t.name}» уничтожен!`, 'minimal')
   checkWinner(s)
@@ -1290,6 +1310,54 @@ function spendCommandReroll(s: GameState, u: UnitState, kind: RerollKind, value:
 function attackBody(s: GameState, cmd: PendingReroll['cmd'], r: Roller, reroll?: RerollHook) {
   if (cmd.type === 'shoot') resolveShooting(s, findUnit(s, cmd.unitId)!, findUnit(s, cmd.targetId)!, cmd, r, false, reroll)
   else resolveFight(s, cmd, r, reroll)
+  // Armour of Contempt lasts until that enemy unit has attacked
+  const t = findUnit(s, cmd.targetId)!
+  if (t.phaseBuffs?.includes('armourOfContempt')) t.phaseBuffs = t.phaseBuffs.filter((x) => x !== 'armourOfContempt')
+}
+
+/** An attack, then the target's `afterAttacks` window when it lost models and survived (Protocol of the Undying Legions). */
+function attack(s: GameState, cmd: PendingReroll['cmd'], r: Roller, prefix: number[] = [], decided: Record<number, boolean> = {}) {
+  const before = alive(findUnit(s, cmd.targetId)!).length
+  runAttack(s, cmd, r, prefix, decided)
+  if (s.pendingReroll || s.winner) return
+  const t = findUnit(s, cmd.targetId)!
+  if (!isDestroyed(t) && alive(t).length < before) openReaction(s, 'afterAttacks', s.phase, t.owner, { unitId: t.id })
+}
+
+/** `onTargeted`: before any dice, the target's player may react to the attack (Armour of Contempt, Rapid Regeneration…). */
+function openTargetReaction(s: GameState, cmd: PendingReroll['cmd']): boolean {
+  const t = findUnit(s, cmd.targetId)!
+  return openReaction(s, 'onTargeted', s.phase, t.owner, { unitId: t.id, attack: cmd })
+}
+
+/**
+ * A Worthy Death, Orks Is Never Beaten, Death Frenzy: each model of the target destroyed by this attack (if its unit has
+ * not fought this phase) rolls a D6; on 4+ (Orks: +1 when riled up) it fights the attacker before it is removed. On the
+ * tabletop the Space Marine and Ork models fight together with their unit later in the phase; here all three strike right
+ * after the enemy's attacks, as Death Frenzy does (see docs/stratagems.md).
+ */
+function lastStand(s: GameState, attacker: UnitState, t: UnitState, before: Set<string>, r: Roller) {
+  const id = LAST_STAND.find((x) => hasBuff(t, x))
+  if (!id || t.fought) return
+  const fallen = t.models.filter((m) => m.destroyed && before.has(m.id))
+  if (!fallen.length) return
+  const info = STRATAGEMS[id]
+  const bonus = id === 'orksNeverBeaten' && riled(s, t) ? 1 : 0
+  const dice = fallen.map(() => r.d6())
+  const saved = fallen.filter((_, i) => dice[i] + bonus >= 4)
+  pushDice(s, `${info.name}: ${t.name}`, [{ label: 'D6', target: bonus ? '3+' : '4+', dice: dice.map((v) => ({ value: v, success: v + bonus >= 4 })), note: `Убито моделей: ${fallen.length}; успевают ударить перед смертью: ${saved.length}${bonus ? ' (+1: WAAAGH!)' : ''}` }],
+    saved.length ? `${t.name}: ${saved.length} павш. модел. успевают ударить.` : `${t.name}: павшие не успели ударить.`)
+  if (!saved.length || isDestroyed(attacker)) return
+  const groups = meleePlan(s, t, attacker, saved)
+  if (!groups.length) { addLog(s, `${t.name}: павшие модели не были в зоне контакта с «${attacker.name}» — ударить некому.`, 'standard'); return }
+  addLog(s, `${t.name}: «${info.name}» — ${saved.length} павш. модел. бьют «${attacker.name}» перед смертью.`, 'minimal')
+  for (const g of groups) {
+    if (isDestroyed(attacker)) break
+    const res = resolveGroup(r, t.name, g, attacker, g.ctx)
+    pushDice(s, `${info.name}: ${t.name} → ${attacker.name}: ${g.weaponName}${g.notes.length ? ` [${g.notes.join(', ')}]` : ''}`, res.steps, res.summary)
+    addLog(s, res.summary, 'standard')
+  }
+  if (isDestroyed(attacker)) addLog(s, `Отряд «${attacker.name}» уничтожен!`, 'minimal')
 }
 
 /**
@@ -1466,7 +1534,7 @@ function stratagemProblem(s: GameState, unit: UnitState, cmd: Extract<Command, {
   if (turn === 'own' && s.activePlayer !== me) return fail(`«${info.name}» применяется только в свой ход.`)
   if (turn === 'opponent' && (s.reaction?.player !== me || s.reaction.window !== info.window))
     return fail(`«${info.name}» — реакция в ход противника: её предлагают в нужный момент его хода.`)
-  if (info.window && s.reaction?.window !== info.window) return fail(`«${info.name}» предлагается в нужный момент (окно перед действием), сейчас её применить нельзя.`)
+  if (info.window && (s.reaction?.window !== info.window || s.reaction.player !== me)) return fail(`«${info.name}» предлагается в нужный момент (окно перед действием), сейчас её применить нельзя.`)
   if (!info.phases.includes(s.phase)) return fail(`«${info.name}» применяется в фазе: ${info.phases.map((p) => PHASE_NAME[p]).join(' или ')}.`)
   if (s.players[me].cp < info.cost) return fail(`Не хватает очков командования: нужно ${info.cost} CP, есть ${s.players[me].cp}.`)
   if (usedThisPhase(s, me, cmd.id)) return fail(`«${info.name}» уже применялась в этой фазе (каждая стратагема — раз за фазу).`)
@@ -1512,6 +1580,24 @@ function stratagemProblem(s: GameState, unit: UnitState, cmd: Extract<Command, {
       if (!target || target.owner === me || isDestroyed(target)) return fail('Выберите вражеский отряд.')
       if (!target.charged) return fail('Перехват — только против отряда, который атаковал (charge) в эту фазу.')
       if (unitDistance(unit, target) > CHARGE_RANGE + EPS) return fail(`Враг дальше ${CHARGE_RANGE}″.`)
+      return OK
+    }
+    case 'armourOfContempt':
+    case 'rapidRegeneration':
+    case 'lightningFastReactions':
+    case 'balefulHalo':
+    case 'bulwarkImperative':
+    case 'aWorthyDeath':
+    case 'orksNeverBeaten':
+    case 'deathFrenzy':
+    case 'undyingLegions': {
+      if (s.reaction?.unitId !== unit.id) return fail(cmd.id === 'undyingLegions' ? 'Только для отряда, который только что потерял модели от атак врага.' : 'Только для отряда, который враг сейчас выбрал целью.')
+      if (cmd.id === 'lightningFastReactions' && hasKeyword(unit, 'WRAITH CONSTRUCT')) return fail('Не для конструктов-призраков (WRAITH CONSTRUCT).')
+      if (cmd.id === 'balefulHalo' && hasKeyword(unit, 'VEHICLE')) return fail('Не для техники (VEHICLE).')
+      if (cmd.id === 'orksNeverBeaten' && hasKeyword(unit, 'TITANIC')) return fail('Не для TITANIC.')
+      if (LAST_STAND.includes(cmd.id) && unit.fought) return fail('Отряд уже сражался в этой фазе.')
+      if (cmd.id === 'undyingLegions' && !hasAbility(unit, 'reanimation')) return fail('У отряда нет протоколов реанимации.')
+      if (cmd.id === 'undyingLegions' && !reanimationNeeded(unit)) return fail('Отряду нечего лечить.')
       return OK
     }
     case 'epicChallenge':
@@ -1566,22 +1652,28 @@ export function reactionCommands(s: GameState): Command[] {
 }
 
 /** Open a reaction window for the player whose turn it is not, if they have a reaction to use; true when opened. */
-function openReaction(s: GameState, window: ReactionWindow, next: Phase, player = other(s, s.activePlayer)): boolean {
-  s.reaction = { player, window, next }
+function openReaction(s: GameState, window: ReactionWindow, next: Phase, player = other(s, s.activePlayer), about: { unitId?: string; attack?: PendingReroll['cmd'] } = {}): boolean {
+  s.reaction = { player, window, next, ...about }
   if (reactionCommands(s).length) {
-    addLog(s, window === 'beforeShockTests' ? `${FACTION_NAME[player]}: перед проверками боевого шока можно применить «Безумную храбрость».` : `${FACTION_NAME[player]} может ответить реакцией (стратагемой в ход противника).`, 'standard')
+    const u = about.unitId ? findUnit(s, about.unitId)! : undefined
+    const text = window === 'beforeShockTests' ? `${FACTION_NAME[player]}: перед проверками боевого шока можно применить «Безумную храбрость».`
+      : window === 'onTargeted' ? `${FACTION_NAME[player]}: отряд «${u!.name}» выбран целью — можно ответить стратагемой до бросков.`
+      : window === 'afterAttacks' ? `${FACTION_NAME[player]}: отряд «${u!.name}» потерял модели — можно запустить реанимацию стратагемой.`
+      : `${FACTION_NAME[player]} может ответить реакцией (стратагемой в ход противника).`
+    addLog(s, text, 'standard')
     return true
   }
   s.reaction = null
   return false
 }
 
-/** Close the window and go on to the phase it was holding. */
+/** Close the window and go on: the phase it was holding, the Battle-shock tests, or the attack that was waiting. */
 function closeReaction(s: GameState, r: Roller) {
-  const { next, window } = s.reaction!
+  const { next, window, attack: waiting } = s.reaction!
   s.reaction = null
   if (window === 'beforeShockTests') finishShockTests(s, r)
-  else enterPhase(s, next, r)
+  else if (window === 'onTargeted') attack(s, waiting!, r)
+  else if (window !== 'afterAttacks') enterPhase(s, next, r)
 }
 
 function applyStratagem(s: GameState, cmd: Extract<Command, { type: 'stratagem' }>, r: Roller) {
@@ -1664,6 +1756,9 @@ function applyStratagem(s: GameState, cmd: Extract<Command, { type: 'stratagem' 
       }
       break
     }
+    case 'undyingLegions':
+      reanimateUnit(s, u, r, isLed(s, u) ? 1 : 0, '«Протокол бессмертных легионов»')
+      break
     case 'insaneBravery': {
       const was = u.battleShocked
       u.battleShocked = false

@@ -27,10 +27,10 @@ const GAMES: Record<string, Game> = {
 
 // recorded on feature/army-builder (bfe917d), before the speed-ups
 const RECORDED: Record<string, { actions: number; commands: string }> = {
-  // re-recorded: the AI now spends CP on core and army (detachment) Stratagems, on reactions in the opponent's turn, and on Command Re-rolls mid-attack and Insane Bravery before the test
-  'patrol marines-orks standard': { actions: 119, commands: '019813f1' },
-  'patrol aeldari-mechanicus beginner': { actions: 70, commands: '397a127e' },
-  '500 tyranids-necrons standard': { actions: 60, commands: '52c02177' },
+  // re-recorded: the AI now spends CP on core and army (detachment) Stratagems, on reactions in the opponent's turn, on Command Re-rolls mid-attack and Insane Bravery before the test, and on faction reactions when attacked
+  'patrol marines-orks standard': { actions: 125, commands: '706424e1' },
+  'patrol aeldari-mechanicus beginner': { actions: 82, commands: 'a8144f8a' },
+  '500 tyranids-necrons standard': { actions: 60, commands: '8855a09f' },
   '1000 orks-aeldari standard': { actions: 40, commands: 'ab874ebb' },
 }
 

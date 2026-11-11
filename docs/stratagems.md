@@ -56,12 +56,12 @@ Each army plays the generic detachment of its 11th edition faction page on Wahap
 
 | Army | Detachment | Playable now (own turn) | Listed as «later» |
 |---|---|---|---|
-| Space Marines | Gladius Task Force | Storm of Devastation | Armour of Contempt, A Worthy Death, Responsive Tactics (opponent's turn); Might of Angels (needs Lance); Adaptive Strategy (needs combat doctrines) |
-| Orks | War Horde | Close-Range Dakka, Fungus-Fuel Injection, Hit 'Em Harder | Orks Is Never Beaten (opponent's turn); Breakin' Heads; Mow 'Em Down (no non-WALKER vehicles here) |
-| Tyranids | Invasion Fleet | Adrenal Surge (one unit at a time) | Rapid Regeneration, Death Frenzy (opponent's turn); Overrun, Predatory Imperative, Endless Swarm |
-| Necrons | Awakened Dynasty | Sudden Storm, Conquering Tyrant, Hungry Void | Eternal Revenant, Undying Legions, Vengeful Stars |
-| Aeldari | Warhost | Blitzing Firepower, Feigned Retreat | Lightning-Fast Reactions, Skyborne Sanctuary, Fire and Fade, Webway Tunnel |
-| Adeptus Mechanicus | Rad-Zone Corps | Lethal Dosage, Aggressor Imperative, Extinction Order | Baleful Halo, Bulwark Imperative (opponent's turn); Pre-Calibrated Purge Solution |
+| Space Marines | Gladius Task Force | Storm of Devastation; reactions: Armour of Contempt, A Worthy Death | Responsive Tactics (a move in the opponent's turn); Might of Angels (needs Lance); Adaptive Strategy (needs combat doctrines) |
+| Orks | War Horde | Close-Range Dakka, Fungus-Fuel Injection, Hit 'Em Harder; reaction: Orks Is Never Beaten | Breakin' Heads; Mow 'Em Down (no non-WALKER vehicles here) |
+| Tyranids | Invasion Fleet | Adrenal Surge (one unit at a time); reactions: Rapid Regeneration, Death Frenzy | Overrun, Predatory Imperative, Endless Swarm |
+| Necrons | Awakened Dynasty | Sudden Storm, Conquering Tyrant, Hungry Void; reaction: Undying Legions | Eternal Revenant, Vengeful Stars |
+| Aeldari | Warhost | Blitzing Firepower, Feigned Retreat; reaction: Lightning-Fast Reactions | Skyborne Sanctuary, Fire and Fade, Webway Tunnel |
+| Adeptus Mechanicus | Rad-Zone Corps | Lethal Dosage, Aggressor Imperative, Extinction Order; reactions: Baleful Halo, Bulwark Imperative | Pre-Calibrated Purge Solution |
 
 The detachment rules themselves (Get Stuck In, Hyper-adaptations, Rad-bombardment, Command Protocols and so on) are not part of this change. They would change every battle and are worth a separate discussion.
 
@@ -156,4 +156,44 @@ The standard AI always re-rolls when asked (it is asked only when it is worth it
 
 At the start of the Command phase the engine lists the units that must take a Battle-shock test (`shockPending`). If the player can use Insane Bravery on one of them, a `beforeShockTests` window opens for the active player. Using the Stratagem passes that unit's test without a roll. Passing rolls the remaining tests, then objectives and VP are scored as before. The prompt and the AI use `reactionAdvice`: worth it for a unit on an objective with a 25% or higher chance to fail (`shockFailChance`).
 
-Later stages: faction reactions, and a timeout for network games.
+# Faction reactions (stage 2, part 3)
+
+Each army's detachment has Stratagems used when an enemy attacks one of its units. They use two more reaction windows:
+
+| Window | When | Who answers |
+|---|---|---|
+| `onTargeted` | an enemy unit has selected the unit as the target of a `shoot` or `fight` command, before any dice | the target's player |
+| `afterAttacks` | the enemy's attacks destroyed models of the unit and it is still on the battlefield | the target's player |
+
+`GameState.reaction` carries `unitId` (the unit the window is about). For `onTargeted` it also carries `attack`, the waiting command. The attack is resolved when the window closes, on a pass or after the Stratagem, and may still stop for a Command Re-roll. The windows open only when the player has the CP and a reaction that fits the unit. A unit gets one Stratagem per phase, so a second attack on it in the same phase opens no window.
+
+| Army | Stratagem | CP | Window, phase | Effect here |
+|---|---|---|---|---|
+| Space Marines | Armour of Contempt | 1 | `onTargeted`, opponent's Shooting or any Fight phase | AP of that enemy unit's attacks worse by 1 (never above 0), until it has attacked |
+| Space Marines | A Worthy Death | 1 | `onTargeted`, Fight | the fallen strike back (below) |
+| Orks | Orks Is Never Beaten | 1 | `onTargeted`, Fight, not TITANIC | the fallen strike back, on 3+ when riled up by the Waaagh! |
+| Tyranids | Rapid Regeneration | 1 | `onTargeted`, opponent's Shooting or any Fight phase | Feel No Pain 6+ (5+ within Synapse Range) to the end of the phase |
+| Tyranids | Death Frenzy | 1 | `onTargeted`, Fight | the fallen strike back |
+| Aeldari | Lightning-Fast Reactions | 1 | `onTargeted`, opponent's Shooting or any Fight phase, not WRAITH CONSTRUCT | −1 to hit the unit to the end of the phase |
+| Adeptus Mechanicus | Bulwark Imperative | 2 | `onTargeted`, opponent's Shooting, SKITARII | 4+ invulnerable save to the end of the phase |
+| Adeptus Mechanicus | Baleful Halo | 2 | `onTargeted`, Fight, not VEHICLE | −1 to wound the unit to the end of the phase (a wound roll is never modified by more than −1) |
+| Necrons | Protocol of the Undying Legions | 1 | `afterAttacks`, opponent's Shooting or any Fight phase | Reanimation Protocols at once: heal D3 (D3+1 when a CHARACTER leads the unit), bringing models back |
+
+**The fallen strike back.** A Worthy Death, Orks Is Never Beaten and Death Frenzy work the same way here. The unit must not have fought this phase. Each of its models destroyed by that attack rolls a D6, and on 4+ it fights the attacker before it is removed. On the tabletop, Death Frenzy models fight right after the enemy's attacks. The Space Marine and Ork models stay and fight together with their unit later in the phase. Here all three strike right after the enemy's attacks, against that enemy unit, so the game needs no "destroyed but still standing" models.
+
+## «Only when useful»
+
+`reactionAdvice` prices them with the same expected-damage maths as the AI:
+
+- a defensive effect: the expected damage of the waiting attack without and with the effect, compared on a copy of the state;
+- the fallen striking back: expected models lost × 1/2 (2/3 for riled-up Orks) × each model's melee damage against the attacker;
+- Undying Legions: the wounds and models it would bring back.
+
+Each is worth it at 1.5 or more per CP. For example, Armour of Contempt pays off against a Hive Tyrant, Skorpekh Destroyers or a mob of Boyz (AP −1) hitting Intercessors. It does not against a single Deff Dread hitting a Redemptor (2+ save, ≈ 0.8 wounds saved). The standard AI uses the best reaction worth it; the beginner AI passes. The player's prompt opens only when one is worth it, and the button shows the cost (2 CP for the Adeptus Mechanicus ones).
+
+Simplifications:
+
+- Bulwark Imperative and Baleful Halo do not extend to a second SKITARII unit within 6″ of a BATTLELINE one.
+- Protocol of the Vengeful Stars, Protocol of the Eternal Revenant, Responsive Tactics and Webway Tunnel are still listed as «later».
+
+Later stages: a timeout for network games.
