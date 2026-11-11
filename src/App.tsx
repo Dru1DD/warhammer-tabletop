@@ -37,17 +37,18 @@ function useInviteLink() {
   }, [])
 }
 
-/** Drives the AI one decision at a time so the player can follow along. */
+/** Drives the AI one decision at a time so the player can follow along. Each decision is computed in a
+ * Web Worker (`aiStepAsync`), so the page keeps responding while the AI thinks. */
 function useAiLoop() {
   const game = useStore((s) => s.game)
   const human = useStore((s) => s.settings.human)
-  const aiStep = useStore((s) => s.aiStep)
+  const aiStep = useStore((s) => s.aiStepAsync)
   const paused = useStore((s) => !!s.deploying || !!s.review || !!s.shared)
   // slower AI for beginners so each enemy action can be followed
   const delay = useStore((s) => (s.settings.explain === 'beginner' ? AI_STEP_MS * 2 : AI_STEP_MS))
   useEffect(() => {
     if (!game || paused || game.winner || actor(game) === human) return
-    const t = setTimeout(() => aiStep(), delay)
+    const t = setTimeout(() => void aiStep(), delay)
     return () => clearTimeout(t)
   }, [game, human, aiStep, paused, delay])
 }

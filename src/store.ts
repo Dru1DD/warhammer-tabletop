@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import type { AiLevel } from './game/ai/ai'
+import type { AiDecision, AiLevel } from './game/ai/ai'
+import { decideAsync } from './game/ai/aiClient'
 import { seededRoller } from './game/dice/dice'
 import { actor, startGame, validate, type MoveOptions } from './game/engine'
 import { other, sidesOf } from './game/gameState'
@@ -94,6 +95,8 @@ interface Store {
   history: MatchState[]
   aiNotes: AiNote[]
   aiActionsThisTurn: number
+  /** true while the AI is computing its next decision (off the main thread when workers are available) */
+  aiThinking: boolean
   /** ids of tutorial lessons already learned (persisted across games) */
   tutorialDone: string[]
   tutorialStart: TutorialStart
@@ -130,7 +133,10 @@ interface Store {
   installShared: (match: MatchState, role: 'host' | 'guest', send?: SharedInfo['send']) => void
   /** Local player's command: wraps it in an envelope and goes through `submit`. */
   dispatch: (cmd: Command) => boolean
+  /** One AI decision, computed synchronously (tests, and the fallback path). */
   aiStep: () => boolean
+  /** One AI decision computed in a Web Worker; a result for a game that has moved on meanwhile is dropped. */
+  aiStepAsync: () => Promise<boolean>
   select: (unitId: string | null) => void
   setDraft: (positions: Record<string, Vec>) => void
   clearDraft: () => void
@@ -271,7 +277,29 @@ function matchOf(game: GameState, match: MatchState | null, humanSetting: Player
 
 const tutorialStartOf = (g: GameState): TutorialStart => ({ round: g.round, activePlayer: g.activePlayer, diceCount: g.diceLog.length })
 
-export const useStore = create<Store>((set, get) => ({
+export const useStore = create<Store>((set, get) => {
+  /** The match whose next decision belongs to the AI, or null (no battle, setup, review, finished, or a human's turn). */
+  const aiMatch = (): MatchState | null => {
+    const { game, settings } = get()
+    if (!game || get().deploying || get().review || game.winner) return null
+    const m = matchOf(game, get().match, settings.human)
+    return controllerOf(m).type === 'ai' ? m : null
+  }
+  /** Submit the AI's proposal (or force the end of the phase if it has none or seems stuck). */
+  const applyAiProposal = (m: MatchState, p: { envelope: CommandEnvelope; decision: AiDecision } | null): boolean => {
+    let env = p?.envelope
+    if (!env || get().aiActionsThisTurn >= MAX_AI_ACTIONS_PER_TURN) {
+      // safeguard against loops: force the phase to end if allowed (still through the same pipeline)
+      env = nextEnvelope(m, controllerOf(m).playerId, { type: 'endPhase' })
+      if (!validate(m.state, env.command).ok) return false
+    }
+    const ok = get().submit(env).ok
+    if (ok && env.command.type !== 'endPhase' && p)
+      set({ aiNotes: [...get().aiNotes, { id: Date.now() + Math.random(), text: p.decision.explanation }].slice(-30) })
+    set({ aiActionsThisTurn: get().aiActionsThisTurn + 1, history: [] })
+    return ok
+  }
+  return {
   game: null,
   shared: null,
   settings: loadSettings(),
@@ -285,6 +313,7 @@ export const useStore = create<Store>((set, get) => ({
   history: [],
   aiNotes: [],
   aiActionsThisTurn: 0,
+  aiThinking: false,
   tutorialDone: loadTutorialDone(),
   tutorialStart: { round: 1, activePlayer: 'marines', diceCount: 0 },
   deploying: null,
@@ -455,23 +484,29 @@ export const useStore = create<Store>((set, get) => ({
 
   /** One AI decision; returns false when the deciding side is not AI-controlled. */
   aiStep: () => {
-    const { game, settings, aiActionsThisTurn, aiNotes } = get()
-    if (!game || get().deploying || get().review || game.winner) return false
-    const m = matchOf(game, get().match, settings.human)
-    if (controllerOf(m).type !== 'ai') return false
-    const p = aiProposal(m, settings.aiLevel)
-    let env = p?.envelope
-    if (!env || aiActionsThisTurn >= MAX_AI_ACTIONS_PER_TURN) {
-      // safeguard against loops: force the phase to end if allowed (still through the same pipeline)
-      env = nextEnvelope(m, controllerOf(m).playerId, { type: 'endPhase' })
-      if (!validate(m.state, env.command).ok) return false
-    }
-    const ok = get().submit(env).ok
-    if (ok && env.command.type !== 'endPhase' && p)
-      set({ aiNotes: [...aiNotes, { id: Date.now() + Math.random(), text: p.decision.explanation }].slice(-30) })
-    set({ aiActionsThisTurn: get().aiActionsThisTurn + 1, history: [] })
-    return ok
+    const m = aiMatch()
+    return m ? applyAiProposal(m, aiProposal(m, get().settings.aiLevel)) : false
   },
+
+  aiStepAsync: async () => {
+    if (get().aiThinking) return false
+    const m = aiMatch()
+    if (!m) return false
+    const game = get().game
+    set({ aiThinking: true })
+    let decision: AiDecision | null
+    try {
+      decision = await decideAsync(m.state, get().settings.aiLevel)
+    } finally {
+      set({ aiThinking: false })
+    }
+    // the game moved on while the AI was thinking (undo, quit, a new battle): this answer is for an old state
+    if (get().game !== game) return false
+    const now = aiMatch()
+    if (!now || now.state !== m.state) return false
+    return applyAiProposal(now, decision && { envelope: nextEnvelope(now, controllerOf(now).playerId, decision.cmd), decision })
+  },
+
 
   setAim: (aimTargetId) => set({ aimTargetId }),
   selectTerrain: (selectedTerrainId) => set({ selectedTerrainId }),
@@ -599,4 +634,5 @@ export const useStore = create<Store>((set, get) => ({
     set({ customTokens: next, message: ok ? null : { text: 'Не удалось сохранить фото: хранилище браузера заполнено.', kind: 'error' } })
     return ok
   },
-}))
+}
+})
