@@ -11,6 +11,7 @@ import type { ActionRecord, CommandEnvelope, MatchState, PlayerAssignments, Subm
 import { deserialize, readStorage, saveMatch, saveToStorage } from './game/persistence'
 import { scenarioById } from './game/scenarios/scenarios'
 import { parseArmies, type ArmyList } from './game/army/armyList'
+import { applyPreset, deployWithPreset, recommendedPreset, type DeployPresetId } from './game/army/deployPresets'
 import { deploymentIssues, deploymentProblem } from './game/rules/deployment'
 import { parseLayout } from './game/terrainLayout'
 import { FACTIONS, type Command, type ExplainLevel, type GameState, type PlayerId, type Terrain, type Vec } from './game/types'
@@ -120,6 +121,8 @@ interface Store {
   startDeployment: (s?: Partial<Settings>) => void
   placeUnit: (unitId: string) => boolean
   autoDeploy: () => void
+  /** Sets up every unit of the player in a deployment preset (all count as placed; each can still be moved). */
+  deployPreset: (id: DeployPresetId) => void
   finishDeployment: () => boolean
   quit: () => void
   /** The single entry point for every command from any controller (local UI, AI, future remote).
@@ -241,6 +244,12 @@ function buildScenario(s: Settings): GameState {
   const custom = parseLayout(savedLayouts()[sc.id])
   const g = sc.build(sidesFor(s.human, s.opponent), battleArmies(s), custom ?? undefined)
   if (custom) g.terrain = custom
+  if (sc.customArmies) {
+    // open battle: both armies start in the deployment preset that suits them (the AI first, unaware of the player)
+    const ai = other(g, s.human)
+    applyPreset(g, ai, recommendedPreset(g, ai), false)
+    applyPreset(g, s.human, recommendedPreset(g, s.human), true)
+  }
   return g
 }
 
@@ -376,6 +385,22 @@ export const useStore = create<Store>((set, get) => {
     if (!game || !deploying) return
     set({ draft: {} })
     for (const u of game.units) if (u.owner === settings.human && !deploying.placed.includes(u.id)) get().placeUnit(u.id)
+  },
+
+  deployPreset: (id) => {
+    const { game, deploying, deployHistory, settings } = get()
+    if (!game || !deploying) return
+    const res = deployWithPreset(game, settings.human, id, true)
+    const next = structuredClone(game)
+    for (const u of next.units) if (u.owner === settings.human) for (const m of u.models) if (res.positions[m.id]) m.pos = { ...res.positions[m.id] }
+    const placed = next.units.filter((u) => u.owner === settings.human).map((u) => u.id)
+    set({
+      game: next,
+      deploying: { placed },
+      deployHistory: [...deployHistory, { game, placed: deploying.placed }],
+      draft: {},
+      message: res.followed ? null : { text: 'Армия слишком плотная для этого построения: отряды стоят как можно теснее.', kind: 'info' },
+    })
   },
 
   finishDeployment: () => {
