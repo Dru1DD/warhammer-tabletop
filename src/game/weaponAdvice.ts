@@ -11,6 +11,8 @@ export interface Reference {
   label: string
   t: number
   sv: number
+  /** invulnerable save, if any: used when it is better than the armour save after AP */
+  invuln?: number
   w: number
   models: number
   keywords: string[]
@@ -50,7 +52,7 @@ export function profileVs(p: WeaponProfile, ref: Reference): number {
   if (k.twinLinked) pWound += (1 - pWound) * pWound
   const dev = k.devastatingWounds ? rolls * pCrit : 0
   const normal = rolls * pWound - dev + auto
-  const need = ref.sv + Math.abs(p.ap)
+  const need = Math.min(ref.sv + Math.abs(p.ap), ref.invuln ?? 7)
   const pFail = need > 6 ? 1 : (need - 1) / 6
   const dmg = Math.min(p.d + (p.randomD ? AVG[p.randomD] : 0), ref.w)
   return attacks * (normal * pFail + dev) * dmg

@@ -39,6 +39,7 @@ import { scoreText } from './score'
 import { explainStep, LESSONS, PHASE_GOAL, PHASE_HELP, PHASE_NEXT, showAt, STAT_HELP, UNIT_ROLE } from './help'
 import { canActNow, draftDistance, lastRoundWarning, nextPhaseLabel, PHASE_SHORT, phaseStatus } from './guidance'
 import { fileToTokenDataUrl } from './imageUpload'
+import { UnitRoleTips } from './UnitRoleTips'
 import { leaveRoom } from '../multiplayer/session'
 
 
@@ -176,6 +177,7 @@ function UnitDetails({ u }: { u: UnitState }) {
       </div>
       <p className="text-stone-400">{FACTION_NAME[u.owner]} · {ds.keywords.join(', ')}</p>
       {ds.description && <p className="mt-1 text-stone-200">{ds.description}</p>}
+      <UnitRoleTips u={u} />
       <p className="mt-1 text-amber-200" aria-label="Стоимость отряда">
         Стоимость: {fmtPoints(unitPoints(u.datasheetId, u.startingModels, copy))}
         <span className="text-stone-400"> · {u.startingModels} мод., ≈ {pointsPerModel(u.datasheetId, u.startingModels, copy)} очк. за модель</span>
