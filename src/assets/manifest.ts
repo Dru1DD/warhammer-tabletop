@@ -4,6 +4,7 @@
 
 import type { PlayerId, TerrainKind } from '../game/types'
 import { BLUEPRINT_LINE, mechanicusEmblem, portraitFor, svgDataUrl } from './tokenArt'
+import { VARIANT_FROM } from '../game/data/wargearExtra'
 
 export interface TokenStyle {
   fill: string
@@ -129,6 +130,9 @@ export const TOKENS: Record<string, TokenStyle> = {
   kastelanCombustorTwin: { fill: '#7d1d1d', stroke: '#e8b04a', text: '#ffffff', label: 'КсС' },
   kastelanHeavyTwin: { fill: '#7d1d1d', stroke: '#f1d9a6', text: '#ffffff', label: 'КБС' },
 }
+
+// wargear variants without their own token use the token of the profile they are built from
+for (const [id, from] of Object.entries(VARIANT_FROM)) if (!TOKENS[id] && TOKENS[from]) TOKENS[id] = TOKENS[from]
 
 // Blueprint look: dark drafting paper, light line work.
 export const TERRAIN_STYLE: Record<TerrainKind, { fill: string; stroke: string; label: string }> = {

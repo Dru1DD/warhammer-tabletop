@@ -1,3 +1,4 @@
+import { VARIANT_FROM } from '../game/data/wargearExtra'
 // Original blueprint-style tokens: a top-down technical drawing of each model
 // on its base (no Games Workshop artwork). 100×100, ALL art faces +x; the board
 // flips the built-in portraits of the army that stands on the east side so both
@@ -693,6 +694,11 @@ const SVGS: Record<string, string> = {
 export const svgDataUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 
 /** Built-in blueprint token for a model profile, if one exists. */
-export const portraitFor = (profileId: string): string | undefined => (SVGS[profileId] ? svgDataUrl(SVGS[profileId]) : undefined)
+export const portraitFor = (profileId: string): string | undefined => {
+  // a wargear variant borrows the art of the profile it is built from
+  const id = SVGS[profileId] ? profileId : VARIANT_FROM[profileId]
+  return id && SVGS[id] ? svgDataUrl(SVGS[id]) : undefined
+}
 
-export const PORTRAIT_PROFILES = Object.keys(SVGS)
+/** Every profile with a built-in token: its own art, or (wargear variants) the art of the profile it is built from. */
+export const PORTRAIT_PROFILES = [...Object.keys(SVGS), ...Object.keys(VARIANT_FROM).filter((id) => !SVGS[id] && SVGS[VARIANT_FROM[id]])]

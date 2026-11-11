@@ -1,5 +1,6 @@
 import { PROFILES } from '../data/datasheets'
 import { MECHANICUS_WARGEAR } from './wargearMechanicus'
+import { OTHER_WARGEAR } from './wargearOthers'
 
 // Wargear options (loadouts) of a datasheet, as the army builder offers them. A loadout says which model profile each
 // model of the unit uses: every profile already carries its own weapons, so a "plasma caliver" option is simply the
@@ -22,6 +23,8 @@ export interface VariantGroup {
   max: (size: number) => number
   /** a cap for one variant inside the group (e.g. at most 1 transuranic arquebus) */
   variantMax?: Record<string, number>
+  /** how many models must take a variant of this group (e.g. exactly one Heavy Weapon Platform) */
+  min?: number
 }
 
 export interface WargearSpec {
@@ -38,7 +41,7 @@ export interface Loadout {
   counts: Record<string, number>
 }
 
-export const WARGEAR: Record<string, WargearSpec> = { ...MECHANICUS_WARGEAR }
+export const WARGEAR: Record<string, WargearSpec> = { ...MECHANICUS_WARGEAR, ...OTHER_WARGEAR }
 
 /** Model profiles of a unit with this loadout: the leader first, then the variants, then the base troopers. */
 export function composeLoadout(spec: WargearSpec, size: number, loadout: Loadout): string[] {
@@ -75,6 +78,7 @@ export function loadoutProblems(datasheetId: string, size: number, loadout: Load
     const n = g.variants.reduce((a, v) => a + (loadout.counts[v.profile] ?? 0), 0)
     used += n
     if (n > g.max(size)) out.push(`${g.label}: не больше ${g.max(size)} на отряд из ${size}.`)
+    if (g.min !== undefined && n < g.min) out.push(`${g.label}: нужно выбрать ${g.min}.`)
     for (const v of g.variants) {
       const cap = g.variantMax?.[v.profile]
       if (cap !== undefined && (loadout.counts[v.profile] ?? 0) > cap) out.push(`${v.label}: не больше ${cap} на отряд.`)
