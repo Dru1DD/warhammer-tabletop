@@ -326,7 +326,7 @@ export function shootPlan(
   if (opts.snap)
     for (const g of plan.groups) {
       const { rerollHits: _reroll, critHitOn: _crit, ...rest } = g.ctx
-      g.ctx = { ...rest, hitMod: 0, hitModNotes: [], skillWorsen: 6 }
+      g.ctx = { ...rest, hitMod: 0, hitModNotes: [], skillWorsen: 6, snap: true }
       g.notes.push('Огонь на опережение: попадание только на «6»')
     }
   return plan
@@ -1461,7 +1461,15 @@ export function unitActions(s: GameState, unitId: string): ActionInfo[] {
       if (hasAbility(u, 'finestHour') && !u.finestHourUsed)
         add(`finest:${e.id}`, `⭐ Сражаться с «${e.name}» — Звёздный час (+3 A, Devastating Wounds, раз за битву)`, { type: 'fight', unitId, targetId: e.id, finestHour: true })
     }
-  // Stratagems: listed only when usable now, so the panel is not cluttered with greyed-out options
+  out.push(...stratagemActions(s, unitId))
+  return out.filter((a) => a.id !== 'reroll' || hasAbility(u, 'waaagh') || hasAbility(u, 'superlativeStrategist'))
+}
+
+/** The Stratagems this unit can be the target of right now, one per target (listed only when usable). */
+export function stratagemActions(s: GameState, unitId: string): ActionInfo[] {
+  const u = findUnit(s, unitId)
+  if (!u || isDestroyed(u)) return []
+  const out: ActionInfo[] = []
   const strat = (id: string, label: string, cmd: Command) => {
     if (validate(s, cmd).ok) out.push({ id, label, ok: true, cmd })
   }
@@ -1475,11 +1483,15 @@ export function unitActions(s: GameState, unitId: string): ActionInfo[] {
   // the army's own (detachment) Stratagems
   for (const info of Object.values(STRATAGEMS)) {
     if (info.faction !== u.owner) continue
-    if (info.id === 'extinctionOrder')
-      s.objectives.forEach((o, i) => strat(`strat:${info.id}:${o.id}`, `📜 ${info.name} (${info.cost} CP): цель Ц${i + 1}`, { type: 'stratagem', id: info.id, unitId, targetId: o.id }))
-    else strat(`strat:${info.id}`, `📜 ${info.name} (${info.cost} CP)`, { type: 'stratagem', id: info.id, unitId })
+    // Extinction Order: only objectives with an enemy unit on them (elsewhere it does nothing)
+    if (info.id === 'extinctionOrder') {
+      s.objectives.forEach((o, i) => {
+        if (enemiesOf(s, u).some((e) => alive(e).length > 0 && unitNearObjective(e, o)))
+          strat(`strat:${info.id}:${o.id}`, `📜 ${info.name} (${info.cost} CP): цель Ц${i + 1}`, { type: 'stratagem', id: info.id, unitId, targetId: o.id })
+      })
+    } else strat(`strat:${info.id}`, `📜 ${info.name} (${info.cost} CP)`, { type: 'stratagem', id: info.id, unitId })
   }
-  return out.filter((a) => a.id !== 'reroll' || hasAbility(u, 'waaagh') || hasAbility(u, 'superlativeStrategist'))
+  return out
 }
 
 
