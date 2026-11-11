@@ -5,6 +5,9 @@ import { FACTION_NAME } from '../game/data/datasheets'
 import { legalSizes, listedCost } from '../game/data/points'
 import type { PlayerId } from '../game/types'
 import { useStore } from '../store'
+import { useState } from 'react'
+import { WARGEAR } from '../game/army/wargear'
+import { LoadoutEditor } from './LoadoutEditor'
 import { armyOf } from '../game/scenarios/scenarios'
 import { ArmyStratagems } from './ArmyStratagems'
 
@@ -23,6 +26,8 @@ export function ArmyBuilder({ faction, role }: { faction: PlayerId; role: string
     setSettings({ armies })
   }
   const edit = (units: ArmyList['units']) => list && setList({ ...list, units })
+  // which entry's wargear editor is open (by index)
+  const [open, setOpen] = useState<number | null>(null)
 
   const pts = list ? listPoints(list) : 0
   const costs = list ? entryCosts(list) : []
@@ -65,8 +70,14 @@ export function ArmyBuilder({ faction, role }: { faction: PlayerId; role: string
 
           <ul className="mt-2 space-y-1" aria-label="Отряды армии">
             {list.units.map((e, i) => (
-              <li key={i} className="flex items-center gap-2 text-xs">
-                <span className="min-w-0 flex-1 truncate" title={shortName(e.datasheetId)}>{shortName(e.datasheetId)}</span>
+              <li key={i} className="text-xs">
+              <div className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 truncate" title={shortName(e.datasheetId)}>{shortName(e.datasheetId)}{e.loadout ? ' ⚙' : ''}</span>
+                {WARGEAR[e.datasheetId] && (
+                  <button type="button" className={`btn px-1.5 py-0 text-xs ${open === i ? 'btn-primary' : ''}`} aria-expanded={open === i} title="Снаряжение отряда" aria-label={`Снаряжение «${shortName(e.datasheetId)}»`} onClick={() => setOpen(open === i ? null : i)}>
+                    ⚙
+                  </button>
+                )}
                 {legalSizes(e.datasheetId).length > 1 ? (
                   <select
                     className="input w-auto py-0.5 text-xs"
@@ -80,7 +91,14 @@ export function ArmyBuilder({ faction, role }: { faction: PlayerId; role: string
                   <span className="text-stone-400">× {e.size}</span>
                 )}
                 <span className="w-14 text-right text-stone-300">{costs[i]} очк.</span>
-                <button className="text-stone-400 hover:text-rose-300" aria-label={`Убрать «${shortName(e.datasheetId)}»`} onClick={() => edit(list.units.filter((_, j) => j !== i))}>✕</button>
+                <button className="text-stone-400 hover:text-rose-300" aria-label={`Убрать «${shortName(e.datasheetId)}»`} onClick={() => { setOpen(null); edit(list.units.filter((_, j) => j !== i)) }}>✕</button>
+              </div>
+              {open === i && (
+                <LoadoutEditor
+                  entry={e}
+                  onChange={(loadout) => edit(list.units.map((x, j) => (j === i ? (loadout ? { ...x, loadout } : { datasheetId: x.datasheetId, size: x.size }) : x)))}
+                />
+              )}
               </li>
             ))}
           </ul>

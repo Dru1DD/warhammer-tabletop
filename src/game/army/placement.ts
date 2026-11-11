@@ -22,7 +22,7 @@ export function listUnits(faction: PlayerId, list: ArmyList): UnitState[] {
   return list.units.map((e) => {
     const n = (seen[e.datasheetId] = (seen[e.datasheetId] ?? 0) + 1)
     const name = total[e.datasheetId] > 1 ? `${shortName(e.datasheetId)} ${ROMAN[n - 1] ?? n}` : shortName(e.datasheetId)
-    return newUnit(`${e.datasheetId}-${n}`, e.datasheetId, faction, name, composeUnit(e.datasheetId, e.size).map((p) => [p, { x: 0, y: 0 }]))
+    return newUnit(`${e.datasheetId}-${n}`, e.datasheetId, faction, name, composeUnit(e.datasheetId, e.size, e.loadout).map((p) => [p, { x: 0, y: 0 }]))
   })
 }
 
