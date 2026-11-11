@@ -4,8 +4,8 @@ Command points (CP) used to pile up with nothing to spend them on. Now every arm
 
 | Stratagem | CP | When | What it does |
 |---|---|---|---|
-| 🎲 Командный переброс (Command Re-roll) | 1 | Movement, Charge | Re-roll the Advance roll, or the charge roll (both dice) just made by the unit, even a failed one. |
-| 🦁 Безумная храбрость (Insane Bravery) | 1 | Command | The unit's battle-shock test counts as passed. Once per battle. |
+| 🎲 Командный переброс (Command Re-roll) | 1 | any | Re-roll the Advance roll, or the charge roll (both dice) just made by the unit, even a failed one. In the middle of an attack: one hit, wound, damage, number-of-attacks or saving-throw die (see below). |
+| 🦁 Безумная храбрость (Insane Bravery) | 1 | Command | Before the unit's battle-shock test: the test is passed without a roll. Once per battle. |
 | 💣 Взрывчатка (Explosives) | 1 | Shooting | A unit with EXPLOSIVES (or GRENADES) throws 6D6 at a visible, unengaged enemy within 8″ instead of shooting: each 4+ is a mortal wound. |
 | 🐘 Сокрушительный удар (Crushing Impact) | 1 | Charge | A MONSTER or VEHICLE that has charged rolls D6 equal to its Toughness: each 5+ is a mortal wound to an engaged enemy unit, each 1 a mortal wound to itself (at most 6 each). |
 
@@ -25,7 +25,7 @@ General rules:
 
 The AI uses them too:
 
-- **Insane Bravery** for a unit on or near an objective, or for a big unit from round 3;
+- **Insane Bravery** before the test, for a unit on an objective with a 25% or higher chance to fail, or for a big unit from round 3 with 50% or more;
 - **Explosives** when 6D6 at 4+ beats the unit's own shooting by a wound or more;
 - **Crushing Impact** whenever it can;
 - **Command Re-roll** for a failed charge that still has a 30% chance or more.
@@ -34,8 +34,8 @@ The AI uses them too:
 
 ## Differences from the tabletop
 
-- **Insane Bravery:** on the tabletop it is declared just before the roll. Here the engine rolls the battle-shock tests automatically when the Command phase starts, so the Stratagem is offered right after a failed test and turns it into a pass. The objectives that were scored at the start of the phase are scored again for the unit.
-- **Command Re-roll:** covers only Advance and charge rolls. Re-rolling a hit, wound, save or damage roll needs a pause in the middle of an attack. That is stage 2, together with the Stratagems used in the opponent's turn: Fire Overwatch, Smokescreen, Heroic Intervention, Counteroffensive, Rapid Ingress and Epic Challenge.
+- **Command Re-roll mid-attack** is offered only when it is worth it (see below), not for every die.
+- Counteroffensive and Rapid Ingress are not implemented yet.
 
 ## Data
 
@@ -127,4 +127,33 @@ The standard AI uses the best worthwhile reaction and passes otherwise; the begi
 
 For the player, `ReactionPrompt` pauses the game only when some reaction is worthwhile. It lists the useful ones with the reason, and the rest under a fold. When none is useful, it passes on its own.
 
-Later stages: a Command Re-roll in the middle of an attack, Insane Bravery before the roll, faction reactions, and a timeout for network games.
+# Command Re-roll mid-attack and Insane Bravery before the test (stage 2, part 2)
+
+## Command Re-roll in the middle of an attack
+
+`resolveGroup` takes an optional `RerollHook`. Right after one of these dice it asks the hook, and on `true` re-rolls that die:
+
+| Die | Who re-rolls | Expected gain used to price it |
+|---|---|---|
+| number of attacks (D3/D6) | attacker | (average − rolled) × expected damage of one attack |
+| missed hit | attacker | chance to hit × expected damage of one hit |
+| failed wound | attacker | chance to wound × expected damage of one wound |
+| failed save | target's player | chance to save × damage (capped by the model's wounds) |
+| random damage (D3/D6) | attacker | expected damage of a new die − damage of this one (capped by wounds) |
+
+The hook is not asked for a die already re-rolled by an ability (Twin-linked, re-roll 1s), or for Snap Shooting.
+
+The engine (`runAttack`) resolves `shoot` and `fight` on a copy of the state. Suppose a die gains `REROLL_WORTH` (1.5) expected damage or more, and its player can still use a Command Re-roll on the unit: enough CP, no Command Re-roll this phase, no Stratagem on that unit this phase, and the unit not battle-shocked. Then the attack stops.
+
+- Nothing is applied while it is stopped. `GameState.pendingReroll` keeps the dice rolled so far (the die in question last), the earlier answers, and who decides.
+- `actor()` returns that player. Only `{ type: 'rerollChoice', reroll }` is accepted.
+- The answer replays the attack with the same dice and goes on. The dice after the stopped one were never shown, because they are rolled only now.
+- A re-roll costs 1 CP and is logged as the Stratagem.
+
+The standard AI always re-rolls when asked (it is asked only when it is worth it). The beginner AI keeps the die. For the player, `RerollPrompt` shows the die, its value and the expected gain, with «Перебросить (1 CP)» and «Оставить». In AI games this stops 0–4 times a battle.
+
+## Insane Bravery before the test
+
+At the start of the Command phase the engine lists the units that must take a Battle-shock test (`shockPending`). If the player can use Insane Bravery on one of them, a `beforeShockTests` window opens for the active player. Using the Stratagem passes that unit's test without a roll. Passing rolls the remaining tests, then objectives and VP are scored as before. The prompt and the AI use `reactionAdvice`: worth it for a unit on an objective with a 25% or higher chance to fail (`shockFailChance`).
+
+Later stages: faction reactions, and a timeout for network games.

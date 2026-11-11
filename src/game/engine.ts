@@ -12,12 +12,12 @@ import {
   updateObjectiveControl, weaponsOf, OBJECTIVE_MARKER_MM,
 } from './gameState'
 import { healUnit } from './rules/heal'
-import { applyMortalWounds, resolveGroup, type AttackContext, type AttackGroup } from './combat/attack'
+import { applyMortalWounds, resolveGroup, type AttackContext, type AttackGroup, type RerollHook, type RerollKind } from './combat/attack'
 import { moveProblem, planMove } from './rules/movement'
 import { hasCover, nearestVisibleDistance, seesAny, unitCanSee } from './rules/visibility'
 import { CRUSHING_MAX, EXPLOSIVES_DICE, EXPLOSIVES_RANGE, explosivesReach, hasBuff, meetsRequirement, reactionsIn, STRATAGEMS, targetedThisPhase, usedThisPhase } from './rules/stratagems'
 import { baseRadius } from './geometry/geometry'
-import type { Command, DiceEntry, GameState, ModelState, Phase, PlayerId, ReactionWindow, StratagemId, UnitState, Validation, Vec, Weapon, WeaponProfile } from './types'
+import type { Command, DiceEntry, GameState, ModelState, PendingReroll, Phase, PlayerId, ReactionWindow, StratagemId, UnitState, Validation, Vec, Weapon, WeaponProfile } from './types'
 import { PHASES } from './types'
 
 export const PHASE_NAME: Record<Phase, string> = {
@@ -42,6 +42,7 @@ const OK: Validation = { ok: true }
 
 /** Player who must make the next decision. */
 export function actor(s: GameState): PlayerId {
+  if (s.pendingReroll) return s.pendingReroll.player
   if (s.reaction) return s.reaction.player
   if (s.phase === 'fight' && s.fight) return s.fight.selecting
   return s.activePlayer
@@ -456,6 +457,10 @@ function planCharge(s: GameState, unit: UnitState, targets: UnitState[], roll: n
 export function validate(s: GameState, cmd: Command): Validation {
   if (s.winner) return fail('Битва окончена.')
   const who = actor(s)
+  // an attack paused for a Command Re-roll: only the answer
+  if (s.pendingReroll)
+    return cmd.type === 'rerollChoice' ? OK : fail(`Атака ждёт решения стороны «${FACTION_NAME[s.pendingReroll.player]}»: перебросить кубик или нет.`)
+  if (cmd.type === 'rerollChoice') return fail('Сейчас нечего перебрасывать.')
   // a reaction window: only the reacting player's reactions for this window, or passing
   if (s.reaction) {
     if (cmd.type === 'passReaction') return OK
@@ -774,13 +779,34 @@ function leadershipRoll(s: GameState, u: UnitState, r: Roller, mod = 0) {
   return { dice, total, ld, pass: total >= ld, label: `${synapse ? '3D6 (Synapse)' : '2D6'}${interference ? ` (помехи ${interference})` : ''}` }
 }
 
+/** Chance that this unit fails its Battle-shock test (same dice and modifiers as `leadershipRoll`). */
+export function shockFailChance(s: GameState, u: UnitState): number {
+  const n = inSynapseRange(s, u) ? 3 : 2
+  const mod = neurostaticMod(s, u)
+  const ld = psychicGuidance(s, u) ? Math.min(6, profileOf(alive(u)[0]).ld) : profileOf(alive(u)[0]).ld
+  let fails = 0
+  for (let i = 0; i < 6 ** n; i++) {
+    let sum = 0
+    for (let k = 0, x = i; k < n; k++, x = Math.floor(x / 6)) sum += (x % 6) + 1
+    if (sum + mod < ld) fails++
+  }
+  return fails / 6 ** n
+}
+
 function commandPhase(s: GameState, r: Roller) {
   for (const p of sidesOf(s)) s.players[p].cp++
   if (s.players[s.activePlayer].guide !== undefined) s.players[s.activePlayer].guide = null
   if (s.players[s.activePlayer].imperative !== undefined) s.players[s.activePlayer].imperative = null
   addLog(s, 'Оба игрока получают 1 очко командования (CP).', 'beginner')
-  for (const u of unitsOf(s, s.activePlayer)) {
-    if (!u.battleShocked && !atHalfStrength(u)) continue
+  s.shockPending = unitsOf(s, s.activePlayer).filter((u) => u.battleShocked || atHalfStrength(u)).map((u) => u.id)
+  // Insane Bravery is used before the test: the player may answer first, then the tests are rolled
+  if (!openReaction(s, 'beforeShockTests', 'command', s.activePlayer)) finishShockTests(s, r)
+}
+
+/** The Battle-shock tests still pending, then objectives and VP of the Command phase. */
+function finishShockTests(s: GameState, r: Roller) {
+  for (const id of s.shockPending ?? []) {
+    const u = findUnit(s, id)!
     const { dice, total, ld, pass, label } = leadershipRoll(s, u, r)
     const was = u.battleShocked
     u.battleShocked = !pass
@@ -789,6 +815,7 @@ function commandPhase(s: GameState, r: Roller) {
       pass ? `${u.name}: проверка пройдена${was ? ' — боевой шок снят' : ''}.` : `${u.name}: провал — отряд в боевом шоке (OC = 0, отступление опасно).`)
     addLog(s, pass ? `${u.name} проходит проверку боевого шока (${total} ≥ ${ld}).` : `${u.name} проваливает проверку боевого шока (${total} < ${ld}) и получает Battle-shock.`, 'minimal')
   }
+  s.shockPending = null
   updateObjectiveControl(s)
   if (s.round >= 2) {
     const held = s.objectives.filter((o) => o.controller === s.activePlayer).length
@@ -1156,8 +1183,15 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       break
     }
     case 'shoot':
-      resolveShooting(s, findUnit(s, cmd.unitId)!, findUnit(s, cmd.targetId)!, cmd, r)
+      runAttack(s, cmd, r)
       break
+    case 'rerollChoice': {
+      const pr = s.pendingReroll!
+      s.pendingReroll = null
+      if (!cmd.reroll) addLog(s, `${FACTION_NAME[pr.player]}: без переброса.`, 'beginner')
+      runAttack(s, pr.cmd, r, pr.dice, { ...pr.decided, [pr.dice.length - 1]: cmd.reroll })
+      break
+    }
     case 'declareCharge': {
       const u = findUnit(s, cmd.unitId)!
       u.chargeDeclared = true
@@ -1190,36 +1224,106 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       addLog(s, `${u.name} атакует (charge) отряд «${targets.map((x) => x.name).join(', ')}» и получает «Бьёт первым» (Fights First).`, 'minimal')
       break
     }
-    case 'fight': {
-      const u = findUnit(s, cmd.unitId)!
-      const t = findUnit(s, cmd.targetId)!
-      const before = aliveIds(s)
-      u.fought = true
-      if (cmd.finestHour) {
-        u.finestHourUsed = true
-        u.finestHour = true
-      }
-      const groups = meleePlan(s, u, t)
-      delete u.finestHour
-      addLog(s, `${u.name} сражается с отрядом «${t.name}»${cmd.finestHour ? ' — «Звёздный час»: +3 атаки, Devastating Wounds' : ''}.`, 'minimal')
-      for (const g of groups) {
-        if (isDestroyed(t)) break
-        const res = resolveGroup(r, u.name, g, t, g.ctx)
-        pushDice(s, `Бой: ${u.name} → ${t.name}: ${g.weaponName}${g.notes.length ? ` [${g.notes.join(', ')}]` : ''}`, res.steps, res.summary)
-        addLog(s, res.summary, 'standard')
-      }
-      if (!groups.length) addLog(s, `${u.name}: ни одна модель не в зоне контакта (${ENGAGEMENT_RANGE}").`, 'standard')
-      deadlyDemise(s, before, r)
-      if (isDestroyed(t)) addLog(s, `Отряд «${t.name}» уничтожен!`, 'minimal')
-      checkWinner(s)
-      s.fight!.selecting = other(s, s.fight!.selecting)
-      advanceFight(s)
+    case 'fight':
+      runAttack(s, cmd, r)
       break
-    }
   }
   enforceCrews(s)
   s.rng = r.state()
   return s
+}
+
+/** The Fight command: the unit fights the target, then the selection passes on. */
+function resolveFight(s: GameState, cmd: Extract<Command, { type: 'fight' }>, r: Roller, reroll?: RerollHook) {
+  const u = findUnit(s, cmd.unitId)!
+  const t = findUnit(s, cmd.targetId)!
+  const before = aliveIds(s)
+  u.fought = true
+  if (cmd.finestHour) {
+    u.finestHourUsed = true
+    u.finestHour = true
+  }
+  const groups = meleePlan(s, u, t)
+  delete u.finestHour
+  addLog(s, `${u.name} сражается с отрядом «${t.name}»${cmd.finestHour ? ' — «Звёздный час»: +3 атаки, Devastating Wounds' : ''}.`, 'minimal')
+  for (const g of groups) {
+    if (isDestroyed(t)) break
+    const res = resolveGroup(r, u.name, g, t, g.ctx, reroll)
+    pushDice(s, `Бой: ${u.name} → ${t.name}: ${g.weaponName}${g.notes.length ? ` [${g.notes.join(', ')}]` : ''}`, res.steps, res.summary)
+    addLog(s, res.summary, 'standard')
+  }
+  if (!groups.length) addLog(s, `${u.name}: ни одна модель не в зоне контакта (${ENGAGEMENT_RANGE}").`, 'standard')
+  deadlyDemise(s, before, r)
+  if (isDestroyed(t)) addLog(s, `Отряд «${t.name}» уничтожен!`, 'minimal')
+  checkWinner(s)
+  s.fight!.selecting = other(s, s.fight!.selecting)
+  advanceFight(s)
+}
+
+// ---------------------------------------------------------------- Command Re-roll in the middle of an attack
+
+/** Expected damage a single re-roll must add (or prevent) before the game stops to offer it. */
+export const REROLL_WORTH = 1.5
+const REROLL_KIND: Record<RerollKind, string> = { attacks: 'число атак', hit: 'попадание', wound: 'ранение', save: 'спасбросок', damage: 'урон' }
+
+class RerollPause {
+  at: Omit<PendingReroll, 'cmd' | 'dice' | 'decided'>
+  constructor(at: RerollPause['at']) {
+    this.at = at
+  }
+}
+
+/** Can this unit's player still use a Command Re-roll on it in this phase? */
+function canCommandReroll(s: GameState, u: UnitState) {
+  const p = s.players[u.owner]
+  return !u.battleShocked && p.cp >= STRATAGEMS.commandReroll.cost && !usedThisPhase(s, u.owner, 'commandReroll') && !targetedThisPhase(s, u)
+}
+
+function spendCommandReroll(s: GameState, u: UnitState, kind: RerollKind, value: number) {
+  const me = u.owner
+  s.players[me].cp -= STRATAGEMS.commandReroll.cost
+  ;(s.players[me].stratagemsThisPhase ??= []).push('commandReroll')
+  ;(s.players[me].stratagemUnitsThisPhase ??= []).push(u.id)
+  addLog(s, `${FACTION_NAME[me]}: стратагема «Командный переброс» — ${u.name} перебрасывает ${REROLL_KIND[kind]} (выпало «${value}»), −${STRATAGEMS.commandReroll.cost} CP.`, 'minimal')
+}
+
+function attackBody(s: GameState, cmd: PendingReroll['cmd'], r: Roller, reroll?: RerollHook) {
+  if (cmd.type === 'shoot') resolveShooting(s, findUnit(s, cmd.unitId)!, findUnit(s, cmd.targetId)!, cmd, r, false, reroll)
+  else resolveFight(s, cmd, r, reroll)
+}
+
+/**
+ * Resolve a shot or a fight. Right after a die worth a Command Re-roll (REROLL_WORTH) for a player who can still use
+ * one, the attack stops: nothing is applied, the dice so far are kept in `pendingReroll`, and `rerollChoice` replays
+ * them and goes on. The dice after the paused one are not rolled until then.
+ */
+function runAttack(s: GameState, cmd: PendingReroll['cmd'], r: Roller, prefix: number[] = [], decided: Record<number, boolean> = {}) {
+  const possible = sidesOf(s).some((p) => s.players[p].cp >= STRATAGEMS.commandReroll.cost && !usedThisPhase(s, p, 'commandReroll'))
+  if (!possible && !prefix.length) return attackBody(s, cmd, r)
+  const dice: number[] = []
+  const roller: Roller = { d6: () => { const v = dice.length < prefix.length ? prefix[dice.length] : r.d6(); dice.push(v); return v }, state: () => r.state() }
+  const trial = structuredClone(s)
+  const attacker = findUnit(trial, cmd.unitId)!
+  const target = findUnit(trial, cmd.targetId)!
+  const hook: RerollHook = (pt) => {
+    const at = dice.length - 1
+    const u = pt.side === 'attacker' ? attacker : target
+    if (at in decided) {
+      if (decided[at]) spendCommandReroll(trial, u, pt.kind, pt.value)
+      return decided[at]
+    }
+    if (pt.gain < REROLL_WORTH || !canCommandReroll(trial, u)) return false
+    throw new RerollPause({ player: u.owner, unitId: u.id, attackerId: attacker.id, targetId: target.id, kind: pt.kind, value: pt.value, gain: pt.gain, weapon: pt.weapon })
+  }
+  try {
+    attackBody(trial, cmd, roller, hook)
+  } catch (e) {
+    if (!(e instanceof RerollPause)) throw e
+    s.pendingReroll = { ...e.at, cmd, dice: [...dice], decided }
+    return
+  }
+  for (const k of Object.keys(s) as (keyof GameState)[]) if (!(k in trial)) delete s[k]
+  Object.assign(s, trial)
 }
 
 // ---------------------------------------------------------------- game setup
@@ -1312,7 +1416,7 @@ export function unitActions(s: GameState, unitId: string): ActionInfo[] {
 
 
 /** Resolve a unit's shooting at a target: the Shooting phase, or Snap Shooting (Fire Overwatch) when `snap`. */
-function resolveShooting(s: GameState, u: UnitState, t: UnitState, opts: { profiles?: Record<string, number>; usePistols?: boolean; useAmmoRunts?: boolean }, r: Roller, snap = false) {
+function resolveShooting(s: GameState, u: UnitState, t: UnitState, opts: { profiles?: Record<string, number>; usePistols?: boolean; useAmmoRunts?: boolean }, r: Roller, snap = false, reroll?: RerollHook) {
   const before = aliveIds(s)
   const plan = shootPlan(s, u, t, { ...opts, snap })
   u.shot = true
@@ -1324,7 +1428,7 @@ function resolveShooting(s: GameState, u: UnitState, t: UnitState, opts: { profi
   let scored = false
   for (const g of plan.groups) {
     if (isDestroyed(t)) break
-    const res = resolveGroup(r, u.name, g, t, g.ctx)
+    const res = resolveGroup(r, u.name, g, t, g.ctx, reroll)
     repulsed += res.repulsed
     if (res.steps.some((st) => st.label === 'Попадание' && (st.target === 'авто' || st.dice.some((d) => d.success)))) scored = true
     pushDice(s, `${u.name} → ${t.name}: ${g.weaponName}${g.notes.length ? ` [${g.notes.join(', ')}]` : ''}`, res.steps, res.summary)
@@ -1362,6 +1466,7 @@ function stratagemProblem(s: GameState, unit: UnitState, cmd: Extract<Command, {
   if (turn === 'own' && s.activePlayer !== me) return fail(`«${info.name}» применяется только в свой ход.`)
   if (turn === 'opponent' && (s.reaction?.player !== me || s.reaction.window !== info.window))
     return fail(`«${info.name}» — реакция в ход противника: её предлагают в нужный момент его хода.`)
+  if (info.window && s.reaction?.window !== info.window) return fail(`«${info.name}» предлагается в нужный момент (окно перед действием), сейчас её применить нельзя.`)
   if (!info.phases.includes(s.phase)) return fail(`«${info.name}» применяется в фазе: ${info.phases.map((p) => PHASE_NAME[p]).join(' или ')}.`)
   if (s.players[me].cp < info.cost) return fail(`Не хватает очков командования: нужно ${info.cost} CP, есть ${s.players[me].cp}.`)
   if (usedThisPhase(s, me, cmd.id)) return fail(`«${info.name}» уже применялась в этой фазе (каждая стратагема — раз за фазу).`)
@@ -1381,7 +1486,7 @@ function stratagemProblem(s: GameState, unit: UnitState, cmd: Extract<Command, {
       // the engine rolls battle-shock tests automatically when the Command phase starts, so the Stratagem is offered
       // right after a failed test and turns it into a pass (see docs/stratagems.md)
       if (s.players[me].braveryUsed) return fail('«Безумная храбрость» уже применялась в этой битве (раз за битву).')
-      return unit.battleShocked && unit.shockedThisPhase ? OK : fail('Только для отряда, который провалил проверку боевого шока в этой фазе командования.')
+      return s.shockPending?.includes(unit.id) ? OK : fail('Только для отряда, которому сейчас предстоит проверка боевого шока.')
     case 'explosives': {
       if (unit.shot) return fail('Отряд уже стрелял в этой фазе.')
       if (unit.move === 'advance' || unit.move === 'fallBack') return fail('После продвижения или отступления взрывчатку не бросить.')
@@ -1453,17 +1558,18 @@ export function reactionCommands(s: GameState): Command[] {
   const out: Command[] = []
   for (const id of reactionsIn(s.reaction.window))
     for (const u of unitsOf(s, me).filter((x) => !isDestroyed(x))) {
-      const cmds: Command[] = id === 'smokescreen' ? [{ type: 'stratagem', id, unitId: u.id }] : foes.map((e) => ({ type: 'stratagem', id, unitId: u.id, targetId: e.id }))
+      const targeted = id === 'fireOverwatch' || id === 'heroicIntervention'
+      const cmds: Command[] = targeted ? foes.map((e) => ({ type: 'stratagem', id, unitId: u.id, targetId: e.id })) : [{ type: 'stratagem', id, unitId: u.id }]
       for (const c of cmds) if (validate(s, c).ok) out.push(c)
     }
   return out
 }
 
 /** Open a reaction window for the player whose turn it is not, if they have a reaction to use; true when opened. */
-function openReaction(s: GameState, window: ReactionWindow, next: Phase): boolean {
-  s.reaction = { player: other(s, s.activePlayer), window, next }
+function openReaction(s: GameState, window: ReactionWindow, next: Phase, player = other(s, s.activePlayer)): boolean {
+  s.reaction = { player, window, next }
   if (reactionCommands(s).length) {
-    addLog(s, `${FACTION_NAME[s.reaction.player]} может ответить реакцией (стратагемой в ход противника).`, 'standard')
+    addLog(s, window === 'beforeShockTests' ? `${FACTION_NAME[player]}: перед проверками боевого шока можно применить «Безумную храбрость».` : `${FACTION_NAME[player]} может ответить реакцией (стратагемой в ход противника).`, 'standard')
     return true
   }
   s.reaction = null
@@ -1472,9 +1578,10 @@ function openReaction(s: GameState, window: ReactionWindow, next: Phase): boolea
 
 /** Close the window and go on to the phase it was holding. */
 function closeReaction(s: GameState, r: Roller) {
-  const next = s.reaction!.next
+  const { next, window } = s.reaction!
   s.reaction = null
-  enterPhase(s, next, r)
+  if (window === 'beforeShockTests') finishShockTests(s, r)
+  else enterPhase(s, next, r)
 }
 
 function applyStratagem(s: GameState, cmd: Extract<Command, { type: 'stratagem' }>, r: Roller) {
@@ -1558,17 +1665,11 @@ function applyStratagem(s: GameState, cmd: Extract<Command, { type: 'stratagem' 
       break
     }
     case 'insaneBravery': {
+      const was = u.battleShocked
       u.battleShocked = false
       s.players[me].braveryUsed = true
-      // the objectives were scored when the phase started; score again what the passed test now holds
-      const before = s.objectives.filter((o) => o.controller === me).length
-      updateObjectiveControl(s)
-      const after = s.objectives.filter((o) => o.controller === me).length
-      if (s.round >= 2 && after > before) {
-        s.players[me].vp += (after - before) * VP_PER_OBJECTIVE
-        addLog(s, `${FACTION_NAME[me]}: +${(after - before) * VP_PER_OBJECTIVE} ПО — отряд снова удерживает цель.`, 'minimal')
-      }
-      addLog(s, `${u.name}: проверка боевого шока считается пройденной — OC снова в силе.`, 'minimal')
+      s.shockPending = (s.shockPending ?? []).filter((id) => id !== u.id)
+      addLog(s, `${u.name}: проверка боевого шока автоматически пройдена${was ? ' — боевой шок снят' : ''}.`, 'minimal')
       break
     }
     case 'explosives': {

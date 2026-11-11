@@ -459,7 +459,7 @@ describe('Sicarians: Voices in the Code and Neurostatic Interference', () => {
     s.fight = null
     unit(s, 'int').models.slice(2).forEach((m) => (m.destroyed = true)) // 2 of 5: half strength -> tests
     setup(s)
-    return apply(s, { type: 'endPhase' }, scriptedRoller([...rolls, ...Array(40).fill(6)]))
+    return endPhase(s, scriptedRoller([...rolls, ...Array(40).fill(6)]))
   }
   const intTest = (s: GameState) => s.diceLog.find((d) => d.title === 'Боевой шок: Интерсессоры I')!
   it('Ld test total is reduced by 1 within 6″ of Sicarians, by 2 near a friendly BATTLELINE', () => {

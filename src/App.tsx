@@ -13,6 +13,7 @@ import { ArmyBuilder } from './ui/ArmyBuilder'
 import { armyUnits, battleListProblems } from './ui/armyUnits'
 import { BattleOverDialog } from './ui/BattleOverDialog'
 import { ReactionPrompt } from './ui/ReactionPrompt'
+import { RerollPrompt } from './ui/RerollPrompt'
 import { Board } from './ui/Board'
 import { ActionPanel, AttackReview, BottomPanel, DiceFaces, RosterPanel } from './ui/Panels'
 import { LEARNING_STYLE, learningStyleOf, type LearningStyle } from './ui/help'
@@ -280,6 +281,7 @@ function GameScreen() {
         <BattleOverDialog game={{ ...game, winner: game.winner }} human={st.settings.human} onClose={() => setOverClosedFor(game)} onNewBattle={() => (st.shared ? leaveRoom() : st.startDeployment())} />
       )}
       {game.reaction?.player === st.settings.human && !game.winner && !st.review && <ReactionPrompt game={game} human={st.settings.human} />}
+      {game.pendingReroll?.player === st.settings.human && !game.winner && !st.review && <RerollPrompt game={game} human={st.settings.human} />}
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
     </div>
   )

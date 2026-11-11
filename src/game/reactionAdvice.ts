@@ -1,6 +1,6 @@
 import { expectedGroupDamage, meleePotential, p2d6AtLeast } from './ai/ai'
-import { reactionCommands, shootPlan } from './engine'
-import { alive, findUnit, fmt, unitDistance } from './gameState'
+import { reactionCommands, shockFailChance, shootPlan } from './engine'
+import { alive, findUnit, fmt, unitDistance, unitNearObjective } from './gameState'
 import { STRATAGEMS } from './rules/stratagems'
 import type { Command, GameState, UnitState } from './types'
 
@@ -45,6 +45,13 @@ export function reactionAdvice(s: GameState): ReactionOption[] {
       const taken = Math.min(woundsLeft(u), meleePotential(s, t, u, false))
       const worth = p >= 0.5 && p * dealt >= 1.5 && dealt >= taken * 0.75
       out.push({ cmd: c, title, value: p * dealt, worth, why: `Шанс дойти ${Math.round(p * 100)}%, в бою ≈ ${fmt(dealt)} ран врагу и ≈ ${fmt(taken)} вам.` })
+    } else if (c.id === 'insaneBravery') {
+      // once per battle: spend it where a failed test costs an objective, or on a big unit late in the game
+      const fail = shockFailChance(s, u)
+      const onObjective = s.objectives.some((o) => unitNearObjective(u, o))
+      const worth = onObjective ? fail >= 0.25 : fail >= 0.5 && alive(u).length >= 5 && s.round >= 3
+      const pct = Math.round(fail * 100)
+      out.push({ cmd: c, title, value: fail * (onObjective ? 3 : 1), worth, why: `Шанс провалить проверку ${pct}%${onObjective ? ': отряд на цели, а в шоке его OC = 0 — цель уйдёт' : ''}. Раз за битву.` })
     }
   }
   return out.sort((a, b) => Number(b.worth) - Number(a.worth) || b.value - a.value)

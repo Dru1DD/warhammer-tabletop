@@ -6,6 +6,12 @@ import { useStore } from '../store'
 const WINDOW_TEXT: Record<ReactionWindow, string> = {
   beforeShooting: 'Противник закончил движение. Сейчас начнётся его стрельба — можно ответить стратагемой.',
   afterCharges: 'Противник закончил атаки. Перед боем можно ответить стратагемой.',
+  beforeShockTests: 'Начинается ваша фаза командования. Перед проверками боевого шока можно применить «Безумную храбрость» — проверка будет пройдена без броска.',
+}
+const WINDOW_TITLE: Record<ReactionWindow, string> = {
+  beforeShooting: 'Ход противника — ваша реакция?',
+  afterCharges: 'Ход противника — ваша реакция?',
+  beforeShockTests: 'Проверка боевого шока',
 }
 
 /** The pause in the opponent's turn: offers the reactions worth their CP, or passes on its own when none is. */
@@ -31,7 +37,7 @@ export function ReactionPrompt({ game, human }: { game: GameState; human: Player
   return (
     <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60 p-3">
       <div className="w-full max-w-md rounded-lg border border-amber-500 bg-stone-800 p-4 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="reaction-title">
-        <h2 id="reaction-title" className="text-lg font-bold">Ход противника — ваша реакция?</h2>
+        <h2 id="reaction-title" className="text-lg font-bold">{WINDOW_TITLE[game.reaction.window]}</h2>
         <p className="mt-1 text-sm text-stone-300">{WINDOW_TEXT[game.reaction.window]} У вас {cp} CP.</p>
         <ul className="mt-3 space-y-2">
           {useful.map((o, i) => (

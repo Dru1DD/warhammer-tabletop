@@ -416,7 +416,7 @@ function PhaseTrack({ game, myTurn }: { game: GameState; myTurn: boolean }) {
           </li>
         ))}
       </ol>
-      <div className="mt-2 font-semibold">{game.reaction ? (myTurn ? 'Ход противника — ваша реакция' : `${rivalName()} решает, ответить ли реакцией…`) : myTurn ? 'Ваш ход' : `Ходит ${rivalName()} (${FACTION_NAME[actor(game)]})…`} — {PHASE_NAME[game.phase].split(' (')[0]}</div>
+      <div className="mt-2 font-semibold">{game.pendingReroll ? (myTurn ? 'Командный переброс — ваше решение' : `${rivalName()} решает, перебросить ли кубик…`) : game.reaction?.window === 'beforeShockTests' ? (myTurn ? 'Ваш ход — перед проверкой шока' : `${rivalName()} решает о «Безумной храбрости»…`) : game.reaction ? (myTurn ? 'Ход противника — ваша реакция' : `${rivalName()} решает, ответить ли реакцией…`) : myTurn ? 'Ваш ход' : `Ходит ${rivalName()} (${FACTION_NAME[actor(game)]})…`} — {PHASE_NAME[game.phase].split(' (')[0]}</div>
       {!myTurn && thinking && (
         <p className="mt-1 flex items-center gap-1.5 text-xs text-sky-300" role="status" aria-label="ИИ думает">
           <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-sky-300" aria-hidden />
@@ -424,7 +424,7 @@ function PhaseTrack({ game, myTurn }: { game: GameState; myTurn: boolean }) {
         </p>
       )}
       {explain !== 'minimal' && <p className="text-xs text-stone-300">{PHASE_GOAL[game.phase]}</p>}
-      {myTurn && !game.reaction && !status.canEnd && status.reason && <p className="mt-1 text-xs text-amber-300">Сначала: {status.reason}</p>}
+      {myTurn && !game.reaction && !game.pendingReroll && !status.canEnd && status.reason && <p className="mt-1 text-xs text-amber-300">Сначала: {status.reason}</p>}
       {myTurn && status.canEnd && verb[game.phase] && (
         <p className="mt-1 text-xs">
           {ready.length
