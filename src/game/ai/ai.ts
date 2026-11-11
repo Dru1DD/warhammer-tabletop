@@ -160,7 +160,8 @@ const shootDamage = (s: GameState, u: UnitState, t: UnitState, d?: number) =>
   (d === undefined ? unitsWithin(u, t, maxRange(u)) : withinRange(d, maxRange(u))) ? shootValue(s, u, t).dmg : 0
 
 /** Melee damage if every model got into combat (optimistic, used for planning). */
-function meleePotential(s: GameState, u: UnitState, t: UnitState, charged: boolean) {
+/** Expected melee wounds of every model of `u` against `t` (as if all of them reach), with the charge bonuses when `charged`. */
+export function meleePotential(s: GameState, u: UnitState, t: UnitState, charged: boolean) {
   let total = 0
   const hypo = charged === u.charged ? u : { ...u, charged }
   const legacy = legacyUnit(u)
