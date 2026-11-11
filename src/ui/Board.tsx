@@ -293,7 +293,8 @@ function ActionBar() {
     } else if (mine.advanceRoll === null && mode === 'normal') {
       btn('advance', { type: 'declareAdvance', unitId: mine.id }, '⚡ Продвинуться (+D6″)')
     }
-    if (mine.advanceRoll !== null && !mine.advanceRerolled && hasAbility(mine, 'waaagh')) btn('reroll', { type: 'rerollAdvance', unitId: mine.id }, '🎲 Перебросить (Waaagh!)')
+    if (mine.advanceRoll !== null && !mine.advanceRerolled && (hasAbility(mine, 'waaagh') || hasAbility(mine, 'superlativeStrategist')))
+      btn('reroll', { type: 'rerollAdvance', unitId: mine.id }, hasAbility(mine, 'waaagh') ? '🎲 Перебросить (Waaagh!)' : '🎲 Перебросить (Superlative Strategist)')
     if (isFlyer(mine)) buttons.push(<button key="fly" className={`btn ${st.moveOptions.fly ? 'btn-primary' : ''}`} aria-pressed={st.moveOptions.fly} onClick={() => st.setMoveOptions({ fly: !st.moveOptions.fly })} title="FLY: −2″ к движению, зато модели пролетают над моделями и тиррейном">🕊 Взлететь (−2″)</button>)
     if (hasAbility(mine, 'battleFocus') && (game.players[human].focus ?? 0) > 0) buttons.push(<button key="swift" className={`btn ${st.moveOptions.swift ? 'btn-primary' : ''}`} aria-pressed={st.moveOptions.swift} onClick={() => st.setMoveOptions({ swift: !st.moveOptions.swift })} title="Боевой фокус: жетон даёт +2″ к движению">✦ Swift as the Wind (+2″) · жетонов {game.players[human].focus}</button>)
     buttons.push(<DragModeToggle key="group" />)

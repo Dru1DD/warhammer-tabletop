@@ -391,6 +391,55 @@ function direAvenger(exarch = false): string {
   `, false)
 }
 
+/** Autarch: a crested commander with a long star glaive and a pistol. */
+function autarch(): string {
+  const c = BLUEPRINT_LINE.aeldari
+  return base(c, `
+    <path d="M36 22 Q12 32 10 50 Q12 68 36 78" ${f(c, 0.1)} stroke-dasharray="3 2"/>
+    <ellipse cx="42" cy="50" rx="13" ry="20" ${f(c)}/><path d="M32 42 Q42 36 52 42 M32 58 Q42 64 52 58" fill="none" opacity="0.55"/>
+    <circle cx="42" cy="31" r="7" ${f(c, 0.3)}/><circle cx="42" cy="69" r="7" ${f(c, 0.3)}/>
+    <circle cx="57" cy="50" r="7.5" ${f(c, 0.3)}/><path d="M50 50 L36 44 L36 56 Z" ${f(c, 0.5)}/>
+    <line x1="44" y1="78" x2="88" y2="16" stroke-width="2.6"/><path d="M84 12 L96 8 L90 22 Z" ${f(c, 0.55)}/>
+    <rect x="58" y="60" width="15" height="5" rx="2" ${f(c, 0.3)}/>
+  `, false)
+}
+
+/** Ranger: a hooded scout in a cameleoline cloak with a very long rifle. */
+function aeldariRanger(): string {
+  const c = BLUEPRINT_LINE.aeldari
+  return base(c, `
+    <path d="M30 30 Q16 50 30 70 L52 64 L52 36 Z" ${f(c, 0.15)} stroke-dasharray="2 2"/>
+    <ellipse cx="44" cy="50" rx="11" ry="16" ${f(c)}/>
+    <path d="M50 42 Q62 50 50 58 Q46 50 50 42 Z" ${f(c, 0.35)}/>
+    <rect x="50" y="53" width="46" height="4" rx="1.5" ${f(c, 0.35)}/><rect x="62" y="49" width="8" height="4" ${f(c, 0.3)}/>
+  `, false)
+}
+
+/** Wraithguard: a tall wraithbone construct with a heavy wraithcannon. */
+function wraithguard(): string {
+  const c = BLUEPRINT_LINE.aeldari
+  return base(c, `
+    <ellipse cx="42" cy="50" rx="16" ry="22" ${f(c)}/>
+    <path d="M30 36 Q42 30 54 36 M28 50 H56 M30 64 Q42 70 54 64" fill="none" opacity="0.55"/>
+    <path d="M56 42 L68 46 L68 54 L56 58 Z" ${f(c, 0.35)}/><line x1="64" y1="44" x2="64" y2="56" stroke-width="2.4"/>
+    <rect x="50" y="62" width="36" height="12" rx="4" ${f(c, 0.35)}/><circle cx="88" cy="68" r="5" ${f(c, 0.55)}/>
+    <circle cx="38" cy="50" r="4" ${f(c, 0.5)}/>
+  `, false)
+}
+
+/** Swooping Hawk: an Aspect Warrior with spread feathered wings; the Exarch has a crest. */
+function swoopingHawk(exarch = false): string {
+  const c = BLUEPRINT_LINE.aeldari
+  return base(c, `
+    <path d="M40 38 Q20 12 8 18 Q22 30 30 44 Z" ${f(c, 0.18)}/><path d="M40 62 Q20 88 8 82 Q22 70 30 56 Z" ${f(c, 0.18)}/>
+    <path d="M14 20 L28 38 M10 28 L26 42 M14 80 L28 62 M10 72 L26 58" fill="none" opacity="0.55"/>
+    <ellipse cx="44" cy="50" rx="11" ry="15" ${f(c)}/>
+    <circle cx="57" cy="50" r="6.5" ${f(c, 0.3)}/>
+    ${exarch ? `<path d="M52 44 L44 34 L58 42 Z" ${f(c, 0.55)}/>` : ''}
+    <rect x="52" y="56" width="${exarch ? 38 : 32}" height="6" rx="2" ${f(c, 0.35)}/>
+  `, false)
+}
+
 /** Windrider: rider on a jetbike, a pair of fins and a bow gun. */
 function windrider(gear: AeldariGear): string {
   const c = BLUEPRINT_LINE.aeldari
@@ -568,6 +617,11 @@ const SVGS: Record<string, string> = {
   guardian: guardian(),
   heavyPlatform: heavyPlatform(),
   direAvenger: direAvenger(),
+  autarch: autarch(),
+  aeldariRanger: aeldariRanger(),
+  wraithguard: wraithguard(),
+  hawkExarch: swoopingHawk(true),
+  swoopingHawk: swoopingHawk(),
   exarch: direAvenger(true),
   windrider: windrider('catapult'),
   windriderLaser: windrider('laser'),

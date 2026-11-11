@@ -467,6 +467,14 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
           .sort((a, b) => unitDistance(u, a.e) - unitDistance(u, b.e))
         if (marks[0]) return { cmd: marks[0].cmd, explanation: `${fac}: «${u.name}» направляет союзников на «${marks[0].e.name}» (Guide: +1 к попаданию).` }
       }
+      // Grenade Pack Flyover (Swooping Hawks): once per turn after moving, at the enemy unit it hurts most
+      for (const u of mine) {
+        if (!hasAbility(u, 'grenadePack') || u.grenadePackUsed || u.move === 'none') continue
+        const best = enemiesOf(s, u)
+          .filter((e) => validate(s, { type: 'grenadePack', unitId: u.id, targetId: e.id }).ok)
+          .sort((a, b) => squigValue(b) - squigValue(a))[0]
+        if (best) return { cmd: { type: 'grenadePack', unitId: u.id, targetId: best.id }, explanation: `${fac}: «${u.name}» забрасывает «${best.name}» гранатами (Grenade Pack Flyover: 4+ — смертельная рана за модель).` }
+      }
       // Wraith Form (Canoptek Wraiths): after a normal move over enemy units, hurt the one where the wounds kill most
       for (const u of mine) {
         if (!u.wraithTargets?.length) continue

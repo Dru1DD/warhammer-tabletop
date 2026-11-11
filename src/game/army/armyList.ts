@@ -71,6 +71,10 @@ export const COMPOSITION: Record<string, { leader?: string; pattern: string[] }>
   guardianDefenders: { pattern: [...Array<string>(10).fill('guardian'), 'heavyPlatform'] },
   direAvengers: { leader: 'exarch', pattern: ['direAvenger'] },
   windriders: { pattern: ['windrider', 'windriderLaser', 'windriderCannon'] },
+  autarch: { pattern: ['autarch'] },
+  aeldariRangers: { pattern: ['aeldariRanger'] },
+  wraithguard: { pattern: ['wraithguard'] },
+  swoopingHawks: { leader: 'hawkExarch', pattern: ['swoopingHawk'] },
   techDominus: { pattern: ['techDominus'] },
   techManipulus: { pattern: ['techManipulus'] },
   rangers: { leader: 'rangerAlpha', pattern: ['ranger', 'ranger', 'rangerArc', 'ranger', 'ranger', 'rangerCaliver', 'ranger', 'rangerOmnispex', 'ranger'] },
@@ -143,8 +147,8 @@ export const PRESETS: Record<PlayerId, Record<PointsLimit, ListEntry[]>> = {
     1000: [...u('overlord', 1), ...u('royalWarden', 1), ...u('necronWarriors', 20), ...u('immortals', 10, 2), ...u('lychguard', 10), ...u('canoptekWraiths', 3), ...u('skorpekhDestroyers', 3), ...u('scarabSwarms', 3)],
   },
   aeldari: {
-    500: [...u('farseer', 1), ...u('guardianDefenders', 11, 2), ...u('direAvengers', 5, 2), ...u('windriders', 3)],
-    1000: [...u('farseer', 1, 2), ...u('guardianDefenders', 11, 3), ...u('direAvengers', 10, 2), ...u('windriders', 6), ...u('windriders', 3)],
+    500: [...u('farseer', 1), ...u('autarch', 1), ...u('guardianDefenders', 11), ...u('aeldariRangers', 5), ...u('swoopingHawks', 5), ...u('direAvengers', 5)],
+    1000: [...u('farseer', 1), ...u('autarch', 1), ...u('guardianDefenders', 11, 2), ...u('aeldariRangers', 10), ...u('aeldariRangers', 5), ...u('wraithguard', 5), ...u('swoopingHawks', 5), ...u('direAvengers', 10), ...u('windriders', 3)],
   },
   adeptus_mechanicus: {
     500: [...u('techDominus', 1), ...u('rangers', 10), ...u('vanguard', 10), ...u('breachers', 3), ...u('destroyers', 3)],

@@ -58,6 +58,10 @@ export const POINTS: Record<string, PointsBracket[]> = {
   guardianDefenders: [{ models: 11, points: 90 }],
   direAvengers: [{ models: 5, points: 75 }, { models: 10, points: 150 }],
   windriders: [{ models: 3, points: 80 }, { models: 6, points: 160 }],
+  autarch: [{ models: 1, points: 85 }],
+  aeldariRangers: [{ models: 5, points: 60 }, { models: 10, points: 110 }],
+  wraithguard: [{ models: 5, points: 145 }],
+  swoopingHawks: [{ models: 5, points: 100 }, { models: 10, points: 190 }],
   // Adeptus Mechanicus
   techDominus: [{ models: 1, points: 65 }],
   techManipulus: [{ models: 1, points: 60 }],
@@ -78,6 +82,7 @@ export const POINTS_LATER: Record<string, { fromCopy: number; brackets: PointsBr
   bladeguard: { fromCopy: 3, brackets: [{ models: 3, points: 90 }, { models: 6, points: 170 }] },
   deffDread: { fromCopy: 3, brackets: [{ models: 1, points: 120 }] },
   nobz: { fromCopy: 3, brackets: [{ models: 5, points: 115 }, { models: 10, points: 220 }] },
+  swoopingHawks: { fromCopy: 3, brackets: [{ models: 5, points: 115 }, { models: 10, points: 205 }] },
   canoptekWraiths: { fromCopy: 2, brackets: [{ models: 3, points: 115 }, { models: 6, points: 240 }] },
   skorpekhDestroyers: { fromCopy: 3, brackets: [{ models: 3, points: 95 }, { models: 6, points: 180 }] },
   sicarians: { fromCopy: 3, brackets: [{ models: 5, points: 85 }, { models: 10, points: 165 }] },

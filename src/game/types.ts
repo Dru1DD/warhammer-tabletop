@@ -163,6 +163,14 @@ export type AbilityId =
   | 'implacableEradication'
   | 'guardianProtocols'
   | 'wraithForm'
+  // Aeldari beyond the first four units
+  | 'superlativeStrategist'
+  | 'pathOfCommand'
+  | 'cameleoline'
+  | 'pathOfTheOutcast'
+  | 'warConstruct'
+  | 'psychicGuidance'
+  | 'grenadePack'
   | 'repulsorGrid'
   | 'sentinelDirectives'
   | 'scouts'
@@ -230,6 +238,8 @@ export interface UnitState {
   engrammaticUsed?: boolean
   /** Wraith Form: enemy units this unit moved over in its last Normal move this turn (absent when none or used) */
   wraithTargets?: string[]
+  /** Grenade Pack Flyover already used this turn (absent otherwise) */
+  grenadePackUsed?: boolean
 }
 
 /** crater = exposed; barricade = light; ruin / woods / container = dense (container is also solid) */
@@ -382,6 +392,7 @@ export type Command =
   | { type: 'bombSquig'; unitId: string; targetId: string }
   | { type: 'engrammatic'; unitId: string; targetId: string }
   | { type: 'wraithForm'; unitId: string; targetId: string }
+  | { type: 'grenadePack'; unitId: string; targetId: string }
   | { type: 'endPhase' }
 
 export type Validation = { ok: true } | { ok: false; reason: string }

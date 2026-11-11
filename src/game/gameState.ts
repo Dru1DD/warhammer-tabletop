@@ -133,6 +133,16 @@ export function alphaWarrior(s: GameState, u: UnitState): boolean {
   return u.datasheetId === 'tyranidWarriors' && s.units.some((p) => p.owner === u.owner && primeLeads(s, p)?.id === u.id)
 }
 
+// ---------------------------------------------------------------- Aeldari beyond the first four units
+
+export const PSYCHIC_GUIDANCE_RANGE = 12
+export const GRENADE_PACK_RANGE = 8
+
+/** Psychic Guidance (Wraithguard): a friendly AELDARI PSYKER within 12″ gives Ld 6+ and +1 to hit. */
+export const psychicGuidance = (s: GameState, u: UnitState) =>
+  hasAbility(u, 'psychicGuidance') &&
+  s.units.some((x) => x.id !== u.id && x.owner === u.owner && !isDestroyed(x) && hasKeyword(x, 'AELDARI') && hasKeyword(x, 'PSYKER') && unitDistance(u, x) <= PSYCHIC_GUIDANCE_RANGE + EPS)
+
 // ---------------------------------------------------------------- Necrons beyond the first four units
 
 export const ENGRAMMATIC_RANGE = 12

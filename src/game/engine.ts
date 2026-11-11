@@ -5,7 +5,7 @@ import { FACTION_NAME } from './data/datasheets'
 import { rollDie, rollMany, type Roller } from './dice/dice'
 import { dist, withinRange, EPS, add, sub, scale, len, sweptCircleHits } from './geometry/geometry'
 import {
-  alphaWarrior, battlelineSupport, feelNoPainOf, nobleLeads, ENGRAMMATIC_RANGE, hasWargear, holdScoutedObjectives, imperativeOf, invulnOverrideOf, ledUnitOf, leadersOf, neurostaticMod,
+  alphaWarrior, battlelineSupport, feelNoPainOf, nobleLeads, ENGRAMMATIC_RANGE, psychicGuidance, GRENADE_PACK_RANGE, hasWargear, holdScoutedObjectives, imperativeOf, invulnOverrideOf, ledUnitOf, leadersOf, neurostaticMod,
   addLog, alive, atHalfStrength, CHARGE_RANGE, checkCoherency, CONSOLIDATE, datasheetOf, engagedUnits, ENGAGEMENT_RANGE,
   enemiesOf, findUnit, fmt, hasAbility, hasKeyword, inSynapseRange, isDestroyed, isEngaged, isFlyer, isMV, modelDistance, modelEngagedWith,
   other, PILE_IN, profileOf, radiusOf, sidesOf, SYNAPSE_RANGE, unitDistance, unitNearObjective, unitsOf,
@@ -90,6 +90,12 @@ function defenceMods(s: GameState, p: WeaponProfile, target: UnitState) {
     damageMod: hasAbility(target, 'dreadArd') || hasAbility(target, 'implacableResilience') ? -1 : 0,
     ...(fnp ? { fnp } : {}),
   }
+}
+
+/** Invulnerable save against ranged attacks: the general override, and the Rangers' 5+ (ranged attacks only). */
+function rangedInvuln(s: GameState, target: UnitState): number | undefined {
+  const v = [invulnOverrideOf(s, target), hasAbility(target, 'cameleoline') ? 5 : undefined].filter((x): x is number => x !== undefined)
+  return v.length ? Math.min(...v) : undefined
 }
 
 /** Implacable Eradication (Immortals): re-roll wound rolls of 1, or every failed one against a target within range of an objective. */
@@ -244,6 +250,7 @@ export function shootPlan(
     if (runts) { notes.push('Гроты-подносчики +1'); hitMod++ }
     if (engaged && mv && !g.profile.keywords.closeQuarters) { notes.push('техника в контакте −1'); hitMod-- }
     if (guided(s, unit, target)) { notes.push('Guide +1'); hitMod++ }
+    if (psychicGuidance(s, unit)) { notes.push('Psychic Guidance +1'); hitMod++ }
     // Swift Demise (Windriders): re-roll hit rolls of 1; any failed hit if the target is the closest eligible one
     let rerollHits: AttackContext['rerollHits'] = bonus.rerollHits
     if (hasAbility(unit, 'swiftDemise')) rerollHits = isClosestTarget(s, unit, target) ? 'all' : 'ones'
@@ -265,7 +272,7 @@ export function shootPlan(
       skillWorsen: (plan.cover && !ignores ? 1 : 0) - (protector ? 1 : 0),
       ...(protector ? { skillNote: 'Protector: BS на 1 лучше' } : {}),
       lethalHits: lethalVs(g.profile, unit, target) || onslaught || bonus.galvanic,
-      invulnOverride: invulnOverrideOf(s, target),
+      invulnOverride: rangedInvuln(s, target),
       ...(g.profile.keywords.precision ? { precision: true } : {}),
       ...(rerollHits ? { rerollHits } : {}),
       ...eradication(s, unit, target, g.notes),
@@ -313,6 +320,7 @@ export function meleeSetup(s: GameState, unit: UnitState, target: UnitState, p0:
   let skillWorsen = 0
   let skillNote: string | undefined
   if (guided(s, unit, target)) { hitMod++; hitModNotes.push('Guide +1') }
+  if (psychicGuidance(s, unit)) { hitMod++; hitModNotes.push('Psychic Guidance +1') }
   // Bladeguard: once per turn, when selected to fight, +1 to melee hit rolls (a unit fights once per turn here)
   if (hasAbility(unit, 'bladeguard')) { hitMod++; hitModNotes.push('Bladeguard +1') }
   // Doctrina Imperatives: Conqueror improves WS and (near BATTLELINE) AP; Protector of the target subtracts 1 from melee hit rolls
@@ -461,13 +469,13 @@ export function validate(s: GameState, cmd: Command): Validation {
     }
     case 'rerollAdvance':
       if (unit.advanceRoll === null || unit.move !== 'none') return fail('Нет броска продвижения для переброса.')
-      if (!hasAbility(unit, 'waaagh')) return fail('Переброс продвижения даёт только правило Waaagh!.')
+      if (!hasAbility(unit, 'waaagh') && !hasAbility(unit, 'superlativeStrategist')) return fail('Переброс продвижения дают только Waaagh! и Superlative Strategist.')
       if (unit.advanceRerolled) return fail('Кубик нельзя перебрасывать больше одного раза.')
       return OK
     case 'shoot': {
       if (s.phase !== 'shooting') return fail('Стрелять можно только в фазе стрельбы.')
       if (unit.shot) return fail('Отряд уже стрелял в этой фазе.')
-      if (unit.move === 'fallBack' && !canActAfterFallBack(unit)) return fail('Отряд отступил (Fall Back) в этот ход и не может стрелять.')
+      if (unit.move === 'fallBack' && !canActAfterFallBack(unit) && !hasAbility(unit, 'warConstruct')) return fail('Отряд отступил (Fall Back) в этот ход и не может стрелять.')
       const target = findUnit(s, cmd.targetId)
       if (!target || isDestroyed(target) || target.owner === unit.owner) return fail('Недопустимая цель.')
       const plan = shootPlan(s, unit, target, cmd)
@@ -509,6 +517,16 @@ export function validate(s: GameState, cmd: Command): Validation {
       if (!target || isDestroyed(target) || target.owner !== unit.owner) return fail('Цель — союзный отряд.')
       if (!target.battleShocked) return fail('Этот отряд не в боевом шоке.')
       if (target.id !== unit.id && unitDistance(unit, target) > ENGRAMMATIC_RANGE + 1e-6) return fail(`Отряд дальше ${ENGRAMMATIC_RANGE}″.`)
+      return OK
+    }
+    case 'grenadePack': {
+      if (!hasAbility(unit, 'grenadePack')) return fail('У этого отряда нет гранатного налёта.')
+      if (s.phase !== 'movement' || unit.move === 'none') return fail('Гранатный налёт — после движения отряда в фазе движения.')
+      if (unit.grenadePackUsed) return fail('Гранатный налёт уже был в этот ход (раз за ход).')
+      const target = findUnit(s, cmd.targetId)
+      if (!target || isDestroyed(target) || target.owner === unit.owner) return fail('Недопустимая цель для гранатного налёта.')
+      if (unitDistance(unit, target) > GRENADE_PACK_RANGE + 1e-6) return fail(`Гранатный налёт: цель дальше ${GRENADE_PACK_RANGE}″.`)
+      if (!alive(unit).some((m) => seesAny(s, m, target))) return fail('Гранатный налёт: цель не видна.')
       return OK
     }
     case 'wraithForm': {
@@ -649,6 +667,7 @@ function resetTurnFlags(s: GameState) {
     delete u.spiked
     delete u.drivenFromCover
     delete u.wraithTargets
+    delete u.grenadePackUsed
     if (u.owner === s.activePlayer) delete u.warded
   }
 }
@@ -686,7 +705,7 @@ function leadershipRoll(s: GameState, u: UnitState, r: Roller, mod = 0) {
   const dice = rollMany(r, synapse ? 3 : 2)
   const interference = neurostaticMod(s, u)
   const total = dice.reduce((a, b) => a + b, 0) + mod + interference
-  const ld = profileOf(alive(u)[0]).ld
+  const ld = psychicGuidance(s, u) ? Math.min(6, profileOf(alive(u)[0]).ld) : profileOf(alive(u)[0]).ld
   return { dice, total, ld, pass: total >= ld, label: `${synapse ? '3D6 (Synapse)' : '2D6'}${interference ? ` (помехи ${interference})` : ''}` }
 }
 
@@ -961,6 +980,19 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       addLog(s, `${u.name}: Энграмматическая логика — «${t.name}» выходит из боевого шока.`, 'minimal')
       break
     }
+    case 'grenadePack': {
+      const u = findUnit(s, cmd.unitId)!
+      const t = findUnit(s, cmd.targetId)!
+      u.grenadePackUsed = true
+      const dice = rollMany(r, alive(u).length)
+      const n = Math.min(6, dice.filter((v) => v >= 4).length)
+      pushDice(s, `Гранатный налёт: ${u.name} → ${t.name}`, [{ label: 'D6 за модель', target: '4+', dice: dice.map((v) => ({ value: v, success: v >= 4 })), note: `Каждая 4+ — 1 смертельная рана (не больше 6): ${n}.` }],
+        n ? `${u.name} забрасывает «${t.name}» гранатами: ${n} смертельн. ран.` : `Гранаты «${u.name}» не причинили вреда «${t.name}».`)
+      if (n) applyMortalWounds(s, t, n, `гранатный налёт «${u.name}»`)
+      if (isDestroyed(t)) addLog(s, `Отряд «${t.name}» уничтожен!`, 'minimal')
+      checkWinner(s)
+      break
+    }
     case 'wraithForm': {
       const u = findUnit(s, cmd.unitId)!
       const t = findUnit(s, cmd.targetId)!
@@ -1004,7 +1036,7 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       const v2 = r.d6()
       u.advanceRoll = v2
       if (cmd.type === 'rerollAdvance') u.advanceRerolled = true
-      pushDice(s, `Продвижение: ${u.name}`, [{ label: 'D6', target: '—', dice: [{ value: v2, success: true, rerolledFrom: prev ?? undefined }], note: prev ? `Переброс (Waaagh!): было ${prev}` : undefined }],
+      pushDice(s, `Продвижение: ${u.name}`, [{ label: 'D6', target: '—', dice: [{ value: v2, success: true, rerolledFrom: prev ?? undefined }], note: prev ? `Переброс (${hasAbility(u, 'waaagh') ? 'Waaagh!' : 'Superlative Strategist'}): было ${prev}` : undefined }],
         `${u.name}: продвижение (Advance) на M + ${v2}". После продвижения отряд не может атаковать (charge) и стреляет только оружием Assault.`)
       addLog(s, `${u.name} продвигается: бросок D6 = ${v2}.`, 'minimal')
       break
@@ -1190,6 +1222,8 @@ export function unitActions(s: GameState, unitId: string): ActionInfo[] {
     add('reroll', 'Перебросить продвижение (Waaagh!)', { type: 'rerollAdvance', unitId })
     if (hasAbility(u, 'guide'))
       for (const e of enemiesOf(s, u)) add(`guide:${e.id}`, `Guide: пометить «${e.name}»`, { type: 'guide', unitId, targetId: e.id })
+    if (hasAbility(u, 'grenadePack') && !u.grenadePackUsed && u.move !== 'none')
+      for (const e of enemiesOf(s, u)) add(`grenade:${e.id}`, `💥 Гранатный налёт на «${e.name}» (D6 за модель, 4+ — смертельная рана)`, { type: 'grenadePack', unitId, targetId: e.id })
     for (const id of u.wraithTargets ?? []) add(`wraith:${id}`, `👻 Фазовая форма сквозь «${findUnit(s, id)?.name ?? id}» (D6 за модель, 4+ — смертельная рана)`, { type: 'wraithForm', unitId, targetId: id })
     if (hasAbility(u, 'bombSquig') && !u.bombSquigUsed && u.move === 'normal')
       for (const e of enemiesOf(s, u)) add(`squig:${e.id}`, `💣 Бомбосквиг в «${e.name}» (3+: D3 смертельн. ран)`, { type: 'bombSquig', unitId, targetId: e.id })
@@ -1212,7 +1246,7 @@ export function unitActions(s: GameState, unitId: string): ActionInfo[] {
       if (hasAbility(u, 'finestHour') && !u.finestHourUsed)
         add(`finest:${e.id}`, `⭐ Сражаться с «${e.name}» — Звёздный час (+3 A, Devastating Wounds, раз за битву)`, { type: 'fight', unitId, targetId: e.id, finestHour: true })
     }
-  return out.filter((a) => a.id !== 'reroll' || hasAbility(u, 'waaagh'))
+  return out.filter((a) => a.id !== 'reroll' || hasAbility(u, 'waaagh') || hasAbility(u, 'superlativeStrategist'))
 }
 
 /** Disruption Bombardment: −2″ to Move and −2 to Advance and Charge rolls */
