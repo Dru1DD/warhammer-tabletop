@@ -43,7 +43,7 @@ const { createRoom, joinRoom, leaveRoom, configureRoom, startRoomMatch, setGuest
 
 const st = () => useStore.getState()
 const END: Command = { type: 'endPhase' }
-const decider = () => st().match!.assignments[(st().game!.fight?.selecting ?? st().game!.activePlayer)].playerId
+const decider = () => st().match!.assignments[(st().game!.reaction?.player ?? st().game!.fight?.selecting ?? st().game!.activePlayer)].playerId
 
 beforeEach(() => { localStorage.clear(); peers.clear() })
 afterEach(() => { leaveRoom(); vi.useRealTimers() })
@@ -111,7 +111,7 @@ describe('app as host', () => {
     guest.setPrefs({ ready: true })
     startRoomMatch()
     // the host's battle seed is random: whoever won the roll-off, get to a decision that belongs to the host
-    for (let i = 0; i < 20 && decider() === GUEST_ID; i++) guest.sendCommand(nextEnvelope(gp.port.get()!, GUEST_ID, END))
+    for (let i = 0; i < 20 && decider() === GUEST_ID; i++) guest.sendCommand(nextEnvelope(gp.port.get()!, GUEST_ID, st().game!.reaction ? { type: 'passReaction' } : END))
     expect(decider()).toBe(HOST_ID)
     gp.log.notes.length = 0
     useStore.setState({ message: null })

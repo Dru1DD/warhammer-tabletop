@@ -55,8 +55,9 @@ play({
   positions: Object.fromEntries(moved.models.map((m) => [m.id, { x: m.pos.x + dx, y: m.pos.y }])),
 })
 
-// 4. Movement -> Shooting (no dice).
+// 4. Movement -> Shooting (no dice); a reaction window the opponent gets is passed.
 play({ type: 'endPhase' })
+if (state.reaction) play({ type: 'passReaction' })
 
 // 5. A shot: the first legal (unit, target, profile) combination, so attack dice are rolled.
 const enemies = state.units.filter((u) => u.owner !== state.activePlayer)

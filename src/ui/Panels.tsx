@@ -392,7 +392,7 @@ function StratagemsPanel() {
         {later.length > 0 && (
           <p className="mt-1 text-[11px] text-stone-500">Ещё в детачменте «{DETACHMENT[human]}», пока нет: {later.map((x) => `${x.name} (${x.why})`).join('; ')}.</p>
         )}
-        <p className="mt-1 text-[10px] text-stone-500">Каждая стратагема — раз за фазу, на отряд — одна за фазу; на отряд в боевом шоке их применять нельзя. Кнопки показаны для выбранного отряда. Стратагемы в ход противника (огонь на опережение, дымовая завеса и др.) появятся позже.</p>
+        <p className="mt-1 text-[10px] text-stone-500">Каждая стратагема — раз за фазу, на отряд — одна за фазу; на отряд в боевом шоке их применять нельзя. Кнопки показаны для выбранного отряда. Стратагемы в ход противника (огонь на опережение, дымовая завеса, героический перехват) игра предложит сама — в паузе, и только когда они выгодны.</p>
       </details>
     </section>
   )
@@ -408,7 +408,7 @@ function PhaseTrack({ game, myTurn }: { game: GameState; myTurn: boolean }) {
   const verb: Partial<Record<string, string>> = { movement: 'двигаться', shooting: 'стрелять', charge: 'атаковать', fight: 'сражаться' }
   return (
     <section className={`rounded border p-2 ${myTurn ? 'border-emerald-600 bg-emerald-950/40' : 'border-stone-600 bg-stone-800/60'}`} aria-label="Текущая фаза">
-      <div className="mb-1 text-xs text-stone-400">Раунд {game.round}/{game.maxRounds} · ход: <b style={{ color: FACTION_STYLE[game.activePlayer].secondary }}>{FACTION_NAME[game.activePlayer]}</b>{myTurn ? ' (вы)' : ` (${rivalName()})`}</div>
+      <div className="mb-1 text-xs text-stone-400">Раунд {game.round}/{game.maxRounds} · ход: <b style={{ color: FACTION_STYLE[game.activePlayer].secondary }}>{FACTION_NAME[game.activePlayer]}</b>{game.activePlayer === human ? ' (вы)' : ` (${rivalName()})`}</div>
       <ol className="flex flex-wrap gap-1" aria-label="Фазы хода">
         {PHASES.map((p, i) => (
           <li key={p} aria-current={i === cur ? 'step' : undefined} className={`rounded px-1.5 py-0.5 text-[11px] ${i === cur ? 'bg-yellow-500 font-semibold text-black' : i < cur ? 'bg-stone-700 text-stone-400' : 'bg-stone-800 text-stone-300'}`}>
@@ -416,7 +416,7 @@ function PhaseTrack({ game, myTurn }: { game: GameState; myTurn: boolean }) {
           </li>
         ))}
       </ol>
-      <div className="mt-2 font-semibold">{myTurn ? 'Ваш ход' : `Ходит ${rivalName()} (${FACTION_NAME[actor(game)]})…`} — {PHASE_NAME[game.phase].split(' (')[0]}</div>
+      <div className="mt-2 font-semibold">{game.reaction ? (myTurn ? 'Ход противника — ваша реакция' : `${rivalName()} решает, ответить ли реакцией…`) : myTurn ? 'Ваш ход' : `Ходит ${rivalName()} (${FACTION_NAME[actor(game)]})…`} — {PHASE_NAME[game.phase].split(' (')[0]}</div>
       {!myTurn && thinking && (
         <p className="mt-1 flex items-center gap-1.5 text-xs text-sky-300" role="status" aria-label="ИИ думает">
           <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-sky-300" aria-hidden />
@@ -424,7 +424,7 @@ function PhaseTrack({ game, myTurn }: { game: GameState; myTurn: boolean }) {
         </p>
       )}
       {explain !== 'minimal' && <p className="text-xs text-stone-300">{PHASE_GOAL[game.phase]}</p>}
-      {myTurn && !status.canEnd && status.reason && <p className="mt-1 text-xs text-amber-300">Сначала: {status.reason}</p>}
+      {myTurn && !game.reaction && !status.canEnd && status.reason && <p className="mt-1 text-xs text-amber-300">Сначала: {status.reason}</p>}
       {myTurn && status.canEnd && verb[game.phase] && (
         <p className="mt-1 text-xs">
           {ready.length

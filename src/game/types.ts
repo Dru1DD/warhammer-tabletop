@@ -295,12 +295,17 @@ export interface PlayerState {
 
 export type Imperative = 'protector' | 'conqueror'
 
+/** When the opponent may react: at the end of the Movement phase (before shooting), at the end of the Charge phase (before fights). */
+export type ReactionWindow = 'beforeShooting' | 'afterCharges'
+
 export type StratagemId =
   | 'commandReroll' | 'insaneBravery' | 'explosives' | 'crushingImpact'
   // army (detachment) Stratagems, see rules/stratagems.ts
   | 'stormOfDevastation' | 'closeRangeDakka' | 'fungusFuelInjection' | 'hitEmHarder' | 'adrenalSurge' | 'suddenStorm'
   | 'conqueringTyrant' | 'hungryVoid' | 'blitzingFirepower' | 'feignedRetreat' | 'lethalDosage' | 'aggressorImperative'
   | 'extinctionOrder'
+  // reactions in the opponent's turn (see rules/stratagems.ts, ReactionWindow)
+  | 'fireOverwatch' | 'smokescreen' | 'heroicIntervention' | 'epicChallenge'
 export const IMPERATIVES: Imperative[] = ['protector', 'conqueror']
 
 export interface PendingCharge {
@@ -366,6 +371,9 @@ export interface GameState {
   activePlayer: PlayerId
   phase: Phase
   pendingCharge: PendingCharge | null
+  /** A reaction window: the game waits for `player` (the side whose turn it is NOT) to use a reaction Stratagem or
+   * pass, then enters `next`. Opened only when that player has a reaction it can use. */
+  reaction?: { player: PlayerId; window: ReactionWindow; next: Phase } | null
   /** The charge roll just made (kept until the next command) so a Command Re-roll can re-roll it, even a failed one */
   lastCharge?: { unitId: string; dice: number[] } | null
   fight: FightState | null
@@ -415,6 +423,8 @@ export type Command =
   | { type: 'grenadePack'; unitId: string; targetId: string }
   /** Core Stratagem in the player's own turn (see rules/stratagems.ts) */
   | { type: 'stratagem'; id: StratagemId; unitId: string; targetId?: string }
+  /** The reacting player declines (or is done with) the reactions offered in the current window */
+  | { type: 'passReaction' }
   | { type: 'endPhase' }
 
 export type Validation = { ok: true } | { ok: false; reason: string }

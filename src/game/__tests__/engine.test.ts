@@ -4,7 +4,7 @@ import { apply, shootPlan, validate } from '../engine'
 import { baseRadius, rect } from '../geometry/geometry'
 import { alive, getUnit } from '../gameState'
 import type { GameState } from '../types'
-import { bare, column, place, started } from './helpers'
+import { bare, column, endPhase, place, started } from './helpers'
 
 const r32 = baseRadius(32)
 const r40 = baseRadius(40)
@@ -29,21 +29,21 @@ describe('phases and turns', () => {
     const first = s.activePlayer
     const r = seededRoller(5)
     for (const p of ['movement', 'shooting', 'charge', 'fight']) {
-      s = apply(s, { type: 'endPhase' }, r)
+      s = endPhase(s, r)
       expect(s.phase).toBe(p)
     }
-    s = apply(s, { type: 'endPhase' }, r)
+    s = endPhase(s, r)
     expect(s.phase).toBe('command')
     expect(s.activePlayer).not.toBe(first)
     expect(s.round).toBe(1)
-    for (let i = 0; i < 5; i++) s = apply(s, { type: 'endPhase' }, r)
+    for (let i = 0; i < 5; i++) s = endPhase(s, r)
     expect(s.round).toBe(2)
     expect(s.activePlayer).toBe(first)
   })
   it('ends after 5 battle rounds and compares VP', () => {
     let s = started(3)
     const r = seededRoller(1)
-    for (let i = 0; i < 5 * 2 * 5; i++) s = apply(s, { type: 'endPhase' }, r)
+    for (let i = 0; i < 5 * 2 * 5; i++) s = endPhase(s, r)
     expect(s.winner).not.toBeNull()
     expect(validate(s, { type: 'endPhase' }).ok).toBe(false)
   })

@@ -10,7 +10,7 @@ import { deploymentIssues, deploymentProblem } from '../rules/deployment'
 import { deserialize, serialize } from '../persistence'
 import { armyOf, scenarioById } from '../scenarios/scenarios'
 import type { Command, GameState, Terrain } from '../types'
-import { battle, moveUnitTo, shift, unit } from './helpers'
+import { battle, endPhase, moveUnitTo, shift, unit } from './helpers'
 
 // Adeptus Mechanicus (11th edition, Wahapedia, checked 2026-11-09): datasheets, army rule, abilities, AI. See docs/mechanicus.md.
 
@@ -340,7 +340,7 @@ describe('Tech-Priests lead the nearest Skitarii/Kataphron unit within 3″ (tra
     expect(bad(s, cmd)).toContain('раз за битву')
     moveUnitTo(s, 'int', { x: at(s, 'vanguard').x + 12, y: at(s, 'vanguard').y })
     s.phase = 'shooting'
-    for (let i = 0; i < 5; i++) s = apply(s, { type: 'endPhase' }, seededRoller(5))
+    for (let i = 0; i < 5; i++) s = endPhase(s, seededRoller(5))
     expect(s.activePlayer).toBe('marines')
     expect(unit(s, 'vanguard').warded).toBe(true) // lasts through the opponent's turn
     s.phase = 'shooting'
@@ -348,7 +348,7 @@ describe('Tech-Priests lead the nearest Skitarii/Kataphron unit within 3″ (tra
     const ward = shootPlan(s, unit(s, 'int'), unit(s, 'vanguard')).groups[0].ctx.invulnOverride
     expect(ward).toBe(4)
     s.phase = 'command'
-    for (let i = 0; i < 5; i++) s = apply(s, { type: 'endPhase' }, seededRoller(5))
+    for (let i = 0; i < 5; i++) s = endPhase(s, seededRoller(5))
     expect(s.activePlayer).toBe(AM)
     expect(unit(s, 'vanguard').warded).toBeUndefined() // gone at the start of the owner's next turn
   })

@@ -1,6 +1,6 @@
 import { DATASHEETS } from '../data/datasheets'
 import { alive, datasheetOf, isDestroyed, unitDistance } from '../gameState'
-import type { GameState, Phase, PlayerId, StratagemId, UnitState } from '../types'
+import type { GameState, Phase, PlayerId, ReactionWindow, StratagemId, UnitState } from '../types'
 
 // Core Stratagems of the 11th edition that a player uses in their own turn (stage 1: no reactions in the opponent's
 // turn yet). Each costs Command points (CP). A battle-shocked unit cannot be targeted by Stratagems (core rules
@@ -21,8 +21,11 @@ export interface StratagemInfo {
   requires?: Requirement
   /** only this army has it (faction / detachment Stratagems); absent = every army */
   faction?: PlayerId
-  /** whose turn: your own (default), or either player's, while it is your decision (e.g. selecting a unit to fight) */
-  turn?: 'own' | 'either'
+  /** whose turn: your own (default), either player's while it is your decision (selecting a unit to fight), or the
+   * opponent's — a reaction, offered in a reaction window */
+  turn?: 'own' | 'either' | 'opponent'
+  /** for reactions: the window it is offered in */
+  window?: ReactionWindow
   /** a lasting effect on the unit: until the end of the phase or of the turn (read by the engine's attack/move rules) */
   buff?: 'phase' | 'turn'
 }
@@ -227,7 +230,38 @@ export const LATER_STRATAGEMS: LaterStratagem[] = [
   { faction: 'adeptus_mechanicus', name: 'Империатив бастиона', nameEn: 'Bulwark Imperative', cost: 2, why: 'в ход противника' },
 ]
 
+// ---------------------------------------------------------------- reactions (core, 11th edition)
+
+export const REACTION_STRATAGEMS: StratagemInfo[] = [
+  {
+    id: 'fireOverwatch', name: 'Огонь на опережение', nameEn: 'Fire Overwatch', cost: 1, phases: ['movement'], turn: 'opponent', window: 'beforeShooting',
+    text: 'В конце фазы движения противника ваш отряд не в контакте стреляет по видимому врагу в пределах 24″ — попадает только на «6» (Snap Shooting), без перебросов.',
+    when: 'Когда у отряда много выстрелов или Torrent-оружие (огнемёты попадают автоматически), а враг подошёл близко.',
+  },
+  {
+    id: 'smokescreen', name: 'Дымовая завеса', nameEn: 'Smokescreen', cost: 1, phases: ['movement'], turn: 'opponent', window: 'beforeShooting', buff: 'turn',
+    text: 'В начале фазы стрельбы противника ваш отряд с ключевым словом SMOKE получает укрытие (Benefit of Cover) до конца фазы.',
+    when: 'Когда этот отряд под прицелом сильной стрельбы: укрытие ухудшает врагу навык на 1.',
+    requires: { any: [['SMOKE']], label: 'отряд с ключевым словом SMOKE' },
+  },
+  {
+    id: 'heroicIntervention', name: 'Героический перехват', nameEn: 'Heroic Intervention (Leap to Defend)', cost: 1, phases: ['charge'], turn: 'opponent', window: 'afterCharges',
+    text: 'В конце фазы атаки противника ваш отряд не в контакте в пределах 12″ от врага, который атаковал в эту фазу, бросает 2D6 и врывается к нему в бой (без «Бьёт первым»). Технике можно, только если она персонаж или шагоход.',
+    when: 'Когда рядом сильный в рукопашной отряд, а враг только что влетел в ваших стрелков: помогите им в бою.',
+  },
+  {
+    id: 'epicChallenge', name: 'Эпический вызов', nameEn: 'Epic Challenge', cost: 1, phases: ['fight'], turn: 'either', buff: 'phase',
+    text: 'Отряд-персонаж, который сейчас будет сражаться: до конца фазы его рукопашные атаки получают Precision — раны можно направить в персонажа врага.',
+    when: 'Когда в отряде врага есть персонаж (лидер), которого нужно выбить.',
+    requires: { any: [['CHARACTER']], label: 'персонаж (CHARACTER)' },
+  },
+]
+for (const x of REACTION_STRATAGEMS) STRATAGEMS[x.id] = x
+
 export const STRATAGEM_IDS = Object.keys(STRATAGEMS) as StratagemId[]
+
+/** Reactions offered in this window. */
+export const reactionsIn = (window: ReactionWindow) => REACTION_STRATAGEMS.filter((x) => x.window === window).map((x) => x.id)
 
 /** The unit carries this Stratagem's lasting effect (see `buff`). */
 export const hasBuff = (u: UnitState, id: StratagemId) => !!u.phaseBuffs?.includes(id) || !!u.turnBuffs?.includes(id)

@@ -93,7 +93,7 @@ describe('store as orchestration over the match layer', () => {
 
   it('a shared match cannot be swapped or downgraded by replacing `game` from outside', () => {
     const g = st().game!
-    useStore.setState({ match: createMatch(g, seats('marines', { type: 'local', playerId: 'me' }, 'orks', { type: 'remote', playerId: 'peer-1' }), { gameId: 'shared-2', mode: 'shared' }) })
+    useStore.setState({ match: createMatch({ ...g, players: { ...g.players, orks: { ...g.players.orks, cp: 0 } } }, seats('marines', { type: 'local', playerId: 'me' }, 'orks', { type: 'remote', playerId: 'peer-1' }), { gameId: 'shared-2', mode: 'shared' }) })
     useStore.setState({ game: { ...g, phase: 'charge' } }) // outside interference
     const r = st().submit(nextEnvelope(st().match!, 'me', { type: 'endPhase' }))
     expect(r.ok).toBe(true)

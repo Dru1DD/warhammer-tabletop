@@ -6,7 +6,7 @@ import { apply, maxMove, meleeSetup, shootPlan, validate } from '../engine'
 import { alphaWarrior, invulnOverrideOf } from '../gameState'
 import { scenarioById } from '../scenarios/scenarios'
 import type { GameState, Phase, PlayerId, UnitState } from '../types'
-import { moveUnitTo } from './helpers'
+import { endPhase, moveUnitTo } from './helpers'
 
 // Winged Tyranid Prime, Zoanthropes, Carnifexes, Barbgaunts (11th edition, Wahapedia), see docs/tyranids.md.
 
@@ -141,7 +141,7 @@ describe('Disruption Bombardment (Barbgaunts)', () => {
     const { after, int } = shoot()
     // Marines' turn: charge with dice 4 + 4 = 8 − 2 = 6
     let s = after
-    for (let i = 0; i < 20 && !(s.activePlayer === 'marines' && s.phase === 'charge'); i++) s = apply(s, { type: 'endPhase' }, scriptedRoller(Array(60).fill(3)))
+    for (let i = 0; i < 20 && !(s.activePlayer === 'marines' && s.phase === 'charge'); i++) s = endPhase(s, scriptedRoller(Array(60).fill(3)))
     expect(s.units.find((u) => u.id === int.id)!.disrupted).toBe(true)
     const charged = apply(s, { type: 'declareCharge', unitId: int.id }, scriptedRoller([4, 4]))
     expect(charged.diceLog.at(-1)!.steps[0].note).toMatch(/дистанция атаки 6".*Disruption Bombardment/)
