@@ -33,10 +33,11 @@ function momentStratagems(game: GameState, u: UnitState) {
   return out
 }
 import { adviceLine, adviceWarnings, shotAdvice, type TargetAdvice } from '../game/shotAdvice'
+import { chargeForecast, forecastLine } from '../game/chargeAdvice'
 import { DeployPresetCards } from './DeployPresets'
 import { scoreText } from './score'
 import { explainStep, LESSONS, PHASE_GOAL, PHASE_HELP, PHASE_NEXT, showAt, STAT_HELP, UNIT_ROLE } from './help'
-import { canActNow, draftDistance, nextPhaseLabel, PHASE_SHORT, phaseStatus } from './guidance'
+import { canActNow, draftDistance, lastRoundWarning, nextPhaseLabel, PHASE_SHORT, phaseStatus } from './guidance'
 import { fileToTokenDataUrl } from './imageUpload'
 import { leaveRoom } from '../multiplayer/session'
 
@@ -327,6 +328,9 @@ export function ActionPanel() {
         <ActionButton cmd={{ type: 'callShadow' }} label="Тень в Варпе (Shadow in the Warp, раз за битву)" />
       )}
       {!game.winner && myTurn && game.phase === 'command' && game.players[human].imperative !== undefined && <ImperativePicker />}
+      {!game.winner && myTurn && lastRoundWarning(game, human) && (
+        <p className="rounded border border-rose-500 bg-rose-950/60 p-2 text-xs text-rose-100" role="alert">{lastRoundWarning(game, human)}</p>
+      )}
       {!game.winner && <StratagemsPanel />}
       {sel ? <UnitActions u={sel} /> : <p className="text-stone-400">Выберите отряд на поле или в списке.</p>}
       <LastAttack />
@@ -592,6 +596,7 @@ function UnitActions({ u }: { u: UnitState }) {
       {game.phase === 'command' && <p className="text-xs text-stone-300">В фазе командования отрядам нечего делать — нажмите «Завершить фазу».</p>}
       {game.phase === 'movement' && <MoveControls u={u} />}
       {game.phase === 'shooting' && <ShootControls u={u} />}
+      {game.phase === 'charge' && !u.chargeDeclared && !game.pendingCharge && <ChargeForecastView u={u} />}
       {actions.filter((a) => !a.id.startsWith('shoot:') && !a.id.startsWith('strat:')).map((a) => (
         <ActionButton key={a.id} cmd={a.cmd!} label={a.label} />
       ))}
@@ -680,6 +685,27 @@ function ShootControls({ u }: { u: UnitState }) {
       {!u.shot && enemies.length > 0 && enemies.every((e) => shootPlan(game, u, e, opts).problem) && (
         <p className="text-[11px] text-stone-400">💡 Сейчас «{u.name}» не может стрелять ни по одной цели. Подойдите ближе или выйдите из-за укрытия в следующей фазе движения, а пока выберите другой отряд или завершите стрельбу.</p>
       )}
+    </div>
+  )
+}
+
+/** Before a charge: for each enemy in reach, the chance to get there and how the fight is expected to go. */
+function ChargeForecastView({ u }: { u: UnitState }) {
+  const game = useStore((s) => s.game!)
+  const list = chargeForecast(game, u)
+  if (!list.length) return <p className="text-[11px] text-stone-400">В пределах 12″ нет врагов — атаковать некого.</p>
+  const tone = { good: 'border-emerald-700', risky: 'border-amber-600', bad: 'border-rose-700' }
+  const head = { good: '✅', risky: '⚠', bad: '⛔' }
+  return (
+    <div className="flex flex-col gap-1 text-[11px]" aria-label="Прогноз атаки" data-testid="charge-forecast">
+      <b className="text-xs">⚔ Прогноз атаки (charge)</b>
+      {list.map((f) => (
+        <div key={f.targetId} className={`rounded border-l-4 bg-stone-900/70 px-2 py-1 ${tone[f.verdict]}`}>
+          <div>{head[f.verdict]} <b>«{f.name}»</b>: {forecastLine(f)}</div>
+          {f.warnings.map((w) => <div key={w} className="text-amber-300">{w}</div>)}
+        </div>
+      ))}
+      <p className="text-[10px] text-stone-500">Средние по всем броскам. После атаки ваш отряд бьёт первым; враг отвечает теми, кто выжил.</p>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { FACTION_NAME } from '../game/data/datasheets'
 import { actor, moveAllowance, moveCommand, PHASE_NAME, validate, type MoveOptions } from '../game/engine'
-import { alive, enemiesOf, findUnit, fmt, isDestroyed, unitsOf } from '../game/gameState'
+import { alive, enemiesOf, findUnit, fmt, isDestroyed, sidesOf, unitsOf } from '../game/gameState'
 import { deploymentIssues, deploymentProblem } from '../game/rules/deployment'
 import { dist } from '../game/geometry/geometry'
 import type { Command, GameState, Phase, PlayerId, UnitState, Vec } from '../game/types'
@@ -55,11 +55,28 @@ export function actedThisPhase(s: GameState, u: UnitState): boolean {
  */
 export function endPhaseWarning(s: GameState, human: PlayerId): string | null {
   if (actor(s) !== human || s.winner || !ok(s, { type: 'endPhase' })) return null
+  if (s.phase === 'command' && s.players[human].imperative === null)
+    return 'Империатив не выбран: «Протектор» усиливает стрельбу, «Завоеватель» — бой и бронебойность. Он бесплатный и выбирается каждый ход. Нажмите ещё раз, чтобы идти дальше без него.'
+  const last = lastRoundWarning(s, human)
+  if (s.phase === 'movement' && last) return `${last} Нажмите ещё раз, чтобы закончить движение.`
   const ready = actionableUnits(s, human)
   if (!ready.length) return null
   const verb: Partial<Record<Phase, string>> = { movement: 'двигаться', shooting: 'стрелять', charge: 'объявить атаку' }
   if (!verb[s.phase]) return null
   return `Ещё могут ${verb[s.phase]}: ${ready.map((u) => `«${u.name}»`).join(', ')}. Это необязательно — нажмите ещё раз, чтобы перейти дальше.`
+}
+
+/**
+ * Last battle round, the player moves first (so the opponent still has a turn) and is not behind on points: a wiped-out
+ * army loses whatever the score, so at least one unit should survive. Null otherwise.
+ */
+export function lastRoundWarning(s: GameState, human: PlayerId): string | null {
+  if (s.winner || s.round < s.maxRounds || s.activePlayer !== human || s.firstPlayer !== human) return null
+  const foe = sidesOf(s).find((f) => f !== human)!
+  const me = s.players[human].vp
+  const them = s.players[foe].vp
+  if (me < them) return null
+  return `⚠ Последний раунд, и после вас ходит противник. ${me > them ? `Вы ведёте ${me}:${them}` : `Счёт равный ${me}:${them}`}. Если вашу армию уничтожат целиком — поражение, даже при перевесе по очкам. Спрячьте хотя бы один отряд за непрозрачные руины и дальше 12″ от врага.`
 }
 
 /** Who can still act, and whether the engine lets the phase end now (and why not). */

@@ -14,6 +14,7 @@ import { actedThisPhase, canActNow, deploymentHint, endPhaseWarning, nextPhaseLa
 import { deploymentProblem } from '../game/rules/deployment'
 import { movePreview, type MovePreview } from '../game/movePreview'
 import { adviceLine, adviceWarnings, shotAdvice } from '../game/shotAdvice'
+import { chargeForecast, forecastLine } from '../game/chargeAdvice'
 
 const flat = (pts: Vec[]) => pts.flatMap((p) => [p.x, p.y])
 
@@ -457,6 +458,14 @@ function ModelTooltip({ hover, view, width }: { hover: Hover; view: Viewport; wi
         }
       } else if (v.ok) lines.push({ text: cmd.type === 'fight' ? '⚔ Клик — сражаться' : '⚔ Клик — атаковать (charge)', cls: 'text-emerald-300' })
       else lines.push({ text: `⛔ ${v.reason}`, cls: 'text-rose-300' })
+    }
+    // charge forecast for this enemy unit
+    if (game.phase === 'charge' && !sel.chargeDeclared && !game.pendingCharge) {
+      const f = chargeForecast(game, sel).find((x) => x.targetId === u.id)
+      if (f) {
+        lines.push({ text: forecastLine(f), cls: f.verdict === 'good' ? 'text-emerald-300' : f.verdict === 'bad' ? 'text-rose-300' : 'text-amber-300' })
+        for (const w of f.warnings) lines.push({ text: `⚠ ${w}`, cls: 'text-amber-300' })
+      }
     }
   }
   return (
