@@ -49,6 +49,10 @@ export const POINTS: Record<string, PointsBracket[]> = {
   necronWarriors: [{ models: 10, points: 80 }, { models: 20, points: 190 }],
   skorpekhDestroyers: [{ models: 3, points: 85 }, { models: 6, points: 170 }],
   scarabSwarms: [{ models: 3, points: 40 }, { models: 6, points: 80 }],
+  royalWarden: [{ models: 1, points: 50 }],
+  immortals: [{ models: 5, points: 70 }, { models: 10, points: 140 }],
+  lychguard: [{ models: 5, points: 80 }, { models: 10, points: 160 }],
+  canoptekWraiths: [{ models: 3, points: 95 }, { models: 6, points: 220 }],
   // Aeldari (10 Guardians + the Heavy Weapon Platform = 11 models)
   farseer: [{ models: 1, points: 70 }],
   guardianDefenders: [{ models: 11, points: 90 }],
@@ -74,6 +78,7 @@ export const POINTS_LATER: Record<string, { fromCopy: number; brackets: PointsBr
   bladeguard: { fromCopy: 3, brackets: [{ models: 3, points: 90 }, { models: 6, points: 170 }] },
   deffDread: { fromCopy: 3, brackets: [{ models: 1, points: 120 }] },
   nobz: { fromCopy: 3, brackets: [{ models: 5, points: 115 }, { models: 10, points: 220 }] },
+  canoptekWraiths: { fromCopy: 2, brackets: [{ models: 3, points: 115 }, { models: 6, points: 240 }] },
   skorpekhDestroyers: { fromCopy: 3, brackets: [{ models: 3, points: 95 }, { models: 6, points: 180 }] },
   sicarians: { fromCopy: 3, brackets: [{ models: 5, points: 85 }, { models: 10, points: 165 }] },
   kastelans: { fromCopy: 2, brackets: [{ models: 2, points: 180 }, { models: 4, points: 340 }] },

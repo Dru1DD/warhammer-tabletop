@@ -69,6 +69,10 @@ export const TOKENS: Record<string, TokenStyle> = {
   // Necrons
   overlord: { fill: '#3a4a52', stroke: '#47e08a', text: '#ffffff', label: 'Ов' },
   necronWarrior: { fill: '#46585f', stroke: '#dfe9ef', text: '#ffffff', label: 'Нк' },
+  royalWarden: { fill: '#3a4a52', stroke: '#47e08a', text: '#ffffff', label: 'КС' },
+  immortal: { fill: '#3e5058', stroke: '#dfe9ef', text: '#ffffff', label: 'Бс' },
+  lychguard: { fill: '#3a4a52', stroke: '#dfe9ef', text: '#ffffff', label: 'Лг' },
+  canoptekWraith: { fill: '#46585f', stroke: '#47e08a', text: '#ffffff', label: 'Пз' },
   skorpekh: { fill: '#3a4a52', stroke: '#47e08a', text: '#ffffff', label: 'Ск' },
   scarab: { fill: '#46585f', stroke: '#47e08a', text: '#ffffff', label: 'Рой' },
   // Aeldari

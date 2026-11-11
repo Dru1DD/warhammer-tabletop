@@ -279,6 +279,45 @@ function necronWarrior(): string {
   `, false)
 }
 
+/** Immortal: a bulkier warrior with heavier shoulder plates and a gauss blaster; `warden`: a Royal Warden with a cloak and a relic blaster. */
+function immortal(warden = false): string {
+  const c = BLUEPRINT_LINE.necrons
+  return base(c, `
+    ${warden ? `<path d="M38 24 Q18 34 16 50 Q18 66 38 76" ${f(c, 0.1)} stroke-dasharray="3 2"/>` : ''}
+    <ellipse cx="42" cy="50" rx="15" ry="22" ${f(c)}/>
+    <path d="M30 38 H54 M30 46 H54 M30 54 H54 M30 62 H54" fill="none" opacity="0.5"/>
+    <rect x="34" y="22" width="18" height="12" rx="3" ${f(c, 0.3)}/><rect x="34" y="66" width="18" height="12" rx="3" ${f(c, 0.3)}/>
+    <circle cx="58" cy="50" r="7.5" ${f(c, 0.25)}/><circle cx="61" cy="47.5" r="1.6" fill="${c}" stroke="none"/><circle cx="61" cy="52.5" r="1.6" fill="${c}" stroke="none"/>
+    <rect x="52" y="55" width="40" height="9" rx="2" ${f(c, 0.35)}/><line x1="62" y1="59.5" x2="90" y2="59.5" stroke-dasharray="2 2"/>
+    ${warden ? `<path d="M50 40 L44 30 L56 36 Z" ${f(c, 0.5)}/><circle cx="92" cy="59.5" r="3" ${f(c, 0.6)}/>` : ''}
+  `, false)
+}
+
+/** Lychguard: a heavy bodyguard with a long warscythe held across the body. */
+function lychguard(): string {
+  const c = BLUEPRINT_LINE.necrons
+  return base(c, `
+    <ellipse cx="42" cy="50" rx="15" ry="22" ${f(c)}/>
+    <path d="M30 40 H54 M30 50 H54 M30 60 H54" fill="none" opacity="0.5"/>
+    <circle cx="44" cy="29" r="8" ${f(c, 0.3)}/><circle cx="44" cy="71" r="8" ${f(c, 0.3)}/>
+    <circle cx="58" cy="50" r="7.5" ${f(c, 0.25)}/><path d="M60 42 L66 36 L64 44 Z" ${f(c, 0.5)}/>
+    <line x1="38" y1="80" x2="80" y2="18" stroke-width="2.6"/><path d="M76 14 Q94 14 96 30 Q86 22 72 24 Z" ${f(c, 0.5)}/>
+  `, false)
+}
+
+/** Canoptek Wraith: a phasing serpentine construct with a long spine and grasping claws. */
+function canoptekWraith(): string {
+  const c = BLUEPRINT_LINE.necrons
+  return base(c, `
+    <path d="M14 50 Q24 38 34 50 Q44 62 54 50" fill="none" stroke-width="3"/>
+    <path d="M18 46 L20 40 M26 44 L28 38 M34 52 L36 58 M42 56 L44 62" opacity="0.6"/>
+    <ellipse cx="60" cy="50" rx="11" ry="13" ${f(c)}/>
+    <circle cx="70" cy="50" r="7" ${f(c, 0.3)}/><circle cx="73" cy="47" r="1.6" fill="${c}" stroke="none"/><circle cx="73" cy="53" r="1.6" fill="${c}" stroke="none"/>
+    <path d="M62 38 L80 22 L88 26 M80 22 L84 16 M62 62 L80 78 L88 74 M80 78 L84 84" fill="none" stroke-width="2.2"/>
+    <circle cx="50" cy="50" r="34" fill="none" stroke-dasharray="1 4" opacity="0.5"/>
+  `, false)
+}
+
 /** Overlord: crested noble with blade and tachyon-arrow staff. */
 function overlord(): string {
   const c = BLUEPRINT_LINE.necrons
@@ -519,6 +558,10 @@ const SVGS: Record<string, string> = {
   tyranidWarriorStrangler: warrior('strangler'),
   overlord: overlord(),
   necronWarrior: necronWarrior(),
+  royalWarden: immortal(true),
+  immortal: immortal(),
+  lychguard: lychguard(),
+  canoptekWraith: canoptekWraith(),
   skorpekh: skorpekh(),
   scarab: scarabs(),
   farseer: farseer(),

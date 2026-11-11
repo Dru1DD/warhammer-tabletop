@@ -94,7 +94,8 @@ export function expectedGroupDamage(g: AttackGroup & { ctx: AttackContext }, tar
   const wmod = g.ctx.woundMod ?? 0
   const antiRoll = p.keywords.anti && datasheetOf(target).keywords.includes(p.keywords.anti.keyword) ? p.keywords.anti.roll : 7
   let pw = pFace((v) => v !== 1 && (v === 6 || v >= antiRoll || v + wmod >= wt))
-  if (p.keywords.twinLinked) pw += (1 - pw) * pw // failed wound rolls are re-rolled
+  if (p.keywords.twinLinked || g.ctx.rerollWounds === 'all') pw += (1 - pw) * pw // failed wound rolls are re-rolled
+  else if (g.ctx.rerollWounds === 'ones') pw += pw / 6 // wound rolls of 1 are re-rolled
   let pHitNormal: number, pCrit: number
   if (p.skill === null) { pHitNormal = 1; pCrit = 0 } else {
     const psy = !!p.keywords.psychic
@@ -379,6 +380,14 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
 
   switch (s.phase) {
     case 'command': {
+      // Engrammatic Logic (Royal Warden): free a battle-shocked unit, the one that matters most for objectives
+      for (const u of mine) {
+        if (!hasAbility(u, 'engrammaticLogic') || u.engrammaticUsed) continue
+        const freed = mine
+          .filter((f) => validate(s, { type: 'engrammatic', unitId: u.id, targetId: f.id }).ok)
+          .sort((a, b) => Number(s.objectives.some((o) => unitNearObjective(b, o))) - Number(s.objectives.some((o) => unitNearObjective(a, o))) || alive(b).length - alive(a).length)[0]
+        if (freed) return { cmd: { type: 'engrammatic', unitId: u.id, targetId: freed.id }, explanation: `${fac}: «${u.name}» снимает боевой шок с «${freed.name}» (Engrammatic Logic).` }
+      }
       if (validate(s, { type: 'imperative', imperative: 'protector' }).ok) {
         const imp = chooseImperative(s, me, level)
         return { cmd: { type: 'imperative', imperative: imp.imperative }, explanation: `${fac}: Империатив «${imp.imperative === 'protector' ? 'Протектор' : 'Завоеватель'}» — ${imp.why}.` }
@@ -457,6 +466,15 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
           .filter((x) => validate(s, x.cmd).ok)
           .sort((a, b) => unitDistance(u, a.e) - unitDistance(u, b.e))
         if (marks[0]) return { cmd: marks[0].cmd, explanation: `${fac}: «${u.name}» направляет союзников на «${marks[0].e.name}» (Guide: +1 к попаданию).` }
+      }
+      // Wraith Form (Canoptek Wraiths): after a normal move over enemy units, hurt the one where the wounds kill most
+      for (const u of mine) {
+        if (!u.wraithTargets?.length) continue
+        const best = u.wraithTargets
+          .map((id) => s.units.find((x) => x.id === id)!)
+          .filter((e) => e && validate(s, { type: 'wraithForm', unitId: u.id, targetId: e.id }).ok)
+          .sort((a, b) => squigValue(b) - squigValue(a))[0]
+        if (best) return { cmd: { type: 'wraithForm', unitId: u.id, targetId: best.id }, explanation: `${fac}: «${u.name}» проходит сквозь «${best.name}» (Wraith Form: 4+ — смертельная рана за модель).` }
       }
       // Bomb Squig (Kommandos): once per battle after a normal move, at the enemy unit it hurts most
       for (const u of mine) {

@@ -63,6 +63,10 @@ export const COMPOSITION: Record<string, { leader?: string; pattern: string[] }>
   necronWarriors: { pattern: ['necronWarrior'] },
   skorpekhDestroyers: { pattern: ['skorpekh'] },
   scarabSwarms: { pattern: ['scarab'] },
+  royalWarden: { pattern: ['royalWarden'] },
+  immortals: { pattern: ['immortal'] },
+  lychguard: { pattern: ['lychguard'] },
+  canoptekWraiths: { pattern: ['canoptekWraith'] },
   farseer: { pattern: ['farseer'] },
   guardianDefenders: { pattern: [...Array<string>(10).fill('guardian'), 'heavyPlatform'] },
   direAvengers: { leader: 'exarch', pattern: ['direAvenger'] },
@@ -135,8 +139,8 @@ export const PRESETS: Record<PlayerId, Record<PointsLimit, ListEntry[]>> = {
     1000: [...u('hiveTyrant', 1), ...u('wingedPrime', 1), ...u('tyranidWarriors', 6), ...u('termagants', 20), ...u('hormagaunts', 20), ...u('zoanthropes', 3), ...u('carnifexes', 2), ...u('barbgaunts', 10)],
   },
   necrons: {
-    500: [...u('overlord', 1), ...u('necronWarriors', 10, 2), ...u('skorpekhDestroyers', 3, 2), ...u('scarabSwarms', 3, 2)],
-    1000: [...u('overlord', 1, 2), ...u('necronWarriors', 20, 2), ...u('skorpekhDestroyers', 6, 2), ...u('scarabSwarms', 3, 2)],
+    500: [...u('overlord', 1), ...u('royalWarden', 1), ...u('immortals', 10), ...u('lychguard', 5), ...u('canoptekWraiths', 3), ...u('scarabSwarms', 3)],
+    1000: [...u('overlord', 1), ...u('royalWarden', 1), ...u('necronWarriors', 20), ...u('immortals', 10, 2), ...u('lychguard', 10), ...u('canoptekWraiths', 3), ...u('skorpekhDestroyers', 3), ...u('scarabSwarms', 3)],
   },
   aeldari: {
     500: [...u('farseer', 1), ...u('guardianDefenders', 11, 2), ...u('direAvengers', 5, 2), ...u('windriders', 3)],
