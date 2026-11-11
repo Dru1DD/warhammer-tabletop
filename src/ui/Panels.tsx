@@ -3,15 +3,17 @@ import { FACTION_STYLE, TOKENS, tokenImageFor } from '../assets/manifest'
 import { ABILITY_TEXT, FACTION_NAME, PROFILES } from '../game/data/datasheets'
 import { copyIndex, fmtPoints, pointsPerModel, unitPoints } from '../game/data/points'
 import { actor, moveAllowance, moveCommand, moveModeFor, PHASE_NAME, shootPlan, unitActions, validate } from '../game/engine'
-import { alive, datasheetOf, engagedUnits, fmt, hasAbility, isDestroyed, other, profileOf, sidesOf, unitsOf, weaponsOf } from '../game/gameState'
+import { alive, datasheetOf, engagedUnits, fmt, hasAbility, isDestroyed, isMV, other, profileOf, sidesOf, unitsOf, weaponsOf } from '../game/gameState'
 import { hitRoll, saveTarget, toughness, woundTarget } from '../game/combat/attack'
 import { fmtRandom } from '../game/dice/dice'
 import { deploymentIssues, deploymentZone } from '../game/rules/deployment'
 import { boxOf, fitBox, newPiece, TERRAIN_PRESETS, withBox, type TerrainPreset } from '../game/terrainLayout'
 import { scenarioById } from '../game/scenarios/scenarios'
-import type { Command, DiceEntry, GameState, UnitState, WeaponKeywords } from '../game/types'
+import type { Command, DiceEntry, GameState, UnitState, WeaponKeywords, WeaponProfile } from '../game/types'
 import { PHASES } from '../game/types'
 import { useStore } from '../store'
+import { weaponAdvice } from '../game/weaponAdvice'
+import { adviceLine, adviceWarnings, shotAdvice, type TargetAdvice } from '../game/shotAdvice'
 import { DeployPresetCards } from './DeployPresets'
 import { scoreText } from './score'
 import { explainStep, LESSONS, PHASE_GOAL, PHASE_HELP, PHASE_NEXT, showAt, STAT_HELP, UNIT_ROLE } from './help'
@@ -178,7 +180,11 @@ function UnitDetails({ u }: { u: UnitState }) {
         <tbody>
           {weapons.flatMap((w) => w.profiles.map((p, i) => (
             <tr key={w.id + i} title={keywordText(p.keywords)}>
-              <td className="text-left">{w.name}{p.name ? ` — ${p.name}` : ''}{keywordText(p.keywords) && <span className="block text-[10px] text-sky-300">{keywordText(p.keywords)}</span>}</td>
+              <td className="text-left">
+                {w.name}{p.name ? ` — ${p.name}` : ''}
+                {keywordText(p.keywords) && <span className="block text-[10px] text-sky-300">{keywordText(p.keywords)}</span>}
+                <WeaponHints p={p} />
+              </td>
               <td>{p.range === 'melee' ? 'ближ.' : `${p.range}″`}</td><td>{fmtRandom(p.attacks, p.randomA)}</td><td>{p.skill ? `${p.skill}+` : 'авто'}</td><td>{p.s}</td><td>{p.ap}</td><td>{fmtRandom(p.d, p.randomD)}</td>
             </tr>
           )))}
@@ -197,6 +203,17 @@ function UnitDetails({ u }: { u: UnitState }) {
         <p className="mt-1 text-[11px] text-amber-400">Учебная конфигурация Introductory Set: в официальном datasheet Бойз минимум 10 моделей и 1 спецоружие на 10 моделей.</p>
       )}
     </section>
+  )
+}
+
+/** What the weapon is good at, read off its profile («Лучше всего против толп пехоты», «По технике почти бесполезно»). */
+function WeaponHints({ p }: { p: WeaponProfile }) {
+  return (
+    <span className="block text-[10px] leading-tight" aria-label="Для чего это оружие">
+      {weaponAdvice(p).lines.map((l) => (
+        <span key={l} className={`block ${l.startsWith('⚠') ? 'text-amber-300' : 'text-emerald-300'}`}>{l}</span>
+      ))}
+    </span>
   )
 }
 
@@ -552,6 +569,7 @@ function ShootControls({ u }: { u: UnitState }) {
   const multi = [...new Map(alive(u).flatMap((m) => weaponsOf(m)).filter((w) => w.profiles.length > 1 && w.profiles[0].range !== 'melee').map((w) => [w.id, w])).values()]
   const opts = st.shotOptions
   const enemies = game.units.filter((e) => e.owner !== u.owner && !isDestroyed(e))
+  const advice = u.shot ? [] : shotAdvice(game, u, opts)
   return (
     <div className="flex flex-col gap-1">
       {multi.map((w) => (
@@ -573,9 +591,11 @@ function ShootControls({ u }: { u: UnitState }) {
       {enemies.map((e) => {
         const cmd = { type: 'shoot' as const, unitId: u.id, targetId: e.id, ...opts }
         const plan = shootPlan(game, u, e, opts)
+        const a = advice.find((x) => x.targetId === e.id)
         return (
           <div key={e.id}>
-            <ActionButton cmd={cmd} label={`Стрелять по «${e.name}»${plan.cover && !plan.problem ? ' (в укрытии)' : ''}`} />
+            <ActionButton cmd={cmd} label={`${a?.best ? '★ ' : ''}Стрелять по «${e.name}»${plan.cover && !plan.problem ? ' (в укрытии)' : ''}`} />
+            {a && !a.problem && <TargetAdviceView a={a} all={advice} />}
             {!plan.problem && !u.shot && <AttackPreview plan={plan} attacker={u} target={e} />}
           </div>
         )
@@ -587,12 +607,24 @@ function ShootControls({ u }: { u: UnitState }) {
   )
 }
 
+/** Expected result of shooting this target, with a star for the best one and warnings for overkill or a poor pick. */
+function TargetAdviceView({ a, all }: { a: TargetAdvice; all: TargetAdvice[] }) {
+  const warn = adviceWarnings(a, all)
+  return (
+    <div className="mt-0.5 px-1 text-[11px] leading-snug" data-testid="target-advice">
+      <span className={a.best ? 'text-emerald-300' : 'text-stone-300'}>{adviceLine(a)}{a.best ? ' · лучшая цель' : ''}</span>
+      {warn.map((w) => <span key={w} className="block text-amber-300">⚠ {w}</span>)}
+    </div>
+  )
+}
+
 /** Compact explanation of an attack before it is made: who fires what, and the numbers each roll will need. */
 function AttackPreview({ plan, attacker, target }: { plan: ReturnType<typeof shootPlan>; attacker: UnitState; target: UnitState }) {
   const beginner = useStore((s) => s.settings.explain === 'beginner')
   const aimed = useStore((s) => s.aimTargetId === target.id)
   const t = toughness(target)
   const saves = [...new Map(alive(target).map((m) => [m.profileId, m])).values()]
+  const heavyTarget = isMV(target)
   return (
     <details className={`mt-0.5 rounded px-2 py-1 text-[11px] ${aimed ? 'border border-yellow-400 bg-stone-900' : 'bg-stone-900/70'}`} open={beginner || aimed}>
       <summary className="cursor-pointer text-stone-300">
@@ -605,6 +637,7 @@ function AttackPreview({ plan, attacker, target }: { plan: ReturnType<typeof sho
         return (
           <div key={g.weaponName + g.profile.name} className="mt-1 border-t border-stone-700 pt-1">
             <b>{g.weaponName}{g.profile.name ? ` — ${g.profile.name}` : ''}</b> ×{g.models} мод.: {g.attacks}{g.randomAttacks ? ` + ${g.randomAttacks}×${g.profile.randomA}` : ''} атак{g.notes.length ? ` (${g.notes.join(', ')})` : ''}
+            {heavyTarget && weaponAdvice(g.profile).uselessVsArmour && <span className="block text-amber-300">⚠ Это оружие почти не ранит технику и монстров.</span>}
             <ol className="list-decimal pl-4 text-stone-300">
               <li>Попадание: {hr.skill === null ? 'автоматически (Torrent)' : `${hr.skill}+${hr.mod ? `, модификатор ${hr.mod > 0 ? '+' : ''}${hr.mod} (${g.ctx.hitModNotes.join(', ')}) — фактически ${Math.min(6, Math.max(2, hr.skill - hr.mod))}+` : ''}`}{g.ctx.lethalHits ? '; 6 — сразу рана (Lethal Hits)' : ''}</li>
               <li>Ранение: {woundTarget(g.profile.s, t)}+ (Сила {g.profile.s} против Стойкости {t}){g.ctx.woundMod ? `, модификатор ${g.ctx.woundMod} (${g.ctx.woundModNote})` : ''}</li>
