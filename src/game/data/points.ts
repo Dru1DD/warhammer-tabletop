@@ -23,6 +23,10 @@ export const POINTS: Record<string, PointsBracket[]> = {
   intercessors: [{ models: 5, points: 80 }, { models: 10, points: 150 }],
   assaultIntercessors: [{ models: 5, points: 75 }, { models: 10, points: 150 }],
   redemptor: [{ models: 1, points: 195 }],
+  captain: [{ models: 1, points: 80 }],
+  hellblasters: [{ models: 5, points: 110 }, { models: 10, points: 220 }],
+  infernus: [{ models: 5, points: 85 }, { models: 10, points: 170 }],
+  bladeguard: [{ models: 3, points: 80 }, { models: 6, points: 160 }],
   // Orks
   boyz: [{ models: 10, points: 75 }, { models: 20, points: 150 }],
   deffDread: [{ models: 1, points: 110 }],
@@ -63,6 +67,7 @@ export const POINTS: Record<string, PointsBracket[]> = {
  */
 export const POINTS_LATER: Record<string, { fromCopy: number; brackets: PointsBracket[] }> = {
   redemptor: { fromCopy: 3, brackets: [{ models: 1, points: 210 }] },
+  bladeguard: { fromCopy: 3, brackets: [{ models: 3, points: 90 }, { models: 6, points: 170 }] },
   deffDread: { fromCopy: 3, brackets: [{ models: 1, points: 120 }] },
   nobz: { fromCopy: 3, brackets: [{ models: 5, points: 115 }, { models: 10, points: 220 }] },
   skorpekhDestroyers: { fromCopy: 3, brackets: [{ models: 3, points: 95 }, { models: 6, points: 180 }] },

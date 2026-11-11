@@ -111,6 +111,7 @@ The full list, with what is exact and what is approximated, is in [docs/research
 - [docs/armies.md](docs/armies.md): the Tyranid, Necron and Aeldari armies: sources, legality notes, rules abstractions, limitations, AI behaviour, balance of all six armies.
 - [docs/mechanicus.md](docs/mechanicus.md): the Adeptus Mechanicus army: 11th-edition sources, legality, datasheets, Doctrina Imperatives, approximations, AI, artwork.
 - [docs/orks.md](docs/orks.md): the extra Ork units for army lists (Warboss, Nobz, Gretchin, Kommandos): sources, points, rules and what is not implemented.
+- [docs/marines.md](docs/marines.md): the extra Space Marine units for army lists (Captain, Hellblasters, Infernus, Bladeguard Veterans): sources, points, rules and what is not implemented.
 - [docs/research.md](docs/research.md): edition, sources, box contents, datasheets, exact vs approximated rules.
 - [docs/assets.md](docs/assets.md): asset inventory and licensing.
 

@@ -27,6 +27,13 @@ export const FACTION_EMBLEM: Partial<Record<PlayerId, string>> = { adeptus_mecha
 
 export const TOKENS: Record<string, TokenStyle> = {
   lieutenant: { fill: '#1f4e9c', stroke: '#e4b33a', text: '#ffffff', label: 'Лт' },
+  captain: { fill: '#1f4e9c', stroke: '#e4b33a', text: '#ffffff', label: 'Кп' },
+  hellblasterSergeant: { fill: '#1f4e9c', stroke: '#c9d6ee', text: '#ffffff', label: 'СП' },
+  hellblaster: { fill: '#2b5fb5', stroke: '#c9d6ee', text: '#ffffff', label: 'П' },
+  infernusSergeant: { fill: '#1f4e9c', stroke: '#c9d6ee', text: '#ffffff', label: 'СО' },
+  infernusMarine: { fill: '#2b5fb5', stroke: '#c9d6ee', text: '#ffffff', label: 'О' },
+  bladeguardSergeant: { fill: '#1f4e9c', stroke: '#e4b33a', text: '#ffffff', label: 'СВ' },
+  bladeguardVeteran: { fill: '#2b5fb5', stroke: '#e4b33a', text: '#ffffff', label: 'В' },
   intercessorSergeant: { fill: '#1f4e9c', stroke: '#c9d6ee', text: '#ffffff', label: 'Сж' },
   intercessor: { fill: '#2b5fb5', stroke: '#c9d6ee', text: '#ffffff', label: 'И' },
   intercessorGL: { fill: '#2b5fb5', stroke: '#c9d6ee', text: '#ffffff', label: 'Гр' },
