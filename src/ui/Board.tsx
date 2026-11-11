@@ -13,6 +13,7 @@ import { clampToRadius, fitBoard, screenToWorld, worldToScreen, zoomAt, type Vie
 import { actedThisPhase, canActNow, deploymentHint, endPhaseWarning, nextPhaseLabel, nextStepHint, targetCommand } from './guidance'
 import { deploymentProblem } from '../game/rules/deployment'
 import { movePreview, type MovePreview } from '../game/movePreview'
+import { adviceLine, adviceWarnings, shotAdvice } from '../game/shotAdvice'
 
 const flat = (pts: Vec[]) => pts.flatMap((p) => [p.x, p.y])
 
@@ -445,6 +446,12 @@ function ModelTooltip({ hover, view, width }: { hover: Hover; view: Viewport; wi
       if (v.ok && cmd.type === 'shoot') {
         const plan = shootPlan(game, sel, u, st.shotOptions)
         lines.push({ text: `🎯 Клик — стрелять: ${plan.groups.reduce((a, g) => a + g.attacks, 0)} атак${plan.cover ? ', цель в укрытии (−1 BS)' : ''}`, cls: 'text-emerald-300' })
+        const all = shotAdvice(game, sel, st.shotOptions)
+        const a = all.find((x) => x.targetId === u.id)
+        if (a) {
+          lines.push({ text: `${adviceLine(a)}${a.best ? ' · лучшая цель' : ''}`, cls: a.best ? 'text-emerald-300' : undefined })
+          for (const w of adviceWarnings(a, all)) lines.push({ text: `⚠ ${w}`, cls: 'text-amber-300' })
+        }
       } else if (v.ok) lines.push({ text: cmd.type === 'fight' ? '⚔ Клик — сражаться' : '⚔ Клик — атаковать (charge)', cls: 'text-emerald-300' })
       else lines.push({ text: `⛔ ${v.reason}`, cls: 'text-rose-300' })
     }
