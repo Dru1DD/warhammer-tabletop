@@ -482,7 +482,7 @@ export function validate(s: GameState, cmd: Command): Validation {
       const target = findUnit(s, cmd.targetId)
       if (!target || isDestroyed(target) || target.owner === unit.owner) return fail('Недопустимая цель для бомбосквига.')
       if (unitDistance(unit, target) > BOMB_SQUIG_RANGE + 1e-6) return fail(`Бомбосквиг: цель дальше ${BOMB_SQUIG_RANGE}″.`)
-      if (!alive(unit).some((m) => visibleTargets(s, m, target).length > 0)) return fail('Бомбосквиг: цель не видна.')
+      if (!alive(unit).some((m) => seesAny(s, m, target))) return fail('Бомбосквиг: цель не видна.')
       return OK
     }
     case 'guide': {

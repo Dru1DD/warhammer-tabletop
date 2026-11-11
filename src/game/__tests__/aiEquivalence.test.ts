@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { decide, type AiLevel } from '../ai/ai'
-import { presetList, type PointsLimit } from '../army/armyList'
+import type { ArmyList, ListEntry, PointsLimit } from '../army/armyList'
 import { seededRoller } from '../dice/dice'
 import { apply, startGame, validate } from '../engine'
 import { scenarioById } from '../scenarios/scenarios'
@@ -33,6 +33,17 @@ const RECORDED: Record<string, { actions: number; commands: string }> = {
   '1000 orks-aeldari standard': { actions: 40, commands: 'e650b68a' },
 }
 
+// The army lists these games were recorded with: the presets as of bfe917d. They are pinned here so that
+// a later preset change (new units for a faction) does not look like an AI change.
+const u = (datasheetId: string, size: number, copies = 1): ListEntry[] => Array.from({ length: copies }, () => ({ datasheetId, size }))
+const PINNED: Partial<Record<PlayerId, Partial<Record<PointsLimit, ListEntry[]>>>> = {
+  tyranids: { 500: [...u('hiveTyrant', 1), ...u('termagants', 20), ...u('hormagaunts', 20), ...u('tyranidWarriors', 3)] },
+  necrons: { 500: [...u('overlord', 1), ...u('necronWarriors', 10, 2), ...u('skorpekhDestroyers', 3, 2), ...u('scarabSwarms', 3, 2)] },
+  orks: { 1000: [...u('boyz', 20, 4), ...u('boyz', 10, 2), ...u('deffDread', 1, 2)] },
+  aeldari: { 1000: [...u('farseer', 1, 2), ...u('guardianDefenders', 11, 3), ...u('direAvengers', 10, 2), ...u('windriders', 6), ...u('windriders', 3)] },
+}
+const pinned = (f: PlayerId, limit: PointsLimit): ArmyList => ({ limit, units: PINNED[f]![limit]!.map((e) => ({ ...e })) })
+
 function fnv(str: string) {
   let h = 0x811c9dc5
   for (let i = 0; i < str.length; i++) {
@@ -43,7 +54,7 @@ function fnv(str: string) {
 }
 
 function play(g: Game) {
-  const armies = g.points ? { [g.sides[0]]: presetList(g.sides[0], g.points), [g.sides[1]]: presetList(g.sides[1], g.points) } : {}
+  const armies = g.points ? { [g.sides[0]]: pinned(g.sides[0], g.points), [g.sides[1]]: pinned(g.sides[1], g.points) } : {}
   let s: GameState = startGame(scenarioById('combat-patrol').build(g.sides, armies), seededRoller(g.seed))
   const cmds: string[] = []
   while (!s.winner && cmds.length < g.maxActions) {
