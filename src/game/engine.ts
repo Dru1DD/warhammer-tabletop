@@ -185,6 +185,11 @@ function eradication(s: GameState, unit: UnitState, target: UnitState, notes: st
 export const DAMAGED_WOUNDS = 4
 export const isDamaged = (u: UnitState) => hasAbility(u, 'damaged1to4') && alive(u).some((m) => m.wounds <= DAMAGED_WOUNDS)
 
+/** Every ranged weapon of the unit counts as Assault, so it may still shoot after an Advance. */
+export function assaultAll(s: GameState, unit: UnitState): boolean {
+  return riled(s, unit) || inOnslaught(s, unit) || imperativeOf(s, unit) === 'conqueror' || hasBuff(unit, 'suddenStorm') || doctrineOf(s, unit) === 'devastator'
+}
+
 function attackerBonuses(s: GameState, unit: UnitState) {
   const imp = imperativeOf(s, unit)
   const support = imp === 'conqueror' || hasAbility(unit, 'breachingCommand') ? battlelineSupport(s, unit) : false
@@ -238,7 +243,7 @@ export function shootPlan(
   const advanced = unit.move === 'advance'
   const onslaught = inOnslaught(s, unit)
   const bonus = attackerBonuses(s, unit)
-  const assaultAll = riled(s, unit) || onslaught || bonus.imp === 'conqueror' || hasBuff(unit, 'suddenStorm') || doctrineOf(s, unit) === 'devastator'
+  const allAssault = assaultAll(s, unit)
   const mv = isMV(unit)
   if (engaged && advanced) return { ...plan, problem: tr('The unit Advanced and is in engagement range — it cannot shoot.') }
   if (engaged && !engagedUnits(s, unit).some((e) => e.id === target.id))
@@ -260,7 +265,7 @@ export function shootPlan(
       : engaged || opts.usePistols || main.length === 0 ? cq : main
     if (advanced && !engaged && !hasAbility(unit, 'elevatedStrider')) {
       const before = chosen.length
-      chosen = chosen.filter((w) => assaultAll || w.profiles[opts.profiles?.[w.id] ?? 0].keywords.assault)
+      chosen = chosen.filter((w) => allAssault || w.profiles[opts.profiles?.[w.id] ?? 0].keywords.assault)
       if (before > chosen.length) plan.skipped.push(tr('{name}: after an Advance only Assault weapons shoot.', { name: profileOf(m).name }))
     }
     chosen = chosen.filter((w) => !(w.profiles[0].keywords.oneShot && isSpent(unit, m, w)))

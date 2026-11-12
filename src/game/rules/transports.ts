@@ -227,10 +227,14 @@ export function destroyPassengers(s: GameState, t: UnitState) {
   }
 }
 
+/** The DEDICATED TRANSPORTs nobody embarked in (of one side, or of both) — removed when the battle starts. */
+export function emptyDedicated(s: GameState, owner?: PlayerId): UnitState[] {
+  return s.units.filter((u) => (!owner || u.owner === owner) && !isDestroyed(u) && hasKeyword(u, 'DEDICATED TRANSPORT') && !passengersOf(s, u.id).length)
+}
+
 /** Start of the battle: a DEDICATED TRANSPORT nobody embarked in is removed (it does not count as destroyed). */
 export function removeEmptyDedicated(s: GameState) {
-  for (const t of s.units.filter((u) => !isDestroyed(u) && hasKeyword(u, 'DEDICATED TRANSPORT'))) {
-    if (passengersOf(s, t.id).length) continue
+  for (const t of emptyDedicated(s)) {
     s.units = s.units.filter((x) => x !== t)
     addLog(s, tr('{faction}: {transport} is a Dedicated Transport with nobody inside — it is removed before the battle.', { faction: FACTION_NAME[t.owner], transport: quote(t.name) }), 'minimal')
   }

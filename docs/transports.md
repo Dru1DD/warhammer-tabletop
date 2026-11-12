@@ -13,7 +13,7 @@ The deployment panel has a «🚚 Transports» block:
 - the selected unit can start the battle inside a transport;
 - a unit inside can be taken out again (it then has to be set up).
 
-**Empty transports.** A DEDICATED TRANSPORT with nobody inside is removed when the battle starts (it does not count as destroyed). The panel warns about it first.
+**Empty transports.** A DEDICATED TRANSPORT with nobody inside is removed when the battle starts (it does not count as destroyed). The panel warns about it first, and “Start the battle ▶” asks “Start the battle with an empty transport?” (`emptyDedicated`): “Back to deployment” selects the transport, “Start without it” starts the battle. Not asked in the «minimal» explanation mode.
 
 **The AI** fills each of its Dedicated Transports with the first unit that fits (`aiEmbark`).
 

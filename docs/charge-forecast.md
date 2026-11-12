@@ -50,3 +50,15 @@ So pressing “🎲 Declare a charge (2D6)” first asks “Really charge with �
 **The dialog** lists those reasons (with the forecast's own warnings). “Cancel” is the default button, so Enter or Esc keeps the unit back. “Charge anyway” declares the charge.
 
 **Where it lives.** The check sits in the store's `dispatch`, so it covers every charge button: the action bar under the board and the unit's action list. It is skipped in the «minimal» explanation mode. The AI never goes through it.
+
+## Asking before a wasteful Advance
+
+After an Advance only Assault weapons shoot. In the battle of 12.11.2026 a unit of Rangers advanced twice with an enemy in reach and did not fire once in the whole game.
+
+So “⚡ Advance (+D6″)” first asks “Really Advance with …?” when `advanceWarning` (`src/game/advanceAdvice.ts`) finds that:
+
+- the unit has main ranged weapons (not pistols) without Assault;
+- nothing makes them Assault anyway: Conqueror, Onslaught, the Devastator doctrine and similar (`assaultAll` in the engine), or Elevated Strider;
+- an enemy unit is within their range plus a Normal move (visibility is not checked: the move can change it).
+
+The dialog names the weapons and says whether the enemy is already within range or a Normal move away. The check sits in the store's `dispatch` next to the charge question, with the same rules: skipped in the «minimal» mode, never for the AI.
