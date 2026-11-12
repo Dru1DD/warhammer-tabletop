@@ -136,6 +136,7 @@ export type AbilityId =
   | 'radSaturation'
   | 'breachingCommand'
   | 'infiltrators'
+  | 'deepStrike'
   | 'stealth'
   | 'voicesInTheCode'
   | 'neurostaticInterference'
@@ -246,6 +247,57 @@ export interface UnitState {
   wraithTargets?: string[]
   /** Grenade Pack Flyover already used this turn (absent otherwise) */
   grenadePackUsed?: boolean
+  /** a mission action started this turn (rules/missions.ts): no shooting or charging; completes at the end of the turn */
+  action?: { id: MissionActionId; objectiveId: string }
+}
+
+export type SecondaryId =
+  | 'noPrisoners' | 'overwhelmingForce' | 'displayOfMight' | 'outflank' | 'beacon' | 'grievousBlow' | 'defendStronghold' | 'engageAllFronts'
+  | 'secureNoMansLand' | 'forwardPosition' | 'centreGround' | 'assassination' | 'temptingTarget' | 'behindEnemyLines' | 'bringItDown' | 'burdenOfTrust'
+
+/** A player's secondary missions (rules/secondaries.ts) */
+export interface SecondaryState {
+  /** Tactical: draw up to two cards each Command phase; Fixed: the same two cards all battle */
+  mode: 'tactical' | 'fixed'
+  /** Tactical: the cards still to draw, top first */
+  deck: SecondaryId[]
+  active: SecondaryId[]
+  /** Tactical cards scored (and so put away), with their VP */
+  achieved: { card: SecondaryId; vp: number; round: number }[]
+  discarded: SecondaryId[]
+  /** secondary VP by battle round (index = round) */
+  byRound: number[]
+  /** VP each card has scored (a Fixed card scores 20 at most) */
+  cardVp: Partial<Record<SecondaryId, number>>
+  /** the once-per-battle 1 CP swap is used */
+  swapUsed: boolean
+  /** Tactical cards to discard for 1 CP each at the end of this turn, after scoring */
+  toDiscard: SecondaryId[]
+  /** Beacon: the beacon unit */
+  beacon?: string
+  /** A Tempting Target: the objective the opponent chose */
+  tempting?: string
+  /** Burden of Trust: objective id -> the unit guarding it */
+  guarded?: Record<string, string>
+  /** how many of its owner's turns each active card has stayed unscored (the AI drops stale ones) */
+  age?: Partial<Record<SecondaryId, number>>
+}
+
+/** The primary missions of the Mirrored World twist (rules/missions.ts) */
+export type PrimaryId = 'dominance' | 'meatgrinder' | 'outmanoeuvre' | 'gatherIntel' | 'sabotage'
+export type MissionActionId = 'extractIntel' | 'sabotage'
+
+/** The primary mission of a battle and what it has scored (absent: the training score, 5 VP per objective). */
+export interface MissionState {
+  primary: PrimaryId
+  /** primary VP by player and battle round (index = round) */
+  byRound: Record<PlayerId, number[]>
+  /** primary VP scored at the end of the battle (outside the round cap) */
+  endVp?: Record<PlayerId, number>
+  /** Gather Intel: operation markers, each at an objective */
+  markers: { owner: PlayerId; objectiveId: string }[]
+  /** units each player lost in the previous turn (Meatgrinder) */
+  lostLastTurn: Record<PlayerId, number>
 }
 
 /** crater = exposed; barricade = light; ruin / woods / container = dense (container is also solid) */
@@ -303,6 +355,8 @@ export interface PlayerState {
   hyperAdaptation?: HyperAdaptation | null
   /** a pure custom army: no detachment rule and no detachment Stratagems (army rules still apply) */
   noDetachment?: boolean
+  /** Rapid Ingress already used in the current phase (reset when a phase starts) */
+  rapidIngressUsed?: boolean
 }
 
 export type Imperative = 'protector' | 'conqueror'
@@ -410,6 +464,14 @@ export interface GameState {
   /** 44″×60″: the deployment map and terrain layout of this battle */
   mapId?: string
   layoutId?: string
+  /** units in Strategic Reserves, off the battlefield (rules/reserves.ts); absent = none */
+  reserves?: UnitState[]
+  /** the primary mission (44″×60″); absent = the training score */
+  mission?: MissionState
+  /** secondary missions of each player (44″×60″); absent = none */
+  secondary?: Record<PlayerId, SecondaryState>
+  /** what the board looked like when the current turn began (missions count this turn's kills from it) */
+  turnStart?: { deadUnits: string[]; deadModels: string[]; onObjective: string[] }
   terrain: Terrain[]
   objectives: Objective[]
   players: Record<PlayerId, PlayerState>
@@ -482,6 +544,12 @@ export type Command =
   | { type: 'engrammatic'; unitId: string; targetId: string }
   | { type: 'wraithForm'; unitId: string; targetId: string }
   | { type: 'grenadePack'; unitId: string; targetId: string }
+  /** secondary missions: swap a Tactical card for 1 CP (once per battle, own Command phase), or mark/unmark one to discard for 1 CP at the end of the turn */
+  | { type: 'secondary'; op: 'swap' | 'discard'; card: SecondaryId }
+  /** a unit arrives from Strategic Reserves (Ingress Move); `rapid`: Rapid Ingress at the end of the opponent's Movement phase */
+  | { type: 'arrive'; unitId: string; positions: Record<string, Vec>; rapid?: boolean }
+  /** a mission action at an objective, started in the Shooting phase (rules/missions.ts) */
+  | { type: 'startAction'; unitId: string; objectiveId: string }
   /** Core Stratagem in the player's own turn (see rules/stratagems.ts) */
   | { type: 'stratagem'; id: StratagemId; unitId: string; targetId?: string }
   /** The reacting player declines (or is done with) the reactions offered in the current window */

@@ -4,7 +4,7 @@
 import { FACTION_NAME } from '../data/datasheets'
 import { dist, withinRange } from '../geometry/geometry'
 import {
-  alive, CHARGE_RANGE, datasheetOf, ledUnitOf, engagedUnits, enemiesOf, hasAbility, hasKeyword, inSynapseRange, isEngaged, isFlyer, isMV, modelInTerrain, objectiveLevels, other, profileOf,
+  alive, CHARGE_RANGE, OBJECTIVE_RANGE, datasheetOf, ledUnitOf, engagedUnits, enemiesOf, hasAbility, hasKeyword, inSynapseRange, isEngaged, isFlyer, isMV, modelInTerrain, objectiveLevels, other, profileOf,
   sidesOf, unitDistance, unitNearObjective, unitsOf, unitsWithin, weaponsOf, fmt,
 } from '../gameState'
 import { actor, FLY_PENALTY, hyperPending, maxMove, meleePlan, meleeSetup, meleeWeaponsOf, shootPlan, swiftBonusOf, validate, moveModeFor } from '../engine'
@@ -12,6 +12,9 @@ import { unitProfile } from '../army/roles'
 import { DOCTRINE_NAME, HYPER_NAME } from '../rules/detachments'
 import { moveProblem, planMove } from '../rules/movement'
 import { EXPLOSIVES_DICE, STRATAGEMS } from '../rules/stratagems'
+import { aiArrivalTarget, arrivalSpot, canDeepStrike, reservesOf } from '../rules/reserves'
+import { aiDiscards, SECONDARY, secondaryGoals } from '../rules/secondaries'
+import { inTerritory, MISSION_ACTION, objectiveWorth, PRIMARY, SABOTAGE_TERRITORY_BONUS } from '../rules/missions'
 import { reactionAdvice } from '../reactionAdvice'
 
 /** Army Stratagems the AI spends on a good volley / a good fight. */
@@ -244,9 +247,11 @@ function scorePosition(s: GameState, u: UnitState, level: AiLevel, mode: 'normal
   for (const o of s.objectives) {
     const lv = objectiveLevels(hs, o)
     const mine = lv[u.owner], theirs = lv[other(s, u.owner)]
-    if (unitNearObjective(hypo, o)) obj += mine > theirs ? 1 : 0.5
+    if (unitNearObjective(hypo, o)) obj += (mine > theirs ? 1 : 0.5) * objectiveWorth(s, u.owner, o)
     nearestObj = Math.min(nearestObj, Math.min(...alive(hypo).map((m) => dist(m.pos, o.pos))))
   }
+  // secondary missions: places worth standing on (centre, enemy zone, a chosen objective)
+  for (const g of secondaryGoals(s, u.owner)) if (alive(hypo).some((m) => dist(m.pos, g.pos) <= OBJECTIVE_RANGE)) obj += g.weight
   const nearestEnemy = Math.min(...enemies.map((e) => dTo.get(e)!))
   const cover = alive(hypo).every((m) => modelInTerrain(s, m)) ? 1 : 0
 
@@ -288,6 +293,7 @@ function candidateGoals(s: GameState, u: UnitState, level: AiLevel): { pos: Vec;
   if (nearestEnemy) goals.push({ pos: alive(nearestEnemy)[0].pos, label: 'к врагу' })
   const objs = [...s.objectives].sort((a, b) => dist(alive(u)[0].pos, a.pos) - dist(alive(u)[0].pos, b.pos))
   for (const o of level === 'beginner' ? objs.slice(0, 1) : objs) goals.push({ pos: o.pos, label: 'к цели' })
+  if (level !== 'beginner') for (const g of secondaryGoals(s, u.owner)) goals.push({ pos: g.pos, label: g.label })
   if (level === 'standard')
     for (const t of s.terrain) {
       const c = t.poly.reduce((a, p) => ({ x: a.x + p.x / t.poly.length, y: a.y + p.y / t.poly.length }), { x: 0, y: 0 })
@@ -560,6 +566,11 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
           .sort((a, b) => b.v - a.v)[0]
         if (best) return { cmd: best.cmd, explanation: `${fac}: «${u.name}» выпускает бомбосквига в «${best.e.name}» (3+: D3 смертельные раны).` }
       }
+      // reinforcements: units in Strategic Reserves arrive towards the objective nearest the enemy
+      for (const u of reservesOf(s, me)) {
+        const pos = arrivalSpot(s, u, aiArrivalTarget(s, me))
+        if (pos) return { cmd: { type: 'arrive', unitId: u.id, positions: pos }, explanation: `${fac}: «${u.name}» выходит из резерва${canDeepStrike(u) ? ' глубоким ударом' : ''}.` }
+      }
       return end(`${fac}: движение завершено.`)
     }
     case 'shooting': {
@@ -588,6 +599,10 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
             if (!best || dmg > best.dmg) best = { cmd, dmg, target: e.name }
           }
         }
+        // a mission action (Sabotage, Extract Intelligence) instead of a volley, when its VP are worth more
+        const action = missionActionFor(s, u)
+        if (action && (!best || action.vp >= best.dmg * 0.8))
+          return { cmd: action.cmd, explanation: `${fac}: «${u.name}» начинает действие миссии «${action.name}» у цели Ц${action.n} (≈ ${action.vp} ПО в конце хода${best ? `, стрельба дала бы ≈ ${fmt(best.dmg)} урона` : ''}).` }
         // an army's shooting Stratagem on a volley worth it, keeping 1 CP in reserve
         if (best && level !== 'beginner' && best.dmg >= 2.5 && s.players[me].cp >= 2) {
           for (const id of SHOOTING_BUFFS) {
@@ -630,6 +645,9 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
       return end(`${fac}: атаки не объявлены.`)
     }
     case 'fight': {
+      // stale Tactical secondaries go at the end of the turn, for 1 CP each
+      const stale = !s.fight && me === s.activePlayer ? aiDiscards(s, me)[0] : undefined
+      if (stale) return { cmd: { type: 'secondary', op: 'discard', card: stale }, explanation: `${fac}: вторичная «${SECONDARY[stale].name}» не даётся — сбросим её в конце хода за 1 CP.` }
       if (!s.fight) return end(`${fac}: бои завершены.`)
       for (const u of mine) {
         for (const e of engagedUnits(s, u).sort((a, b) => expectedMelee(s, u, b) - expectedMelee(s, u, a))) {
@@ -673,3 +691,19 @@ function shootOptions(u: UnitState, level: AiLevel) {
 /** Unused-model guard for tests: every AI command must be legal. */
 export const aiCommandIsLegal = (s: GameState, d: AiDecision | null) => !d || validate(s, d.cmd).ok
 
+
+/** The best mission action this unit can start now, at an objective its side controls (the action completes only then). */
+function missionActionFor(s: GameState, u: UnitState): { cmd: Command; vp: number; name: string; n: number } | null {
+  const id = s.mission && PRIMARY[s.mission.primary].action
+  if (!id) return null
+  let best: { cmd: Command; vp: number; name: string; n: number } | null = null
+  s.objectives.forEach((o, i) => {
+    const cmd: Command = { type: 'startAction', unitId: u.id, objectiveId: o.id }
+    if (!validate(s, cmd).ok) return
+    const lv = objectiveLevels(s, o)
+    if (!(lv[u.owner] > lv[other(s, u.owner)])) return
+    const vp = MISSION_ACTION[id].vp + (id === 'sabotage' && inTerritory(s, other(s, u.owner), o) ? SABOTAGE_TERRITORY_BONUS : 0)
+    if (!best || vp > best.vp) best = { cmd, vp, name: MISSION_ACTION[id].name, n: i + 1 }
+  })
+  return best
+}

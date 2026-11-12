@@ -226,6 +226,7 @@ const CORE_DATASHEETS: Record<string, Datasheet> = {
 }
 
 const CORE_ABILITY_TEXT: Record<string, string> = {
+  deepStrike: 'Глубокий удар (Deep Strike): отряд можно оставить в резерве; выходя из него (со 2-го раунда), он ставится в любом месте поля дальше 8″ от всех моделей противника — не обязательно у края.',
   boltDiscipline: 'Болтерная дисциплина (Bolter Discipline): +1 к броску на попадание в стрельбе, если отряд или цель в зоне цели (objective).',
   tacticalPrecision: 'Тактическая точность (Tactical Precision): атаки отряда имеют Lethal Hits против целей не MONSTER/VEHICLE.',
   ammoRunts: 'Гроты-подносчики (Ammo Runts): раз за битву +1 к броску на попадание при стрельбе.',

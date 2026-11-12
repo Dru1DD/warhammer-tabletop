@@ -1,4 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
+import { reactionCommands } from '../game/engine'
+import { RAPID_INGRESS_CP } from '../game/rules/reserves'
 import { findUnit } from '../game/gameState'
 import { reactionAdvice } from '../game/reactionAdvice'
 import { STRATAGEMS } from '../game/rules/stratagems'
@@ -40,18 +42,23 @@ export function ReactionPrompt({ game, human }: { game: GameState; human: Player
   const setMessage = useStore((s) => s.setMessage)
   const options = reactionAdvice(game)
   const useful = options.filter((o) => o.worth)
+  // Rapid Ingress: a unit from reserves can arrive now (the spot is the suggested one, or the player clicks the board)
+  const rapid = useMemo(() => reactionCommands(game).filter((c): c is Extract<typeof c, { type: 'arrive' }> => c.type === 'arrive'), [game])
+  const arriving = useStore((s) => s.arriving)
+  const startArrival = useStore((s) => s.startArrival)
   const passed = useRef<GameState | null>(null)
   const primary = useRef<HTMLButtonElement>(null)
 
   // «only when useful»: nothing worth the CP → do not stop the game
   useEffect(() => {
-    if (useful.length || passed.current === game) return
+    if (useful.length || rapid.length || passed.current === game) return
     passed.current = game
     dispatch({ type: 'passReaction' })
-  }, [game, useful.length, dispatch])
+  }, [game, useful.length, rapid.length, dispatch])
   useEffect(() => primary.current?.focus(), [game])
 
-  if (!useful.length || !game.reaction) return null
+  // the player is picking a spot on the board for Rapid Ingress: the prompt steps aside
+  if ((!useful.length && !rapid.length) || !game.reaction || arriving) return null
   const cp = game.players[human].cp
   const rest = options.filter((o) => !o.worth)
   return (
@@ -68,6 +75,23 @@ export function ReactionPrompt({ game, human }: { game: GameState; human: Player
             </li>
           ))}
         </ul>
+        {rapid.length > 0 && (
+          <ul className="mt-3 space-y-2">
+            {rapid.map((c, i) => {
+              const u = game.reserves?.find((x) => x.id === c.unitId)
+              return (
+                <li key={c.unitId} className="rounded border border-violet-600 p-2">
+                  <div className="font-semibold">Быстрый выход (Rapid Ingress): {u?.name}</div>
+                  <div className="text-sm text-stone-300">Отряд выходит из резерва сейчас, до стрельбы противника: у края поля, дальше 8″ от врагов.</div>
+                  <div className="mt-2 flex gap-1">
+                    <button ref={i === 0 && !useful.length ? primary : undefined} className="btn btn-primary flex-1" onClick={() => dispatch(c)}>К ближайшей цели ({RAPID_INGRESS_CP} CP)</button>
+                    <button className="btn flex-1" onClick={() => startArrival(c.unitId, true)}>📍 Указать место</button>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        )}
         {rest.length > 0 && (
           <details className="mt-2 text-xs text-stone-400">
             <summary>Ещё варианты, которые не окупают CP ({rest.length})</summary>

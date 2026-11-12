@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { AiDecision, AiLevel } from './game/ai/ai'
+import { aiReserves, arrivalSpot, fromReserve, reserveProblem, toReserve } from './game/rules/reserves'
 import { decideAsync } from './game/ai/aiClient'
 import { seededRoller } from './game/dice/dice'
 import { actor, startGame, validate, type MoveOptions } from './game/engine'
@@ -14,7 +15,7 @@ import { parseArmies, type ArmyList } from './game/army/armyList'
 import { applyPreset, deployWithPreset, recommendedPreset, type DeployPresetId } from './game/army/deployPresets'
 import { deploymentIssues, deploymentProblem } from './game/rules/deployment'
 import { parseLayout } from './game/terrainLayout'
-import { FACTIONS, type Command, type ExplainLevel, type GameState, type PlayerId, type Terrain, type Vec } from './game/types'
+import { FACTIONS, type Command, type ExplainLevel, type GameState, type PlayerId, type SecondaryId, type Terrain, type Vec } from './game/types'
 import type { TutorialStart } from './ui/help'
 import { actionableUnits, canActNow } from './ui/guidance'
 
@@ -59,6 +60,11 @@ export interface Settings {
   /** 44″×60″ board: the deployment map and the terrain layout ('random' or absent = a random one each battle) */
   mapId?: string
   layoutId?: string
+  /** 44″×60″ board: the primary mission ('random' or absent = a random one; 'training' = 5 VP per objective) */
+  primary?: string
+  /** 44″×60″ board: the player's secondaries (absent = Tactical; the AI always plays Tactical) and the two Fixed cards */
+  secondary?: 'tactical' | 'fixed' | 'none'
+  fixedCards?: SecondaryId[]
 }
 
 /** A measuring endpoint: a point, or a model base (r > 0) for edge-to-edge distance. */
@@ -107,6 +113,14 @@ interface Store {
   /** non-null while the human sets up their army before round 1 */
   deploying: { placed: string[] } | null
   deployHistory: { game: GameState; placed: string[] }[]
+  /** a reserve unit waiting for the player to click where it arrives (`rapid`: Rapid Ingress) */
+  arriving: { unitId: string; rapid: boolean } | null
+  /** deployment: put the unit into Strategic Reserves, or back onto the battlefield */
+  toggleReserve: (unitId: string) => void
+  /** pick a reserve unit to set up with the next click on the board (null cancels) */
+  startArrival: (unitId: string | null, rapid?: boolean) => void
+  /** set up the picked reserve unit as close to this point as the rules allow */
+  arriveAt: (p: Vec) => void
   /** shooting target picked on the board, waiting for «Огонь» */
   aimTargetId: string | null
   /** step-by-step replay of attacks with dice id > afterId; pauses the AI while open */
@@ -247,7 +261,7 @@ function buildScenario(s: Settings): GameState {
   // the 44″×60″ boards change with the map, so a saved layout of the editor is not used there
   // nor on Combat Patrol when another layout than the original (A) is chosen
   const custom = sc.id === 'strike-force' || (sc.id === 'combat-patrol' && s.layoutId && s.layoutId !== 'A') ? null : parseLayout(savedLayouts()[sc.id])
-  const g = sc.build(sidesFor(s.human, s.opponent), battleArmies(s), custom ?? undefined, { mapId: s.mapId, layoutId: s.layoutId })
+  const g = sc.build(sidesFor(s.human, s.opponent), battleArmies(s), custom ?? undefined, { mapId: s.mapId, layoutId: s.layoutId, primary: s.primary, secondaries: s.secondary === 'none' ? 'none' : { [s.human]: { mode: s.secondary ?? 'tactical', fixed: s.fixedCards } } })
   if (custom) g.terrain = custom
   if (sc.customArmies) {
     // open battle: both armies start in the deployment preset that suits them (the AI first, unaware of the player)
@@ -332,6 +346,7 @@ export const useStore = create<Store>((set, get) => {
   tutorialStart: { round: 1, activePlayer: 'marines', diceCount: 0 },
   deploying: null,
   deployHistory: [],
+  arriving: null,
   aimTargetId: null,
   review: null,
   selectedTerrainId: null,
@@ -364,6 +379,8 @@ export const useStore = create<Store>((set, get) => {
     const built = tryBuild(settings)
     if ('error' in built) return set({ settings, message: { text: built.error, kind: 'error' } })
     const game = built.game
+    // the AI keeps its Deep Strike units in reserve (44″×60″)
+    if (game.deployment) aiReserves(game, settings.opponent)
     const first = game.units.find((u) => u.owner === settings.human)?.id ?? null
     set({ game, match: null, settings, deploying: { placed: [] }, deployHistory: [], review: null, aimTargetId: null, selectedUnitId: first, draft: {}, history: [], aiNotes: [], message: null, groupDrag: true, measuring: false, aiActionsThisTurn: 0, measure: { a: null, b: null, range: 12 } })
   },
@@ -500,6 +517,38 @@ export const useStore = create<Store>((set, get) => {
       tutorialStart: tutorialStartOf(match.state), aiActionsThisTurn: 0,
       ...(same ? {} : { measure: { a: null, b: null, range: 12 } }),
     })
+  },
+
+  toggleReserve: (unitId) => {
+    const { game, deploying, deployHistory, settings } = get()
+    if (!game || !deploying) return
+    const next = structuredClone(game)
+    const inReserve = next.reserves?.some((u) => u.id === unitId)
+    if (inReserve) {
+      fromReserve(next, unitId)
+      set({ game: next, deploying: { placed: deploying.placed.filter((id) => id !== unitId) }, deployHistory: [...deployHistory, { game, placed: deploying.placed }], selectedUnitId: unitId, message: { text: 'Отряд вернулся на поле — расставьте его.', kind: 'info' } })
+      return
+    }
+    const u = next.units.find((x) => x.id === unitId)
+    if (!u || u.owner !== settings.human) return
+    const why = reserveProblem(next, u)
+    if (why) return set({ message: { text: why, kind: 'error' } })
+    toReserve(next, unitId)
+    const nextUnit = next.units.find((x) => x.owner === settings.human && !deploying.placed.includes(x.id))?.id ?? next.units.find((x) => x.owner === settings.human)?.id ?? null
+    set({ game: next, deploying: { placed: deploying.placed.filter((id) => id !== unitId) }, deployHistory: [...deployHistory, { game, placed: deploying.placed }], draft: {}, selectedUnitId: nextUnit, message: { text: `«${u.name}» — в стратегическом резерве: выйдет на поле со 2-го раунда.`, kind: 'info' } })
+  },
+
+  startArrival: (unitId, rapid = false) => set({ arriving: unitId ? { unitId, rapid } : null, measuring: false, message: unitId ? { text: rapid ? 'Щёлкните по полю, куда поставить отряд: «Быстрый выход» ставит его у края (в 6″), дальше 8″ от врагов.' : 'Щёлкните по полю, куда поставить отряд: у края (в 6″) или, с глубоким ударом, где угодно — дальше 8″ от врагов.', kind: 'info' } : null }),
+
+  arriveAt: (p) => {
+    const { game, arriving } = get()
+    if (!game || !arriving) return
+    const u = game.reserves?.find((x) => x.id === arriving.unitId)
+    if (!u) return set({ arriving: null })
+    const positions = arrivalSpot(game, u, p, arriving.rapid)
+    if (!positions) return set({ message: { text: 'Рядом с этой точкой отряд поставить нельзя: нужно у края поля (в 6″) и дальше 8″ от врагов.', kind: 'error' } })
+    set({ arriving: null, message: null })
+    get().dispatch({ type: 'arrive', unitId: u.id, positions, rapid: arriving.rapid || undefined })
   },
 
   dispatch: (cmd) => {

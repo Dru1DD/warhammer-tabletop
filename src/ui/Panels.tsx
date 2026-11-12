@@ -47,6 +47,9 @@ import { canActNow, cpReminder, draftDistance, lastRoundWarning, nextPhaseLabel,
 import { fileToTokenDataUrl } from './imageUpload'
 import { UnitRoleTips } from './UnitRoleTips'
 import { leaveRoom } from '../multiplayer/session'
+import { MISSION_ACTION, PRIMARY, PRIMARY_CAP, primaryTotal, ROUND_CAP } from '../game/rules/missions'
+import { aiArrivalTarget, arrivalSpot, canDeepStrike, ingressWindow, INGRESS_EDGE, INGRESS_ENEMY, RAPID_INGRESS_CP, RESERVE_DEADLINE, RESERVE_FROM_ROUND, reserveBudget, reservesOf } from '../game/rules/reserves'
+import { FIXED_CARD_CAP, SECONDARY, SECONDARY_CAP, SECONDARY_ROUND_CAP, secondaryTotal } from '../game/rules/secondaries'
 
 
 /** Who plays the other side: the computer in single-player, a person online. */
@@ -322,6 +325,9 @@ export function ActionPanel() {
       ) : (
         <PhaseTrack game={game} myTurn={myTurn} />
       )}
+      {game.mission && <MissionCard game={game} />}
+      {game.secondary && <SecondaryPanel game={game} me={human} />}
+      {(game.reserves?.length ?? 0) > 0 && <ReservePanel game={game} me={human} />}
       {!game.winner && explain !== 'minimal' && (
         <details className="text-xs text-stone-300">
           <summary className="cursor-pointer text-sky-300">Правила фазы</summary>
@@ -532,6 +538,8 @@ function DeploymentPanel() {
         })}
         <p className="text-[11px] text-stone-500">Характеристики и оружие — в карточке отряда слева (кнопка «»», если панель свёрнута).</p>
       </div>
+
+      {game.deployment && !st.shared && <ReserveSetup />}
 
       <div>
         <h3 className="mb-1 text-xs font-semibold uppercase text-stone-400">2. Где ставить</h3>
@@ -995,6 +1003,146 @@ export function BottomPanel() {
         {restartBtn}
         <p className="text-[11px] text-stone-500">{scenarioById(game.scenarioId).name}</p>
       </div>
+    </div>
+  )
+}
+
+/** The primary mission of a 44″×60″ battle: the card, the VP so far (by round, within the caps) and the actions going on. */
+function MissionCard({ game }: { game: GameState }) {
+  const m = game.mission!
+  const card = PRIMARY[m.primary]
+  const act = card.action ? MISSION_ACTION[card.action] : null
+  const busy = game.units.filter((u) => u.action && !isDestroyed(u))
+  const objName = (id: string) => `Ц${game.objectives.findIndex((o) => o.id === id) + 1}`
+  return (
+    <details className="rounded border border-emerald-700 bg-emerald-950/40 p-2 text-xs" open>
+      <summary className="cursor-pointer font-semibold text-emerald-200">🎯 Миссия: {card.name} <span className="font-normal text-stone-400">({card.nameEn})</span></summary>
+      <ul className="mt-1 list-disc space-y-0.5 pl-4 text-stone-200">
+        {card.lines.map((l) => <li key={l}>{l}</li>)}
+      </ul>
+      {act && <p className="mt-1 text-stone-300"><b>Действие «{act.name}»</b> ({act.nameEn}): {act.text} Кнопка — в действиях отряда в фазе стрельбы.</p>}
+      <table className="mt-2 w-full text-center">
+        <thead><tr className="text-stone-400"><th className="text-left">Основная</th>{[1, 2, 3, 4, 5].map((r) => <th key={r} className={r === game.round ? 'text-emerald-300' : ''}>Р{r}</th>)}<th>Конец</th><th>Всего</th></tr></thead>
+        <tbody>
+          {sidesOf(game).map((p) => (
+            <tr key={p}>
+              <td className="text-left">{FACTION_NAME[p]}</td>
+              {[1, 2, 3, 4, 5].map((r) => <td key={r}>{m.byRound[p][r] || '·'}</td>)}
+              <td>{m.endVp?.[p] || '·'}</td>
+              <td className="font-semibold">{primaryTotal(m, p)}/{PRIMARY_CAP}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="mt-1 text-stone-400">Лимит: {ROUND_CAP} ПО за раунд, {PRIMARY_CAP} за битву (очки конца битвы — вне лимита раунда).</p>
+      {busy.length > 0 && <p className="mt-1 text-amber-200">Выполняют действие: {busy.map((u) => `${u.name} (${objName(u.action!.objectiveId)})`).join(', ')}.</p>}
+      {m.markers.length > 0 && <p className="mt-1 text-stone-300">Маркеры операции: {sidesOf(game).map((p) => `${FACTION_NAME[p]} — ${m.markers.filter((x) => x.owner === p).map((x) => objName(x.objectiveId)).join(', ') || 'нет'}`).join('; ')}.</p>}
+    </details>
+  )
+}
+
+/** Secondary missions: the player's active cards (with the swap / discard buttons), and both sides' VP. */
+function SecondaryPanel({ game, me }: { game: GameState; me: PlayerId }) {
+  const st = useStore()
+  const sec = game.secondary!
+  const mine = sec[me]
+  const foe = other(game, me)
+  const run = (cmd: Command) => st.dispatch(cmd)
+  if (!mine) return null
+  return (
+    <details className="rounded border border-sky-700 bg-sky-950/40 p-2 text-xs" open>
+      <summary className="cursor-pointer font-semibold text-sky-200">🃏 Вторичные: {mine.mode === 'tactical' ? 'тактические' : 'фиксированные'} — {secondaryTotal(mine)}/{SECONDARY_CAP} ПО</summary>
+      {mine.active.length === 0 && <p className="mt-1 text-stone-400">{mine.mode === 'tactical' ? 'Карты берутся в начале вашей фазы командования.' : 'Нет карт.'}</p>}
+      {mine.active.map((c) => {
+        const card = SECONDARY[c]
+        const swap: Command = { type: 'secondary', op: 'swap', card: c }
+        const marked = mine.toDiscard.includes(c)
+        return (
+          <div key={c} className="mt-1 rounded bg-stone-900/60 p-1.5">
+            <div className="font-semibold">{card.name} <span className="font-normal text-stone-400">({card.nameEn})</span>{mine.mode === 'fixed' && <span className="text-stone-400"> · {mine.cardVp[c] ?? 0}/{FIXED_CARD_CAP}</span>}</div>
+            <div className="text-stone-300">{mine.mode === 'fixed' && card.fixedText ? card.fixedText : card.text}</div>
+            {c === 'beacon' && mine.beacon && <div className="text-amber-200">Маяк: {game.units.find((u) => u.id === mine.beacon)?.name}</div>}
+            {c === 'temptingTarget' && mine.tempting && <div className="text-amber-200">Цель: Ц{game.objectives.findIndex((o) => o.id === mine.tempting) + 1}</div>}
+            {mine.mode === 'tactical' && game.activePlayer === me && !game.winner && (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {validate(game, swap).ok && <button className="btn text-xs" onClick={() => run(swap)} title="Раз за битву, в своей фазе командования">🔄 Сменить за 1 CP</button>}
+                <button className={`btn text-xs ${marked ? 'btn-primary' : ''}`} onClick={() => run({ type: 'secondary', op: 'discard', card: c })} title="Карта уйдёт в конце хода, после подсчёта, если не выполнена">{marked ? '✓ Сбросить в конце хода (+1 CP)' : '🗑 Сбросить в конце хода за +1 CP'}</button>
+              </div>
+            )}
+          </div>
+        )
+      })}
+      {mine.achieved.length > 0 && <p className="mt-1 text-emerald-300">Выполнены: {mine.achieved.map((a) => `${SECONDARY[a.card].name} (+${a.vp}, Р${a.round})`).join(', ')}.</p>}
+      <table className="mt-2 w-full text-center">
+        <thead><tr className="text-stone-400"><th className="text-left">Вторичные</th>{[1, 2, 3, 4, 5].map((r) => <th key={r} className={r === game.round ? 'text-sky-300' : ''}>Р{r}</th>)}<th>Всего</th></tr></thead>
+        <tbody>
+          {sidesOf(game).filter((p) => sec[p]).map((p) => (
+            <tr key={p}>
+              <td className="text-left">{FACTION_NAME[p]}</td>
+              {[1, 2, 3, 4, 5].map((r) => <td key={r}>{sec[p].byRound[r] || '·'}</td>)}
+              <td className="font-semibold">{secondaryTotal(sec[p])}/{SECONDARY_CAP}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {sec[foe] && <p className="mt-1 text-stone-400">У противника ({sec[foe].mode === 'tactical' ? 'тактические' : 'фиксированные'}): {sec[foe].active.map((c) => SECONDARY[c].name).join(', ') || 'нет активных карт'}.</p>}
+      <p className="mt-1 text-stone-400">Лимит: {SECONDARY_ROUND_CAP} ПО за раунд, {SECONDARY_CAP} за битву{mine.mode === 'fixed' ? `, ${FIXED_CARD_CAP} на карту` : ''}. Выбор «когда взята» (маяк, цель, замена невыполнимой карты) делает игра.</p>
+    </details>
+  )
+}
+
+/** Deployment: Strategic Reserves (44″×60″) — up to half the army's points wait off the board. */
+function ReserveSetup() {
+  const st = useStore()
+  const game = st.game!
+  const human = st.settings.human
+  const sel = game.units.find((u) => u.id === st.selectedUnitId && u.owner === human)
+  const mine = reservesOf(game, human)
+  const { reserved, limit } = reserveBudget(game, human)
+  return (
+    <div className="rounded border border-violet-700 bg-violet-950/30 p-2 text-xs">
+      <h3 className="mb-1 font-semibold uppercase text-violet-200">Стратегический резерв — {reserved}/{limit} очк.</h3>
+      <p className="text-stone-300">Отряд в резерве не ставится сейчас: со {RESERVE_FROM_ROUND}-го раунда, в вашей фазе движения, он выходит целиком в {INGRESS_EDGE}″ от любого края поля и дальше {INGRESS_ENEMY}″ от врагов (до {RESERVE_DEADLINE}-го раунда — не в зоне противника; с глубоким ударом — где угодно). Кто не вышел к концу {RESERVE_DEADLINE}-го раунда — уничтожен. В резерв — не больше половины очков армии.</p>
+      {sel && <button className="btn mt-1 w-full" onClick={() => st.toggleReserve(sel.id)}>⏬ «{sel.name}» — в резерв{canDeepStrike(sel) ? ' (глубокий удар)' : ''}</button>}
+      {mine.map((u) => (
+        <div key={u.id} className="mt-1 flex items-center justify-between gap-2 rounded bg-stone-900/60 px-2 py-1">
+          <span>{u.name}{canDeepStrike(u) ? ' · глубокий удар' : ''}</span>
+          <button className="btn text-xs" onClick={() => st.toggleReserve(u.id)}>⏫ На поле</button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** In battle: the units still in reserve, and for the player's own ones the way onto the board. */
+function ReservePanel({ game, me }: { game: GameState; me: PlayerId }) {
+  const st = useStore()
+  const mine = reservesOf(game, me)
+  const theirs = reservesOf(game, other(game, me))
+  const closed = ingressWindow(game, me, false)
+  const auto = (id: string) => {
+    const u = game.reserves!.find((x) => x.id === id)!
+    const positions = arrivalSpot(game, u, aiArrivalTarget(game, me))
+    if (positions) st.dispatch({ type: 'arrive', unitId: id, positions })
+    else st.setMessage('Не нашлось места для выхода: у края (в 6″) везде ближе 8″ к врагам.', 'error')
+  }
+  return (
+    <div className="rounded border border-violet-700 bg-violet-950/30 p-2 text-xs">
+      <div className="font-semibold text-violet-200">⏬ Резерв{game.round <= RESERVE_DEADLINE ? ` — выйти до конца ${RESERVE_DEADLINE}-го раунда` : ''}</div>
+      {mine.map((u) => (
+        <div key={u.id} className="mt-1 rounded bg-stone-900/60 p-1.5">
+          <div>{u.name}{canDeepStrike(u) ? ' · глубокий удар' : ''} · {alive(u).length} мод.</div>
+          {!closed && !game.winner && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              <button className={`btn text-xs ${st.arriving?.unitId === u.id ? 'btn-primary' : ''}`} onClick={() => st.startArrival(st.arriving?.unitId === u.id ? null : u.id)}>📍 Указать место на поле</button>
+              <button className="btn text-xs" onClick={() => auto(u.id)}>🎯 Поставить к цели</button>
+            </div>
+          )}
+        </div>
+      ))}
+      {mine.length > 0 && closed && <p className="mt-1 text-stone-400">{closed} «Быстрый выход» (Rapid Ingress, {RAPID_INGRESS_CP} CP) предложат в конце фазы движения противника.</p>}
+      {st.arriving && <button className="btn mt-1 w-full text-xs" onClick={() => st.startArrival(null)}>✕ Отменить выбор места</button>}
+      {theirs.length > 0 && <p className="mt-1 text-stone-400">У противника в резерве: {theirs.map((u) => u.name).join(', ')}.</p>}
     </div>
   )
 }

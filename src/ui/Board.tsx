@@ -551,6 +551,11 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
   }
 
   const onBackgroundClick = () => {
+    if (st.arriving) {
+      const p = pointerWorld()
+      if (p) st.arriveAt(p)
+      return
+    }
     if (!st.measuring) return
     const p = pointerWorld()
     if (p) st.setMeasurePoint({ p, r: 0 })
@@ -779,6 +784,10 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
               <Line points={[-r - 0.35, 0, r + 0.35, 0]} stroke={col} strokeWidth={0.04} />
               <Line points={[0, -r - 0.35, 0, r + 0.35]} stroke={col} strokeWidth={0.04} />
               <Text x={r * 0.55} y={-r - 0.55} text={`Ц${i + 1}${o.role === 'home' ? ' дом' : o.role === 'central' ? ' центр' : o.role === 'expansion' ? ' фланг' : ''}`} fontSize={0.4} fontStyle="bold" fill={col} />
+              {/* Gather Intel: operation markers placed at this objective, one small diamond per player */}
+              {(game.mission?.markers ?? []).filter((x) => x.objectiveId === o.id).map((x, k) => (
+                <Rect key={x.owner} x={-r - 0.9 + k * 0.7} y={r + 0.3} width={0.45} height={0.45} rotation={45} fill={FACTION_LINE[x.owner]} stroke="#000" strokeWidth={0.03} />
+              ))}
             </Group>
           )
         })}

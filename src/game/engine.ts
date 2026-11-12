@@ -12,6 +12,9 @@ import {
   updateObjectiveControl, weaponsOf, OBJECTIVE_MARKER_MM,
 } from './gameState'
 import { healUnit } from './rules/heal'
+import { aiArrivalTarget, arrivalProblem, arrivalSpot, arrive, expireReserves, reservesOf } from './rules/reserves'
+import { applySecondary, secondaryCommandStart, secondaryProblem, secondaryTurnEnd } from './rules/secondaries'
+import { actionProblem, MISSION_ACTION, missionBattleEnd, missionCommandEnd, missionTurnEnd, missionTurnStart, PRIMARY } from './rules/missions'
 import { applyMortalWounds, resolveGroup, type AttackContext, type AttackGroup, type RerollHook, type RerollKind } from './combat/attack'
 import { moveProblem, planMove } from './rules/movement'
 import { hasCover, nearestVisibleDistance, seesAny, unitCanSee } from './rules/visibility'
@@ -533,6 +536,14 @@ export function validate(s: GameState, cmd: Command): Validation {
   if (s.pendingReroll)
     return cmd.type === 'rerollChoice' ? OK : fail(`Атака ждёт решения стороны «${FACTION_NAME[s.pendingReroll.player]}»: перебросить кубик или нет.`)
   if (cmd.type === 'rerollChoice') return fail('Сейчас нечего перебрасывать.')
+  // a unit arriving from reserves: in its own Movement phase, or Rapid Ingress in the reaction window before shooting
+  if (cmd.type === 'arrive') {
+    const u = s.reserves?.find((x) => x.id === cmd.unitId)
+    if (!u) return fail('Этого отряда нет в резерве.')
+    if (!cmd.rapid && u.owner !== who) return fail(`Сейчас решение принимает ${FACTION_NAME[who]}.`)
+    const p = arrivalProblem(s, u, cmd.positions, !!cmd.rapid)
+    return p ? fail(p) : OK
+  }
   // a reaction window: only the reacting player's reactions for this window, or passing
   if (s.reaction) {
     if (cmd.type === 'passReaction') return OK
@@ -570,6 +581,11 @@ export function validate(s: GameState, cmd: Command): Validation {
     if (!doctrineLeft(p.doctrinesUsed ?? [], cmd.doctrine, detachmentOn(s, 'marines') ? undefined : 0))
       return fail(`«${DOCTRINE_NAME[cmd.doctrine]}» больше выбрать нельзя: каждая доктрина — раз за битву${detachmentOn(s, 'marines') ? ', и одна из них — ещё раз (Дисциплина Кодекса)' : ''}.`)
     return OK
+  }
+
+  if (cmd.type === 'secondary') {
+    const p = secondaryProblem(s, who, cmd.op, cmd.card)
+    return p ? fail(p) : OK
   }
 
   if (cmd.type === 'imperative') {
@@ -616,8 +632,13 @@ export function validate(s: GameState, cmd: Command): Validation {
       if (!hasAbility(unit, 'waaagh') && !hasAbility(unit, 'superlativeStrategist')) return fail('Переброс продвижения дают только Waaagh! и Superlative Strategist.')
       if (unit.advanceRerolled) return fail('Кубик нельзя перебрасывать больше одного раза.')
       return OK
+    case 'startAction': {
+      const p = actionProblem(s, unit, cmd.objectiveId)
+      return p ? fail(p) : OK
+    }
     case 'shoot': {
       if (s.phase !== 'shooting') return fail('Стрелять можно только в фазе стрельбы.')
+      if (unit.action) return fail('Отряд выполняет действие миссии и не стреляет в этот ход.')
       if (unit.shot) return fail('Отряд уже стрелял в этой фазе.')
       if (unit.move === 'fallBack' && !canActAfterFallBack(s, unit) && !hasAbility(unit, 'warConstruct')) return fail('Отряд отступил (Fall Back) в этот ход и не может стрелять.')
       const target = findUnit(s, cmd.targetId)
@@ -628,6 +649,7 @@ export function validate(s: GameState, cmd: Command): Validation {
     case 'declareCharge': {
       if (s.phase !== 'charge') return fail('Атаку (charge) объявляют в фазе атаки.')
       if (unit.chargeDeclared) return fail('Отряд уже объявлял атаку в этой фазе.')
+      if (unit.action) return fail('Отряд выполняет действие миссии и не может атаковать в этот ход.')
       if (isEngaged(s, unit)) return fail('Отряд уже в контакте с врагом.')
       if (unit.move === 'fallBack' && !canActAfterFallBack(s, unit)) return fail('Отряд отступил (Fall Back) в этот ход и не может атаковать.')
       if (unit.move === 'advance' && !canChargeAfterAdvance(s, unit)) return fail('Отряд продвинулся (Advance) в этот ход и не может атаковать.')
@@ -828,6 +850,7 @@ function enterPhase(s: GameState, phase: Phase, r: Roller) {
   for (const p of sidesOf(s)) {
     s.players[p].stratagemsThisPhase = []
     s.players[p].stratagemUnitsThisPhase = []
+    if (s.players[p].rapidIngressUsed) s.players[p].rapidIngressUsed = false
   }
   for (const u of s.units) {
     if (u.shockedThisPhase) u.shockedThisPhase = false
@@ -885,6 +908,7 @@ function commandPhase(s: GameState, r: Roller) {
   if (s.players[s.activePlayer].guide !== undefined) s.players[s.activePlayer].guide = null
   if (s.players[s.activePlayer].imperative !== undefined) s.players[s.activePlayer].imperative = null
   addLog(s, 'Оба игрока получают 1 очко командования (CP).', 'beginner')
+  secondaryCommandStart(s)
   s.shockPending = unitsOf(s, s.activePlayer).filter((u) => u.battleShocked || atHalfStrength(u)).map((u) => u.id)
   // Insane Bravery is used before the test: the player may answer first, then the tests are rolled
   if (!openReaction(s, 'beforeShockTests', 'command', s.activePlayer)) finishShockTests(s, r)
@@ -904,6 +928,8 @@ function finishShockTests(s: GameState, r: Roller) {
   }
   s.shockPending = null
   updateObjectiveControl(s)
+  // a mission scores at the end of the Command phase and of the turn (rules/missions.ts)
+  if (s.mission) return
   if (s.round >= 2) {
     const held = s.objectives.filter((o) => o.controller === s.activePlayer).length
     if (held) {
@@ -929,11 +955,15 @@ function endTurn(s: GameState, r: Roller) {
   // Disruption Bombardment lasts until the end of the disrupted unit's owner's turn
   for (const u of s.units) if (u.owner === s.activePlayer) delete u.disrupted
   updateObjectiveControl(s)
+  missionTurnEnd(s)
+  secondaryTurnEnd(s)
   checkWinner(s)
   if (s.winner) return
   const second = other(s, s.firstPlayer)
   if (s.activePlayer === second) {
+    expireReserves(s)
     if (s.round >= s.maxRounds) {
+      missionBattleEnd(s)
       const [wa, wb] = sidesOf(s)
       const a = s.players[wa], b = s.players[wb]
       s.winner = a.vp > b.vp ? wa : b.vp > a.vp ? wb : 'draw'
@@ -946,6 +976,7 @@ function endTurn(s: GameState, r: Roller) {
   }
   s.activePlayer = other(s, s.activePlayer)
   resetTurnFlags(s)
+  missionTurnStart(s)
   enterPhase(s, 'command', r)
 }
 
@@ -955,7 +986,7 @@ function checkWinner(s: GameState) {
   if (s.winner) return
   enforceCrews(s)
   const [wa, wb] = sidesOf(s)
-  const m = unitsOf(s, wa).length, o = unitsOf(s, wb).length
+  const m = unitsOf(s, wa).length + reservesOf(s, wa).length, o = unitsOf(s, wb).length + reservesOf(s, wb).length
   if (m && o) return
   s.winner = m ? wa : o ? wb : 'draw'
   addLog(s, `Армия противника уничтожена. ${s.winner === 'draw' ? 'Ничья!' : `Победа: ${FACTION_NAME[s.winner]}!`}`, 'minimal')
@@ -1183,6 +1214,7 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       if (s.phase === 'command') {
         reanimate(s, r)
         holdScoutedObjectives(s, s.activePlayer)
+        missionCommandEnd(s)
       }
       const i = PHASES.indexOf(s.phase)
       if (i === PHASES.length - 1) endTurn(s, r)
@@ -1192,6 +1224,22 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
         const window: ReactionWindow | null = s.phase === 'movement' ? 'beforeShooting' : s.phase === 'charge' ? 'afterCharges' : null
         if (!(window && openReaction(s, window, next))) enterPhase(s, next, r)
       }
+      break
+    }
+    case 'secondary':
+      applySecondary(s, s.activePlayer, cmd.op, cmd.card)
+      break
+    case 'arrive':
+      arrive(s, cmd.unitId, cmd.positions, !!cmd.rapid)
+      if (s.reaction && !reactionCommands(s).length) closeReaction(s, r)
+      break
+    case 'startAction': {
+      const u = findUnit(s, cmd.unitId)!
+      const id = PRIMARY[s.mission!.primary].action!
+      u.action = { id, objectiveId: cmd.objectiveId }
+      u.shot = true
+      const n = s.objectives.findIndex((o) => o.id === cmd.objectiveId) + 1
+      addLog(s, `${u.name} начинает действие «${MISSION_ACTION[id].name}» у цели Ц${n}: в этот ход отряд не стреляет и не атакует; действие завершится в конце хода, если цель останется за вами.`, 'minimal')
       break
     }
     case 'callWaaagh': {
@@ -1550,9 +1598,12 @@ export function startGame(s0: GameState, r: Roller): GameState {
   refreshFocus(s)
   pushDice(s, 'Бросок за первый ход', [{ label: `${FACTION_NAME[west]} / ${FACTION_NAME[east]}`, target: '—', dice: rolls.map((v) => ({ value: v, success: true })) }], `Первым ходит: ${FACTION_NAME[s.firstPlayer]}.`)
   addLog(s, `===== Раунд 1 ===== Первым ходит: ${FACTION_NAME[s.firstPlayer]}.`, 'minimal')
+  if (s.mission) addLog(s, `Основная миссия (обе стороны): ${PRIMARY[s.mission.primary].name} (${PRIMARY[s.mission.primary].nameEn}).`, 'minimal')
   // the start of the first battle round: the detachment rules that act then
   if (sidesOf(s).includes('tyranids') && detachmentOn(s, 'tyranids')) s.players.tyranids.hyperAdaptation = null
   radBombardment(s, r)
+  // the first turn's kills are counted from here (Rad-bombardment comes before the battle's first turn)
+  missionTurnStart(s)
   enterPhase(s, 'command', r)
   s.rng = r.state()
   return s
@@ -1592,8 +1643,15 @@ export function unitActions(s: GameState, unitId: string): ActionInfo[] {
     for (const f of s.units.filter((x) => x.owner === u.owner && !isDestroyed(x) && x.battleShocked))
       add(`engram:${f.id}`, `Энграмматическая логика: снять боевой шок с «${f.name}» (раз за битву)`, { type: 'engrammatic', unitId, targetId: f.id })
   if (hasAbility(u, 'defendDivineWork')) add('divineWork', 'Защита божественного труда (4+ инвуль, раз за битву)', { type: 'divineWork', unitId })
-  if (s.phase === 'shooting')
+  if (s.phase === 'shooting') {
+    const act = s.mission && PRIMARY[s.mission.primary].action
+    if (act)
+      s.objectives.forEach((o, i) => {
+        if (unitNearObjective(u, o))
+          add(`action:${o.id}`, `🛰 Действие «${MISSION_ACTION[act].name}» у цели Ц${i + 1} (вместо стрельбы)`, { type: 'startAction', unitId, objectiveId: o.id })
+      })
     for (const e of enemiesOf(s, u)) add(`shoot:${e.id}`, `Стрелять по «${e.name}»`, { type: 'shoot', unitId, targetId: e.id })
+  }
   if (s.phase === 'charge') {
     if (s.pendingCharge?.unitId === unitId) {
       for (const t of s.pendingCharge.targets) add(`charge:${t}`, `Атаковать «${findUnit(s, t)!.name}»`, { type: 'chargeMove', unitId, targetIds: [t] })
@@ -1805,6 +1863,12 @@ export function reactionCommands(s: GameState): Command[] {
       const targeted = id === 'fireOverwatch' || id === 'heroicIntervention'
       const cmds: Command[] = targeted ? foes.map((e) => ({ type: 'stratagem', id, unitId: u.id, targetId: e.id })) : [{ type: 'stratagem', id, unitId: u.id }]
       for (const c of cmds) if (validate(s, c).ok) out.push(c)
+    }
+  // Rapid Ingress: one command per reserve unit that has a legal spot (the player picks the spot in the prompt)
+  if (s.reaction.window === 'beforeShooting')
+    for (const u of reservesOf(s, me)) {
+      const pos = arrivalSpot(s, u, aiArrivalTarget(s, me), true)
+      if (pos) out.push({ type: 'arrive', unitId: u.id, positions: pos, rapid: true })
     }
   return out
 }

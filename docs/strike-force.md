@@ -49,9 +49,13 @@ The new pieces stay between x 11″ and 33″, so the training rosters keep thei
 
 Own lists from the army builder. A side without a list plays its 1000-point preset. Both armies start in the deployment preset that suits them, as on «Боевой патруль».
 
+## Reserves
+
+Up to half of the army may wait in Strategic Reserves and arrive from round 2 (see [reserves.md](reserves.md)).
+
 ## Scoring
 
-Scoring is still the training rule, 5 VP per objective. 11th edition missions are the next step.
+A primary mission of the 11th edition, both sides playing the same one (see [missions.md](missions.md)). The «Учебный счёт» option keeps the training rule, 5 VP per objective.
 
 ## Tests
 
