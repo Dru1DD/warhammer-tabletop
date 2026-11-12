@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { TOKENS } from '../../assets/manifest'
-import { composeUnit, listProblems, parseArmyList, type ArmyList } from '../army/armyList'
+import { TOKENS, tokenImageFor } from '../../assets/manifest'
+import { composeUnit, listProblems, parseArmyList, presetList, type ArmyList, type PointsLimit } from '../army/armyList'
+import { decide } from '../ai/ai'
+import { seededRoller } from '../dice/dice'
+import { apply, startGame, validate } from '../engine'
+import { scenarioById } from '../scenarios/scenarios'
+import type { GameState, PlayerId } from '../types'
 import { listUnits } from '../army/placement'
 import { loadoutOf, loadoutProblems, WARGEAR } from '../army/wargear'
-import { PROFILES, WEAPONS } from '../data/datasheets'
+import { DATASHEETS, PROFILES, WEAPONS } from '../data/datasheets'
+import { legalSizes } from '../data/points'
 
 describe('wargear data', () => {
   it('every variant is a model profile with known weapons and a token', () => {
@@ -74,4 +80,76 @@ describe('loadouts', () => {
     const list: ArmyList = { limit: 500, units: [{ datasheetId: 'rangers', size: 10, loadout: { counts: { rangerArc: 1, rangerArquebus: 1 } } }] }
     expect(listProblems('adeptus_mechanicus', list).join(' ')).toContain('Особое оружие')
   })
+})
+
+describe('wargear of the other armies', () => {
+  it('every army has options, and every default composition is within the limits (except the Rangers, see docs)', () => {
+    const factions = new Set(Object.keys(WARGEAR).map((id) => DATASHEETS[id].faction))
+    expect([...factions].sort()).toEqual(['adeptus_mechanicus', 'aeldari', 'marines', 'necrons', 'orks', 'tyranids'])
+    for (const [id, spec] of Object.entries(WARGEAR))
+      for (const n of legalSizes(id)) {
+        if (id === 'rangers') continue
+        expect(loadoutProblems(id, n, loadoutOf(spec, composeUnit(id, n))), `${id} x${n}`).toEqual([])
+      }
+  })
+
+  it('a variant keeps the base model and changes only its weapons, save or wounds', () => {
+    expect(PROFILES.lychguardShield).toMatchObject({ t: PROFILES.lychguard.t, w: PROFILES.lychguard.w, invuln: 4, weapons: ['hyperphaseSword'] })
+    expect(PROFILES.captainShield.w).toBe(PROFILES.captain.w + 1)
+    expect(PROFILES.immortalTesla.weapons).toContain('teslaCarbine')
+  })
+
+  it('Guardian Defenders need exactly one Heavy Weapon Platform', () => {
+    expect(loadoutProblems('guardianDefenders', 11, { counts: {} }).join(' ')).toContain('ровно одна')
+    expect(loadoutProblems('guardianDefenders', 11, { counts: { platformLance: 1, platformScatter: 1 } }).join(' ')).toContain('не больше 1')
+    const models = composeUnit('guardianDefenders', 11, { counts: { platformLance: 1 } })
+    expect(models.filter((p) => p === 'platformLance')).toHaveLength(1)
+    expect(models.filter((p) => p === 'guardian')).toHaveLength(10)
+  })
+
+  it('per-N limits scale with the unit size: Boyz get one special weapon of each kind per 10 models', () => {
+    expect(loadoutProblems('boyz', 20, { leader: 'nobKlawRokkit', counts: { boyBigShoota: 2, boyRokkit: 2, boyBurna: 2 } })).toEqual([])
+    expect(loadoutProblems('boyz', 10, { counts: { boyBurna: 2 } }).join(' ')).toContain('Бурна')
+  })
+
+  it('variants without their own token borrow the token and art of their base model', () => {
+    expect(TOKENS.captainPlasma).toEqual(TOKENS.captain)
+    expect(tokenImageFor('immortalTesla')).toBe(tokenImageFor('immortal'))
+  })
+})
+
+describe('battles with the new wargear', () => {
+  /** Every unit with options takes its most unusual loadout: the last leader option and the last variant of each group. */
+  const geared = (faction: PlayerId, limit: PointsLimit): ArmyList => {
+    const list = presetList(faction, limit)
+    list.units = list.units.map((e) => {
+      const spec = WARGEAR[e.datasheetId]
+      if (!spec) return e
+      const counts: Record<string, number> = {}
+      let free = e.size - (spec.leader ? 1 : 0)
+      for (const g of spec.groups) {
+        const last = g.variants[g.variants.length - 1]
+        const n = Math.min(g.max(e.size), g.variantMax?.[last.profile] ?? Infinity, free)
+        if (n > 0) { counts[last.profile] = n; free -= n }
+      }
+      return { ...e, loadout: { ...(spec.leader ? { leader: spec.leader[spec.leader.length - 1].profile } : {}), counts } }
+    })
+    return list
+  }
+
+  for (const [a, b] of [['marines', 'orks'], ['tyranids', 'necrons'], ['aeldari', 'adeptus_mechanicus']] as [PlayerId, PlayerId][])
+    it(`${a} against ${b}: every AI command stays legal`, { timeout: 120_000 }, () => {
+      const lists = { [a]: geared(a, 500), [b]: geared(b, 500) }
+      expect(listProblems(a, lists[a]!)).toEqual([])
+      expect(listProblems(b, lists[b]!)).toEqual([])
+      let s: GameState = startGame(scenarioById('combat-patrol').build([a, b], lists), seededRoller(7))
+      for (let i = 0; i < 400 && !s.winner; i++) {
+        const d = decide(s, 'standard')
+        if (!d) break
+        const v = validate(s, d.cmd)
+        expect(v.ok, JSON.stringify(d.cmd)).toBe(true)
+        s = apply(s, d.cmd, seededRoller(s.rng))
+      }
+      expect(s.round).toBeGreaterThanOrEqual(2)
+    })
 })

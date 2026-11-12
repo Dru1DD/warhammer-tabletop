@@ -1,3 +1,4 @@
+import { WARGEAR_VARIANTS, WARGEAR_WEAPONS } from './wargearExtra'
 import type { Datasheet, ModelProfile, PlayerId, Weapon } from '../types'
 import { AELDARI_ABILITY_TEXT, AELDARI_DATASHEETS, AELDARI_PROFILES, AELDARI_WEAPONS } from './aeldari'
 import { AELDARI_EXTRA_ABILITY_TEXT, AELDARI_EXTRA_DATASHEETS, AELDARI_EXTRA_PROFILES, AELDARI_EXTRA_WEAPONS } from './aeldariExtra'
@@ -237,8 +238,14 @@ const CORE_ABILITY_TEXT: Record<string, string> = {
   waaagh: 'Waaagh! (правило армии): переброс броска продвижения; раз за битву — «Боевой клич»: до конца следующего хода отряд «разъярён» — 5+ непробиваемый спас, оружие дальнего боя получает Assault, можно атаковать после продвижения.',
 }
 
-export const WEAPONS: Record<string, Weapon> = { ...CORE_WEAPONS, ...TYRANID_WEAPONS, ...NECRON_WEAPONS, ...AELDARI_WEAPONS, ...MECHANICUS_WEAPONS, ...ORK_WEAPONS, ...MARINE_WEAPONS, ...TYRANID_EXTRA_WEAPONS, ...NECRON_EXTRA_WEAPONS, ...AELDARI_EXTRA_WEAPONS }
+export const WEAPONS: Record<string, Weapon> = { ...WARGEAR_WEAPONS, ...CORE_WEAPONS, ...TYRANID_WEAPONS, ...NECRON_WEAPONS, ...AELDARI_WEAPONS, ...MECHANICUS_WEAPONS, ...ORK_WEAPONS, ...MARINE_WEAPONS, ...TYRANID_EXTRA_WEAPONS, ...NECRON_EXTRA_WEAPONS, ...AELDARI_EXTRA_WEAPONS }
 export const PROFILES: Record<string, ModelProfile> = { ...CORE_PROFILES, ...TYRANID_PROFILES, ...NECRON_PROFILES, ...AELDARI_PROFILES, ...MECHANICUS_PROFILES, ...ORK_PROFILES, ...MARINE_PROFILES, ...TYRANID_EXTRA_PROFILES, ...NECRON_EXTRA_PROFILES, ...AELDARI_EXTRA_PROFILES }
+// wargear variants (army builder loadouts): an existing profile with other weapons
+for (const x of WARGEAR_VARIANTS) {
+  const base = PROFILES[x.from]
+  if (!base) throw new Error(`Wargear variant «${x.id}»: no profile «${x.from}».`)
+  PROFILES[x.id] = { ...base, id: x.id, name: x.name, weapons: x.weapons, ...(x.invuln ? { invuln: x.invuln } : {}), ...(x.w ? { w: x.w } : {}) }
+}
 export const DATASHEETS: Record<string, Datasheet> = { ...CORE_DATASHEETS, ...TYRANID_DATASHEETS, ...NECRON_DATASHEETS, ...AELDARI_DATASHEETS, ...MECHANICUS_DATASHEETS, ...ORK_DATASHEETS, ...MARINE_DATASHEETS, ...TYRANID_EXTRA_DATASHEETS, ...NECRON_EXTRA_DATASHEETS, ...AELDARI_EXTRA_DATASHEETS }
 export const ABILITY_TEXT: Record<string, string> = { ...CORE_ABILITY_TEXT, ...TYRANID_ABILITY_TEXT, ...NECRON_ABILITY_TEXT, ...AELDARI_ABILITY_TEXT, ...MECHANICUS_ABILITY_TEXT, ...ORK_ABILITY_TEXT, ...MARINE_ABILITY_TEXT, ...TYRANID_EXTRA_ABILITY_TEXT, ...NECRON_EXTRA_ABILITY_TEXT, ...AELDARI_EXTRA_ABILITY_TEXT }
 

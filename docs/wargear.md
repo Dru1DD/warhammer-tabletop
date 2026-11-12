@@ -1,4 +1,4 @@
-# Wargear options (pilot: Adeptus Mechanicus)
+# Wargear options
 
 In the army builder, a unit with wargear options gets a «⚙» button. It opens an editor with these parts:
 
@@ -50,6 +50,38 @@ A unit without a loadout keeps its old default composition, so presets, scenario
 - The Sicarian Princeps keeps the default weapons: the datasheet does not say whether it may swap.
 - **The default Skitarii Rangers break the 11th edition limit.** They have both an arc rifle and a plasma caliver, but the datasheet allows one special weapon per unit. The editor shows this as soon as it is opened. The default composition itself (`COMPOSITION.rangers` in `army/armyList.ts`) is left as it is: changing it would change every existing game and the golden test, so it is worth a separate decision.
 
+## The other armies
+
+| Army | Units with options |
+|---|---|
+| Space Marines | Captain (6 loadouts, including a relic shield with +1 W), Lieutenant (5, including a storm shield with a 4+ invulnerable save), Intercessors (Sergeant's melee weapon, one grenade launcher per 5 models), Assault Intercessors (Sergeant, 6), Hellblasters and Bladeguard (Sergeant's pistol), Redemptor (6 weapon sets, including the Heavy Onslaught Gatling Cannon and the Icarus Rocket Pod) |
+| Orks | Warboss (6), Boyz (Nob, 5 loadouts; per 10 models one big shoota, one rokkit launcha and one burna), Nobz (per 5 models: big skorcha, kustom big shoota, big choppa; any number: kombi-rokkit), Kommandos (Nob, and up to 1 burna, 1 rokkit, 1 breacha ram, 2 kustom shootas), Deff Dread (6 weapon sets) |
+| Tyranids | Hive Tyrant (6), Tyranid Warriors (any number: deathspitter or spinefists; per 3 models a venom cannon and a barbed strangler), Termagants (any number: devourer or spinefists; per 10 models a shardlauncher, a spike rifle and a strangleweb), Carnifexes (5 loadouts, any number) |
+| Necrons | Overlord (staff of light, voidscythe), Necron Warriors (gauss reaper), Immortals (tesla carbine), Lychguard (hyperphase sword and dispersion shield, 4+ invulnerable save), Canoptek Wraiths (particle caster, transdimensional beamer, whip coils) |
+| Aeldari | Farseer (singing spear), Autarch (6), Guardian Defenders (exactly one Heavy Weapon Platform: shuriken cannon, missile launcher, bright lance, scatter laser or starcannon), Dire Avengers and Swooping Hawks (Exarch, 5 and 4), Wraithguard (D-scythe), Windriders (scatter laser, shuriken cannon) |
+
+New data lives in `data/wargearExtra.ts`:
+
+- **New weapons:** 58 of them, among them the hand flamer, thunder hammer, neo-volkite pistol, power klaw, kombi-weapons with both profiles, burna, kustom mega-blasta, spinefists, tesla carbine, D-scythe and reaper launcher.
+- **Model variants:** 93, each built from an existing profile with other weapons, and for shields another invulnerable save or Wounds.
+- **Tokens:** a variant without its own token and art borrows those of its base model.
+- **Options:** described in `army/wargearOthers.ts`.
+
+Simplifications:
+
+- **Single-model units with many combinations:** where one model combines two weapon slots in many ways (Captain, Warboss, Deff Dread, Redemptor, Autarch, Carnifex, Hive Tyrant), the builder offers the common combinations, not every one.
+- **Not modelled:**
+  - Melta (no such keyword in the engine);
+  - the Heavy Onslaught Gatling Cannon's Devastating Wounds against infantry only;
+  - Paired Krumpas (+5 points);
+  - the Plasmacyte;
+  - the resurrection orb;
+  - the second Nob of a 20-Boy unit;
+  - the Exarchs' Aspect Shrine tokens.
+- **Shared allowances:** where Wahapedia lists per-N options as separate bullets (Boyz, Termagants, Tyranid Warriors), each has its own allowance.
+
+All default compositions are within the limits, except the Rangers (see above). `wargear.test.ts` also plays three AI-against-AI battles in which every unit takes an unusual loadout, and checks that every command stays legal.
+
 ## Next
 
-The same for the other five armies, then detachment Enhancements (points, for characters).
+Detachment Enhancements (points, for characters).
