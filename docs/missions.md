@@ -1,5 +1,7 @@
 # Primary missions (44″×60″ battle)
 
+Secondary missions are described in [secondaries.md](secondaries.md).
+
 The «Битва 44″×60″» scenario is played for a primary mission. The cards come from the Mission Deck 2026-27 (Chapter Approved, Wahapedia). Both sides play the same card, as in the **Mirrored World** twist: Battlefield Dominance, Meatgrinder, Outmanoeuvre, Gather Intel or Sabotage.
 
 The start screen offers:

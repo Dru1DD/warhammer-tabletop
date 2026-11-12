@@ -6,6 +6,18 @@ import type { ArmyList } from '../army/armyList'
 import { musterArmy } from '../army/placement'
 import { presetList } from '../army/armyList'
 import { newMission, pickPrimary } from '../rules/missions'
+import { newSecondary } from '../rules/secondaries'
+import type { SecondaryId } from '../types'
+
+/** Options of a board with several maps and missions (44″×60″); 'random' or absent picks one. */
+export interface BuildOptions {
+  mapId?: string
+  layoutId?: string
+  /** a primary mission id, 'random' or 'training' (5 VP per objective) */
+  primary?: string
+  /** secondary missions by side ('tactical' when absent), or 'none' for a battle without them */
+  secondaries?: 'none' | Partial<Record<PlayerId, { mode: 'tactical' | 'fixed'; fixed?: SecondaryId[] }>>
+}
 import { LAYOUT_NAME, layoutFor, MAPS, PATROL_LAYOUT_NAME, patrolLayout, pickLayout, pickMap, type LayoutId, type MapId } from './strikeForce'
 
 /** Army lists by faction; a faction without one fields its default training roster. */
@@ -22,7 +34,7 @@ export interface Scenario {
   factions: PlayerId[]
   /** `sides` = [west, east] factions; default Space Marines (west) vs Orks (east). `opts`: the map and layout of a
    * board that has several (44″×60″); 'random' or absent picks one. */
-  build: (sides?: [PlayerId, PlayerId], armies?: Armies, terrain?: Terrain[], opts?: { mapId?: string; layoutId?: string; primary?: string }) => GameState
+  build: (sides?: [PlayerId, PlayerId], armies?: Armies, terrain?: Terrain[], opts?: BuildOptions) => GameState
   /** true when the board takes army lists from the army builder (`armies` in `build`, set up around `terrain` if given) */
   customArmies?: boolean
 }
@@ -359,6 +371,13 @@ export const SCENARIOS: Scenario[] = [
       state.layoutId = layoutId
       // the primary mission (both sides play the same one: Mirrored World); 'training' keeps 5 VP per objective
       if (opts.primary !== 'training') state.mission = newMission(state, pickPrimary(opts.primary))
+      // secondaries: each side Tactical unless its options say Fixed; 'none' turns them off for both
+      const sec = opts.secondaries
+      if (sec !== 'none')
+        state.secondary = Object.fromEntries(sides.map((f) => {
+          const cfg = sec?.[f]
+          return [f, newSecondary(cfg?.mode ?? 'tactical', cfg?.fixed)]
+        })) as GameState['secondary']
       for (const f of sides) musterArmy(state, f, armies[f] ?? presetList(f, 1000))
       // a pure custom list plays without its detachment
       for (const f of sides) if (armies[f]?.noDetachment) state.players[f].noDetachment = true

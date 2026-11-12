@@ -48,6 +48,7 @@ import { fileToTokenDataUrl } from './imageUpload'
 import { UnitRoleTips } from './UnitRoleTips'
 import { leaveRoom } from '../multiplayer/session'
 import { MISSION_ACTION, PRIMARY, PRIMARY_CAP, primaryTotal, ROUND_CAP } from '../game/rules/missions'
+import { FIXED_CARD_CAP, SECONDARY, SECONDARY_CAP, SECONDARY_ROUND_CAP, secondaryTotal } from '../game/rules/secondaries'
 
 
 /** Who plays the other side: the computer in single-player, a person online. */
@@ -324,6 +325,7 @@ export function ActionPanel() {
         <PhaseTrack game={game} myTurn={myTurn} />
       )}
       {game.mission && <MissionCard game={game} />}
+      {game.secondary && <SecondaryPanel game={game} me={human} />}
       {!game.winner && explain !== 'minimal' && (
         <details className="text-xs text-stone-300">
           <summary className="cursor-pointer text-sky-300">Правила фазы</summary>
@@ -1031,6 +1033,56 @@ function MissionCard({ game }: { game: GameState }) {
       <p className="mt-1 text-stone-400">Лимит: {ROUND_CAP} ПО за раунд, {PRIMARY_CAP} за битву (очки конца битвы — вне лимита раунда).</p>
       {busy.length > 0 && <p className="mt-1 text-amber-200">Выполняют действие: {busy.map((u) => `${u.name} (${objName(u.action!.objectiveId)})`).join(', ')}.</p>}
       {m.markers.length > 0 && <p className="mt-1 text-stone-300">Маркеры операции: {sidesOf(game).map((p) => `${FACTION_NAME[p]} — ${m.markers.filter((x) => x.owner === p).map((x) => objName(x.objectiveId)).join(', ') || 'нет'}`).join('; ')}.</p>}
+    </details>
+  )
+}
+
+/** Secondary missions: the player's active cards (with the swap / discard buttons), and both sides' VP. */
+function SecondaryPanel({ game, me }: { game: GameState; me: PlayerId }) {
+  const st = useStore()
+  const sec = game.secondary!
+  const mine = sec[me]
+  const foe = other(game, me)
+  const run = (cmd: Command) => st.dispatch(cmd)
+  if (!mine) return null
+  return (
+    <details className="rounded border border-sky-700 bg-sky-950/40 p-2 text-xs" open>
+      <summary className="cursor-pointer font-semibold text-sky-200">🃏 Вторичные: {mine.mode === 'tactical' ? 'тактические' : 'фиксированные'} — {secondaryTotal(mine)}/{SECONDARY_CAP} ПО</summary>
+      {mine.active.length === 0 && <p className="mt-1 text-stone-400">{mine.mode === 'tactical' ? 'Карты берутся в начале вашей фазы командования.' : 'Нет карт.'}</p>}
+      {mine.active.map((c) => {
+        const card = SECONDARY[c]
+        const swap: Command = { type: 'secondary', op: 'swap', card: c }
+        const marked = mine.toDiscard.includes(c)
+        return (
+          <div key={c} className="mt-1 rounded bg-stone-900/60 p-1.5">
+            <div className="font-semibold">{card.name} <span className="font-normal text-stone-400">({card.nameEn})</span>{mine.mode === 'fixed' && <span className="text-stone-400"> · {mine.cardVp[c] ?? 0}/{FIXED_CARD_CAP}</span>}</div>
+            <div className="text-stone-300">{mine.mode === 'fixed' && card.fixedText ? card.fixedText : card.text}</div>
+            {c === 'beacon' && mine.beacon && <div className="text-amber-200">Маяк: {game.units.find((u) => u.id === mine.beacon)?.name}</div>}
+            {c === 'temptingTarget' && mine.tempting && <div className="text-amber-200">Цель: Ц{game.objectives.findIndex((o) => o.id === mine.tempting) + 1}</div>}
+            {mine.mode === 'tactical' && game.activePlayer === me && !game.winner && (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {validate(game, swap).ok && <button className="btn text-xs" onClick={() => run(swap)} title="Раз за битву, в своей фазе командования">🔄 Сменить за 1 CP</button>}
+                <button className={`btn text-xs ${marked ? 'btn-primary' : ''}`} onClick={() => run({ type: 'secondary', op: 'discard', card: c })} title="Карта уйдёт в конце хода, после подсчёта, если не выполнена">{marked ? '✓ Сбросить в конце хода (+1 CP)' : '🗑 Сбросить в конце хода за +1 CP'}</button>
+              </div>
+            )}
+          </div>
+        )
+      })}
+      {mine.achieved.length > 0 && <p className="mt-1 text-emerald-300">Выполнены: {mine.achieved.map((a) => `${SECONDARY[a.card].name} (+${a.vp}, Р${a.round})`).join(', ')}.</p>}
+      <table className="mt-2 w-full text-center">
+        <thead><tr className="text-stone-400"><th className="text-left">Вторичные</th>{[1, 2, 3, 4, 5].map((r) => <th key={r} className={r === game.round ? 'text-sky-300' : ''}>Р{r}</th>)}<th>Всего</th></tr></thead>
+        <tbody>
+          {sidesOf(game).filter((p) => sec[p]).map((p) => (
+            <tr key={p}>
+              <td className="text-left">{FACTION_NAME[p]}</td>
+              {[1, 2, 3, 4, 5].map((r) => <td key={r}>{sec[p].byRound[r] || '·'}</td>)}
+              <td className="font-semibold">{secondaryTotal(sec[p])}/{SECONDARY_CAP}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {sec[foe] && <p className="mt-1 text-stone-400">У противника ({sec[foe].mode === 'tactical' ? 'тактические' : 'фиксированные'}): {sec[foe].active.map((c) => SECONDARY[c].name).join(', ') || 'нет активных карт'}.</p>}
+      <p className="mt-1 text-stone-400">Лимит: {SECONDARY_ROUND_CAP} ПО за раунд, {SECONDARY_CAP} за битву{mine.mode === 'fixed' ? `, ${FIXED_CARD_CAP} на карту` : ''}. Выбор «когда взята» (маяк, цель, замена невыполнимой карты) делает игра.</p>
     </details>
   )
 }

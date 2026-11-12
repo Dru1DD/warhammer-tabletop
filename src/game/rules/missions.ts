@@ -98,7 +98,6 @@ export function newMission(s: GameState, primary: PrimaryId): MissionState {
     byRound: Object.fromEntries(sidesOf(s).map((p) => [p, [0, 0, 0, 0, 0, 0]])) as Record<PlayerId, number[]>,
     endVp: zero(),
     markers: [],
-    deadAtTurnStart: [],
     lostLastTurn: zero(),
   }
 }
@@ -170,12 +169,20 @@ export function missionCommandEnd(s: GameState) {
   commandScoring(s, s.activePlayer)
 }
 
-/** Units destroyed so far, by owner. */
-const deadIds = (s: GameState) => s.units.filter((u) => isDestroyed(u)).map((u) => u.id)
-
-/** A new turn starts: remember who is already dead, to count this turn's losses at its end. */
+/** A new turn starts: remember who is already dead and who stands on objectives, to count this turn's kills at its end. */
 export function missionTurnStart(s: GameState) {
-  if (s.mission) s.mission.deadAtTurnStart = deadIds(s)
+  if (!s.mission && !s.secondary) return
+  s.turnStart = {
+    deadUnits: s.units.filter((u) => isDestroyed(u)).map((u) => u.id),
+    deadModels: s.units.flatMap((u) => u.models.filter((m) => m.destroyed).map((m) => m.id)),
+    onObjective: s.units.filter((u) => !isDestroyed(u) && s.objectives.some((o) => unitNearObjective(u, o))).map((u) => u.id),
+  }
+}
+
+/** Units of `p` destroyed this turn. */
+export const unitsLostThisTurn = (s: GameState, p: PlayerId) => {
+  const before = new Set(s.turnStart?.deadUnits ?? [])
+  return s.units.filter((u) => u.owner === p && isDestroyed(u) && !before.has(u.id))
 }
 
 /** Does this unit's action complete: alive, near its objective, and its owner controls the objective? */
@@ -189,8 +196,7 @@ export function missionTurnEnd(s: GameState) {
   const m = s.mission
   if (!m) return
   const p = s.activePlayer, foe = other(s, p)
-  const before = new Set(m.deadAtTurnStart)
-  const lost = Object.fromEntries(sidesOf(s).map((x) => [x, s.units.filter((u) => u.owner === x && isDestroyed(u) && !before.has(u.id)).length])) as Record<PlayerId, number>
+  const lost = Object.fromEntries(sidesOf(s).map((x) => [x, unitsLostThisTurn(s, x).length])) as Record<PlayerId, number>
 
   // objective actions complete (or fail) at the end of the turn
   const completed: UnitState[] = []

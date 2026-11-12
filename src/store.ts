@@ -14,7 +14,7 @@ import { parseArmies, type ArmyList } from './game/army/armyList'
 import { applyPreset, deployWithPreset, recommendedPreset, type DeployPresetId } from './game/army/deployPresets'
 import { deploymentIssues, deploymentProblem } from './game/rules/deployment'
 import { parseLayout } from './game/terrainLayout'
-import { FACTIONS, type Command, type ExplainLevel, type GameState, type PlayerId, type Terrain, type Vec } from './game/types'
+import { FACTIONS, type Command, type ExplainLevel, type GameState, type PlayerId, type SecondaryId, type Terrain, type Vec } from './game/types'
 import type { TutorialStart } from './ui/help'
 import { actionableUnits, canActNow } from './ui/guidance'
 
@@ -61,6 +61,9 @@ export interface Settings {
   layoutId?: string
   /** 44″×60″ board: the primary mission ('random' or absent = a random one; 'training' = 5 VP per objective) */
   primary?: string
+  /** 44″×60″ board: the player's secondaries (absent = Tactical; the AI always plays Tactical) and the two Fixed cards */
+  secondary?: 'tactical' | 'fixed' | 'none'
+  fixedCards?: SecondaryId[]
 }
 
 /** A measuring endpoint: a point, or a model base (r > 0) for edge-to-edge distance. */
@@ -249,7 +252,7 @@ function buildScenario(s: Settings): GameState {
   // the 44″×60″ boards change with the map, so a saved layout of the editor is not used there
   // nor on Combat Patrol when another layout than the original (A) is chosen
   const custom = sc.id === 'strike-force' || (sc.id === 'combat-patrol' && s.layoutId && s.layoutId !== 'A') ? null : parseLayout(savedLayouts()[sc.id])
-  const g = sc.build(sidesFor(s.human, s.opponent), battleArmies(s), custom ?? undefined, { mapId: s.mapId, layoutId: s.layoutId, primary: s.primary })
+  const g = sc.build(sidesFor(s.human, s.opponent), battleArmies(s), custom ?? undefined, { mapId: s.mapId, layoutId: s.layoutId, primary: s.primary, secondaries: s.secondary === 'none' ? 'none' : { [s.human]: { mode: s.secondary ?? 'tactical', fixed: s.fixedCards } } })
   if (custom) g.terrain = custom
   if (sc.customArmies) {
     // open battle: both armies start in the deployment preset that suits them (the AI first, unaware of the player)

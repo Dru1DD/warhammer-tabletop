@@ -211,6 +211,10 @@ describe('the AI plays the mission', () => {
     for (const p of ['adeptus_mechanicus', 'orks'] as PlayerId[]) {
       expect(primaryTotal(s.mission!, p)).toBeLessThanOrEqual(PRIMARY_CAP)
       for (const v of s.mission!.byRound[p]) expect(v).toBeLessThanOrEqual(ROUND_CAP)
+      // Tactical secondaries are on by default: drawn, scored within their caps
+      const sec = s.secondary![p]
+      expect(sec.byRound.reduce((x, y) => x + y, 0)).toBeLessThanOrEqual(45)
+      expect(sec.achieved.length + sec.active.length + sec.discarded.length).toBeGreaterThan(0)
     }
     expect(actions).toBeGreaterThan(0)
   })

@@ -4,7 +4,7 @@
 import { FACTION_NAME } from '../data/datasheets'
 import { dist, withinRange } from '../geometry/geometry'
 import {
-  alive, CHARGE_RANGE, datasheetOf, ledUnitOf, engagedUnits, enemiesOf, hasAbility, hasKeyword, inSynapseRange, isEngaged, isFlyer, isMV, modelInTerrain, objectiveLevels, other, profileOf,
+  alive, CHARGE_RANGE, OBJECTIVE_RANGE, datasheetOf, ledUnitOf, engagedUnits, enemiesOf, hasAbility, hasKeyword, inSynapseRange, isEngaged, isFlyer, isMV, modelInTerrain, objectiveLevels, other, profileOf,
   sidesOf, unitDistance, unitNearObjective, unitsOf, unitsWithin, weaponsOf, fmt,
 } from '../gameState'
 import { actor, FLY_PENALTY, hyperPending, maxMove, meleePlan, meleeSetup, meleeWeaponsOf, shootPlan, swiftBonusOf, validate, moveModeFor } from '../engine'
@@ -12,6 +12,7 @@ import { unitProfile } from '../army/roles'
 import { DOCTRINE_NAME, HYPER_NAME } from '../rules/detachments'
 import { moveProblem, planMove } from '../rules/movement'
 import { EXPLOSIVES_DICE, STRATAGEMS } from '../rules/stratagems'
+import { aiDiscards, SECONDARY, secondaryGoals } from '../rules/secondaries'
 import { inTerritory, MISSION_ACTION, objectiveWorth, PRIMARY, SABOTAGE_TERRITORY_BONUS } from '../rules/missions'
 import { reactionAdvice } from '../reactionAdvice'
 
@@ -248,6 +249,8 @@ function scorePosition(s: GameState, u: UnitState, level: AiLevel, mode: 'normal
     if (unitNearObjective(hypo, o)) obj += (mine > theirs ? 1 : 0.5) * objectiveWorth(s, u.owner, o)
     nearestObj = Math.min(nearestObj, Math.min(...alive(hypo).map((m) => dist(m.pos, o.pos))))
   }
+  // secondary missions: places worth standing on (centre, enemy zone, a chosen objective)
+  for (const g of secondaryGoals(s, u.owner)) if (alive(hypo).some((m) => dist(m.pos, g.pos) <= OBJECTIVE_RANGE)) obj += g.weight
   const nearestEnemy = Math.min(...enemies.map((e) => dTo.get(e)!))
   const cover = alive(hypo).every((m) => modelInTerrain(s, m)) ? 1 : 0
 
@@ -289,6 +292,7 @@ function candidateGoals(s: GameState, u: UnitState, level: AiLevel): { pos: Vec;
   if (nearestEnemy) goals.push({ pos: alive(nearestEnemy)[0].pos, label: 'к врагу' })
   const objs = [...s.objectives].sort((a, b) => dist(alive(u)[0].pos, a.pos) - dist(alive(u)[0].pos, b.pos))
   for (const o of level === 'beginner' ? objs.slice(0, 1) : objs) goals.push({ pos: o.pos, label: 'к цели' })
+  if (level !== 'beginner') for (const g of secondaryGoals(s, u.owner)) goals.push({ pos: g.pos, label: g.label })
   if (level === 'standard')
     for (const t of s.terrain) {
       const c = t.poly.reduce((a, p) => ({ x: a.x + p.x / t.poly.length, y: a.y + p.y / t.poly.length }), { x: 0, y: 0 })
@@ -635,6 +639,9 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
       return end(`${fac}: атаки не объявлены.`)
     }
     case 'fight': {
+      // stale Tactical secondaries go at the end of the turn, for 1 CP each
+      const stale = !s.fight && me === s.activePlayer ? aiDiscards(s, me)[0] : undefined
+      if (stale) return { cmd: { type: 'secondary', op: 'discard', card: stale }, explanation: `${fac}: вторичная «${SECONDARY[stale].name}» не даётся — сбросим её в конце хода за 1 CP.` }
       if (!s.fight) return end(`${fac}: бои завершены.`)
       for (const u of mine) {
         for (const e of engagedUnits(s, u).sort((a, b) => expectedMelee(s, u, b) - expectedMelee(s, u, a))) {

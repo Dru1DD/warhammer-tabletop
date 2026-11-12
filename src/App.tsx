@@ -8,6 +8,8 @@ import { actor } from './game/engine'
 import { deserialize, readStorage } from './game/persistence'
 import { mapLine, SCENARIOS } from './game/scenarios/scenarios'
 import { missionName, PRIMARY, PRIMARY_IDS } from './game/rules/missions'
+import { FIXED_IDS, SECONDARY } from './game/rules/secondaries'
+import type { SecondaryId } from './game/types'
 import { FACTIONS, type ExplainLevel, type PlayerId, type UnitState } from './game/types'
 import { AI_STEP_MS, AUTOSAVE_KEY, MANUAL_KEY, useStore, type Settings } from './store'
 import { ArmyBuilder } from './ui/ArmyBuilder'
@@ -204,6 +206,23 @@ function StartScreen() {
                   <option value="training">Учебный счёт — 5 ПО за цель со 2-го раунда</option>
                 </select>
               </label>
+              <label className="text-sm">Вторичные миссии (ваши; ИИ играет тактическими)
+                <select className="input" value={st.settings.secondary ?? 'tactical'} onChange={(e) => st.setSettings({ secondary: e.target.value as never })}>
+                  <option value="tactical">Тактические — две карты из колоды каждый ход</option>
+                  <option value="fixed">Фиксированные — две карты на всю битву</option>
+                  <option value="none">Без вторичных (у обоих)</option>
+                </select>
+              </label>
+              {st.settings.secondary === 'fixed' && [0, 1].map((i) => {
+                const cards = st.settings.fixedCards ?? ['assassination', 'bringItDown']
+                return (
+                  <label key={i} className="text-sm">Фиксированная карта {i + 1}
+                    <select className="input" value={cards[i]} onChange={(e) => { const next = [...cards]; next[i] = e.target.value as SecondaryId; st.setSettings({ fixedCards: next }) }}>
+                      {FIXED_IDS.filter((id) => id === cards[i] || id !== cards[1 - i]).map((id) => <option key={id} value={id}>{SECONDARY[id].name} ({SECONDARY[id].nameEn}) — {SECONDARY[id].fixedText}</option>)}
+                    </select>
+                  </label>
+                )
+              })}
             </>
           )}
           <label className="text-sm">Уровень ИИ

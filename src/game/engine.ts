@@ -12,6 +12,7 @@ import {
   updateObjectiveControl, weaponsOf, OBJECTIVE_MARKER_MM,
 } from './gameState'
 import { healUnit } from './rules/heal'
+import { applySecondary, secondaryCommandStart, secondaryProblem, secondaryTurnEnd } from './rules/secondaries'
 import { actionProblem, MISSION_ACTION, missionBattleEnd, missionCommandEnd, missionTurnEnd, missionTurnStart, PRIMARY } from './rules/missions'
 import { applyMortalWounds, resolveGroup, type AttackContext, type AttackGroup, type RerollHook, type RerollKind } from './combat/attack'
 import { moveProblem, planMove } from './rules/movement'
@@ -573,6 +574,11 @@ export function validate(s: GameState, cmd: Command): Validation {
     return OK
   }
 
+  if (cmd.type === 'secondary') {
+    const p = secondaryProblem(s, who, cmd.op, cmd.card)
+    return p ? fail(p) : OK
+  }
+
   if (cmd.type === 'imperative') {
     if (s.phase !== 'command') return fail('Империатив (Doctrina Imperative) выбирается в фазе командования.')
     if (s.players[who].imperative === undefined) return fail('Доктрины Империатива — правило армии Адептус Механикус.')
@@ -892,6 +898,7 @@ function commandPhase(s: GameState, r: Roller) {
   if (s.players[s.activePlayer].guide !== undefined) s.players[s.activePlayer].guide = null
   if (s.players[s.activePlayer].imperative !== undefined) s.players[s.activePlayer].imperative = null
   addLog(s, 'Оба игрока получают 1 очко командования (CP).', 'beginner')
+  secondaryCommandStart(s)
   s.shockPending = unitsOf(s, s.activePlayer).filter((u) => u.battleShocked || atHalfStrength(u)).map((u) => u.id)
   // Insane Bravery is used before the test: the player may answer first, then the tests are rolled
   if (!openReaction(s, 'beforeShockTests', 'command', s.activePlayer)) finishShockTests(s, r)
@@ -939,6 +946,7 @@ function endTurn(s: GameState, r: Roller) {
   for (const u of s.units) if (u.owner === s.activePlayer) delete u.disrupted
   updateObjectiveControl(s)
   missionTurnEnd(s)
+  secondaryTurnEnd(s)
   checkWinner(s)
   if (s.winner) return
   const second = other(s, s.firstPlayer)
@@ -1207,6 +1215,9 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       }
       break
     }
+    case 'secondary':
+      applySecondary(s, s.activePlayer, cmd.op, cmd.card)
+      break
     case 'startAction': {
       const u = findUnit(s, cmd.unitId)!
       const id = PRIMARY[s.mission!.primary].action!
