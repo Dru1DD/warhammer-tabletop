@@ -18,7 +18,9 @@ General rules:
 
 ## Where to find them
 
-- **The «📜 Стратагемы» card** in the right panel shows your CP, buttons for every Stratagem usable right now (for any of your units), and a list of what each one does and when it pays off.
+- **The «📜 Стратагемы» card** in the right panel shows your CP and every Stratagem usable right now. Each Stratagem has one «Применить» button per unit it can be used on (and per target), so no unit has to be selected first; the selected unit's Stratagems come first. Below is a list of what each one does and when it pays off.
+  - The buttons come from `stratagemActions` in the engine, the same list the unit's own action panel shows.
+  - Extinction Order is offered only for objectives with an enemy unit on them; on an empty one it would do nothing.
 - **The board's action bar** offers «🎲 Перебросить атаку (1 CP)» right after a charge roll, because that window closes with the next command.
 
 ## The AI
@@ -110,7 +112,7 @@ Some core Stratagems are used in the opponent's turn. The engine gives the other
 
 While a window is open, `GameState.reaction` is `{ player, window, next }` and `actor()` returns the reacting player. That player may only use a reaction from this window or send `{ type: 'passReaction' }`. The window then enters the `next` phase. It also closes by itself once no usable reaction is left. A window opens only when the reacting player has a reaction they can use: the CP, a unit in range, and the right keyword.
 
-- **Fire Overwatch** (1 CP): a unit not in combat shoots an enemy within 24″. It is Snap Shooting: hits only on an unmodified 6, with no hit re-rolls or critical-hit changes.
+- **Fire Overwatch** (1 CP): a unit not in combat shoots an enemy within 24″. It is Snap Shooting: hits only on an unmodified 6, with no hit re-rolls or critical-hit changes. This holds for Psychic weapons too, although they otherwise ignore hit penalties (`AttackContext.snap`).
 - **Smokescreen** (1 CP, SMOKE): the unit has cover for the rest of the turn.
 - **Heroic Intervention** (1 CP): a unit not in combat, within 12″ of an enemy that charged this phase, rolls 2D6 and moves into engagement with it. It does not count as having charged, so it gets no Fights First. A VEHICLE can do this only if it is a CHARACTER or WALKER.
 - **Epic Challenge** (1 CP, CHARACTER) is not a window reaction. It works in either player's Fight phase, just before the character fights: its melee attacks gain Precision for the phase.

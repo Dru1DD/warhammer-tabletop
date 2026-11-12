@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { decide } from '../ai/ai'
+import { decide, expectedGroupDamage } from '../ai/ai'
+import { resolveGroup } from '../combat/attack'
 import { DATASHEETS } from '../data/datasheets'
 import { scriptedRoller, type Roller } from '../dice/dice'
 import { actor, apply, meleeSetup, meleeWeaponsOf, shootPlan, validate } from '../engine'
@@ -166,5 +167,23 @@ describe('reaction advice and the AI', () => {
     const x = apply(s, { type: 'endPhase' }, always(3))
     const hi = reactionAdvice(x).find((o) => o.cmd.id === 'heroicIntervention')
     expect(hi?.worth).toBe(false)
+  })
+})
+
+describe('Snap Shooting with a Psychic weapon', () => {
+  // Psychic weapons ignore hit penalties, but Snap Shooting is not a penalty: it hits only on an unmodified 6
+  it('the Farseer\'s Eldritch Storm on Fire Overwatch hits only on 6s, and the advice prices it so', () => {
+    const s = battle('aeldari', 'marines', 'movement', 'marines')
+    for (const u of s.units) if (!['farseer', 'int'].includes(u.id)) place(s, u.id, [])
+    place(s, 'farseer', [{ x: 10, y: 10 }])
+    place(s, 'int', column(26, 8, 5))
+    const plan = shootPlan(s, unit(s, 'farseer'), unit(s, 'int'), { snap: true })
+    const storm = plan.groups.find((g) => g.profile.keywords.psychic)!
+    expect(storm.ctx.snap).toBe(true)
+    const hits = (v: number) => resolveGroup(always(v), 'Фарсир', storm, unit(s, 'int'), storm.ctx).steps.find((x) => x.label === 'Попадание')!.dice.filter((d) => d.success).length
+    expect(hits(5)).toBe(0)
+    expect(hits(6)).toBeGreaterThan(0)
+    const normal = shootPlan(s, unit(s, 'farseer'), unit(s, 'int')).groups.find((g) => g.profile.keywords.psychic)!
+    expect(expectedGroupDamage(storm, unit(s, 'int'))).toBeLessThan(expectedGroupDamage(normal, unit(s, 'int')) / 3)
   })
 })

@@ -105,8 +105,9 @@ export function expectedGroupDamage(g: AttackGroup & { ctx: AttackContext }, tar
   let pHitNormal: number, pCrit: number
   if (p.skill === null) { pHitNormal = 1; pCrit = 0 } else {
     const psy = !!p.keywords.psychic
-    const skill = Math.min(6, Math.max(2, p.skill + (psy ? 0 : g.ctx.skillWorsen)))
-    const mod = psy ? Math.max(0, Math.max(-1, Math.min(1, g.ctx.hitMod))) : Math.max(-1, Math.min(1, g.ctx.hitMod))
+    // Snap Shooting hits only on an unmodified 6, Psychic weapons included
+    const skill = g.ctx.snap ? 6 : Math.min(6, Math.max(2, p.skill + (psy ? 0 : g.ctx.skillWorsen)))
+    const mod = g.ctx.snap ? 0 : psy ? Math.max(0, Math.max(-1, Math.min(1, g.ctx.hitMod))) : Math.max(-1, Math.min(1, g.ctx.hitMod))
     const critOn = g.ctx.critHitOn ?? 6
     pCrit = (7 - critOn) / 6
     pHitNormal = pFace((v) => v !== 1 && v < critOn && v + mod >= skill)

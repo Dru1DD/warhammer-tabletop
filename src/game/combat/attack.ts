@@ -41,6 +41,8 @@ export interface AttackContext {
   skillNote?: string
   /** unmodified hit roll at or above this is a Critical Hit (default 6; Adrenal Surge, Blitzing Firepower: 5) */
   critHitOn?: number
+  /** Snap Shooting (Fire Overwatch): a hit only on an unmodified 6, for every weapon, Psychic ones included */
+  snap?: boolean
 }
 
 export function woundTarget(s: number, t: number): number {
@@ -140,8 +142,8 @@ export function resolveGroup(
   // the hit and wound tests, known up front so a re-roll can be priced (Psychic ignores the penalties, keeps bonuses)
   const psy = !!p.keywords.psychic
   const hr = hitRoll(p, ctx)
-  const skill = psy ? Math.min(6, Math.max(2, p.skill ?? 2)) : (hr.skill as number)
-  const mod = psy ? Math.max(0, hr.mod) : hr.mod
+  const skill = ctx.snap ? 6 : psy ? Math.min(6, Math.max(2, p.skill ?? 2)) : (hr.skill as number)
+  const mod = ctx.snap ? 0 : psy ? Math.max(0, hr.mod) : hr.mod
   const critOn = ctx.critHitOn ?? 6
   const passes = (x: number) => x !== 1 && (x >= critOn || x + mod >= skill)
   const t = toughness(target)
@@ -208,9 +210,10 @@ export function resolveGroup(
       dice.push({ value: v, success, critical: crit, ...(from !== undefined ? { rerolledFrom: from } : {}) })
     }
     const notes = [
-      ctx.skillWorsen > 0 && !psy ? `укрытие: навык ${p.skill}+ → ${skill}+` : '',
+      ctx.snap ? 'стрельба навскидку: попадает только «6»' : '',
+      ctx.skillWorsen > 0 && !psy && !ctx.snap ? `укрытие: навык ${p.skill}+ → ${skill}+` : '',
       ctx.skillWorsen < 0 ? `${ctx.skillNote ?? 'бонус'}: навык ${p.skill}+ → ${skill}+` : '',
-      psy && ctx.skillWorsen > 0 ? 'Psychic: укрытие и штрафы к попаданию игнорируются' : '',
+      psy && ctx.skillWorsen > 0 && !ctx.snap ? 'Psychic: укрытие и штрафы к попаданию игнорируются' : '',
       mod ? `модификатор ${mod > 0 ? '+' : ''}${mod} (${ctx.hitModNotes.join(', ')})` : '',
       rerolls ? `переброс (${ctx.rerollHits === 'all' ? 'все промахи' : 'единицы'}): ${rerolls}` : '',
       ...commandRerolls.slice(before),
@@ -337,6 +340,6 @@ export function resolveGroup(
     dice: ddice,
     note: `${ctx.damageMod ? `урон ${ctx.damageMod} (Dread 'Ard), не меньше 1; ` : ''}${damage} урона; уничтожено: ${killed}; в отряде осталось моделей: ${alive(target).length}`,
   })
-  if (fdice.length) steps.push({ label: 'Feel No Pain', target: `${ctx.fnp}+`, dice: fdice, note: `Каждая потерянная рана отменяется на ${ctx.fnp}+ (Lord of the Machine Cult): отменено ${fdice.filter((d) => d.success).length} из ${fdice.length}.` })
+  if (fdice.length) steps.push({ label: 'Feel No Pain', target: `${ctx.fnp}+`, dice: fdice, note: `Каждая потерянная рана отменяется на ${ctx.fnp}+ («Не чувствует боли»): отменено ${fdice.filter((d) => d.success).length} из ${fdice.length}.` })
   return { steps, summary, killed, damage, repulsed }
 }

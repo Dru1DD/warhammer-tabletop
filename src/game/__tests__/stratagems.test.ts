@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { decide } from '../ai/ai'
 import { scriptedRoller } from '../dice/dice'
-import { apply, maxMove, meleeSetup, meleeWeaponsOf, shootPlan, validate } from '../engine'
+import { apply, maxMove, meleeSetup, meleeWeaponsOf, shootPlan, stratagemActions, validate } from '../engine'
 import { rect } from '../geometry/geometry'
 import { stratagemAvailability } from '../rules/stratagems'
 import { reactionAdvice } from '../reactionAdvice'
@@ -295,5 +295,29 @@ describe('army Stratagems', () => {
       x = apply(x, d.cmd, scriptedRoller(Array.from({ length: 200 }, () => 4)))
     }
     expect(used).toContain('stormOfDevastation')
+  })
+})
+
+describe('stratagemActions: what the Stratagem panel lists for the whole army', () => {
+  it('Aggressor Imperative for every Skitarii unit that has not moved; Extinction Order only on objectives with an enemy', () => {
+    const s = battle('adeptus_mechanicus', 'aeldari', 'movement', 'adeptus_mechanicus')
+    s.players.adeptus_mechanicus.cp = 3
+    const ids = (unitId: string) => stratagemActions(s, unitId).map((a) => a.id)
+    expect(ids('rangers')).toContain('strat:aggressorImperative')
+    expect(ids('vanguard')).toContain('strat:aggressorImperative')
+    expect(ids('dominus')).not.toContain('strat:aggressorImperative')
+    s.phase = 'command'
+    // the Dominus at 15″ from the Guardians on objective 2; objective 1 is within reach but empty
+    place(s, 'dominus', [{ x: 10, y: 10 }])
+    place(s, 'guardians', column(25, 10, 11, 1.2))
+    s.objectives = [
+      { id: 'o1', pos: { x: 10, y: 30 }, controller: null },
+      { id: 'o2', pos: { x: 25, y: 10 }, controller: null },
+    ]
+    const orders = stratagemActions(s, 'dominus').filter((a) => a.id.startsWith('strat:extinctionOrder'))
+    expect(orders.map((a) => a.id)).toEqual(['strat:extinctionOrder:o2'])
+    // the engine itself still allows the empty one (it just does nothing there)
+    expect(validate(s, { type: 'stratagem', id: 'extinctionOrder', unitId: 'dominus', targetId: 'o1' }).ok).toBe(true)
+    expect(orders.map((a) => a.id)).not.toContain('strat:extinctionOrder:o1')
   })
 })

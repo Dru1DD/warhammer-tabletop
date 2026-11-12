@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { FACTION_STYLE, TOKENS, tokenImageFor } from '../assets/manifest'
 import { ABILITY_TEXT, FACTION_NAME, PROFILES } from '../game/data/datasheets'
 import { copyIndex, fmtPoints, pointsPerModel, unitPoints } from '../game/data/points'
-import { actor, moveAllowance, moveCommand, moveModeFor, PHASE_NAME, shootPlan, unitActions, validate } from '../game/engine'
+import { actor, moveAllowance, moveCommand, moveModeFor, PHASE_NAME, shootPlan, stratagemActions, unitActions, validate } from '../game/engine'
 import { alive, datasheetOf, engagedUnits, fmt, hasAbility, isDestroyed, isMV, other, profileOf, sidesOf, unitsOf, weaponsOf } from '../game/gameState'
 import { hitRoll, saveTarget, toughness, woundTarget } from '../game/combat/attack'
 import { fmtRandom } from '../game/dice/dice'
@@ -14,23 +14,28 @@ import { PHASES } from '../game/types'
 import { useStore } from '../store'
 import { weaponAdvice } from '../game/weaponAdvice'
 import { DETACHMENT, LATER_STRATAGEMS, STRATAGEM_IDS, STRATAGEMS } from '../game/rules/stratagems'
-import type { StratagemId } from '../game/types'
+import type { PlayerId, StratagemId } from '../game/types'
 
-/** Stratagems shown for any unit, not only the selected one: they are tied to a moment (a roll, a failed test). */
-const ANY_UNIT: StratagemId[] = ['commandReroll', 'insaneBravery', 'crushingImpact', 'feignedRetreat']
-
-/** The moment-bound Stratagems usable now by `u`, as action buttons (cheap checks only). */
-function momentStratagems(game: GameState, u: UnitState) {
-  const out: { id: string; label: string; ok: boolean; cmd: Command }[] = []
-  for (const id of ANY_UNIT) {
-    const x = STRATAGEMS[id]
-    const targets = id === 'crushingImpact' ? engagedUnits(game, u) : [undefined]
-    for (const t of targets) {
-      const cmd: Command = { type: 'stratagem', id, unitId: u.id, ...(t ? { targetId: t.id } : {}) }
-      if (validate(game, cmd).ok) out.push({ id: `strat:${id}:${t?.id ?? ''}`, label: `📜 ${x.name} (${x.cost} CP)${t ? ` по «${t.name}»` : ''}`, ok: true, cmd })
+/** Every Stratagem the player can use right now, grouped by Stratagem, with one button per unit (and target). */
+function usableStratagems(game: GameState, human: PlayerId, selected?: string) {
+  const groups = new Map<StratagemId, { unit: UnitState; cmd: Extract<Command, { type: 'stratagem' }> }[]>()
+  for (const u of unitsOf(game, human)) {
+    if (isDestroyed(u)) continue
+    for (const a of stratagemActions(game, u.id)) {
+      const cmd = a.cmd as Extract<Command, { type: 'stratagem' }>
+      groups.set(cmd.id, [...(groups.get(cmd.id) ?? []), { unit: u, cmd }])
     }
   }
-  return out
+  // the selected unit's Stratagems first
+  return [...groups].sort(([, a], [, b]) => Number(b.some((x) => x.unit.id === selected)) - Number(a.some((x) => x.unit.id === selected)))
+}
+
+/** «Рейнджеры», «Доминус → Ц2», «Катафроны → Бойз»: what a Stratagem button acts on. */
+function stratagemTarget(game: GameState, unit: UnitState, cmd: Extract<Command, { type: 'stratagem' }>) {
+  if (!cmd.targetId) return `«${unit.name}»`
+  const o = game.objectives.findIndex((x) => x.id === cmd.targetId)
+  const t = game.units.find((x) => x.id === cmd.targetId)
+  return `«${unit.name}» → ${o >= 0 ? `Ц${o + 1}` : `«${t?.name ?? cmd.targetId}»`}`
 }
 import { adviceLine, adviceWarnings, shotAdvice, type TargetAdvice } from '../game/shotAdvice'
 import { chargeForecast, forecastLine } from '../game/chargeAdvice'
@@ -349,15 +354,8 @@ function StratagemsPanel() {
   const beginner = st.settings.explain === 'beginner'
   const myTurn = actor(game) === human
   const cp = game.players[human].cp
-  // the selected unit's Stratagems, plus the ones that are about a moment rather than a unit choice (re-rolls, bravery…)
-  // the selected unit: every usable Stratagem; other units: only the cheap, moment-bound ones (no line of sight checks)
-  const sel = st.selectedUnitId ? unitsOf(game, human).find((u) => u.id === st.selectedUnitId) : undefined
-  const now = myTurn
-    ? [
-        ...(sel ? unitActions(game, sel.id).filter((a) => a.id.startsWith('strat:')).map((a) => ({ ...a, unit: sel })) : []),
-        ...unitsOf(game, human).filter((u) => u.id !== sel?.id).flatMap((u) => momentStratagems(game, u).map((a) => ({ ...a, unit: u }))),
-      ]
-    : []
+  // every Stratagem usable now, for any of the player's units (not only the selected one)
+  const now = myTurn ? usableStratagems(game, human, st.selectedUnitId ?? undefined) : []
   const later = LATER_STRATAGEMS.filter((x) => x.faction === human)
   return (
     <section className="rounded border border-violet-700/70 bg-violet-950/30 p-2 text-xs" aria-label="Стратагемы">
@@ -366,10 +364,18 @@ function StratagemsPanel() {
         <span className="rounded bg-violet-800 px-1.5 text-violet-50" title="Очки командования (Command points): +1 каждому игроку в каждой фазе командования">CP: {cp}</span>
       </div>
       {now.length > 0 ? (
-        <div className="mt-1 flex flex-col gap-1">
-          {now.map((a) => (
-            <div key={a.unit.id + a.id}>
-              <ActionButton cmd={a.cmd!} label={`${a.label} — «${a.unit.name}»`} />
+        <div className="mt-1 flex flex-col gap-1.5">
+          {now.map(([id, list]) => (
+            <div key={id} className="rounded border border-violet-800/60 p-1">
+              <div title={STRATAGEMS[id].text}>
+                <b className="text-violet-100">{STRATAGEMS[id].name}</b> ({STRATAGEMS[id].cost} CP)
+                {beginner && <span className="block text-[11px] text-emerald-300">{STRATAGEMS[id].when}</span>}
+              </div>
+              <div className="mt-1 flex flex-col gap-1">
+                {list.map((x) => (
+                  <ActionButton key={x.unit.id + (x.cmd.targetId ?? '')} cmd={x.cmd} label={`Применить: ${stratagemTarget(game, x.unit, x.cmd)}`} />
+                ))}
+              </div>
             </div>
           ))}
         </div>
@@ -392,7 +398,7 @@ function StratagemsPanel() {
         {later.length > 0 && (
           <p className="mt-1 text-[11px] text-stone-500">Ещё в детачменте «{DETACHMENT[human]}», пока нет: {later.map((x) => `${x.name} (${x.why})`).join('; ')}.</p>
         )}
-        <p className="mt-1 text-[10px] text-stone-500">Каждая стратагема — раз за фазу, на отряд — одна за фазу; на отряд в боевом шоке их применять нельзя. Кнопки показаны для выбранного отряда. Стратагемы в ход противника (огонь на опережение, дымовая завеса, героический перехват) игра предложит сама — в паузе, и только когда они выгодны.</p>
+        <p className="mt-1 text-[10px] text-stone-500">Каждая стратагема — раз за фазу, на отряд — одна за фазу; на отряд в боевом шоке их применять нельзя. Кнопки показаны для всех ваших отрядов, к которым стратагему можно применить прямо сейчас. Стратагемы в ход противника (огонь на опережение, дымовая завеса, героический перехват) игра предложит сама — в паузе, и только когда они выгодны.</p>
       </details>
     </section>
   )
