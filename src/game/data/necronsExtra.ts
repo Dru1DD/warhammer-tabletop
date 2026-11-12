@@ -1,4 +1,5 @@
 import type { Datasheet, ModelProfile, Weapon } from '../types'
+import { tr } from '../../i18n/index'
 
 // Necrons beyond the first four units, 11th-edition datasheets as transcribed by Wahapedia (App. Necrons v1.2,
 // checked 2026-11-10): Royal Warden, Immortals, Lychguard, Canoptek Wraiths. Default loadouts only.
@@ -8,93 +9,93 @@ export const NECRON_EXTRA_WEAPONS: Record<string, Weapon> = {
   // ---- Royal Warden
   relicGaussBlaster: {
     id: 'relicGaussBlaster',
-    name: 'Реликтовый гаусс-бластер (Relic Gauss Blaster)',
+    name: tr('Relic Gauss Blaster'),
     profiles: [{ name: '', range: 24, attacks: 2, skill: 3, s: 5, ap: -1, d: 2, keywords: { lethalHits: true, rapidFire: 2 } }],
   },
   wardenCcw: {
     id: 'wardenCcw',
-    name: 'Оружие ближнего боя (Close Combat Weapon)',
+    name: tr('Close Combat Weapon'),
     profiles: [{ name: '', range: 'melee', attacks: 4, skill: 3, s: 5, ap: 0, d: 1, keywords: {} }],
   },
   // ---- Immortals
   gaussBlaster: {
     id: 'gaussBlaster',
-    name: 'Гаусс-бластер (Gauss Blaster)',
+    name: tr('Gauss Blaster'),
     profiles: [{ name: '', range: 24, attacks: 2, skill: 3, s: 5, ap: -1, d: 1, keywords: { lethalHits: true } }],
   },
   immortalCcw: {
     id: 'immortalCcw',
-    name: 'Оружие ближнего боя (Close Combat Weapon)',
+    name: tr('Close Combat Weapon'),
     profiles: [{ name: '', range: 'melee', attacks: 2, skill: 3, s: 4, ap: 0, d: 1, keywords: {} }],
   },
   // ---- Lychguard
   warscythe: {
     id: 'warscythe',
-    name: 'Боевая коса (Warscythe)',
+    name: tr('Warscythe'),
     profiles: [{ name: '', range: 'melee', attacks: 2, skill: 3, s: 8, ap: -3, d: 2, keywords: { devastatingWounds: true } }],
   },
   // ---- Canoptek Wraiths
   viciousClaws: {
     id: 'viciousClaws',
-    name: 'Свирепые когти (Vicious Claws)',
+    name: tr('Vicious Claws'),
     profiles: [{ name: '', range: 'melee', attacks: 4, skill: 4, s: 6, ap: -1, d: 2, keywords: {} }],
   },
 }
 
 export const NECRON_EXTRA_PROFILES: Record<string, ModelProfile> = {
   royalWarden: {
-    id: 'royalWarden', name: 'Королевский страж', m: 5, t: 5, sv: 3, w: 4, ld: 6, oc: 1, baseMm: 32, character: true,
+    id: 'royalWarden', name: tr('Royal Warden'), m: 5, t: 5, sv: 3, w: 4, ld: 6, oc: 1, baseMm: 32, character: true,
     weapons: ['relicGaussBlaster', 'wardenCcw'],
   },
   immortal: {
-    id: 'immortal', name: 'Бессмертный', m: 5, t: 5, sv: 3, w: 1, ld: 7, oc: 2, baseMm: 32,
+    id: 'immortal', name: tr('Immortal'), m: 5, t: 5, sv: 3, w: 1, ld: 7, oc: 2, baseMm: 32,
     weapons: ['gaussBlaster', 'immortalCcw'],
   },
   lychguard: {
-    id: 'lychguard', name: 'Личгвардеец', m: 5, t: 5, sv: 3, w: 2, ld: 7, oc: 1, baseMm: 32,
+    id: 'lychguard', name: tr('Lychguard'), m: 5, t: 5, sv: 3, w: 2, ld: 7, oc: 1, baseMm: 32,
     weapons: ['warscythe'],
   },
   canoptekWraith: {
-    id: 'canoptekWraith', name: 'Призрак Каноптека', m: 10, t: 6, sv: 3, w: 4, ld: 8, oc: 2, invuln: 4, baseMm: 50,
+    id: 'canoptekWraith', name: tr('Canoptek Wraith'), m: 10, t: 6, sv: 3, w: 4, ld: 8, oc: 2, invuln: 4, baseMm: 50,
     weapons: ['viciousClaws'],
   },
 }
 
 export const NECRON_EXTRA_DATASHEETS: Record<string, Datasheet> = {
   royalWarden: {
-    id: 'royalWarden', name: 'Королевский страж (Royal Warden)', faction: 'necrons',
+    id: 'royalWarden', name: tr('Royal Warden|army'), faction: 'necrons',
     keywords: ['INFANTRY', 'CHARACTER', 'ROYAL WARDEN', 'NECRONS'],
     abilities: ['reanimation', 'adaptiveStrategy', 'engrammaticLogic'],
-    description: 'Офицер фаланги: стреляет и атакует даже после отступления, раз за битву снимает боевой шок с союзного отряда.',
+    description: tr('Phalanx officer: shoots and charges even after falling back, once per battle removes Battle-shock from a friendly unit.'),
   },
   immortals: {
-    id: 'immortals', name: 'Бессмертные (Immortals)', faction: 'necrons',
+    id: 'immortals', name: tr('Immortals'), faction: 'necrons',
     keywords: ['INFANTRY', 'BATTLELINE', 'IMMORTALS', 'NECRONS'],
     abilities: ['reanimation', 'implacableEradication'],
-    description: 'Элитная линейная пехота: гаусс-бластеры с Lethal Hits, переброс ранений — полный, если цель у объекта.',
+    description: tr('Elite line infantry: gauss blasters with Lethal Hits, full wound re-rolls if the target is on an objective.'),
   },
   lychguard: {
-    id: 'lychguard', name: 'Личгвардия (Lychguard)', faction: 'necrons',
+    id: 'lychguard', name: tr('Lychguard|alt'), faction: 'necrons',
     keywords: ['INFANTRY', 'LYCHGUARD', 'NECRONS'],
     abilities: ['reanimation', 'guardianProtocols'],
-    description: 'Телохранители знати: боевые косы S8 AP −3 с Devastating Wounds; рядом с Оверлордом их труднее ранить.',
+    description: tr('Nobles’ bodyguards: S8 AP −3 war scythes with Devastating Wounds; harder to wound near the Overlord.'),
   },
   canoptekWraiths: {
-    id: 'canoptekWraiths', name: 'Призраки Каноптека (Canoptek Wraiths)', faction: 'necrons',
+    id: 'canoptekWraiths', name: tr('Canoptek Wraiths'), faction: 'necrons',
     keywords: ['BEASTS', 'FLY', 'CANOPTEK', 'WRAITHS', 'NECRONS'],
     abilities: ['reanimation', 'wraithForm'],
-    description: 'Фазовые охотники: M10″, 4+ непробиваемый спас; пролетая сквозь врага, наносят ему смертельные раны.',
+    description: tr('Phase hunters: M10″, 4+ invulnerable save; flying through the enemy they inflict mortal wounds.'),
   },
 }
 
 export const NECRON_EXTRA_ABILITY_TEXT: Record<string, string> = {
-  adaptiveStrategy: 'Адаптивная стратегия (Adaptive Strategy): отряд может стрелять и объявлять атаку (charge) в ход, когда отступил.',
+  adaptiveStrategy: tr('Adaptive Strategy: the unit can shoot and declare a charge in a turn when it fell back.'),
   engrammaticLogic:
-    'Энграмматическая логика (Engrammatic Logic): раз за битву снимите боевой шок с союзного отряда Некронов в 12″. [Приближение: применяется в любой момент вашего хода, а не только в начале фазы.]',
+    tr('Engrammatic Logic: once per battle remove Battle-shock from a friendly Necron unit within 12″. [Approximation: used at any moment of your turn, not only at the start of the phase.]'),
   implacableEradication:
-    'Неумолимое истребление (Implacable Eradication): атаки отряда перебрасывают на ранение единицы; если цель в зоне объекта — любые проваленные броски на ранение.',
+    tr('Implacable Eradication: the unit’s attacks re-roll wound rolls of 1; if the target is within an objective zone — any failed wound rolls.'),
   guardianProtocols:
-    'Протоколы стражей (Guardian Protocols): пока отряд ведёт NOBLE, атаки по нему с Силой больше его Стойкости получают −1 к броску на ранение. [Приближение: присоединения лидеров нет — отряд считается ведомым, если в 3″ от него союзный NOBLE (Оверлорд).]',
+    tr('Guardian Protocols: while the unit is led by a NOBLE, attacks against it with Strength greater than its Toughness get −1 to the wound roll. [Approximation: there is no leader attachment — the unit counts as led if a friendly NOBLE (Overlord) is within 3″.]'),
   wraithForm:
-    'Фазовая форма (Wraith Form): после обычного движения выберите вражеский отряд, сквозь который отряд пролетел, и бросьте D6 за каждую модель: каждая 4+ — 1 смертельная рана.',
+    tr('Wraith Form: after a normal move pick an enemy unit the unit flew through and roll a D6 for each model: each 4+ is 1 mortal wound.'),
 }

@@ -2,13 +2,13 @@
 
 Secondary missions are described in [secondaries.md](secondaries.md), the in-game hints in [turn-plan.md](turn-plan.md).
 
-The «Битва 44″×60″» scenario is played for a primary mission. The cards come from the Mission Deck 2026-27 (Chapter Approved, Wahapedia). Both sides play the same card, as in the **Mirrored World** twist: Battlefield Dominance, Meatgrinder, Outmanoeuvre, Gather Intel or Sabotage.
+The «Battle 44″×60″» scenario is played for a primary mission. The cards come from the Mission Deck 2026-27 (Chapter Approved, Wahapedia). Both sides play the same card, as in the **Mirrored World** twist: Battlefield Dominance, Meatgrinder, Outmanoeuvre, Gather Intel or Sabotage.
 
 The start screen offers:
 
 - **Random** (the default, like the twist's D6 roll);
 - one of the five cards;
-- **«Учебный счёт»**: the old training rule, 5 VP per objective from round 2.
+- **«Training score»**: the old training rule, 5 VP per objective from round 2.
 
 The 44″×30″ board keeps the training score.
 
@@ -32,11 +32,11 @@ The maps give each objective a role:
 
 | Card | How it scores |
 |---|---|
-| Господство на поле (Battlefield Dominance) | R1–2, end of turn: 2 if you hold more objectives. R2+, end of Command phase: 3 per objective, +2 per non-home objective while your home is held |
-| Мясорубка (Meatgrinder) | End of turn: 3 if an enemy unit died this turn. R2+, end of turn: 5 if more enemy units died than you lost in the previous turn. R2+, end of Command phase: 4 for a non-home objective. End of battle: 5 for the enemy home |
-| Обходной манёвр (Outmanoeuvre) | End of turn: 10 for the enemy home. R1, end of turn: 4 per non-home objective. R2–3, end of Command phase: 5 each. R4+, end of turn: 6 each |
-| Сбор разведданных (Gather Intel) | R1, end of turn: 6 for a central objective. R2+, end of Command phase: 4 for a non-home objective. R2+, end of turn: 7 per completed «Добыть сведения». End of battle: 5 for 3+ operation markers, 5 for a marker at the enemy home |
-| Диверсия (Sabotage) | End of turn: 3 per unit that committed sabotage, +2 each if it is at an objective in enemy territory. R2+, end of Command phase: 4 for a non-home objective |
+| Battlefield Dominance | R1–2, end of turn: 2 if you hold more objectives. R2+, end of Command phase: 3 per objective, +2 per non-home objective while your home is held |
+| Meatgrinder | End of turn: 3 if an enemy unit died this turn. R2+, end of turn: 5 if more enemy units died than you lost in the previous turn. R2+, end of Command phase: 4 for a non-home objective. End of battle: 5 for the enemy home |
+| Outmanoeuvre | End of turn: 10 for the enemy home. R1, end of turn: 4 per non-home objective. R2–3, end of Command phase: 5 each. R4+, end of turn: 6 each |
+| Gather Intel | R1, end of turn: 6 for a central objective. R2+, end of Command phase: 4 for a non-home objective. R2+, end of turn: 7 per completed «Extract Intelligence». End of battle: 5 for 3+ operation markers, 5 for a marker at the enemy home |
+| Sabotage | End of turn: 3 per unit that committed sabotage, +2 each if it is at an objective in enemy territory. R2+, end of Command phase: 4 for a non-home objective |
 
 **Round 5.** The card says «end of your Command phase, or end of your turn in round 5». The game reads this as: rounds 2–4 score at the end of the Command phase, round 5 at the end of the turn.
 
@@ -48,10 +48,10 @@ The maps give each objective a role:
 
 Two cards have an objective action:
 
-- Gather Intel: **«Добыть сведения» (Extract Intelligence)**, from round 2;
-- Sabotage: **«Диверсия» (Sabotage)**, from round 1.
+- Gather Intel: **«Extract Intelligence»**, from round 2;
+- Sabotage: **«Sabotage»**, from round 1.
 
-**Starting.** Use the button in the unit's actions in the Shooting phase («🛰 Действие … у цели Цn»). The unit must:
+**Starting.** Use the button in the unit's actions in the Shooting phase («🛰 Action … at objective On»). The unit must:
 
 - be within 3″ of the objective;
 - not be at its own home objective;
@@ -82,7 +82,7 @@ The core rule also breaks an action when the unit moves. In this game nothing ca
   - the primary VP by round, the end of battle and the total out of 45;
   - who is acting;
   - the markers.
-- Objective labels say «дом», «центр» or «фланг».
+- Objective labels say «home», «center» or «flank» (for example «O1 home»).
 
 ## AI
 

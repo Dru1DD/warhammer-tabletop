@@ -9,6 +9,7 @@ import type { Link } from './link'
 import { defaultLobby, normalizeLobby, startProblem } from './lobby'
 import { encode, GUEST_ID, parseMessage, PROTOCOL_VERSION, type JoinRefusal, type LobbyState, type NetMessage } from './protocol'
 import { snapshotOf } from './sync'
+import { tr } from '../i18n/index'
 
 /** The host's view of its match. The app backs it with the store; tests with a plain object. */
 export interface MatchPort {
@@ -105,7 +106,7 @@ export class HostSession {
 
   /** Start the match when both are connected and ready. Returns a Russian reason on failure. */
   start(): string | null {
-    if (this.playing) return 'Партия уже идёт.'
+    if (this.playing) return tr('The game is already in progress.')
     const why = startProblem({ ...this.lobby, guestConnected: this.status === 'connected' })
     if (why) return why
     const match = this.o.startMatch(this.lobby)
@@ -243,10 +244,10 @@ export class HostSession {
   private command(link: Link, env: CommandEnvelope) {
     const refuse = (code: 'unauthorized' | 'illegal' | 'wrong-game', reason: string) =>
       this.send(link, { type: 'rejected', commandId: env.commandId, code, reason })
-    if (!this.playing || !this.o.port.get()) return refuse('illegal', 'Партия ещё не началась.')
+    if (!this.playing || !this.o.port.get()) return refuse('illegal', tr('The game has not started yet.'))
     // identity comes from the connection, never from the message
-    if (env.playerId !== GUEST_ID) return refuse('unauthorized', 'Идентификатор игрока не совпадает с вашим подключением.')
-    if (env.gameId !== this.gameId) return refuse('wrong-game', 'Команда относится к другой партии.')
+    if (env.playerId !== GUEST_ID) return refuse('unauthorized', tr('The player identifier does not match your connection.'))
+    if (env.gameId !== this.gameId) return refuse('wrong-game', tr('The command belongs to another game.'))
     const r = this.o.port.submit(env, { silent: true })
     if (r.ok) this.flush(this.o.port.get())
     else this.send(link, { type: 'rejected', commandId: env.commandId, code: r.code, reason: r.reason })

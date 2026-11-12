@@ -7,6 +7,7 @@ import type { ActionRecord, MatchState, PlayerAssignments, SideId } from '../gam
 import type { PlayerId } from '../game/types'
 import { deserialize, serialize } from '../game/persistence'
 import { GUEST_ID, HOST_ID } from './protocol'
+import { tr } from '../i18n/index'
 
 /** Host view: the host's side is `local`, the guest's side `remote`. */
 export const sharedAssignments = (hostSide: PlayerId, guestSide: PlayerId): PlayerAssignments =>
@@ -34,8 +35,8 @@ export function matchFromSave(save: string, myId: string): SnapshotResult {
   const r = deserialize(save)
   if (!r.ok) return r
   const { match } = r.file
-  if (match.mode !== 'shared') return { ok: false, reason: 'Снимок не относится к сетевой партии.' }
-  if (!sideOfParticipant(match, HOST_ID) || !sideOfParticipant(match, GUEST_ID)) return { ok: false, reason: 'В снимке нет обоих игроков.' }
+  if (match.mode !== 'shared') return { ok: false, reason: tr('The snapshot does not belong to a network game.') }
+  if (!sideOfParticipant(match, HOST_ID) || !sideOfParticipant(match, GUEST_ID)) return { ok: false, reason: tr('The snapshot does not have both players.') }
   return { ok: true, match: viewAs({ ...match, state: r.file.state }, myId) }
 }
 
@@ -49,11 +50,11 @@ export type ApplyResult =
  * they are compared with the host's record and any difference means "ask for a snapshot", never "keep my own result".
  */
 export function applyAccepted(m: MatchState, a: ActionRecord): ApplyResult {
-  if (a.gameId !== m.gameId) return { kind: 'resync', why: 'другая партия' }
+  if (a.gameId !== m.gameId) return { kind: 'resync', why: tr('another game') }
   if (a.stateVersion <= m.version) return { kind: 'old' }
-  if (a.stateVersion !== m.version + 1) return { kind: 'resync', why: 'пропущено действие' }
+  if (a.stateVersion !== m.version + 1) return { kind: 'resync', why: tr('an action was skipped') }
   const r = submit(m, envelopeOf(a))
   if (!r.ok) return { kind: 'resync', why: `${r.code}: ${r.reason}` }
-  if (JSON.stringify(r.action.dice) !== JSON.stringify(a.dice)) return { kind: 'resync', why: 'кубики не совпали' }
+  if (JSON.stringify(r.action.dice) !== JSON.stringify(a.dice)) return { kind: 'resync', why: tr('the dice did not match') }
   return { kind: 'ok', match: r.match, action: r.action }
 }

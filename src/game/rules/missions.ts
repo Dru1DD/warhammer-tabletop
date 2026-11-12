@@ -1,6 +1,7 @@
 import { FACTION_NAME } from '../data/datasheets'
 import { pointInPolygon } from '../geometry/geometry'
 import { addLog, alive, ENGAGEMENT_RANGE, isDestroyed, other, profileOf, sidesOf, unitNearObjective, unitsWithin } from '../gameState'
+import { tr } from '../../i18n/index'
 import type { GameState, MissionActionId, MissionState, Objective, PlayerId, PrimaryId, UnitState } from '../types'
 
 // Primary missions of the 44″×60″ battle: the five cards of the Mirrored World twist (Mission Deck 2026-27, Wahapedia),
@@ -23,46 +24,46 @@ export interface PrimaryInfo {
 
 export const PRIMARY: Record<PrimaryId, PrimaryInfo> = {
   dominance: {
-    name: 'Господство на поле', nameEn: 'Battlefield Dominance',
+    name: tr('Battlefield Dominance'), nameEn: 'Battlefield Dominance',
     lines: [
-      'Раунды 1–2, конец вашего хода: 2 ПО, если у вас больше целей, чем у противника.',
-      'Со 2-го раунда, конец вашей фазы командования (в 5-м раунде — конец хода): 3 ПО за каждую вашу цель и ещё 2 ПО за каждую, кроме домашней, если вы держите свою домашнюю цель.',
+      tr('Rounds 1–2, end of your turn: 2 VP if you control more objectives than your opponent.'),
+      tr('From round 2, end of your Command phase (in round 5 — end of the turn): 3 VP for each objective you control, and 2 more VP for each one other than your home objective if you hold your home objective.'),
     ],
   },
   meatgrinder: {
-    name: 'Мясорубка', nameEn: 'Meatgrinder',
+    name: tr('Meatgrinder'), nameEn: 'Meatgrinder',
     lines: [
-      'Любой раунд, конец вашего хода: 3 ПО, если в этот ход уничтожен хотя бы один отряд противника.',
-      'Со 2-го раунда, конец вашей фазы командования (в 5-м раунде — конец хода): 4 ПО, если вы держите хотя бы одну цель, кроме домашней.',
-      'Со 2-го раунда, конец вашего хода: 5 ПО, если в этот ход уничтожено больше вражеских отрядов, чем вы потеряли в прошлый ход.',
-      'Конец битвы: 5 ПО, если вы держите домашнюю цель противника.',
+      tr('Any round, end of your turn: 3 VP if at least one enemy unit was destroyed this turn.'),
+      tr('From round 2, end of your Command phase (in round 5 — end of the turn): 4 VP if you control at least one objective other than your home one.'),
+      tr('From round 2, end of your turn: 5 VP if more enemy units were destroyed this turn than you lost last turn.'),
+      tr('End of the battle: 5 VP if you control the enemy’s home objective.'),
     ],
   },
   outmanoeuvre: {
-    name: 'Обходной манёвр', nameEn: 'Outmanoeuvre',
+    name: tr('Outmanoeuvre'), nameEn: 'Outmanoeuvre',
     lines: [
-      'Любой раунд, конец вашего хода: 10 ПО, если вы держите домашнюю цель противника.',
-      'Раунд 1, конец вашего хода: 4 ПО за каждую вашу цель, кроме домашней.',
-      'Раунды 2–3, конец вашей фазы командования: 5 ПО за каждую вашу цель, кроме домашней.',
-      'С 4-го раунда, конец вашего хода: 6 ПО за каждую вашу цель, кроме домашней.',
+      tr('Any round, end of your turn: 10 VP if you control the enemy’s home objective.'),
+      tr('Round 1, end of your turn: 4 VP for each objective you control other than your home one.'),
+      tr('Rounds 2–3, end of your Command phase: 5 VP for each objective you control other than your home one.'),
+      tr('From round 4, end of your turn: 6 VP for each objective you control other than your home one.'),
     ],
   },
   gatherIntel: {
-    name: 'Сбор разведданных', nameEn: 'Gather Intel',
+    name: tr('Gather Intel'), nameEn: 'Gather Intel',
     action: 'extractIntel',
     lines: [
-      'Раунд 1, конец вашего хода: 6 ПО, если вы держите центральную цель.',
-      'Со 2-го раунда, конец вашей фазы командования (в 5-м раунде — конец хода): 4 ПО, если вы держите хотя бы одну цель, кроме домашней.',
-      'Со 2-го раунда, конец вашего хода: 7 ПО за каждый отряд, завершивший действие «Добыть сведения».',
-      'Конец битвы: 5 ПО, если на поле три или больше ваших маркера операции, и 5 ПО, если ваш маркер стоит у домашней цели противника.',
+      tr('Round 1, end of your turn: 6 VP if you control the central objective.'),
+      tr('From round 2, end of your Command phase (in round 5 — end of the turn): 4 VP if you control at least one objective other than your home one.'),
+      tr('From round 2, end of your turn: 7 VP for each unit that completed the “Extract Intelligence” action.'),
+      tr('End of the battle: 5 VP if you have three or more operation markers on the board, and 5 VP if your marker stands at the enemy’s home objective.'),
     ],
   },
   sabotage: {
-    name: 'Диверсия', nameEn: 'Sabotage',
+    name: tr('Sabotage'), nameEn: 'Sabotage',
     action: 'sabotage',
     lines: [
-      'Любой раунд, конец вашего хода: 3 ПО за каждый отряд, совершивший диверсию, и ещё 2 ПО за каждый из них у цели на территории противника.',
-      'Со 2-го раунда, конец вашей фазы командования (в 5-м раунде — конец хода): 4 ПО, если вы держите хотя бы одну цель, кроме домашней.',
+      tr('Any round, end of your turn: 3 VP for each unit that sabotaged, and 2 more VP for each of them at an objective in the enemy’s territory.'),
+      tr('From round 2, end of your Command phase (in round 5 — end of the turn): 4 VP if you control at least one objective other than your home one.'),
     ],
   },
 }
@@ -79,12 +80,12 @@ export interface MissionActionInfo {
 
 export const MISSION_ACTION: Record<MissionActionId, MissionActionInfo> = {
   extractIntel: {
-    name: 'Добыть сведения', nameEn: 'Extract Intelligence', fromRound: 2, vp: 7,
-    text: 'Фаза стрельбы, со 2-го раунда: отряд у цели (кроме своей домашней), где ещё нет вашего маркера операции. Завершается в конце хода, если отряд держит цель: у цели ставится ваш маркер операции.',
+    name: tr('Extract Intelligence'), nameEn: 'Extract Intelligence', fromRound: 2, vp: 7,
+    text: tr('Shooting phase, from round 2: a unit at an objective (other than its own home one) where you have no operation marker yet. Completes at the end of the turn if the unit holds the objective: your operation marker is placed at the objective.'),
   },
   sabotage: {
-    name: 'Диверсия', nameEn: 'Sabotage', fromRound: 1, vp: 3,
-    text: 'Фаза стрельбы: отряд у цели (кроме своей домашней). Завершается в конце хода, если отряд держит цель: отряд совершил диверсию.',
+    name: tr('Sabotage'), nameEn: 'Sabotage', fromRound: 1, vp: 3,
+    text: tr('Shooting phase: a unit at an objective (other than its own home one). Completes at the end of the turn if the unit holds the objective: the unit has sabotaged.'),
   },
 }
 
@@ -118,8 +119,8 @@ export function scorePrimary(s: GameState, p: PlayerId, vp: number, why: string,
   if (endOfBattle) m.endVp![p] += got
   else m.byRound[p][s.round] += got
   s.players[p].vp += got
-  const capped = got < vp ? ` (лимит: засчитано ${got} из ${vp})` : ''
-  addLog(s, `${FACTION_NAME[p]}: +${got} ПО — ${PRIMARY[m.primary].name}: ${why}${capped}.`, 'minimal')
+  const capped = got < vp ? tr(' (cap: {got} of {vp} counted)', { got, vp }) : ''
+  addLog(s, tr('{faction}: +{got} VP — {mission}: {why}{capped}.', { faction: FACTION_NAME[p], got, mission: PRIMARY[m.primary].name, why, capped }), 'minimal')
   return got
 }
 
@@ -148,21 +149,21 @@ export function commandEntries(s: GameState, p: PlayerId, round = s.round): VpEn
   switch (m.primary) {
     case 'dominance': {
       const mine = held(s, p)
-      if (mine.length) out.push({ vp: mine.length * 3, why: `${mine.length} цел. × 3` })
+      if (mine.length) out.push({ vp: mine.length * 3, why: tr('{n} obj. × 3', { n: mine.length }) })
       const home = mine.some((o) => isHomeOf(o, p))
       const extra = mine.filter((o) => !isHomeOf(o, p)).length
-      if (home && extra) out.push({ vp: extra * 2, why: `домашняя цель удержана: ещё ${extra} × 2` })
+      if (home && extra) out.push({ vp: extra * 2, why: tr('home objective held: {extra} more × 2', { extra }) })
       break
     }
     case 'meatgrinder':
     case 'gatherIntel':
     case 'sabotage':
-      if (heldNotHome(s, p).length) out.push({ vp: 4, why: 'удержана цель вне своей зоны' })
+      if (heldNotHome(s, p).length) out.push({ vp: 4, why: tr('held an objective outside your own zone') })
       break
     case 'outmanoeuvre':
       if (round <= 3) {
         const n = heldNotHome(s, p).length
-        if (n) out.push({ vp: n * 5, why: `${n} цел. (кроме домашней) × 5` })
+        if (n) out.push({ vp: n * 5, why: tr('{n} obj. (other than home) × {k}', { n, k: 5 }) })
       }
       break
   }
@@ -177,30 +178,30 @@ export function turnEndEntries(s: GameState, p: PlayerId, completed: UnitState[]
   const out: VpEntry[] = []
   switch (m.primary) {
     case 'dominance':
-      if (round <= 2 && held(s, p).length > held(s, foe).length) out.push({ vp: 2, why: 'целей больше, чем у противника' })
+      if (round <= 2 && held(s, p).length > held(s, foe).length) out.push({ vp: 2, why: tr('more objectives than the opponent') })
       break
     case 'meatgrinder':
-      if (lost[foe] > 0) out.push({ vp: 3, why: `уничтожено вражеских отрядов в этот ход: ${lost[foe]}` })
-      if (round >= 2 && lost[foe] > m.lostLastTurn[p]) out.push({ vp: 5, why: `уничтожено ${lost[foe]}, потеряно в прошлый ход ${m.lostLastTurn[p]}` })
+      if (lost[foe] > 0) out.push({ vp: 3, why: tr('enemy units destroyed this turn: {n}', { n: lost[foe] }) })
+      if (round >= 2 && lost[foe] > m.lostLastTurn[p]) out.push({ vp: 5, why: tr('destroyed {kills}, lost last turn {lost}', { kills: lost[foe], lost: m.lostLastTurn[p] }) })
       break
     case 'outmanoeuvre': {
-      if (holdsEnemyHome(s, p)) out.push({ vp: 10, why: 'удержана домашняя цель противника' })
+      if (holdsEnemyHome(s, p)) out.push({ vp: 10, why: tr('held the enemy’s home objective') })
       const n = heldNotHome(s, p).length
-      if (n && round === 1) out.push({ vp: n * 4, why: `${n} цел. (кроме домашней) × 4` })
-      if (n && round >= 4) out.push({ vp: n * 6, why: `${n} цел. (кроме домашней) × 6` })
+      if (n && round === 1) out.push({ vp: n * 4, why: tr('{n} obj. (other than home) × {k}', { n, k: 4 }) })
+      if (n && round >= 4) out.push({ vp: n * 6, why: tr('{n} obj. (other than home) × {k}', { n, k: 6 }) })
       break
     }
     case 'gatherIntel': {
-      if (round === 1 && held(s, p).some((o) => o.role === 'central')) out.push({ vp: 6, why: 'удержана центральная цель' })
+      if (round === 1 && held(s, p).some((o) => o.role === 'central')) out.push({ vp: 6, why: tr('held the central objective') })
       const n = completed.filter((u) => u.action!.id === 'extractIntel').length
-      if (round >= 2 && n) out.push({ vp: n * 7, why: `сведения добыты: ${n} отряд(а) × 7` })
+      if (round >= 2 && n) out.push({ vp: n * 7, why: tr('intelligence extracted: {n} unit(s) × 7', { n }) })
       break
     }
     case 'sabotage': {
       const done = completed.filter((u) => u.action!.id === 'sabotage')
-      if (done.length) out.push({ vp: done.length * 3, why: `диверсия: ${done.length} отряд(а) × 3` })
+      if (done.length) out.push({ vp: done.length * 3, why: tr('sabotage: {n} unit(s) × 3', { n: done.length }) })
       const deep = done.filter((u) => s.objectives.some((o) => inTerritory(s, foe, o) && unitNearObjective(u, o))).length
-      if (deep) out.push({ vp: deep * SABOTAGE_TERRITORY_BONUS, why: `${deep} из них на территории противника × ${SABOTAGE_TERRITORY_BONUS}` })
+      if (deep) out.push({ vp: deep * SABOTAGE_TERRITORY_BONUS, why: tr('{n} of them in the enemy’s territory × {k}', { n: deep, k: SABOTAGE_TERRITORY_BONUS }) })
       break
     }
   }
@@ -262,8 +263,10 @@ export function missionTurnEnd(s: GameState) {
     if (actionCompletes(s, u)) {
       completed.push(u)
       if (u.action.id === 'extractIntel') m.markers.push({ owner: p, objectiveId: u.action.objectiveId })
-      addLog(s, `${u.name}: действие «${info.name}» завершено${u.action.id === 'extractIntel' ? ' — у цели поставлен маркер операции' : ''}.`, 'minimal')
-    } else if (!isDestroyed(u)) addLog(s, `${u.name}: действие «${info.name}» сорвано — отряд не держит цель.`, 'standard')
+      addLog(s, u.action.id === 'extractIntel'
+        ? tr('{name}: action “{action}” completed — an operation marker is placed at the objective.', { name: u.name, action: info.name })
+        : tr('{name}: action “{action}” completed.', { name: u.name, action: info.name }), 'minimal')
+    } else if (!isDestroyed(u)) addLog(s, tr('{name}: action “{action}” failed — the unit does not hold the objective.', { name: u.name, action: info.name }), 'standard')
   }
 
   for (const e of turnEndEntries(s, p, completed, lost)) scorePrimary(s, p, e.vp, e.why)
@@ -279,11 +282,11 @@ export function missionBattleEnd(s: GameState) {
   if (!m) return
   for (const p of sidesOf(s)) {
     const foe = other(s, p)
-    if (m.primary === 'meatgrinder' && holdsEnemyHome(s, p)) scorePrimary(s, p, 5, 'конец битвы: удержана домашняя цель противника', true)
+    if (m.primary === 'meatgrinder' && holdsEnemyHome(s, p)) scorePrimary(s, p, 5, tr('end of the battle: held the enemy’s home objective'), true)
     if (m.primary === 'gatherIntel') {
       const mine = m.markers.filter((x) => x.owner === p)
-      if (mine.length >= 3) scorePrimary(s, p, 5, `конец битвы: маркеров операции на поле — ${mine.length}`, true)
-      if (mine.some((x) => s.objectives.some((o) => o.id === x.objectiveId && isHomeOf(o, foe)))) scorePrimary(s, p, 5, 'конец битвы: маркер у домашней цели противника', true)
+      if (mine.length >= 3) scorePrimary(s, p, 5, tr('end of the battle: operation markers on the board — {n}', { n: mine.length }), true)
+      if (mine.some((x) => s.objectives.some((o) => o.id === x.objectiveId && isHomeOf(o, foe)))) scorePrimary(s, p, 5, tr('end of the battle: marker at the enemy’s home objective'), true)
     }
   }
 }
@@ -292,23 +295,23 @@ export function missionBattleEnd(s: GameState) {
 export function actionProblem(s: GameState, u: UnitState, objectiveId: string): string | null {
   const m = s.mission
   const id = m && PRIMARY[m.primary].action
-  if (!m || !id) return 'В этой миссии нет действий.'
+  if (!m || !id) return tr('There are no actions in this mission.')
   const info = MISSION_ACTION[id]
-  if (s.phase !== 'shooting') return 'Действие начинается в фазе стрельбы.'
-  if (u.owner !== s.activePlayer) return 'Действие начинают в свой ход.'
-  if (s.round < info.fromRound) return `«${info.name}» можно начать только с ${info.fromRound}-го раунда.`
-  if (u.action) return 'Отряд уже выполняет действие.'
-  if (u.shot) return 'Отряд уже стрелял в этой фазе.'
-  if (u.battleShocked) return 'Отряд в боевом шоке.'
-  if (!alive(u).some((x) => profileOf(x).oc > 0)) return 'У отряда OC 0 — он не может выполнять действия.'
-  if (u.move === 'advance' || u.move === 'fallBack') return 'Отряд продвигался или отступал в этот ход.'
-  if (s.units.some((e) => e.owner !== u.owner && !isDestroyed(e) && isEngagedWith(u, e))) return 'Отряд в контакте с врагом.'
+  if (s.phase !== 'shooting') return tr('An action is started in the Shooting phase.')
+  if (u.owner !== s.activePlayer) return tr('An action is started in your own turn.')
+  if (s.round < info.fromRound) return tr('“{action}” can only be started from round {round}.', { action: info.name, round: info.fromRound })
+  if (u.action) return tr('The unit is already performing an action.')
+  if (u.shot) return tr('The unit has already shot in this phase.')
+  if (u.battleShocked) return tr('The unit is Battle-shocked.')
+  if (!alive(u).some((x) => profileOf(x).oc > 0)) return tr('The unit has OC 0 — it cannot perform actions.')
+  if (u.move === 'advance' || u.move === 'fallBack') return tr('The unit Advanced or fell back this turn.')
+  if (s.units.some((e) => e.owner !== u.owner && !isDestroyed(e) && isEngagedWith(u, e))) return tr('The unit is in engagement range of the enemy.')
   const o = s.objectives.find((x) => x.id === objectiveId)
-  if (!o) return 'Нет такой цели.'
-  if (isHomeOf(o, u.owner)) return 'Не у своей домашней цели.'
-  if (!unitNearObjective(u, o)) return 'Отряд должен быть в пределах цели (3″).'
-  if (s.units.some((x) => x.owner === u.owner && x.action?.objectiveId === objectiveId)) return 'У этой цели действие уже начал другой ваш отряд.'
-  if (id === 'extractIntel' && m.markers.some((x) => x.owner === u.owner && x.objectiveId === objectiveId)) return 'У этой цели уже стоит ваш маркер операции.'
+  if (!o) return tr('There is no such objective.')
+  if (isHomeOf(o, u.owner)) return tr('Not at your own home objective.')
+  if (!unitNearObjective(u, o)) return tr('The unit must be within range of the objective (3″).')
+  if (s.units.some((x) => x.owner === u.owner && x.action?.objectiveId === objectiveId)) return tr('Another of your units has already started an action at this objective.')
+  if (id === 'extractIntel' && m.markers.some((x) => x.owner === u.owner && x.objectiveId === objectiveId)) return tr('Your operation marker already stands at this objective.')
   return null
 }
 
@@ -325,5 +328,9 @@ export function objectiveWorth(s: GameState, p: PlayerId, o: Objective): number 
   return 1
 }
 
-/** One line for the log and the header: «Миссия: Диверсия (Sabotage)». */
-export const missionName = (s: GameState) => (s.mission ? `${PRIMARY[s.mission.primary].name} (${PRIMARY[s.mission.primary].nameEn})` : null)
+/** One line for the log and the header: “Sabotage”, or “<translated name> (Sabotage)” where the translation differs from the official name. */
+export const missionName = (s: GameState) => {
+  if (!s.mission) return null
+  const { name, nameEn } = PRIMARY[s.mission.primary]
+  return name === nameEn ? name : `${name} (${nameEn})`
+}

@@ -1,0 +1,37 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. **Security problems: do not file them here**, see [SECURITY.md](https://github.com/Dru1DD/warhammer-tabletop/blob/main/SECURITY.md).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Scenario, armies, phase and the actions you took. Attach a save file if you can.
+      placeholder: |
+        1. Start "Combat Patrol" as Orks vs Space Marines
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: rules
+    attributes:
+      label: Rule involved (rules bugs only)
+      description: The rule you believe applies and where it is written (edition, document, page or link).
+  - type: input
+    id: environment
+    attributes:
+      label: Browser, operating system and app version
+      description: For example "Firefox 130, macOS 15, commit abc1234" or the language selected in the app.
+    validations:
+      required: true

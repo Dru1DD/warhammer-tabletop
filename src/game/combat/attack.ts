@@ -1,6 +1,7 @@
 import { avgDie, fmtRandom, rollDie, type Roller } from '../dice/dice'
 import { addLog, alive, datasheetOf, isDestroyed, profileOf } from '../gameState'
 import type { AttackStep, DieRoll, GameState, ModelState, UnitState, WeaponProfile } from '../types'
+import { tr } from '../../i18n/index'
 
 export interface AttackGroup {
   weaponName: string
@@ -78,7 +79,7 @@ export function saveTarget(m: ModelState, ap: number, invuln?: number): { need: 
   const armour = p.sv - ap
   const inv = [p.invuln, invuln].filter((x): x is number => x !== undefined)
   const bestInv = inv.length ? Math.min(...inv) : Infinity
-  return bestInv < armour ? { need: bestInv, kind: 'непробиваемый (invulnerable)' } : { need: armour, kind: 'бронёй' }
+  return bestInv < armour ? { need: bestInv, kind: tr('invulnerable') } : { need: armour, kind: tr('armour') }
 }
 
 /** Apply damage to a unit, returns number of models destroyed. */
@@ -93,7 +94,7 @@ export function applyDamage(u: UnitState, dmg: number, target?: ModelState): num
 export function applyMortalWounds(s: GameState, u: UnitState, n: number, why: string) {
   let killed = 0
   for (let i = 0; i < n && !isDestroyed(u); i++) killed += applyDamage(u, 1)
-  addLog(s, `${u.name}: ${n} смертельн. ран (mortal wound) — ${why}.${killed ? ` Уничтожено моделей: ${killed}.` : ''}`, 'minimal')
+  addLog(s, tr('{name}: {n} mortal wounds — {why}.{value}', { name: u.name, n, why, value: killed ? tr(' Models destroyed: {killed}.', { killed }) : '' }), 'minimal')
 }
 
 export interface ResolveResult {
@@ -120,7 +121,9 @@ export interface RerollPoint {
 export type RerollHook = (pt: RerollPoint) => boolean
 
 const chance = (ok: (x: number) => boolean) => [1, 2, 3, 4, 5, 6].filter(ok).length / 6
-const REROLL_LABEL = 'Командный переброс'
+const REROLL_LABEL = tr('Command Re-roll')
+/** The standing hit-roll note; the beginner explanation leaves it out (it explains 1 and 6 itself). */
+export const NATURAL_ROLL_NOTE = tr('natural 1 always misses, 6 is a critical hit')
 
 /**
  * Full attack sequence for one weapon group: hit → wound → save → damage.
@@ -181,7 +184,7 @@ export function resolveGroup(
       return again === null ? { value: v, success: true } : { value: again, success: true, rerolledFrom: v }
     })
     attacks += rolls.reduce((a, b) => a + b.value, 0)
-    steps.push({ label: 'Атаки', target: fmtRandom(p.attacks, p.randomA), dice: rolls, note: `Случайное число атак (${fmtRandom(p.attacks, p.randomA)}): итого ${attacks}.${commandRerolls.length ? ` ${commandRerolls.join('; ')}.` : ''}` })
+    steps.push({ meta: { kind: 'attacks' }, label: tr('Attacks'), target: fmtRandom(p.attacks, p.randomA), dice: rolls, note: tr('Random number of attacks ({fmtRandom}): {attacks} in total.{value}', { fmtRandom: fmtRandom(p.attacks, p.randomA), attacks, value: commandRerolls.length ? ` ${commandRerolls.join('; ')}.` : '' }) })
   }
 
   // 1. Hit roll
@@ -190,7 +193,7 @@ export function resolveGroup(
   let rerolls = 0
   if (p.skill === null) {
     hits = attacks
-    steps.push({ label: 'Попадание', target: 'авто', dice: [], note: `Torrent: все ${attacks} атак попадают автоматически.` })
+    steps.push({ meta: { kind: 'hit', auto: true }, label: tr('Hit'), target: tr('auto'), dice: [], note: tr('Torrent: all {attacks} attacks hit automatically.', { attacks }) })
   } else {
     const dice: DieRoll[] = []
     const before = commandRerolls.length
@@ -217,18 +220,18 @@ export function resolveGroup(
       dice.push({ value: v, success, critical: crit, ...(from !== undefined ? { rerolledFrom: from } : {}) })
     }
     const notes = [
-      ctx.snap ? 'стрельба навскидку: попадает только «6»' : '',
-      ctx.skillWorsen > 0 && !psy && !ctx.snap ? `укрытие: навык ${p.skill}+ → ${skill}+` : '',
-      ctx.skillWorsen < 0 ? `${ctx.skillNote ?? 'бонус'}: навык ${p.skill}+ → ${skill}+` : '',
-      psy && ctx.skillWorsen > 0 && !ctx.snap ? 'Psychic: укрытие и штрафы к попаданию игнорируются' : '',
-      mod ? `модификатор ${mod > 0 ? '+' : ''}${mod} (${ctx.hitModNotes.join(', ')})` : '',
-      rerolls ? `переброс (${ctx.rerollHits === 'all' ? 'все промахи' : 'единицы'}): ${rerolls}` : '',
+      ctx.snap ? tr('snap shooting: hits only on a “6”') : '',
+      ctx.skillWorsen > 0 && !psy && !ctx.snap ? tr('cover: skill {skill}+ → {skill2}+', { skill: p.skill, skill2: skill }) : '',
+      ctx.skillWorsen < 0 ? tr('{value}: skill {skill}+ → {skill2}+', { value: ctx.skillNote ?? tr('bonus'), skill: p.skill, skill2: skill }) : '',
+      psy && ctx.skillWorsen > 0 && !ctx.snap ? tr('Psychic: cover and to-hit penalties are ignored') : '',
+      mod ? tr('modifier {value}{mod} ({list})', { value: mod > 0 ? '+' : '', mod, list: ctx.hitModNotes.join(', ') }) : '',
+      rerolls ? tr('re-roll ({value}): {rerolls}', { value: ctx.rerollHits === 'all' ? tr('all misses') : tr('1s'), rerolls }) : '',
       ...commandRerolls.slice(before),
-      ctx.lethalHits && autoWounds ? `Lethal Hits: ${autoWounds} крит. попадания ранят автоматически` : '',
-      sustainedHitsGained ? `Sustained Hits: +${sustainedHitsGained} доп. попаданий` : '',
-      'натуральная 1 — всегда промах, 6 — критическое попадание',
+      ctx.lethalHits && autoWounds ? tr('Lethal Hits: {autoWounds} critical hits wound automatically', { autoWounds }) : '',
+      sustainedHitsGained ? tr('Sustained Hits: +{sustainedHitsGained} extra hits', { sustainedHitsGained }) : '',
+      NATURAL_ROLL_NOTE,
     ].filter(Boolean)
-    steps.push({ label: 'Попадание', target: `${skill}+`, dice, note: notes.join('; ') })
+    steps.push({ meta: { kind: 'hit' }, label: tr('Hit'), target: `${skill}+`, dice, note: notes.join('; ') })
   }
 
   // 2. Wound roll (Twin-linked re-rolls failures; Anti-X makes high unmodified rolls critical wounds)
@@ -263,10 +266,11 @@ export function resolveGroup(
     wdice.push({ value: v, success, critical: crit, ...(from !== undefined ? { rerolledFrom: from } : {}) })
   }
   steps.push({
-    label: 'Ранение',
+    meta: { kind: 'wound', ...(autoWounds ? { auto: true } : {}) },
+    label: tr('Wound'),
     target: `${wt}+`,
     dice: wdice,
-    note: `Сила ${p.s} против Стойкости ${t}${wmod ? `; модификатор ${wmod} (${ctx.woundModNote})` : ''}${autoWounds ? `; +${autoWounds} авто-ран.` : ''}${woundRerolls ? `; Twin-linked: перебросов ${woundRerolls}` : ''}${anti < 7 ? `; Anti-${p.keywords.anti!.keyword} ${anti}+` : ''}${devWounds ? `; Devastating Wounds: ${devWounds} крит. ран = смертельные раны без спасброска` : ''}${commandRerolls.length > woundRerollsBefore ? `; ${commandRerolls.slice(woundRerollsBefore).join('; ')}` : ''}`,
+    note: tr('Strength {s} vs Toughness {t}{value}{value2}{value3}{value4}{value5}{value6}', { s: p.s, t, value: wmod ? tr('; modifier {wmod} ({woundModNote})', { wmod, woundModNote: ctx.woundModNote }) : '', value2: autoWounds ? tr('; +{autoWounds} auto-wounds.', { autoWounds }) : '', value3: woundRerolls ? tr('; Twin-linked: re-rolls {woundRerolls}', { woundRerolls }) : '', value4: anti < 7 ? `; Anti-${p.keywords.anti!.keyword} ${anti}+` : '', value5: devWounds ? tr('; Devastating Wounds: {devWounds} critical wounds = mortal wounds with no save', { devWounds }) : '', value6: commandRerolls.length > woundRerollsBefore ? `; ${commandRerolls.slice(woundRerollsBefore).join('; ')}` : '' }),
   })
 
   // 3. Saves & 4. damage, one at a time (allocation can change between saves)
@@ -294,7 +298,7 @@ export function resolveGroup(
   for (let i = 0; i < wounds && !isDestroyed(target); i++) {
     const m = pickModelForDamage(target, ctx.precision || (!!ctx.critPrecision && i < critWounds))!
     const st = saveTarget(m, p.ap, ctx.invulnOverride)
-    saveNote = `Спасбросок ${st.kind}: Sv ${profileOf(m).sv}+${p.ap ? `, AP ${p.ap}` : ''} → ${st.need}+`
+    saveNote = tr('Save {kind}: Sv {sv}+{value} → {need}+', { kind: st.kind, sv: profileOf(m).sv, value: p.ap ? `, AP ${p.ap}` : '', need: st.need })
     let v = roller.d6()
     let from: number | undefined
     if (v === 1 || v < st.need) {
@@ -323,7 +327,7 @@ export function resolveGroup(
       damage += before - m.wounds
     }
   }
-  steps.push({ label: 'Спасбросок', target: saveNote.split('→ ')[1] ?? '—', dice: sdice, note: (saveNote || 'Нет ран — спасброски не нужны.') + (saveRerolled ? `; ${REROLL_LABEL} защитника` : '') })
+  steps.push({ meta: { kind: 'save' }, label: tr('Save|alt'), target: saveNote.split('→ ')[1] ?? '—', dice: sdice, note: (saveNote || tr('No wounds — no saves needed.')) + (saveRerolled ? tr('; defender’s {REROLL_LABEL}', { REROLL_LABEL }) : '') })
 
   // Devastating Wounds: each critical wound is a number of mortal wounds equal to D, after normal damage
   for (let i = 0; i < devWounds && !isDestroyed(target); i++) {
@@ -343,15 +347,16 @@ export function resolveGroup(
 
   const failed = sdice.filter((d) => !d.success).length
   const summary =
-    `${attackerName} — ${group.weaponName}${p.name ? ` (${p.name})` : ''}: ${attacks} атак → ${hits + autoWounds} попаданий → ` +
-    `${wounds} ран → ${failed} проваленных спасбросков → ${damage} урона (D${fmtRandom(p.d, p.randomD)}), уничтожено моделей: ${killed}.` +
-    (devWounds ? ` Devastating Wounds: ${devWounds} крит. ран → смертельные раны.` : '')
+    tr('{attackerName} — {weaponName}{value}: {attacks} attacks → {value2} hits → ', { attackerName, weaponName: group.weaponName, value: p.name ? ` (${p.name})` : '', attacks, value2: hits + autoWounds }) +
+    tr('{wounds} wounds → {failed} failed saves → {damage} damage (D{fmtRandom}), models destroyed: {killed}.', { wounds, failed, damage, fmtRandom: fmtRandom(p.d, p.randomD), killed }) +
+    (devWounds ? tr(' Devastating Wounds: {devWounds} critical wounds → mortal wounds.', { devWounds }) : '')
   steps.push({
-    label: 'Урон',
+    meta: { kind: 'damage' },
+    label: tr('Damage'),
     target: `D${fmtRandom(p.d, p.randomD)}`,
     dice: ddice,
-    note: `${ctx.damageMod ? `урон ${ctx.damageMod} (Dread 'Ard), не меньше 1; ` : ''}${damage} урона; уничтожено: ${killed}; в отряде осталось моделей: ${alive(target).length}`,
+    note: tr('{value}{damage} damage; destroyed: {killed}; models left in the unit: {length}', { value: ctx.damageMod ? tr('damage {damageMod} (Dread \'Ard), not less than 1; ', { damageMod: ctx.damageMod }) : '', damage, killed, length: alive(target).length }),
   })
-  if (fdice.length) steps.push({ label: 'Feel No Pain', target: `${ctx.fnp}+`, dice: fdice, note: `Каждая потерянная рана отменяется на ${ctx.fnp}+ («Не чувствует боли»): отменено ${fdice.filter((d) => d.success).length} из ${fdice.length}.` })
+  if (fdice.length) steps.push({ meta: { kind: 'fnp' }, label: 'Feel No Pain', target: `${ctx.fnp}+`, dice: fdice, note: tr('Each lost wound is cancelled on {fnp}+ (“Feel No Pain”): {length} of {length2} cancelled.', { fnp: ctx.fnp, length: fdice.filter((d) => d.success).length, length2: fdice.length }) })
   return { steps, summary, killed, damage, repulsed }
 }

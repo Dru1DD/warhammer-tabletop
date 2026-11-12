@@ -1,6 +1,7 @@
 import { FACTION_NAME } from '../data/datasheets'
 import { dist, pointInPolygon } from '../geometry/geometry'
 import { addLog, alive, isDestroyed, other, profileOf, radiusOf, sidesOf, unitNearObjective, unitsOf } from '../gameState'
+import { quote, tr } from '../../i18n/index'
 import type { GameState, Objective, PlayerId, SecondaryId, SecondaryState, UnitState, Vec } from '../types'
 
 // Secondary missions of the 44″×60″ battle (Mission Deck 2026-27, Wahapedia): the 16 cards without actions (Plunder and
@@ -35,22 +36,22 @@ export interface SecondaryCard {
 }
 
 export const SECONDARY: Record<SecondaryId, SecondaryCard> = {
-  noPrisoners: { name: 'Без пленных', nameEn: 'No Prisoners', when: 'any', text: 'Конец любого хода: 2 ПО за каждый вражеский отряд, уничтоженный в этот ход (до 5).' },
-  overwhelmingForce: { name: 'Подавляющая сила', nameEn: 'Overwhelming Force', when: 'any', text: 'Конец любого хода: 3 ПО за каждый вражеский отряд, который начал ход у цели и уничтожен в этот ход (до 5).' },
-  displayOfMight: { name: 'Демонстрация силы', nameEn: 'Display of Might', when: 'both', text: 'Если у вас больше отрядов (не в боевом шоке) целиком в нейтральной зоне, чем у противника: 2 ПО в конце вашего хода или 5 ПО в конце хода противника.' },
-  outflank: { name: 'Обход с фланга', nameEn: 'Outflank', when: 'yours', text: 'Конец вашего хода: 3 ПО, если ваш отряд в 6″ от края поля и вне вашей территории; 5 ПО, если у противоположных краёв по отряду и хотя бы один вне вашей территории.' },
-  beacon: { name: 'Маяк', nameEn: 'Beacon', when: 'theirs', text: 'Когда взята: игра выбирает ваш отряд-маяк (самый быстрый). Конец хода противника (или 5-го раунда): 3 ПО, если маяк вне вашей зоны расстановки, 5 ПО — если вне вашей территории.' },
-  grievousBlow: { name: 'Тяжкий удар', nameEn: 'A Grievous Blow', when: 'any', text: 'Конец любого хода: 5 ПО за каждый уничтоженный в этот ход вражеский отряд из 13+ моделей (до 5). Нет таких отрядов — карта сразу меняется.', fixedText: 'Конец любого хода: 4 ПО за каждый уничтоженный вражеский отряд из 13+ моделей.' },
-  defendStronghold: { name: 'Удержать оплот', nameEn: 'Defend Stronghold', when: 'theirs', text: 'Со 2-го раунда, конец хода противника (или 5-го раунда): 3 ПО, если вы держите свою домашнюю цель, и ещё 2, если в вашей зоне расстановки нет врагов. В 1-м раунде карта сразу меняется.' },
-  engageAllFronts: { name: 'Бой на всех фронтах', nameEn: 'Engage on All Fronts', when: 'yours', text: 'Конец вашего хода: отряды целиком в трёх четвертях поля (дальше 6″ от центра) — 3 ПО, в четырёх — 5 ПО.', fixedText: 'Конец вашего хода: три четверти поля — 2 ПО, четыре — 4 ПО.' },
-  secureNoMansLand: { name: 'Нейтральная зона за нами', nameEn: "Secure No Man's Land", when: 'yours', text: 'Конец вашего хода: 5 ПО, если вы держите две или больше целей в нейтральной зоне (кроме домашних).' },
-  forwardPosition: { name: 'Передовая позиция', nameEn: 'Forward Position', when: 'yours', text: 'Конец вашего хода: 5 ПО, если вы держите домашнюю цель противника или обе фланговые цели. В 1-м раунде карта сразу меняется.' },
-  centreGround: { name: 'Центр поля', nameEn: 'Centre Ground', when: 'yours', text: 'Конец вашего хода: 3 ПО, если ваш отряд в 3″ от центра поля, а врагов там нет; 5 ПО, если врагов нет и в 6″.' },
-  assassination: { name: 'Убийство', nameEn: 'Assassination', when: 'any', text: 'Конец любого хода: 5 ПО, если в этот ход убит вражеский персонаж или убиты все.', fixedText: 'Конец любого хода: 3 ПО за каждого убитого в этот ход вражеского персонажа, +1 ПО, если у него 4+ ран.' },
-  temptingTarget: { name: 'Соблазнительная цель', nameEn: 'A Tempting Target', when: 'yours', text: 'Когда взята: противник выбирает цель в нейтральной зоне (выбирает игра — самую далёкую от вас). Конец вашего хода: 5 ПО, если вы её держите.' },
-  behindEnemyLines: { name: 'В тылу врага', nameEn: 'Behind Enemy Lines', when: 'yours', text: 'Конец вашего хода: 3 ПО за каждый ваш отряд целиком в зоне расстановки противника (до 5). В 1-м раунде карта сразу меняется.' },
-  bringItDown: { name: 'Свалить гиганта', nameEn: 'Bring It Down', when: 'any', text: 'Конец любого хода: 5 ПО за каждую уничтоженную в этот ход вражескую модель с 10+ ранами (до 5). Нет таких моделей — карта сразу меняется.', fixedText: 'Конец любого хода: 4 ПО за каждую уничтоженную вражескую модель с 10+ ранами.' },
-  burdenOfTrust: { name: 'Бремя доверия', nameEn: 'Burden of Trust', when: 'theirs', text: 'Когда взята и в начале вашего хода: ваши отряды у ваших целей берут их под охрану. Конец хода противника (или 5-го раунда): 2 ПО за каждую цель, которую охрана удержала (до 5).' },
+  noPrisoners: { name: tr('No Prisoners'), nameEn: 'No Prisoners', when: 'any', text: tr('End of any turn: 2 VP for each enemy unit destroyed this turn (up to 5).') },
+  overwhelmingForce: { name: tr('Overwhelming Force'), nameEn: 'Overwhelming Force', when: 'any', text: tr('End of any turn: 3 VP for each enemy unit that started the turn at an objective and was destroyed this turn (up to 5).') },
+  displayOfMight: { name: tr('Display of Might'), nameEn: 'Display of Might', when: 'both', text: tr('If you have more units (not Battle-shocked) wholly within No Man’s Land than your opponent: 2 VP at the end of your turn or 5 VP at the end of your opponent’s turn.') },
+  outflank: { name: tr('Outflank'), nameEn: 'Outflank', when: 'yours', text: tr('End of your turn: 3 VP if your unit is within 6″ of a board edge and outside your territory; 5 VP if you have a unit at each of two opposite edges and at least one is outside your territory.') },
+  beacon: { name: tr('Beacon'), nameEn: 'Beacon', when: 'theirs', text: tr('When drawn: the game picks your beacon unit (the fastest). End of your opponent’s turn (or of round 5): 3 VP if the beacon is outside your deployment zone, 5 VP if it is outside your territory.') },
+  grievousBlow: { name: tr('A Grievous Blow'), nameEn: 'A Grievous Blow', when: 'any', text: tr('End of any turn: 5 VP for each enemy unit of 13+ models destroyed this turn (up to 5). No such units — the card is swapped at once.'), fixedText: tr('End of any turn: 4 VP for each enemy unit of 13+ models destroyed this turn.') },
+  defendStronghold: { name: tr('Defend Stronghold'), nameEn: 'Defend Stronghold', when: 'theirs', text: tr('From round 2, end of your opponent’s turn (or of round 5): 3 VP if you hold your home objective, and 2 more if there are no enemies in your deployment zone. In round 1 the card is swapped at once.') },
+  engageAllFronts: { name: tr('Engage on All Fronts'), nameEn: 'Engage on All Fronts', when: 'yours', text: tr('End of your turn: units wholly within three table quarters (more than 6″ from the centre) — 3 VP, within four — 5 VP.'), fixedText: tr('End of your turn: three quarters of the board — 2 VP, four — 4 VP.') },
+  secureNoMansLand: { name: tr('Secure No Man\'s Land'), nameEn: "Secure No Man's Land", when: 'yours', text: tr('End of your turn: 5 VP if you control two or more objectives in No Man’s Land (other than home ones).') },
+  forwardPosition: { name: tr('Forward Position'), nameEn: 'Forward Position', when: 'yours', text: tr('End of your turn: 5 VP if you control the enemy’s home objective or both flank objectives. In round 1 the card is swapped at once.') },
+  centreGround: { name: tr('Centre Ground'), nameEn: 'Centre Ground', when: 'yours', text: tr('End of your turn: 3 VP if your unit is within 3″ of the board centre and there are no enemies there; 5 VP if there are no enemies within 6″ either.') },
+  assassination: { name: tr('Assassination'), nameEn: 'Assassination', when: 'any', text: tr('End of any turn: 5 VP if an enemy character was killed this turn or all of them are dead.'), fixedText: tr('End of any turn: 3 VP for each enemy character killed this turn, +1 VP if it has 4+ wounds.') },
+  temptingTarget: { name: tr('A Tempting Target'), nameEn: 'A Tempting Target', when: 'yours', text: tr('When drawn: your opponent picks an objective in No Man’s Land (the game picks the one farthest from you). End of your turn: 5 VP if you control it.') },
+  behindEnemyLines: { name: tr('Behind Enemy Lines'), nameEn: 'Behind Enemy Lines', when: 'yours', text: tr('End of your turn: 3 VP for each of your units wholly within the enemy deployment zone (up to 5). In round 1 the card is swapped at once.') },
+  bringItDown: { name: tr('Bring It Down'), nameEn: 'Bring It Down', when: 'any', text: tr('End of any turn: 5 VP for each enemy model with 10+ wounds destroyed this turn (up to 5). No such models — the card is swapped at once.'), fixedText: tr('End of any turn: 4 VP for each enemy model with 10+ wounds destroyed this turn.') },
+  burdenOfTrust: { name: tr('Burden of Trust'), nameEn: 'Burden of Trust', when: 'theirs', text: tr('When drawn and at the start of your turn: your units at your objectives take them under guard. End of your opponent’s turn (or of round 5): 2 VP for each objective the guard held (up to 5).') },
 }
 
 // ---------------------------------------------------------------- set-up
@@ -156,33 +157,33 @@ function cardValue(s: GameState, p: PlayerId, card: SecondaryId, fixed: boolean,
   switch (card) {
     case 'noPrisoners': {
       const k = killsThisTurn(s, foe).units
-      return k ? { vp: Math.min(UP_TO, 2 * k), why: `уничтожено отрядов: ${k}` } : none
+      return k ? { vp: Math.min(UP_TO, 2 * k), why: tr('units destroyed: {n}', { n: k }) } : none
     }
     case 'overwhelmingForce': {
       const k = killsThisTurn(s, foe).fromObjectives
-      return k ? { vp: Math.min(UP_TO, 3 * k), why: `уничтожено отрядов у целей: ${k}` } : none
+      return k ? { vp: Math.min(UP_TO, 3 * k), why: tr('units destroyed at objectives: {n}', { n: k }) } : none
     }
     case 'grievousBlow': {
       const k = killsThisTurn(s, foe).big
-      return k ? { vp: fixed ? 4 * k : Math.min(UP_TO, 5 * k), why: `уничтожено отрядов из 13+ моделей: ${k}` } : none
+      return k ? { vp: fixed ? 4 * k : Math.min(UP_TO, 5 * k), why: tr('units of 13+ models destroyed: {n}', { n: k }) } : none
     }
     case 'bringItDown': {
       const k = killsThisTurn(s, foe).giants
-      return k ? { vp: fixed ? 4 * k : Math.min(UP_TO, 5 * k), why: `уничтожено моделей с 10+ ранами: ${k}` } : none
+      return k ? { vp: fixed ? 4 * k : Math.min(UP_TO, 5 * k), why: tr('models with 10+ wounds destroyed: {n}', { n: k }) } : none
     }
     case 'assassination': {
       const chars = killsThisTurn(s, foe).characters
       if (fixed) {
         const vp = chars.reduce((a, m) => a + 3 + (profileOf(m).w >= 4 ? 1 : 0), 0)
-        return vp ? { vp, why: `убито персонажей: ${chars.length}` } : none
+        return vp ? { vp, why: tr('characters killed: {n}', { n: chars.length }) } : none
       }
       const allDead = !s.units.some((u) => u.owner === foe && alive(u).some((m) => profileOf(m).character))
-      return chars.length || allDead ? { vp: 5, why: chars.length ? `убит персонаж (${chars.length})` : 'все персонажи противника мертвы' } : none
+      return chars.length || allDead ? { vp: 5, why: chars.length ? tr('a character killed ({n})', { n: chars.length }) : tr('all enemy characters are dead') } : none
     }
     case 'displayOfMight': {
       const a = eligible(s, p).filter((u) => inNoMansLand(s, u)).length
       const b = eligible(s, foe).filter((u) => inNoMansLand(s, u)).length
-      return a > b ? { vp: mine ? 2 : 5, why: `в нейтральной зоне ${a} отр. против ${b}` } : none
+      return a > b ? { vp: mine ? 2 : 5, why: tr('{a} units in No Man’s Land against {b}', { a, b }) } : none
     }
     case 'outflank': {
       const units = eligible(s, p).map((u) => ({ u, edges: edgesNear(s, u), out: !touches(u, territoryOf(s, p)) })).filter((x) => x.edges.length)
@@ -190,14 +191,14 @@ function cardValue(s: GameState, p: PlayerId, card: SecondaryId, fixed: boolean,
         const a = units.filter((x) => x.edges.includes(e1)), b = units.filter((x) => x.edges.includes(e2))
         return a.some((x) => b.some((y) => y.u.id !== x.u.id && (x.out || y.out)))
       })
-      if (opposite) return { vp: 5, why: 'отряды у противоположных краёв поля' }
-      return units.some((x) => x.out) ? { vp: 3, why: 'отряд у края поля вне своей территории' } : none
+      if (opposite) return { vp: 5, why: tr('units at opposite board edges') }
+      return units.some((x) => x.out) ? { vp: 3, why: tr('a unit at a board edge outside your territory') } : none
     }
     case 'beacon': {
       const u = s.units.find((x) => x.id === st.beacon)
       if (!u || isDestroyed(u)) return none
-      if (!touches(u, territoryOf(s, p))) return { vp: 5, why: `маяк «${u.name}» вне своей территории` }
-      if (!touches(u, zoneOf(s, p))) return { vp: 3, why: `маяк «${u.name}» вне своей зоны расстановки` }
+      if (!touches(u, territoryOf(s, p))) return { vp: 5, why: tr('beacon “{name}” is outside your territory', { name: u.name }) }
+      if (!touches(u, zoneOf(s, p))) return { vp: 3, why: tr('beacon “{name}” is outside your deployment zone', { name: u.name }) }
       return none
     }
     case 'defendStronghold': {
@@ -205,45 +206,45 @@ function cardValue(s: GameState, p: PlayerId, card: SecondaryId, fixed: boolean,
       const home = s.objectives.some((o) => isHomeOf(o, p) && o.controller === p)
       if (!home) return none
       const clear = !unitsOf(s, foe).some((u) => touches(u, zoneOf(s, p)))
-      return { vp: clear ? 5 : 3, why: clear ? 'домашняя цель удержана, врагов в зоне нет' : 'домашняя цель удержана' }
+      return { vp: clear ? 5 : 3, why: clear ? tr('home objective held, no enemies in the zone') : tr('home objective held') }
     }
     case 'engageAllFronts': {
       const qs = new Set(eligible(s, p).map((u) => quarterOf(s, u)).filter((q) => q !== null))
-      if (qs.size >= 4) return { vp: fixed ? 4 : 5, why: 'отряды во всех четырёх четвертях' }
-      if (qs.size === 3) return { vp: fixed ? 2 : 3, why: 'отряды в трёх четвертях' }
+      if (qs.size >= 4) return { vp: fixed ? 4 : 5, why: tr('units in all four quarters') }
+      if (qs.size === 3) return { vp: fixed ? 2 : 3, why: tr('units in three quarters') }
       return none
     }
     case 'secureNoMansLand': {
       const n = s.objectives.filter((o) => o.controller === p && !isHomeOf(o, p) && o.role !== 'home' && objInNoMansLand(s, o)).length
-      return n >= 2 ? { vp: 5, why: `удержано целей в нейтральной зоне: ${n}` } : none
+      return n >= 2 ? { vp: 5, why: tr('objectives held in No Man’s Land: {n}', { n }) } : none
     }
     case 'forwardPosition': {
       const home = s.objectives.some((o) => isHomeOf(o, foe) && o.controller === p)
       const exp = s.objectives.filter((o) => o.role === 'expansion')
       const flanks = exp.length > 0 && exp.every((o) => o.controller === p)
-      return home || flanks ? { vp: 5, why: home ? 'удержана домашняя цель противника' : 'удержаны обе фланговые цели' } : none
+      return home || flanks ? { vp: 5, why: home ? tr('held the enemy’s home objective') : tr('held both flank objectives') } : none
     }
     case 'centreGround': {
       const mineNear = eligible(s, p).some((u) => nearCentre(s, u, 3))
       if (!mineNear) return none
-      if (!unitsOf(s, foe).some((u) => nearCentre(s, u, 6))) return { vp: 5, why: 'центр наш, врагов нет и в 6″' }
-      if (!unitsOf(s, foe).some((u) => nearCentre(s, u, 3))) return { vp: 3, why: 'центр наш' }
+      if (!unitsOf(s, foe).some((u) => nearCentre(s, u, 6))) return { vp: 5, why: tr('the centre is ours, no enemies within 6″ either') }
+      if (!unitsOf(s, foe).some((u) => nearCentre(s, u, 3))) return { vp: 3, why: tr('the centre is ours') }
       return none
     }
     case 'temptingTarget': {
       const o = s.objectives.find((x) => x.id === st.tempting)
-      return o && o.controller === p ? { vp: 5, why: `удержана цель Ц${s.objectives.indexOf(o) + 1}` } : none
+      return o && o.controller === p ? { vp: 5, why: tr('held objective {obj}', { obj: tr('O{value}', { value: s.objectives.indexOf(o) + 1 }) }) } : none
     }
     case 'behindEnemyLines': {
       const n = eligible(s, p).filter((u) => whollyIn(u, zoneOf(s, foe))).length
-      return n ? { vp: Math.min(UP_TO, 3 * n), why: `отрядов в зоне расстановки противника: ${n}` } : none
+      return n ? { vp: Math.min(UP_TO, 3 * n), why: tr('units in the enemy deployment zone: {n}', { n }) } : none
     }
     case 'burdenOfTrust': {
       const g = Object.entries(st.guarded ?? {}).filter(([oid, uid]) => {
         const o = s.objectives.find((x) => x.id === oid), u = s.units.find((x) => x.id === uid)
         return o && u && !isDestroyed(u) && o.controller === p && unitNearObjective(u, o)
       }).length
-      return g ? { vp: Math.min(UP_TO, 2 * g), why: `охрана удержала целей: ${g}` } : none
+      return g ? { vp: Math.min(UP_TO, 2 * g), why: tr('the guard held objectives: {n}', { n: g }) } : none
     }
   }
 }
@@ -257,8 +258,8 @@ function scoreSecondary(s: GameState, p: PlayerId, card: SecondaryId, vp: number
   st.byRound[s.round] += got
   st.cardVp[card] = (st.cardVp[card] ?? 0) + got
   s.players[p].vp += got
-  const capped = got < vp ? ` (лимит: засчитано ${got} из ${vp})` : ''
-  addLog(s, `${FACTION_NAME[p]}: +${got} ПО — вторичная «${SECONDARY[card].name}»: ${why}${capped}.`, 'minimal')
+  const capped = got < vp ? tr(' (cap: {got} of {vp} counted)', { got, vp }) : ''
+  addLog(s, tr('{faction}: +{got} VP — secondary “{name}”: {why}{capped}.', { faction: FACTION_NAME[p], got, name: SECONDARY[card].name, why, capped }), 'minimal')
   return got
 }
 
@@ -301,7 +302,7 @@ export function secondaryTurnEnd(s: GameState) {
     st.active = st.active.filter((c) => c !== card)
     st.discarded.push(card)
     s.players[s.activePlayer].cp++
-    addLog(s, `${FACTION_NAME[s.activePlayer]}: вторичная «${SECONDARY[card].name}» сброшена — +1 CP.`, 'minimal')
+    addLog(s, tr('{faction}: secondary “{name}” discarded — +1 CP.', { faction: FACTION_NAME[s.activePlayer], name: SECONDARY[card].name }), 'minimal')
   }
   st.toDiscard = []
 }
@@ -337,10 +338,10 @@ function assignGuards(s: GameState, p: PlayerId) {
 /** Why a freshly drawn card goes back (or is discarded) at once, or null to keep it. */
 function redrawReason(s: GameState, p: PlayerId, card: SecondaryId): { why: string; back: boolean } | null {
   const foe = other(s, p)
-  if (s.round === 1 && (card === 'defendStronghold' || card === 'forwardPosition' || card === 'behindEnemyLines')) return { why: 'в 1-м раунде её не выполнить', back: true }
-  if (card === 'grievousBlow' && !unitsOf(s, foe).some((u) => u.startingModels >= 13)) return { why: 'у противника нет отрядов из 13+ моделей', back: false }
-  if (card === 'bringItDown' && !unitsOf(s, foe).some((u) => alive(u).some((m) => profileOf(m).w >= 10))) return { why: 'у противника нет моделей с 10+ ранами', back: false }
-  if (card === 'temptingTarget' && !pickTempting(s, p)) return { why: 'нет подходящей цели в нейтральной зоне', back: false }
+  if (s.round === 1 && (card === 'defendStronghold' || card === 'forwardPosition' || card === 'behindEnemyLines')) return { why: tr('it cannot be done in round 1'), back: true }
+  if (card === 'grievousBlow' && !unitsOf(s, foe).some((u) => u.startingModels >= 13)) return { why: tr('the opponent has no units of 13+ models'), back: false }
+  if (card === 'bringItDown' && !unitsOf(s, foe).some((u) => alive(u).some((m) => profileOf(m).w >= 10))) return { why: tr('the opponent has no models with 10+ wounds'), back: false }
+  if (card === 'temptingTarget' && !pickTempting(s, p)) return { why: tr('there is no suitable objective in No Man’s Land'), back: false }
   return null
 }
 
@@ -353,16 +354,17 @@ function drawOne(s: GameState, p: PlayerId): SecondaryId | null {
     if (redo) {
       if (redo.back) st.deck.push(card)
       else st.discarded.push(card)
-      addLog(s, `${FACTION_NAME[p]}: вытянута «${SECONDARY[card].name}» — ${redo.why}, берётся другая.`, 'standard')
+      addLog(s, tr('{faction}: drew “{name}” — {why}, another is taken.', { faction: FACTION_NAME[p], name: SECONDARY[card].name, why: redo.why }), 'standard')
       continue
     }
     st.active.push(card)
     if (card === 'beacon') st.beacon = pickBeacon(s, p)
     if (card === 'temptingTarget') st.tempting = pickTempting(s, p)
     if (card === 'burdenOfTrust') assignGuards(s, p)
-    const extra = card === 'beacon' && st.beacon ? ` Маяк — «${s.units.find((u) => u.id === st.beacon)?.name}».`
-      : card === 'temptingTarget' && st.tempting ? ` Противник выбрал цель Ц${s.objectives.findIndex((o) => o.id === st.tempting) + 1}.` : ''
-    addLog(s, `${FACTION_NAME[p]}: новая вторичная — «${SECONDARY[card].name}» (${SECONDARY[card].nameEn}).${extra}`, 'minimal')
+    const extra = card === 'beacon' && st.beacon ? tr(' The beacon is “{name}”.', { name: s.units.find((u) => u.id === st.beacon)?.name })
+      : card === 'temptingTarget' && st.tempting ? tr(' The opponent picked objective {obj}.', { obj: tr('O{value}', { value: s.objectives.findIndex((o) => o.id === st.tempting) + 1 }) }) : ''
+    const { name, nameEn } = SECONDARY[card]
+    addLog(s, name === nameEn ? tr('{faction}: new secondary — “{name}”.{extra}', { faction: FACTION_NAME[p], name, extra }) : tr('{faction}: new secondary — “{name}” ({nameEn}).{extra}', { faction: FACTION_NAME[p], name, nameEn, extra }), 'minimal')
     return card
   }
   return null
@@ -383,15 +385,15 @@ export function secondaryCommandStart(s: GameState) {
 /** Why this secondary command is not allowed now, or null. */
 export function secondaryProblem(s: GameState, p: PlayerId, op: 'swap' | 'discard', card: SecondaryId): string | null {
   const st = s.secondary?.[p]
-  if (!st) return 'В этой битве нет вторичных миссий.'
-  if (st.mode !== 'tactical') return 'Фиксированные вторичные не сбрасываются.'
-  if (s.activePlayer !== p) return 'Только в свой ход.'
-  if (!st.active.includes(card)) return 'Этой карты нет среди активных.'
+  if (!st) return tr('There are no secondary missions in this battle.')
+  if (st.mode !== 'tactical') return tr('Fixed secondaries are not discarded.')
+  if (s.activePlayer !== p) return tr('Only in your own turn.')
+  if (!st.active.includes(card)) return tr('This card is not among the active ones.')
   if (op === 'swap') {
-    if (s.phase !== 'command') return 'Сменить карту можно в своей фазе командования.'
-    if (st.swapUsed) return 'Смена за 1 CP уже использована в этой битве.'
-    if (s.players[p].cp < 1) return 'Нужно 1 CP.'
-    if (!st.deck.length) return 'Колода пуста.'
+    if (s.phase !== 'command') return tr('A card can be swapped in your Command phase.')
+    if (st.swapUsed) return tr('The 1 CP swap has already been used in this battle.')
+    if (s.players[p].cp < 1) return tr('You need 1 CP.')
+    if (!st.deck.length) return tr('The deck is empty.')
   }
   return null
 }
@@ -401,7 +403,7 @@ export function applySecondary(s: GameState, p: PlayerId, op: 'swap' | 'discard'
   if (op === 'discard') {
     const on = st.toDiscard.includes(card)
     st.toDiscard = on ? st.toDiscard.filter((c) => c !== card) : [...st.toDiscard, card]
-    addLog(s, on ? `«${SECONDARY[card].name}»: сброс отменён.` : `«${SECONDARY[card].name}» будет сброшена в конце хода (после подсчёта) за +1 CP.`, 'standard')
+    addLog(s, on ? tr('“{name}”: discard cancelled.', { name: SECONDARY[card].name }) : tr('“{name}” will be discarded at the end of the turn (after scoring) for +1 CP.', { name: SECONDARY[card].name }), 'standard')
     return
   }
   s.players[p].cp--
@@ -409,7 +411,7 @@ export function applySecondary(s: GameState, p: PlayerId, op: 'swap' | 'discard'
   st.active = st.active.filter((c) => c !== card)
   st.toDiscard = st.toDiscard.filter((c) => c !== card)
   st.discarded.push(card)
-  addLog(s, `${FACTION_NAME[p]}: вторичная «${SECONDARY[card].name}» сменена за 1 CP.`, 'minimal')
+  addLog(s, tr('{faction}: secondary “{name}” swapped for 1 CP.', { faction: FACTION_NAME[p], name: SECONDARY[card].name }), 'minimal')
   drawOne(s, p)
 }
 
@@ -424,14 +426,14 @@ export function secondaryGoals(s: GameState, p: PlayerId): { pos: Vec; weight: n
   const zone = zoneOf(s, foe)
   const zc = zone.length ? zone.reduce((a, v) => ({ x: a.x + v.x / zone.length, y: a.y + v.y / zone.length }), { x: 0, y: 0 }) : null
   for (const card of st.active) {
-    if (card === 'centreGround') out.push({ pos: centre(s), weight: 1, label: 'к центру поля (вторичная)' })
-    if (card === 'behindEnemyLines' && zc) out.push({ pos: zc, weight: 0.8, label: 'в тыл врага (вторичная)' })
+    if (card === 'centreGround') out.push({ pos: centre(s), weight: 1, label: tr('toward the centre of the board (secondary)') })
+    if (card === 'behindEnemyLines' && zc) out.push({ pos: zc, weight: 0.8, label: tr('behind enemy lines (secondary)') })
     if (card === 'temptingTarget' && st.tempting) {
       const o = s.objectives.find((x) => x.id === st.tempting)
-      if (o) out.push({ pos: o.pos, weight: 1, label: 'к соблазнительной цели (вторичная)' })
+      if (o) out.push({ pos: o.pos, weight: 1, label: tr('toward the tempting target (secondary)') })
     }
-    if (card === 'forwardPosition') for (const o of s.objectives) if (isHomeOf(o, foe) || o.role === 'expansion') out.push({ pos: o.pos, weight: 0.6, label: 'к передовой позиции (вторичная)' })
-    if (card === 'secureNoMansLand') for (const o of s.objectives) if (o.role !== 'home' && objInNoMansLand(s, o)) out.push({ pos: o.pos, weight: 0.6, label: 'к цели в нейтральной зоне (вторичная)' })
+    if (card === 'forwardPosition') for (const o of s.objectives) if (isHomeOf(o, foe) || o.role === 'expansion') out.push({ pos: o.pos, weight: 0.6, label: tr('toward the forward position (secondary)') })
+    if (card === 'secureNoMansLand') for (const o of s.objectives) if (o.role !== 'home' && objInNoMansLand(s, o)) out.push({ pos: o.pos, weight: 0.6, label: tr('toward an objective in No Man’s Land (secondary)') })
   }
   return out
 }
@@ -446,14 +448,14 @@ export function aiDiscards(s: GameState, p: PlayerId): SecondaryId[] {
 // ---------------------------------------------------------------- for the turn plan (missionAdvice.ts)
 
 const WHEN_TEXT: Record<When, string> = {
-  any: 'в конце любого хода',
-  yours: 'в конце вашего хода',
-  theirs: 'в конце хода противника',
-  both: 'в конце вашего хода (2 ПО) или хода противника (5 ПО)',
+  any: tr('at the end of any turn'),
+  yours: tr('at the end of your turn'),
+  theirs: tr('at the end of the opponent’s turn'),
+  both: tr('at the end of your turn (2 VP) or the opponent’s turn (5 VP)'),
 }
 
-const objName = (s: GameState, o: Objective) => `Ц${s.objectives.indexOf(o) + 1}`
-const names = (us: UnitState[]) => us.map((u) => `«${u.name}»`).join(', ')
+const objName = (s: GameState, o: Objective) => tr('O{value}', { value: s.objectives.indexOf(o) + 1 })
+const names = (us: UnitState[]) => us.map((u) => quote(u.name)).join(', ')
 
 /** What a card asks for right now, in words, with the targets named. */
 function cardNeed(s: GameState, p: PlayerId, card: SecondaryId): string {
@@ -461,58 +463,60 @@ function cardNeed(s: GameState, p: PlayerId, card: SecondaryId): string {
   const st = s.secondary![p]
   const enemies = unitsOf(s, foe)
   switch (card) {
-    case 'noPrisoners': return 'уничтожьте вражеский отряд — 2 ПО за каждый (до 5)'
+    case 'noPrisoners': return tr('destroy an enemy unit — 2 VP for each (up to 5)')
     case 'overwhelmingForce': {
       const on = enemies.filter((u) => (s.turnStart?.onObjective ?? []).includes(u.id))
-      return on.length ? `уничтожьте отряд, начавший ход у цели: ${names(on)}` : 'уничтожьте вражеский отряд, который начал ход у цели'
+      return on.length ? tr('destroy a unit that started the turn at an objective: {names}', { names: names(on) }) : tr('destroy an enemy unit that started the turn at an objective')
     }
     case 'displayOfMight': {
       const a = eligible(s, p).filter((u) => inNoMansLand(s, u)).length, b = eligible(s, foe).filter((u) => inNoMansLand(s, u)).length
-      return `держите в нейтральной зоне больше отрядов, чем враг (сейчас ${a} против ${b})`
+      return tr('keep more units in no man’s land than the enemy (now {a} vs {b})', { a, b })
     }
-    case 'outflank': return 'поставьте отряд в 6″ от края поля вне своей половины; два отряда у противоположных краёв — 5 ПО'
+    case 'outflank': return tr('put a unit within 6″ of a board edge outside your half; two units at opposite edges — 5 VP')
     case 'beacon': {
       const u = s.units.find((x) => x.id === st.beacon)
-      return u && !isDestroyed(u) ? `выведите маяк «${u.name}» из своей зоны (3 ПО) или со своей половины поля (5 ПО) и сохраните его до конца хода противника` : 'маяк погиб — карту не выполнить, её стоит сбросить за 1 CP'
+      return u && !isDestroyed(u) ? tr('take the beacon “{name}” out of your zone (3 VP) or off your half of the board (5 VP) and keep it alive until the end of the opponent’s turn', { name: u.name }) : tr('the beacon is dead — the card cannot be completed, discard it for 1 CP')
     }
     case 'grievousBlow': {
       const big = enemies.filter((u) => u.startingModels >= 13)
-      return big.length ? `уничтожьте отряд из 13+ моделей: ${names(big)}` : 'у противника не осталось отрядов из 13+ моделей — карту стоит сбросить'
+      return big.length ? tr('destroy a unit of 13+ models: {names}', { names: names(big) }) : tr('the enemy has no units of 13+ models left — discard the card')
     }
     case 'defendStronghold': {
       const home = s.objectives.find((o) => isHomeOf(o, p))
-      return `держите свою домашнюю цель${home ? ` ${objName(s, home)}` : ''} и не пускайте врагов в свою зону расстановки${s.round < 2 ? ' (со 2-го раунда)' : ''}`
+      return s.round < 2
+        ? tr('hold your home objective{obj} and keep enemies out of your deployment zone (from round 2)', { obj: home ? ` ${objName(s, home)}` : '' })
+        : tr('hold your home objective{obj} and keep enemies out of your deployment zone', { obj: home ? ` ${objName(s, home)}` : '' })
     }
     case 'engageAllFronts': {
       const qs = new Set(eligible(s, p).map((u) => quarterOf(s, u)).filter((q) => q !== null)).size
-      return `отряды целиком в трёх или четырёх четвертях поля, дальше 6″ от центра (сейчас четвертей: ${qs})`
+      return tr('units wholly in three or four quarters of the board, more than 6″ from the centre (quarters now: {qs})', { qs })
     }
     case 'secureNoMansLand': {
       const nml = s.objectives.filter((o) => o.role !== 'home' && objInNoMansLand(s, o))
-      return `держите две цели в нейтральной зоне: ${nml.map((o) => objName(s, o)).join(', ')} (сейчас ваших: ${nml.filter((o) => o.controller === p).length})`
+      return tr('hold two objectives in no man’s land: {list} (yours now: {mine})', { list: nml.map((o) => objName(s, o)).join(', '), mine: nml.filter((o) => o.controller === p).length })
     }
     case 'forwardPosition': {
       const home = s.objectives.find((o) => isHomeOf(o, foe))
       const exp = s.objectives.filter((o) => o.role === 'expansion')
-      return `возьмите домашнюю цель противника${home ? ` ${objName(s, home)}` : ''} или обе фланговые: ${exp.map((o) => objName(s, o)).join(', ')}`
+      return tr('take the enemy’s home objective{obj} or both flank objectives: {list}', { obj: home ? ` ${objName(s, home)}` : '', list: exp.map((o) => objName(s, o)).join(', ') })
     }
-    case 'centreGround': return 'отряд в 3″ от центра поля, а врагов там нет (если нет и в 6″ — 5 ПО)'
+    case 'centreGround': return tr('a unit within 3″ of the board centre with no enemies there (none within 6″ — 5 VP)')
     case 'assassination': {
       const chars = enemies.filter((u) => alive(u).some((m) => profileOf(m).character))
-      return chars.length ? `убейте вражеского персонажа: ${names(chars)}` : 'все персонажи противника убиты'
+      return chars.length ? tr('kill an enemy character: {names}', { names: names(chars) }) : tr('all the enemy characters are dead')
     }
     case 'temptingTarget': {
       const o = s.objectives.find((x) => x.id === st.tempting)
-      return o ? `держите цель ${objName(s, o)}` : 'цели нет'
+      return o ? tr('hold objective {obj}', { obj: objName(s, o) }) : tr('there is no objective')
     }
-    case 'behindEnemyLines': return 'отряд целиком в зоне расстановки противника — 3 ПО (до 5)'
+    case 'behindEnemyLines': return tr('a unit wholly in the enemy deployment zone — 3 VP (up to 5)')
     case 'bringItDown': {
       const giants = enemies.filter((u) => alive(u).some((m) => profileOf(m).w >= 10))
-      return giants.length ? `уничтожьте модель с 10+ ранами: ${names(giants)}` : 'у противника не осталось моделей с 10+ ранами — карту стоит сбросить'
+      return giants.length ? tr('destroy a model with 10+ wounds: {names}', { names: names(giants) }) : tr('the enemy has no models with 10+ wounds left — discard the card')
     }
     case 'burdenOfTrust': {
       const g = Object.keys(st.guarded ?? {}).map((id) => s.objectives.find((o) => o.id === id)).filter((o): o is Objective => !!o)
-      return g.length ? `удержите охраняемые цели до конца хода противника: ${g.map((o) => objName(s, o)).join(', ')}` : 'возьмите цели: в начале вашего хода отряды у ваших целей станут охраной'
+      return g.length ? tr('hold the guarded objectives until the end of the opponent’s turn: {list}', { list: g.map((o) => objName(s, o)).join(', ') }) : tr('take objectives: at the start of your turn the units at your objectives become guards')
     }
   }
 }

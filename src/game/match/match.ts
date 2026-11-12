@@ -12,6 +12,7 @@ import type {
   ActionRecord, CommandEnvelope, MatchMeta, MatchMode, MatchState, PlayerAssignments, PlayerController,
   RejectCode, ReplayResult, SideId, SubmitResult,
 } from './types'
+import { tr } from '../../i18n/index'
 
 export const LOCAL_PLAYER_ID = 'local'
 
@@ -57,11 +58,11 @@ const isText = (v: unknown): v is string => typeof v === 'string' && v.length > 
 /** Envelopes may come from the network: never trust the shape. */
 function shapeProblem(env: unknown): string | null {
   const e = env as Partial<CommandEnvelope> | null
-  if (typeof e !== 'object' || e === null) return 'Команда не является объектом.'
-  if (!isText(e.gameId) || !isText(e.playerId) || !isText(e.commandId)) return 'Некорректные идентификаторы команды.'
-  if (!isInt(e.sequence, 1) || !isInt(e.expectedStateVersion, 0)) return 'Некорректный номер команды или версии состояния.'
+  if (typeof e !== 'object' || e === null) return tr('The command is not an object.')
+  if (!isText(e.gameId) || !isText(e.playerId) || !isText(e.commandId)) return tr('Invalid command identifiers.')
+  if (!isInt(e.sequence, 1) || !isInt(e.expectedStateVersion, 0)) return tr('Invalid command number or state version.')
   const c = e.command as Partial<Command> | null | undefined
-  if (typeof c !== 'object' || c === null || typeof c.type !== 'string') return 'Некорректное содержимое команды.'
+  if (typeof c !== 'object' || c === null || typeof c.type !== 'string') return tr('Invalid command content.')
   return null
 }
 
@@ -75,16 +76,16 @@ function recordingRoller(inner: Roller) {
 export function submit(m: MatchState, env: CommandEnvelope): SubmitResult {
   const bad = shapeProblem(env)
   if (bad) return reject('malformed', bad)
-  if (env.gameId !== m.gameId) return reject('wrong-game', 'Команда относится к другой партии.')
-  if (m.history.some((a) => a.actionId === env.commandId)) return reject('duplicate', 'Эта команда уже была принята.')
+  if (env.gameId !== m.gameId) return reject('wrong-game', tr('The command belongs to another game.'))
+  if (m.history.some((a) => a.actionId === env.commandId)) return reject('duplicate', tr('This command has already been accepted.'))
   const last = lastSeq(m, env.playerId)
-  if (env.sequence <= last) return reject('duplicate', `Номер команды ${env.sequence} уже использован (последний принятый — ${last}).`)
-  if (env.sequence > last + 1) return reject('bad-sequence', `Нарушен порядок команд: ожидался номер ${last + 1}, получен ${env.sequence}.`)
+  if (env.sequence <= last) return reject('duplicate', tr('Command number {sequence} has already been used (the last accepted — {last}).', { sequence: env.sequence, last }))
+  if (env.sequence > last + 1) return reject('bad-sequence', tr('Command order broken: expected number {value}, got {sequence}.', { value: last + 1, sequence: env.sequence }))
   if (env.expectedStateVersion !== m.version)
-    return reject('stale-state', `Команда основана на версии состояния ${env.expectedStateVersion}, текущая — ${m.version}.`)
+    return reject('stale-state', tr('The command is based on state version {expectedStateVersion}, the current one is {version}.', { expectedStateVersion: env.expectedStateVersion, version: m.version }))
 
   const side = decidingSide(m)
-  if (m.assignments[side].playerId !== env.playerId) return reject('unauthorized', `Сейчас решение принимает другой игрок (сторона «${side}»).`)
+  if (m.assignments[side].playerId !== env.playerId) return reject('unauthorized', tr('Another player is making the decision now (side “{side}”).', { side }))
 
   // Commands may be hostile (e.g. `move` without `positions`): validate/apply can throw -> rejection, never a crash.
   let next: GameState
@@ -94,7 +95,7 @@ export function submit(m: MatchState, env: CommandEnvelope): SubmitResult {
     if (!v.ok) return reject('illegal', v.reason)
     next = apply(m.state, env.command, dice.roller)
   } catch {
-    return reject('illegal', 'Команда повреждена или недопустима.')
+    return reject('illegal', tr('The command is damaged or invalid.'))
   }
 
   const action: ActionRecord = {
@@ -129,7 +130,7 @@ export function replay(base: Pick<MatchMeta, 'gameId' | 'mode' | 'assignments' |
     const r = submit(m, envelopeOf(a))
     if (!r.ok) return { ok: false, atIndex: i, reason: `${r.code}: ${r.reason}` }
     if (r.action.stateVersion !== a.stateVersion || JSON.stringify(r.action.dice) !== JSON.stringify(a.dice))
-      return { ok: false, atIndex: i, reason: 'desync: кубики или версия не совпали с записью.' }
+      return { ok: false, atIndex: i, reason: tr('desync: the dice or version did not match the record.') }
     m = r.match
   }
   return { ok: true, match: m }

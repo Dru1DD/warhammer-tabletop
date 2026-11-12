@@ -1,3 +1,4 @@
+import { quote, tr } from '../i18n/index'
 import { isDestroyed, other } from './gameState'
 import {
   actionCompletes, actionProblem, cappedSum, commandEntries, MISSION_ACTION, PRIMARY, turnEndEntries, unitsLostThisTurn, type VpEntry,
@@ -21,25 +22,25 @@ export interface PlanLine {
 }
 
 const objName = (s: GameState, o: Objective) => {
-  const role = o.role === 'home' ? (o.home === undefined ? '' : ' дом') : o.role === 'central' ? ' центр' : o.role === 'expansion' ? ' фланг' : ''
-  return `Ц${s.objectives.indexOf(o) + 1}${role}`
+  const value = s.objectives.indexOf(o) + 1
+  return o.role === 'home' && o.home !== undefined ? tr('O{value} home', { value }) : o.role === 'central' ? tr('O{value} center', { value }) : o.role === 'expansion' ? tr('O{value} flank', { value }) : tr('O{value}', { value })
 }
 const reasons = (es: VpEntry[]) => es.map((e) => e.why).join('; ')
 
-/** The battle round of `p`'s next "end of Command phase" scoring, and how to say when it is. */
-function nextCommand(s: GameState, p: PlayerId): { round: number; label: string } | null {
+/** The battle round of `p`'s next "end of Command phase" scoring, and whether it is the Command phase going on now. */
+function nextCommand(s: GameState, p: PlayerId): { round: number; now: boolean } | null {
   let round: number
-  let label: string
+  let now: boolean
   if (s.activePlayer === p && s.phase === 'command') {
     round = s.round
-    label = 'в конце этой фазы командования'
+    now = true
   } else {
     round = s.activePlayer === p || p === s.firstPlayer ? s.round + 1 : s.round
-    label = `в вашей фазе командования (раунд ${round})`
+    now = false
   }
   // round 5 scores these lines at the end of the turn (they are part of the turn-end projection then)
   if (round >= 5 || round > s.maxRounds || round < 2) return null
-  return { round, label }
+  return { round, now }
 }
 
 /** What `p` would score at the end of the current turn (p is the active player), board as it is. */
@@ -95,16 +96,17 @@ export function turnPlan(s: GameState, p: PlayerId): PlanLine[] {
       const es = turnEndNow(s, p)
       const vp = cappedSum(s, p, es, s.round)
       out.push(vp
-        ? { kind: 'score', vp, text: `Если закончить ход сейчас — +${vp} ПО основной миссии (${reasons(es)}).` }
-        : { kind: 'score', vp: 0, text: `Если закончить ход сейчас, «${card.name}» не даст очков.` })
+        ? { kind: 'score', vp, text: tr('If you end the turn now — +{vp} VP of the primary mission ({reasons}).', { vp, reasons: reasons(es) }) }
+        : { kind: 'score', vp: 0, text: tr('If you end the turn now, {name} will score nothing.', { name: quote(card.name) }) })
     }
     const c = nextCommand(s, p)
     if (c) {
       const es = commandEntries(s, p, c.round)
       const vp = cappedSum(s, p, es, c.round)
+      const r = reasons(es)
       out.push(vp
-        ? { kind: 'score', vp, text: `${c.label[0].toUpperCase()}${c.label.slice(1)}: +${vp} ПО, если цели останутся за вами (${reasons(es)}).` }
-        : { kind: 'score', vp: 0, text: `${c.label[0].toUpperCase()}${c.label.slice(1)} основная миссия пока не даст очков — нужна цель, которую она считает.` })
+        ? { kind: 'score', vp, text: c.now ? tr('At the end of this Command phase: +{vp} VP if the objectives stay yours ({reasons}).', { vp, reasons: r }) : tr('In your Command phase (round {round}): +{vp} VP if the objectives stay yours ({reasons}).', { round: c.round, vp, reasons: r }) }
+        : { kind: 'score', vp: 0, text: c.now ? tr('At the end of this Command phase the primary mission will score nothing yet — it needs an objective it counts.') : tr('In your Command phase (round {round}) the primary mission will score nothing yet — it needs an objective it counts.', { round: c.round }) })
     }
 
     // 2. objectives worth taking, and the ones to keep
@@ -114,12 +116,12 @@ export function turnPlan(s: GameState, p: PlayerId): PlanLine[] {
       .filter((x) => x.gain > 0)
       .sort((a, b) => b.gain - a.gain)
     for (const { o, gain } of chances.slice(0, 3))
-      out.push({ kind: 'chance', vp: gain, text: `Возьмите ${objName(s, o)}${o.controller === foe ? ' (сейчас у противника)' : ''} — ещё +${gain} ПО.` })
+      out.push({ kind: 'chance', vp: gain, text: o.controller === foe ? tr('Take {obj} (the opponent holds it now) — another +{gain} VP.', { obj: objName(s, o), gain }) : tr('Take {obj} — another +{gain} VP.', { obj: objName(s, o), gain }) })
     const keeps = s.objectives
       .map((o) => ({ o, loss: stakes[o.id]?.loss ?? 0 }))
       .filter((x) => x.loss > 0)
       .sort((a, b) => b.loss - a.loss)
-    for (const { o, loss } of keeps.slice(0, 2)) out.push({ kind: 'keep', vp: loss, text: `Не отдавайте ${objName(s, o)} — потеряете ${loss} ПО.` })
+    for (const { o, loss } of keeps.slice(0, 2)) out.push({ kind: 'keep', vp: loss, text: tr('Do not give up {obj} — you would lose {loss} VP.', { obj: objName(s, o), loss }) })
 
     // 3. objective actions
     const act = card.action
@@ -128,16 +130,16 @@ export function turnPlan(s: GameState, p: PlayerId): PlanLine[] {
       for (const u of s.units.filter((x) => x.owner === p && x.action && !isDestroyed(x))) {
         const o = s.objectives.find((x) => x.id === u.action!.objectiveId)!
         out.push(actionCompletes(s, u)
-          ? { kind: 'action', vp: info.vp, text: `«${u.name}» выполняет «${info.name}» у ${objName(s, o)}: удержите цель до конца хода — +${info.vp} ПО.` }
-          : { kind: 'warn', vp: info.vp, text: `«${u.name}» выполняет «${info.name}», но ${objName(s, o)} сейчас не ваша — действие сорвётся, если не вернуть цель.` })
+          ? { kind: 'action', vp: info.vp, text: tr('{unit} is performing {action} at {obj}: hold the objective until the end of the turn — +{vp} VP.', { unit: quote(u.name), action: quote(info.name), obj: objName(s, o), vp: info.vp }) }
+          : { kind: 'warn', vp: info.vp, text: tr('{unit} is performing {action}, but {obj} is not yours now — the action will fail unless you retake it.', { unit: quote(u.name), action: quote(info.name), obj: objName(s, o) }) })
       }
       if (mine && s.phase === 'shooting') {
         for (const u of s.units.filter((x) => x.owner === p && !isDestroyed(x) && !x.action))
           for (const o of s.objectives)
             if (!actionProblem(s, u, o.id))
-              out.push({ kind: 'action', vp: info.vp, text: `«${u.name}» может начать «${info.name}» у ${objName(s, o)} вместо стрельбы — +${info.vp} ПО в конце хода, если цель будет вашей.` })
+              out.push({ kind: 'action', vp: info.vp, text: tr('{unit} can start {action} at {obj} instead of shooting — +{vp} VP at the end of the turn if the objective is yours.', { unit: quote(u.name), action: quote(info.name), obj: objName(s, o), vp: info.vp }) })
       } else if (mine && s.round >= info.fromRound && (s.phase === 'command' || s.phase === 'movement'))
-        out.push({ kind: 'action', text: `Действие «${info.name}»: в фазе стрельбы отряд у цели (кроме своей домашней) может выполнить его вместо стрельбы — +${info.vp} ПО. Подведите отряды к целям в движении.` })
+        out.push({ kind: 'action', text: tr('The action {action}: in the Shooting phase a unit at an objective (other than its own home) can do it instead of shooting — +{vp} VP. Move units up to the objectives.', { action: quote(info.name), vp: info.vp }) })
     }
   }
 
@@ -145,18 +147,18 @@ export function turnPlan(s: GameState, p: PlayerId): PlanLine[] {
   for (const c of cardOutlooks(s, p)) {
     const name = SECONDARY[c.card].name
     out.push(c.vp > 0
-      ? { kind: 'secondary', vp: c.vp, text: `🃏 «${name}» выполняется: +${c.vp} ПО ${c.when} (${c.why}).` }
-      : { kind: 'secondary', vp: 0, text: `🃏 «${name}» — ${c.need}; засчитывается ${c.when}.` })
+      ? { kind: 'secondary', vp: c.vp, text: tr('🃏 {name} is met: +{vp} VP {when} ({why}).', { name: quote(name), vp: c.vp, when: c.when, why: c.why }) }
+      : { kind: 'secondary', vp: 0, text: tr('🃏 {name} — {need}; scored {when}.', { name: quote(name), need: c.need, when: c.when }) })
   }
 
   // 5. reserves
   const res = reservesOf(s, p)
   if (res.length) {
-    const list = res.map((u) => `«${u.name}»`).join(', ')
-    if (s.round < RESERVE_FROM_ROUND) out.push({ kind: 'reserve', text: `В резерве: ${list} — выйдут со ${RESERVE_FROM_ROUND}-го раунда, в вашей фазе движения.` })
+    const list = res.map((u) => quote(u.name)).join(', ')
+    if (s.round < RESERVE_FROM_ROUND) out.push({ kind: 'reserve', text: tr('In Reserves: {list} — they arrive from round {round}, in your Movement phase.', { list, round: RESERVE_FROM_ROUND }) })
     else if (s.round >= RESERVE_DEADLINE)
-      out.push({ kind: 'warn', text: `Последний шанс: ${list} в резерве — если не выйдут до конца ${RESERVE_DEADLINE}-го раунда, будут уничтожены.` })
-    else out.push({ kind: 'reserve', text: mine && s.phase === 'movement' ? `Сейчас можно вывести из резерва: ${list}.` : `В резерве: ${list} — выход в вашей фазе движения (или «Быстрым выходом» в конце хода противника).` })
+      out.push({ kind: 'warn', text: tr('Last chance: {list} in Reserves — if they do not arrive by the end of round {round}, they are destroyed.', { list, round: RESERVE_DEADLINE }) })
+    else out.push({ kind: 'reserve', text: mine && s.phase === 'movement' ? tr('You can bring in from Reserves now: {list}.', { list }) : tr('In Reserves: {list} — they arrive in your Movement phase (or by “Rapid Ingress” at the end of the opponent’s turn).', { list }) })
   }
   return out
 }

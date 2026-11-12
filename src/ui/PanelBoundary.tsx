@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from 'react'
+import { tr } from '../i18n/index'
 
 interface Props { name: string; resetKey?: unknown; children: ReactNode }
 interface State { error: Error | null; resetKey?: unknown }
@@ -6,7 +7,7 @@ interface State { error: Error | null; resetKey?: unknown }
 /**
  * A fuse around a side panel: a rendering error inside it shows a short notice instead of unmounting the whole game
  * (a white page). The battle state is not touched, so the board and the other panels keep working. The panel tries
- * again when `resetKey` changes (for example, another unit is selected) or on «Повторить».
+ * again when `resetKey` changes (for example, another unit is selected) or on "Retry".
  */
 export class PanelBoundary extends Component<Props, State> {
   state: State = { error: null, resetKey: this.props.resetKey }
@@ -21,15 +22,15 @@ export class PanelBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error) {
-    console.error(`Панель «${this.props.name}» не отрисовалась:`, error)
+    console.error(tr('The “{name}” panel failed to render:', { name: this.props.name }), error)
   }
 
   render() {
     if (!this.state.error) return this.props.children
     return (
       <div className="rounded border border-rose-700 bg-rose-950/40 p-2 text-xs text-rose-100" role="alert">
-        ⚠ Панель «{this.props.name}» не смогла отрисоваться: {this.state.error.message}. Игра и сохранение в порядке — можно продолжать.
-        <button className="btn mt-1 w-full" onClick={() => this.setState({ error: null })}>Повторить</button>
+        {tr('⚠ The “{name}” panel could not render: {message}. The game and the save are fine — you can carry on.', { name: this.props.name, message: this.state.error.message })}
+        <button className="btn mt-1 w-full" onClick={() => this.setState({ error: null })}>{tr('Retry')}</button>
       </div>
     )
   }

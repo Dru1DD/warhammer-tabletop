@@ -1,19 +1,19 @@
 # Turn plan (44″×60″ battle)
 
-A beginner cannot keep the cards in their head: what scores this turn, which objective is worth a fight, which card is about to pay. The «🧭 План хода» block at the top of the action panel says it in plain words. Code: `src/game/missionAdvice.ts`.
+A beginner cannot keep the cards in their head: what scores this turn, which objective is worth a fight, which card is about to pay. The “🧭 Turn plan” block at the top of the action panel says it in plain words. Code: `src/game/missionAdvice.ts`.
 
 ## What it shows
 
 - **The primary mission now.**
   - «If you end the turn now: +N VP (why)». Shown in your own turn.
   - What your next Command phase would give if control stays as it is. Shown in both turns. In round 5 these lines move to the end of the turn, like the scoring.
-- **Objectives to take** (up to three): «Возьмите Ц2 дом — ещё +15 ПО». The VP the next scoring moments would gain if that objective were yours.
-- **Objectives to keep** (up to two): «Не отдавайте Ц4 — потеряете 5 ПО».
+- **Objectives to take** (up to three): “Take O2 home — another +15 VP”. The VP the next scoring moments would gain if that objective were yours.
+- **Objectives to keep** (up to two): “Do not give up O4 — you would lose 5 VP”.
 - **Actions.**
   - Units already acting: the action completes if you hold the objective, and there is a warning when you do not.
   - In the Shooting phase: every unit that can start the action now.
   - Earlier in the turn: a reminder to bring units to objectives.
-- **Secondary cards.** «выполняется: +N ПО» with the reason, or what the card needs with the targets named. Examples:
+- **Secondary cards.** “is met: +N VP” with the reason, or what the card needs with the targets named. Examples:
   - the enemy units of 13+ models;
   - the characters;
   - the objectives in No Man's Land;

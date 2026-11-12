@@ -7,6 +7,7 @@ import { dist } from '../game/geometry/geometry'
 import type { Command, GameState, Phase, PlayerId, UnitState, Vec } from '../game/types'
 import { PHASES } from '../game/types'
 import { DECISION_TIMEOUT } from '../multiplayer/host'
+import { quote, tr } from '../i18n/index'
 
 // Pure helpers that tell the player what they can do next. All legality
 // comes from engine.validate — nothing here decides rules on its own.
@@ -14,7 +15,7 @@ import { DECISION_TIMEOUT } from '../multiplayer/host'
 const ok = (s: GameState, c: Command) => validate(s, c).ok
 
 /** online: how long the other side may think about a reaction or a re-roll (multiplayer/host.ts DECISION_TIMEOUT) */
-const WAIT_LIMIT = ` Ждём не больше ${DECISION_TIMEOUT / 1000} с, потом — пропуск.`
+const WAIT_LIMIT = tr(' We wait no more than {value} s, then — a pass.', { value: DECISION_TIMEOUT / 1000 })
 
 /** The command a click on `target` would issue for the selected unit, if any. */
 export function targetCommand(s: GameState, unit: UnitState, target: UnitState): Command | null {
@@ -61,14 +62,14 @@ export function actedThisPhase(s: GameState, u: UnitState): boolean {
 export function endPhaseWarning(s: GameState, human: PlayerId): string | null {
   if (actor(s) !== human || s.winner || !ok(s, { type: 'endPhase' })) return null
   if (s.phase === 'command' && s.players[human].imperative === null)
-    return 'Империатив не выбран: «Протектор» усиливает стрельбу, «Завоеватель» — бой и бронебойность. Он бесплатный и выбирается каждый ход. Нажмите ещё раз, чтобы идти дальше без него.'
+    return tr('No Imperative chosen: “Protector” boosts shooting, “Conqueror” — melee and armour penetration. It is free and chosen every turn. Press again to continue without it.')
   const last = lastRoundWarning(s, human)
-  if (s.phase === 'movement' && last) return `${last} Нажмите ещё раз, чтобы закончить движение.`
+  if (s.phase === 'movement' && last) return tr('{last} Press again to finish the move.', { last })
   const ready = actionableUnits(s, human)
-  const verb: Partial<Record<Phase, string>> = { movement: 'двигаться', shooting: 'стрелять', charge: 'объявить атаку' }
-  if (ready.length && verb[s.phase]) return `Ещё могут ${verb[s.phase]}: ${ready.map((u) => `«${u.name}»`).join(', ')}. Это необязательно — нажмите ещё раз, чтобы перейти дальше.`
+  const verb: Partial<Record<Phase, string>> = { movement: tr('move'), shooting: tr('shoot'), charge: tr('declare a charge') }
+  if (ready.length && verb[s.phase]) return tr('Can still {item}: {list}. It is optional — press again to move on.', { item: verb[s.phase], list: ready.map((u) => quote(u.name)).join(', ') })
   const cp = cpReminder(s, human)
-  return cp ? `${cp} Нажмите ещё раз, чтобы идти дальше без стратагемы.` : null
+  return cp ? tr('{cp} Press again to continue without a Stratagem.', { cp }) : null
 }
 
 /** CP worth a nudge: at this many the player is sitting on points that could already have bought something. */
@@ -90,7 +91,7 @@ export function cpReminder(s: GameState, human: PlayerId): string | null {
   if (s.winner || actor(s) !== human || p.cp < CP_HOARD || (p.stratagemsThisPhase ?? []).length) return null
   const names = usableStratagemNames(s, human)
   if (!names.length) return null
-  return `💡 У вас ${p.cp} CP, а сейчас можно применить: ${names.map((n) => `«${n}»`).join(', ')} (карточка «📜 Стратагемы» справа). Неистраченные CP ничего не дают.`
+  return tr('💡 You have {cp} CP, and right now you can use: {list} (the “📜 Stratagems” card on the right). Unspent CP do nothing.', { cp: p.cp, list: names.map((n) => quote(n)).join(', ') })
 }
 
 /**
@@ -103,7 +104,7 @@ export function lastRoundWarning(s: GameState, human: PlayerId): string | null {
   const me = s.players[human].vp
   const them = s.players[foe].vp
   if (me < them) return null
-  return `⚠ Последний раунд, и после вас ходит противник. ${me > them ? `Вы ведёте ${me}:${them}` : `Счёт равный ${me}:${them}`}. Если вашу армию уничтожат целиком — поражение, даже при перевесе по очкам. Спрячьте хотя бы один отряд за непрозрачные руины и дальше 12″ от врага.`
+  return tr('⚠ The last round, and the opponent moves after you. {value}. If your army is destroyed entirely it is a defeat, even with a points lead. Hide at least one unit behind opaque ruins and more than 12″ from the enemy.', { value: me > them ? tr('You are leading {me}:{them}', { me, them }) : tr('The score is level {me}:{them}', { me, them }) })
 }
 
 /** Who can still act, and whether the engine lets the phase end now (and why not). */
@@ -123,21 +124,21 @@ export function deploymentHint(s: GameState, human: PlayerId, ui: { selectedUnit
   const mine = sel && sel.owner === human ? sel : undefined
   if (mine && Object.keys(ui.draft).length) {
     const why = deploymentProblem(s, mine, ui.draft)
-    return why ? { text: why, tone: 'warn' } : { text: `Позиция допустима — нажмите «✓ Поставить «${mine.name}»» (Enter). Esc — вернуть как было.`, tone: 'action' }
+    return why ? { text: why, tone: 'warn' } : { text: tr('The position is legal — press “✓ Place “{name}”” (Enter). Esc — put it back.', { name: mine.name }), tone: 'action' }
   }
   if (mine && !ui.placed.includes(mine.id))
-    return { text: `Перетащите модель «${mine.name}» внутрь подсвеченной зоны (по умолчанию едет весь отряд) или сразу нажмите «✓ Поставить».`, tone: 'action' }
+    return { text: tr('Drag the model “{name}” inside the highlighted zone (the whole unit moves by default) or just press “✓ Place”.', { name: mine.name }), tone: 'action' }
   const left = deploymentIssues(s, human, ui.placed)
-  if (!left.length) return { text: 'Все отряды расставлены. Нажмите «Начать битву ▶» — броском кубиков определится, кто ходит первым.', tone: 'action' }
-  return { text: `Выберите отряд с зелёной рамкой — он ещё не расставлен. ${left[0]}`, tone: 'action' }
+  if (!left.length) return { text: tr('All units are placed. Press “Start the battle ▶” — a dice roll will decide who goes first.'), tone: 'action' }
+  return { text: tr('Pick a unit with a green frame — it is not placed yet. {item}', { item: left[0] }), tone: 'action' }
 }
 
-export const PHASE_SHORT: Record<Phase, string> = { command: 'Командование', movement: 'Движение', shooting: 'Стрельба', charge: 'Атака', fight: 'Бой' }
+export const PHASE_SHORT: Record<Phase, string> = { command: tr('Command|phase'), movement: tr('Movement|phase'), shooting: tr('Shooting'), charge: tr('Charge|phase'), fight: tr('Fight|phase') }
 
 export function nextPhaseLabel(s: GameState): string {
   const i = PHASES.indexOf(s.phase)
-  if (i === PHASES.length - 1) return 'Завершить ход'
-  return `Далее: ${PHASE_SHORT[PHASES[i + 1]]}`
+  if (i === PHASES.length - 1) return tr('End turn')
+  return tr('Next: {item}', { item: PHASE_SHORT[PHASES[i + 1]] })
 }
 
 export interface Hint {
@@ -150,75 +151,75 @@ export function nextStepHint(
   human: PlayerId,
   ui: { selectedUnitId: string | null; draft: Record<string, Vec>; measuring: boolean; aimTargetId?: string | null; groupDrag?: boolean; aimFirst?: boolean; moveOptions?: MoveOptions; shared?: object | null },
 ): Hint {
-  if (s.winner) return { text: s.winner === 'draw' ? 'Битва окончена: ничья.' : `Битва окончена: победа — ${FACTION_NAME[s.winner]}.`, tone: 'info' }
+  if (s.winner) return { text: s.winner === 'draw' ? tr('The battle is over: a draw.') : tr('The battle is over: victory — {item}.', { item: FACTION_NAME[s.winner] }), tone: 'info' }
   if (hyperPending(s))
     return human === 'tyranids'
-      ? { text: 'Начало битвы: выберите гиперадаптацию Тиранидов — она действует до конца битвы.', tone: 'action' }
-      : { text: `${ui.shared ? 'Соперник' : 'ИИ'} (Тираниды) выбирает гиперадаптацию на всю битву…`, tone: 'wait' }
+      ? { text: tr('Start of the battle: choose the Tyranids’ hyper-adaptation — it lasts until the end of the battle.'), tone: 'action' }
+      : { text: tr('{value} (Tyranids) is choosing a hyper-adaptation for the whole battle…', { value: ui.shared ? tr('Opponent|short') : tr('AI|alt') }), tone: 'wait' }
   if (s.pendingReroll)
     return s.pendingReroll.player === human
-      ? { text: 'Командный переброс: решите, перебрасывать ли кубик.', tone: 'action' }
-      : { text: `${ui.shared ? 'Соперник' : 'ИИ'} (${FACTION_NAME[s.pendingReroll.player]}) решает, перебросить ли кубик…${ui.shared ? WAIT_LIMIT : ''}`, tone: 'wait' }
+      ? { text: tr('Command Re-roll: decide whether to re-roll the die.'), tone: 'action' }
+      : { text: tr('{value} ({item}) is deciding whether to re-roll the die…{value2}', { value: ui.shared ? tr('Opponent|short') : tr('AI|alt'), item: FACTION_NAME[s.pendingReroll.player], value2: ui.shared ? WAIT_LIMIT : '' }), tone: 'wait' }
   if (s.reaction?.window === 'beforeShockTests')
     return s.reaction.player === human
-      ? { text: 'Перед проверкой боевого шока: можно применить «Безумную храбрость».', tone: 'action' }
-      : { text: `${ui.shared ? 'Соперник' : 'ИИ'} (${FACTION_NAME[s.reaction.player]}) решает, применить ли «Безумную храбрость»…${ui.shared ? WAIT_LIMIT : ''}`, tone: 'wait' }
+      ? { text: tr('Before the Battle-shock test you can use “Insane Bravery”.'), tone: 'action' }
+      : { text: tr('{value} ({item}) is deciding whether to use “Insane Bravery”…{value2}', { value: ui.shared ? tr('Opponent|short') : tr('AI|alt'), item: FACTION_NAME[s.reaction.player], value2: ui.shared ? WAIT_LIMIT : '' }), tone: 'wait' }
   if (s.reaction?.window === 'onTargeted' || s.reaction?.window === 'afterAttacks')
     return s.reaction.player === human
-      ? { text: s.reaction.window === 'onTargeted' ? 'Ваш отряд выбран целью атаки: можно ответить стратагемой до бросков.' : 'Ваш отряд потерял модели: можно запустить реанимацию стратагемой.', tone: 'action' }
-      : { text: `${ui.shared ? 'Соперник' : 'ИИ'} (${FACTION_NAME[s.reaction.player]}) решает, ответить ли стратагемой…${ui.shared ? WAIT_LIMIT : ''}`, tone: 'wait' }
+      ? { text: s.reaction.window === 'onTargeted' ? tr('Your unit was picked as an attack target: you can answer with a Stratagem before the rolls.') : tr('Your unit lost models: you can start reanimation with a Stratagem.'), tone: 'action' }
+      : { text: tr('{value} ({item}) is deciding whether to answer with a Stratagem…{value2}', { value: ui.shared ? tr('Opponent|short') : tr('AI|alt'), item: FACTION_NAME[s.reaction.player], value2: ui.shared ? WAIT_LIMIT : '' }), tone: 'wait' }
   if (s.reaction)
     return s.reaction.player === human
-      ? { text: 'Ход противника: можно ответить стратагемой-реакцией или пропустить.', tone: 'action' }
-      : { text: `${ui.shared ? 'Соперник' : 'ИИ'} (${FACTION_NAME[s.reaction.player]}) решает, ответить ли реакцией…${ui.shared ? WAIT_LIMIT : ''}`, tone: 'wait' }
-  if (actor(s) !== human) return { text: `Ходит ${ui.shared ? 'соперник' : 'ИИ'} (${FACTION_NAME[actor(s)]}) — ${PHASE_NAME[s.phase]}…`, tone: 'wait' }
-  if (ui.measuring) return { text: 'Линейка: щёлкните две точки или две модели. Esc — выключить.', tone: 'info' }
+      ? { text: tr('Opponent’s turn: you can answer with a reaction Stratagem or pass.'), tone: 'action' }
+      : { text: tr('{value} ({item}) is deciding whether to answer with a reaction…{value2}', { value: ui.shared ? tr('Opponent|short') : tr('AI|alt'), item: FACTION_NAME[s.reaction.player], value2: ui.shared ? WAIT_LIMIT : '' }), tone: 'wait' }
+  if (actor(s) !== human) return { text: tr('{value} ({item}) is playing — {item2}…', { value: ui.shared ? tr('opponent|label') : tr('AI|alt'), item: FACTION_NAME[actor(s)], item2: PHASE_NAME[s.phase] }), tone: 'wait' }
+  if (ui.measuring) return { text: tr('Ruler: click two points or two models. Esc — turn off.'), tone: 'info' }
 
   const sel = ui.selectedUnitId ? findUnit(s, ui.selectedUnitId) : undefined
   const mine = sel && sel.owner === human && !isDestroyed(sel) ? sel : undefined
   const ready = actionableUnits(s, human)
-  const done = { text: `В этой фазе больше нечего делать. Нажмите «${nextPhaseLabel(s)}».`, tone: 'action' as const }
+  const done = { text: tr('There is nothing more to do in this phase. Press “{nextPhaseLabel}”.', { nextPhaseLabel: nextPhaseLabel(s) }), tone: 'action' as const }
 
   switch (s.phase) {
     case 'command':
-      return { text: `Фаза командования: очки командования получены.${human === 'orks' && !s.players.orks.waaaghUsed ? ' Можно объявить WAAAGH!' : ''}${s.players[human].shadowUsed === false ? ' Можно применить «Тень в Варпе» (раз за битву).' : ''}${s.players[human].imperative === null ? ' Выберите Империатив (Протектор или Завоеватель) — это правило армии.' : ''} Нажмите «${nextPhaseLabel(s)}».`, tone: 'action' }
+      return { text: tr('Command phase: Command Points received.{value}{value2}{value3} Press “{nextPhaseLabel}”.', { value: human === 'orks' && !s.players.orks.waaaghUsed ? tr(' You can call WAAAGH!') : '', value2: s.players[human].shadowUsed === false ? tr(' You can use “Shadow in the Warp” (once per battle).') : '', value3: s.players[human].imperative === null ? tr(' Choose an Imperative (Protector or Conqueror) — it is an army rule.') : '', nextPhaseLabel: nextPhaseLabel(s) }), tone: 'action' }
     case 'movement': {
       if (mine && mine.move !== 'none') {
-        const after = mine.move === 'advance' ? ' После продвижения он не сможет атаковать (charge) и стреляет только оружием Assault.' : mine.move === 'fallBack' ? ' После отступления он не стреляет и не атакует в этот ход.' : ''
-        return { text: `«${mine.name}» уже переместился.${after} ${ready.length ? 'Можно двигать другой отряд (зелёная рамка)' : 'Других отрядов для движения нет'} или перейти к стрельбе.`, tone: 'action' }
+        const after = mine.move === 'advance' ? tr(' After an Advance it cannot charge and shoots only with Assault weapons.') : mine.move === 'fallBack' ? tr(' After falling back it neither shoots nor charges this turn.') : ''
+        return { text: tr('“{name}” has already moved.{after} {value} or go on to shooting.', { name: mine.name, after, value: ready.length ? tr('You can move another unit (green frame)') : tr('There are no other units to move') }), tone: 'action' }
       }
-      if (!mine) return ready.length ? { text: `Выберите отряд с зелёной рамкой — он ещё может двигаться. Двигаться необязательно: можно сразу нажать «${nextPhaseLabel(s)}».`, tone: 'action' } : done
+      if (!mine) return ready.length ? { text: tr('Pick a unit with a green frame — it can still move. Moving is optional: you can press “{nextPhaseLabel}” right away.', { nextPhaseLabel: nextPhaseLabel(s) }), tone: 'action' } : done
       const mo = ui.moveOptions ?? { fly: false, swift: false }
       const allow = moveAllowance(s, mine, mo)
       if (Object.keys(ui.draft).length === 0)
         return {
           text: ui.groupDrag === false
-            ? `Режим «По одной модели»: двигайте любые модели «${mine.name}» по отдельности (до ${fmt(allow)}″ каждая), остальные останутся на месте. Затем одно «Подтвердить».`
-            : `Перетащите модель «${mine.name}» — сдвинется весь отряд, до ${fmt(allow)}″ (пунктирный круг — предел). Нужна одна-две модели — выберите внизу «По одной модели».`,
+            ? tr('“One model at a time” mode: move any models of “{name}” individually (up to {fmt}″ each), the rest stay in place. Then one “Confirm”.', { name: mine.name, fmt: fmt(allow) })
+            : tr('Drag the model “{name}” — the whole unit will move, up to {fmt}″ (the dashed circle is the limit). If you need one or two models, choose “One model at a time” below.', { name: mine.name, fmt: fmt(allow) }),
           tone: 'action',
         }
       const v = validate(s, moveCommand(s, mine, ui.draft, mo))
       return v.ok
-        ? { text: `Позиция допустима (${fmt(draftDistance(mine, ui.draft))}″ из ${fmt(allow)}″) — нажмите «Подтвердить» (Enter). Esc — вернуть модели.`, tone: 'action' }
-        : { text: `${v.reason} Подвиньте модель или нажмите Esc, чтобы вернуть её.`, tone: 'warn' }
+        ? { text: tr('The position is legal ({fmt}″ of {fmt2}″) — press “Confirm” (Enter). Esc — put the models back.', { fmt: fmt(draftDistance(mine, ui.draft)), fmt2: fmt(allow) }), tone: 'action' }
+        : { text: tr('{reason} Move the model or press Esc to put it back.', { reason: v.reason }), tone: 'warn' }
     }
     case 'shooting':
       if (!mine || !canActNow(s, mine))
-        return ready.length ? { text: `Выберите отряд с зелёной рамкой — он может стрелять${mine?.shot ? ` («${mine.name}» уже стрелял)` : ''}. Стрелять необязательно.`, tone: 'action' } : done
+        return ready.length ? { text: tr('Pick a unit with a green frame — it can shoot{value}. Shooting is optional.', { value: mine?.shot ? tr(' (“{name}” has already shot)', { name: mine.name }) : '' }), tone: 'action' } : done
       if (ui.aimTargetId) {
         const aim = findUnit(s, ui.aimTargetId)
-        return { text: `Цель: «${aim?.name}». Справа — сколько атак и что нужно выбросить. Готовы — «🎯 Огонь»; броски покажем по шагам.`, tone: 'action' }
+        return { text: tr('Target: “{name}”. On the right — how many attacks and what you need to roll. When ready — “🎯 Fire”; we will show the rolls step by step.', { name: aim?.name }), tone: 'action' }
       }
       return ui.aimFirst
-        ? { text: 'Щёлкните по врагу с зелёной подсветкой, чтобы выбрать цель (стрелять сразу не будем). Красная подсветка — наведите, чтобы узнать причину.', tone: 'action' }
-        : { text: 'Щёлкните по вражеской модели: зелёная подсветка — можно стрелять, красная — наведите, чтобы узнать причину.', tone: 'action' }
+        ? { text: tr('Click an enemy with a green highlight to choose a target (we will not shoot right away). A red highlight — hover to learn the reason.'), tone: 'action' }
+        : { text: tr('Click an enemy model: a green highlight means you can shoot, a red one — hover to learn the reason.'), tone: 'action' }
     case 'charge':
-      if (s.pendingCharge) return { text: `Выпало ${s.pendingCharge.roll}″. Щёлкните по подсвеченному врагу, чтобы атаковать, или откажитесь.`, tone: 'action' }
-      if (!mine || !canActNow(s, mine)) return ready.length ? { text: 'Выберите отряд с зелёной рамкой — он может объявить атаку (charge).', tone: 'action' } : done
-      return { text: 'Нажмите «Объявить атаку»: бросок 2D6 покажет, как далеко отряд может рвануть.', tone: 'action' }
+      if (s.pendingCharge) return { text: tr('Rolled {roll}″. Click a highlighted enemy to charge, or give up.', { roll: s.pendingCharge.roll }), tone: 'action' }
+      if (!mine || !canActNow(s, mine)) return ready.length ? { text: tr('Pick a unit with a green frame — it can declare a charge.'), tone: 'action' } : done
+      return { text: tr('Press “Declare a charge”: a 2D6 roll will show how far the unit can dash.'), tone: 'action' }
     case 'fight':
       if (!s.fight) return done
-      if (!mine || !canActNow(s, mine)) return ready.length ? { text: 'Выберите отряд с зелёной рамкой — он должен сражаться.', tone: 'action' } : done
-      return { text: 'Щёлкните по вражеской модели в контакте, чтобы сражаться.', tone: 'action' }
+      if (!mine || !canActNow(s, mine)) return ready.length ? { text: tr('Pick a unit with a green frame — it has to fight.'), tone: 'action' } : done
+      return { text: tr('Click an enemy model in engagement range to fight.'), tone: 'action' }
   }
 }
