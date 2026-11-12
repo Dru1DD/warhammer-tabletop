@@ -1,15 +1,15 @@
 # How to play a unit
 
-The unit card in the left panel has a «🧭 Как играть» block. For an enemy unit it is called «Чего ждать от него». It shows:
+The unit card in the left panel has a “🧭 How to play” block. For an enemy unit it is called “What to expect from it”. It shows:
 
 - **Role and tips:** the unit's role and two tips on using it:
-  - 🎯 стрелки (shooters): stay at range and in cover, keep out of melee;
-  - ⚔ штурм (assault): approach under cover, charge what it cuts down best;
-  - 🪖 заслон (screen): go in front, hold objectives;
-  - 👑 персонаж (character): stay with the unit it buffs;
-  - 🥷 диверсанты (infiltrators): grab far objectives, hit and hide.
-- **Сильнее всего (strongest against):** which kind of target its guns, and for non-shooters its melee, are best against: hordes, armoured infantry, or vehicles and monsters.
-- **Боится (fears):** the kind of attack that hurts it most, from its profile:
+  - 🎯 shooters: stay at range and in cover, keep out of melee;
+  - ⚔ assault: approach under cover, charge what it cuts down best;
+  - 🪖 screen: go in front, hold objectives;
+  - 👑 character: stay with the unit it buffs;
+  - 🥷 infiltrators: grab far objectives, hit and hide.
+- **Strongest against:** which kind of target its guns, and for non-shooters its melee, are best against: hordes, armoured infantry, or vehicles and monsters.
+- **Afraid of:** the kind of attack that hurts it most, from its profile:
   - vehicles, monsters and units of 5+ wounds per model fear heavy weapons;
   - 5+ saves fear volume of fire;
   - everything else fears AP −2 and multi-damage weapons.

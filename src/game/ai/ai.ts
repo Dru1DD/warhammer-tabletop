@@ -25,6 +25,7 @@ import { woundTarget } from '../combat/attack'
 import { avgDie } from '../dice/dice'
 import type { CombatDoctrine, Command, GameState, HyperAdaptation, PlayerId, StratagemId, UnitState, Vec } from '../types'
 import { WEAPONS } from '../data/datasheets'
+import { quote, tr } from '../../i18n/index'
 
 export type AiLevel = 'beginner' | 'standard'
 
@@ -288,14 +289,14 @@ function scorePosition(s: GameState, u: UnitState, level: AiLevel, mode: 'normal
     w.distance * distTerm +
     w.positioning * cover
   const parts = [
-    dealt > 0.3 ? `ожидаемый урон стрельбой ${fmt(dealt)}` : '',
-    charge > 0.3 ? `шанс атаки (charge) с уроном ${fmt(charge)}` : '',
-    charge <= 0.3 && approach > 0.3 ? `атака в следующий ход с уроном ${fmt(approach)}` : '',
-    obj ? 'контроль цели' : '',
-    synapse ? 'остаётся в зоне Synapse' : '',
-    support ? 'рядом с ведомым отрядом' : '',
-    cover ? 'укрытие' : '',
-    taken > 0.5 ? `риск получить ${fmt(taken)} урона` : '',
+    dealt > 0.3 ? tr('expected shooting damage {fmt}', { fmt: fmt(dealt) }) : '',
+    charge > 0.3 ? tr('chance to charge, with {fmt} damage', { fmt: fmt(charge) }) : '',
+    charge <= 0.3 && approach > 0.3 ? tr('a charge next turn, with {fmt} damage', { fmt: fmt(approach) }) : '',
+    obj ? tr('objective control') : '',
+    synapse ? tr('stays in the Synapse zone') : '',
+    support ? tr('next to the led unit') : '',
+    cover ? tr('cover') : '',
+    taken > 0.5 ? tr('risk of taking {fmt} damage', { fmt: fmt(taken) }) : '',
   ].filter(Boolean)
   return { score, why: parts.join(', ') }
 }
@@ -306,17 +307,17 @@ function candidateGoals(s: GameState, u: UnitState, level: AiLevel): { pos: Vec;
   if (hasAbility(u, 'lordOfMachineCult') || hasAbility(u, 'galvanicField')) {
     const mates = unitsOf(s, u.owner).filter((x) => x.id !== u.id && hasAbility(x, 'ledUnit'))
     const near = mates.sort((a, b) => unitDistance(u, a) - unitDistance(u, b))[0]
-    if (near) goals.push({ pos: alive(near)[0].pos, label: 'к ведомому отряду' })
+    if (near) goals.push({ pos: alive(near)[0].pos, label: tr('toward the led unit') })
   }
   const nearestEnemy = enemies.reduce((b, e) => (unitDistance(u, e) < unitDistance(u, b) ? e : b), enemies[0])
-  if (nearestEnemy) goals.push({ pos: alive(nearestEnemy)[0].pos, label: 'к врагу' })
+  if (nearestEnemy) goals.push({ pos: alive(nearestEnemy)[0].pos, label: tr('toward the enemy') })
   const objs = [...s.objectives].sort((a, b) => dist(alive(u)[0].pos, a.pos) - dist(alive(u)[0].pos, b.pos))
-  for (const o of level === 'beginner' ? objs.slice(0, 1) : objs) goals.push({ pos: o.pos, label: 'к цели' })
+  for (const o of level === 'beginner' ? objs.slice(0, 1) : objs) goals.push({ pos: o.pos, label: tr('toward the target') })
   if (level !== 'beginner') for (const g of secondaryGoals(s, u.owner)) goals.push({ pos: g.pos, label: g.label })
   if (level === 'standard')
     for (const t of s.terrain) {
       const c = t.poly.reduce((a, p) => ({ x: a.x + p.x / t.poly.length, y: a.y + p.y / t.poly.length }), { x: 0, y: 0 })
-      goals.push({ pos: c, label: 'в укрытие' })
+      goals.push({ pos: c, label: tr('into cover') })
     }
   return goals
 }
@@ -332,7 +333,7 @@ function bestMove(s: GameState, u: UnitState, level: AiLevel, mode: 'normal' | '
   let best: BestMove | null = null
   const ownEdge = sidesOf(s)[0] === u.owner ? 0 : s.board.width
   const goals = mode === 'fallBack'
-    ? [{ pos: { x: ownEdge, y: centroid.y }, label: 'назад' }]
+    ? [{ pos: { x: ownEdge, y: centroid.y }, label: tr('back') }]
     : candidateGoals(s, u, level)
   // different goals often plan the very same positions (a blocked unit, goals in one direction): score each once
   const scored = new Map<string, { score: number; why: string }>()
@@ -368,7 +369,7 @@ function chooseImperative(s: GameState, me: PlayerId, level: AiLevel): { imperat
   const nearest = (u: UnitState) => Math.min(...enemiesOf(s, u).map((e) => unitDistance(u, e)))
   if (level === 'beginner') {
     const close = mine.some((u) => nearest(u) <= CHARGE_RANGE)
-    return close ? { imperative: 'conqueror', why: 'враг рядом, нужен ближний бой и натиск' } : { imperative: 'protector', why: 'враг далеко, лучше стрелять с места' }
+    return close ? { imperative: 'conqueror', why: tr('the enemy is close, melee and a push are needed') } : { imperative: 'protector', why: tr('the enemy is far, better to shoot from where you stand') }
   }
   const value = (imp: 'protector' | 'conqueror') => {
     const hs: GameState = { ...s, players: { ...s.players, [me]: { ...s.players[me], imperative: imp } } }
@@ -393,8 +394,8 @@ function chooseImperative(s: GameState, me: PlayerId, level: AiLevel): { imperat
   }
   const p = value('protector'), c = value('conqueror')
   return c > p + 0.05
-    ? { imperative: 'conqueror', why: `ожидаемый результат ${fmt(c)} против ${fmt(p)}: натиск и ближний бой выгоднее` }
-    : { imperative: 'protector', why: `ожидаемый результат ${fmt(p)} против ${fmt(c)}: огонь с места и защита выгоднее` }
+    ? { imperative: 'conqueror', why: tr('expected result {fmt} vs {fmt2}: pushing in and melee are better', { fmt: fmt(c), fmt2: fmt(p) }) }
+    : { imperative: 'protector', why: tr('expected result {fmt} vs {fmt2}: shooting from where you stand and defending are better', { fmt: fmt(p), fmt2: fmt(c) }) }
 }
 
 // ------------------------------------------------------------ decisions
@@ -407,8 +408,8 @@ export function chooseHyper(s: GameState, me: PlayerId): { choice: HyperAdaptati
   const heavy = foes.filter((u) => hasKeyword(u, 'MONSTER', 'VEHICLE')).reduce((a, u) => a + w(u), 0)
   const all = foes.reduce((a, u) => a + w(u), 0)
   return heavy >= all * 0.35
-    ? { choice: 'aggression', why: `у противника много монстров и техники (${Math.round((heavy / Math.max(1, all)) * 100)}% ран)` }
-    : { choice: 'swarming', why: 'противник — в основном пехота' }
+    ? { choice: 'aggression', why: tr('the enemy has many monsters and vehicles ({percent}% of wounds)', { percent: Math.round((heavy / Math.max(1, all)) * 100) }) }
+    : { choice: 'swarming', why: tr('the enemy is mostly infantry') }
 }
 
 /** Combat Doctrines: Tactical when a unit is locked in combat, Assault when an assault unit is an advance and a charge
@@ -416,10 +417,10 @@ export function chooseHyper(s: GameState, me: PlayerId): { choice: HyperAdaptati
 function chooseDoctrine(s: GameState, me: PlayerId): { doctrine: CombatDoctrine; why: string } | null {
   const mine = unitsOf(s, me).filter((u) => alive(u).length)
   const options: { doctrine: CombatDoctrine; why: string }[] = []
-  if (mine.some((u) => isEngaged(s, u))) options.push({ doctrine: 'tactical', why: 'отряд связан боем: отступит и всё равно выстрелит' })
+  if (mine.some((u) => isEngaged(s, u))) options.push({ doctrine: 'tactical', why: tr('the unit is locked in combat: it will fall back and still shoot') })
   const far = mine.some((u) => unitProfile(u).role === 'assault' && enemiesOf(s, u).some((e) => alive(e).length && unitDistance(u, e) > 8 && unitDistance(u, e) <= 14))
-  if (far) options.push({ doctrine: 'assault', why: 'штурмовой отряд дойдёт продвижением и атакой' })
-  if (s.round <= 2) options.push({ doctrine: 'devastator', why: 'армия идёт вперёд и стреляет на ходу' })
+  if (far) options.push({ doctrine: 'assault', why: tr('the assault unit will reach with an advance and a charge') })
+  if (s.round <= 2) options.push({ doctrine: 'devastator', why: tr('the army advances and shoots on the move') })
   return options.find((o) => validate(s, { type: 'doctrine', doctrine: o.doctrine }).ok) ?? null
 }
 
@@ -432,30 +433,30 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
 
   if (hyperPending(s)) {
     const h = chooseHyper(s, me)
-    return { cmd: { type: 'hyperAdaptation', choice: h.choice }, explanation: `${fac}: гиперадаптация «${HYPER_NAME[h.choice]}» — ${h.why}.` }
+    return { cmd: { type: 'hyperAdaptation', choice: h.choice }, explanation: tr('{fac}: hyper-adaptation “{name}” — {why}.', { fac, name: HYPER_NAME[h.choice], why: h.why }) }
   }
 
   if (s.pendingCharge) {
     const u = s.units.find((x) => x.id === s.pendingCharge!.unitId)!
     for (const t of s.pendingCharge.targets) {
       const cmd: Command = { type: 'chargeMove', unitId: u.id, targetIds: [t] }
-      if (validate(s, cmd).ok) return { cmd, explanation: `${fac}: отряд «${u.name}» врывается в рукопашную!` }
+      if (validate(s, cmd).ok) return { cmd, explanation: tr('{fac}: unit “{name}” charges into melee!', { fac, name: u.name }) }
     }
-    return { cmd: { type: 'skipCharge', unitId: u.id }, explanation: `${fac}: перемещение атаки невозможно — отряд остаётся на месте.` }
+    return { cmd: { type: 'skipCharge', unitId: u.id }, explanation: tr('{fac}: the charge move is impossible — the unit stays in place.', { fac }) }
   }
 
   if (s.pendingReroll) {
     // the game stops only for a re-roll worth it; the beginner keeps its dice
     const pr = s.pendingReroll
     const reroll = level !== 'beginner'
-    return { cmd: { type: 'rerollChoice', reroll }, explanation: reroll ? `${fac}: «Командный переброс» — в среднем +${fmt(pr.gain)} урона (${pr.weapon}).` : `${fac}: кубик оставлен.` }
+    return { cmd: { type: 'rerollChoice', reroll }, explanation: reroll ? tr('{fac}: “Command Re-roll” — on average +{fmt} damage ({weapon}).', { fac, fmt: fmt(pr.gain), weapon: pr.weapon }) : tr('{fac}: the die is kept.', { fac }) }
   }
 
   if (s.reaction) {
     // a reaction in the opponent's turn: only when it is worth the CP (the beginner never reacts)
     const best = level === 'beginner' ? undefined : reactionAdvice(s).find((o) => o.worth)
-    if (best) return { cmd: best.cmd, explanation: `${fac}: стратагема «${best.title}» — ${best.why}` }
-    return { cmd: { type: 'passReaction' }, explanation: `${fac}: без реакций.` }
+    if (best) return { cmd: best.cmd, explanation: tr('{fac}: Stratagem “{title}” — {why}', { fac, title: best.title, why: best.why }) }
+    return { cmd: { type: 'passReaction' }, explanation: tr('{fac}: no reactions.', { fac }) }
   }
 
   switch (s.phase) {
@@ -466,7 +467,7 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
           for (const o of s.objectives) {
             const cmd: Command = { type: 'stratagem', id: 'extinctionOrder', unitId: u.id, targetId: o.id }
             if (validate(s, cmd).ok && enemiesOf(s, u).some((e) => alive(e).length && unitNearObjective(e, o)))
-              return { cmd, explanation: `${fac}: стратагема «Приказ об истреблении» — «${u.name}» бьёт по врагам на цели.` }
+              return { cmd, explanation: tr('{fac}: Stratagem “Order of Eradication” — “{name}” strikes the enemies on the objective.', { fac, name: u.name }) }
           }
       // Engrammatic Logic (Royal Warden): free a battle-shocked unit, the one that matters most for objectives
       for (const u of mine) {
@@ -474,28 +475,28 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
         const freed = mine
           .filter((f) => validate(s, { type: 'engrammatic', unitId: u.id, targetId: f.id }).ok)
           .sort((a, b) => Number(s.objectives.some((o) => unitNearObjective(b, o))) - Number(s.objectives.some((o) => unitNearObjective(a, o))) || alive(b).length - alive(a).length)[0]
-        if (freed) return { cmd: { type: 'engrammatic', unitId: u.id, targetId: freed.id }, explanation: `${fac}: «${u.name}» снимает боевой шок с «${freed.name}» (Engrammatic Logic).` }
+        if (freed) return { cmd: { type: 'engrammatic', unitId: u.id, targetId: freed.id }, explanation: tr('{fac}: “{name}” removes Battle-shock from “{name2}” (Engrammatic Logic).', { fac, name: u.name, name2: freed.name }) }
       }
       if (me === 'marines' && level !== 'beginner') {
         const d = chooseDoctrine(s, me)
-        if (d) return { cmd: { type: 'doctrine', doctrine: d.doctrine }, explanation: `${fac}: боевая доктрина «${DOCTRINE_NAME[d.doctrine]}» — ${d.why}.` }
+        if (d) return { cmd: { type: 'doctrine', doctrine: d.doctrine }, explanation: tr('{fac}: Combat Doctrine “{name}” — {why}.', { fac, name: DOCTRINE_NAME[d.doctrine], why: d.why }) }
       }
       if (validate(s, { type: 'imperative', imperative: 'protector' }).ok) {
         const imp = chooseImperative(s, me, level)
-        return { cmd: { type: 'imperative', imperative: imp.imperative }, explanation: `${fac}: Империатив «${imp.imperative === 'protector' ? 'Протектор' : 'Завоеватель'}» — ${imp.why}.` }
+        return { cmd: { type: 'imperative', imperative: imp.imperative }, explanation: tr('{fac}: Imperative “{value}” — {why}.', { fac, value: imp.imperative === 'protector' ? tr('Protector') : tr('Conqueror'), why: imp.why }) }
       }
       if (me === 'orks' && validate(s, { type: 'callWaaagh' }).ok) {
         // Riled up lets Orks charge after advancing: worth it once M + D6 + 2D6 can plausibly reach.
         const reach = level === 'beginner' ? 9 : 6 + 3.5 + 7
         const close = mine.some((u) => enemiesOf(s, u).some((e) => unitDistance(u, e) <= reach))
-        if (close || s.round >= 4) return { cmd: { type: 'callWaaagh' }, explanation: 'Орки: враг на дистанции рывка и атаки — время для WAAAGH!' }
+        if (close || s.round >= 4) return { cmd: { type: 'callWaaagh' }, explanation: tr('Orks: the enemy is within dash and charge range — time for WAAAGH!') }
       }
       if (me === 'tyranids' && validate(s, { type: 'callShadow' }).ok) {
         // Shadow in the Warp: worth it once there are enough healthy enemy units to threaten with battle-shock
         const healthy = unitsOf(s, other(s, me)).filter((e) => !e.battleShocked).length
-        if (s.round >= 2 && healthy >= 2) return { cmd: { type: 'callShadow' }, explanation: 'Тираниды: Тень в Варпе — враг проходит проверку боевого шока.' }
+        if (s.round >= 2 && healthy >= 2) return { cmd: { type: 'callShadow' }, explanation: tr('Tyranids: Shadow in the Warp — the enemy takes a Battle-shock test.') }
       }
-      return end(`${fac}: фаза командования завершена.`)
+      return end(tr('{fac}: Command phase finished.', { fac }))
     }
     case 'movement': {
       for (const u of mine) {
@@ -508,7 +509,7 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
           const mDealt = enemy ? meleePotential(s, u, enemy, false) : 0
           const mTaken = enemy ? meleePotential(s, enemy, u, false) : 0
           if (fb && AI_STYLE[me].retreats && mTaken > mDealt * 1.5)
-            return { cmd: { type: 'move', unitId: u.id, mode: 'fallBack', positions: fb.pos, ...(fb.fly ? { fly: true } : {}) }, explanation: `${fac}: отряд «${u.name}» отступает — в рукопашной противник сильнее (ожид. урон по нам ${fmt(mTaken)} против ${fmt(mDealt)}).` }
+            return { cmd: { type: 'move', unitId: u.id, mode: 'fallBack', positions: fb.pos, ...(fb.fly ? { fly: true } : {}) }, explanation: tr('{fac}: unit “{name}” falls back — the enemy is stronger in melee (expected damage to us {fmt} vs {fmt2}).', { fac, name: u.name, fmt: fmt(mTaken), fmt2: fmt(mDealt) }) }
           continue
         }
         const stay = scorePosition(s, u, level, 'stay')
@@ -517,7 +518,7 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
           const adv = bestMove(s, u, level, 'advance', maxMove(u) + swiftBonus)
           if (adv && adv.score > stay.score) {
             const swift = swiftBonus > 0 && longestStep(u, adv.pos) > maxMove(u) - (adv.fly ? FLY_PENALTY : 0) + 0.01
-            return { cmd: { type: 'move', unitId: u.id, mode: 'advance', positions: adv.pos, ...(adv.fly ? { fly: true } : {}), ...(swift ? { swift: true } : {}) }, explanation: `${fac}: отряд «${u.name}» продвигается ${adv.label}${adv.why ? ` (${adv.why})` : ''}${swift ? ' — Swift as the Wind' : ''}.` }
+            return { cmd: { type: 'move', unitId: u.id, mode: 'advance', positions: adv.pos, ...(adv.fly ? { fly: true } : {}), ...(swift ? { swift: true } : {}) }, explanation: tr('{fac}: unit “{name}” advances {label}{value}{value2}.', { fac, name: u.name, label: adv.label, value: adv.why ? ` (${adv.why})` : '', value2: swift ? ' — Swift as the Wind' : '' }) }
           }
           continue
         }
@@ -532,10 +533,10 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
         ].sort((a, b) => b.score - a.score)
         const pick = options[0]
         if (pick.kind === 'advance' && pick.score > stay.score + 0.05)
-          return { cmd: { type: 'declareAdvance', unitId: u.id }, explanation: `${fac}: отряд «${u.name}» продвигается (Advance) ${adv!.label}${adv!.why ? ` — ${adv!.why}` : ''}.` }
+          return { cmd: { type: 'declareAdvance', unitId: u.id }, explanation: tr('{fac}: unit “{name}” advances {label}{value}.', { fac, name: u.name, label: adv!.label, value: adv!.why ? ` — ${adv!.why}` : '' }) }
         if (pick.kind === 'normal' && nm && nm.score > stay.score + 0.05) {
           const swift = swiftBonus > 0 && longestStep(u, nm.pos) > maxMove(u) - (nm.fly ? FLY_PENALTY : 0) + 0.01
-          return { cmd: { type: 'move', unitId: u.id, mode: 'normal', positions: nm.pos, ...(nm.fly ? { fly: true } : {}), ...(swift ? { swift: true } : {}) }, explanation: `${fac}: отряд «${u.name}» двигается ${nm.label}${nm.why ? ` — ${nm.why}` : ''}${nm.fly ? ' (летит)' : ''}${swift ? ' — Swift as the Wind' : ''}.` }
+          return { cmd: { type: 'move', unitId: u.id, mode: 'normal', positions: nm.pos, ...(nm.fly ? { fly: true } : {}), ...(swift ? { swift: true } : {}) }, explanation: tr('{fac}: unit “{name}” moves {label}{value}{value2}{value3}.', { fac, name: u.name, label: nm.label, value: nm.why ? ` — ${nm.why}` : '', value2: nm.fly ? tr(' (flying)') : '', value3: swift ? ' — Swift as the Wind' : '' }) }
         }
       }
       // Defend the Divine Work (Manipulus): once per battle, when its unit is about to take a beating
@@ -548,7 +549,7 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
         const risk = group.reduce((n, g) => n + enemiesOf(s, g).reduce((a, e) => a + shootDamage(s, e, g) + (unitDistance(e, g) <= CHARGE_RANGE ? p2d6AtLeast(Math.ceil(unitDistance(e, g))) * meleePotential(s, e, g, true) * 0.5 : 0), 0), 0)
         const engaged = group.some((g) => engagedUnits(s, g).length > 0)
         if (level === 'beginner' ? engaged : risk >= wounds * 0.6 || engaged)
-          return { cmd, explanation: `${fac}: «${u.name}» применяет Защиту божественного труда — отряду угрожает ≈ ${fmt(risk)} урона, 4+ непробиваемый спасбросок.` }
+          return { cmd, explanation: tr('{fac}: “{name}” uses Divine Work Protection — the unit is threatened by ≈ {fmt} damage, 4+ invulnerable save.', { fac, name: u.name, fmt: fmt(risk) }) }
       }
       // Guide (Farseer) at the end of the Movement phase: mark the enemy unit our army can hurt most
       for (const u of mine) {
@@ -557,7 +558,7 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
           .map((e) => ({ e, cmd: { type: 'guide', unitId: u.id, targetId: e.id } as Command }))
           .filter((x) => validate(s, x.cmd).ok)
           .sort((a, b) => unitDistance(u, a.e) - unitDistance(u, b.e))
-        if (marks[0]) return { cmd: marks[0].cmd, explanation: `${fac}: «${u.name}» направляет союзников на «${marks[0].e.name}» (Guide: +1 к попаданию).` }
+        if (marks[0]) return { cmd: marks[0].cmd, explanation: tr('{fac}: “{name}” directs allies at “{name2}” (Guide: +1 to hit).', { fac, name: u.name, name2: marks[0].e.name }) }
       }
       // Grenade Pack Flyover (Swooping Hawks): once per turn after moving, at the enemy unit it hurts most
       for (const u of mine) {
@@ -565,7 +566,7 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
         const best = enemiesOf(s, u)
           .filter((e) => validate(s, { type: 'grenadePack', unitId: u.id, targetId: e.id }).ok)
           .sort((a, b) => squigValue(b) - squigValue(a))[0]
-        if (best) return { cmd: { type: 'grenadePack', unitId: u.id, targetId: best.id }, explanation: `${fac}: «${u.name}» забрасывает «${best.name}» гранатами (Grenade Pack Flyover: 4+ — смертельная рана за модель).` }
+        if (best) return { cmd: { type: 'grenadePack', unitId: u.id, targetId: best.id }, explanation: tr('{fac}: “{name}” bombards “{name2}” with grenades (Grenade Pack Flyover: 4+ — a mortal wound per model).', { fac, name: u.name, name2: best.name }) }
       }
       // Wraith Form (Canoptek Wraiths): after a normal move over enemy units, hurt the one where the wounds kill most
       for (const u of mine) {
@@ -574,7 +575,7 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
           .map((id) => s.units.find((x) => x.id === id)!)
           .filter((e) => e && validate(s, { type: 'wraithForm', unitId: u.id, targetId: e.id }).ok)
           .sort((a, b) => squigValue(b) - squigValue(a))[0]
-        if (best) return { cmd: { type: 'wraithForm', unitId: u.id, targetId: best.id }, explanation: `${fac}: «${u.name}» проходит сквозь «${best.name}» (Wraith Form: 4+ — смертельная рана за модель).` }
+        if (best) return { cmd: { type: 'wraithForm', unitId: u.id, targetId: best.id }, explanation: tr('{fac}: “{name}” passes through “{name2}” (Wraith Form: 4+ — a mortal wound per model).', { fac, name: u.name, name2: best.name }) }
       }
       // Bomb Squig (Kommandos): once per battle after a normal move, at the enemy unit it hurts most
       for (const u of mine) {
@@ -583,14 +584,14 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
           .map((e) => ({ e, cmd: { type: 'bombSquig', unitId: u.id, targetId: e.id } as Command, v: squigValue(e) }))
           .filter((x) => validate(s, x.cmd).ok)
           .sort((a, b) => b.v - a.v)[0]
-        if (best) return { cmd: best.cmd, explanation: `${fac}: «${u.name}» выпускает бомбосквига в «${best.e.name}» (3+: D3 смертельные раны).` }
+        if (best) return { cmd: best.cmd, explanation: tr('{fac}: “{name}” launches a bomb squig at “{name2}” (3+: D3 mortal wounds).', { fac, name: u.name, name2: best.e.name }) }
       }
       // reinforcements: units in Strategic Reserves arrive towards the objective nearest the enemy
       for (const u of reservesOf(s, me)) {
         const pos = arrivalSpot(s, u, aiArrivalTarget(s, me))
-        if (pos) return { cmd: { type: 'arrive', unitId: u.id, positions: pos }, explanation: `${fac}: «${u.name}» выходит из резерва${canDeepStrike(u) ? ' глубоким ударом' : ''}.` }
+        if (pos) return { cmd: { type: 'arrive', unitId: u.id, positions: pos }, explanation: canDeepStrike(u) ? tr('{fac}: {name} arrives from Reserves with a Deep Strike.', { fac, name: quote(u.name) }) : tr('{fac}: {name} arrives from Reserves.', { fac, name: quote(u.name) }) }
       }
-      return end(`${fac}: движение завершено.`)
+      return end(tr('{fac}: movement finished.', { fac }))
     }
     case 'shooting': {
       // Driven from Cover (Infernus) shoots first, so the rest of the army fires at a target without cover
@@ -605,7 +606,7 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
             .map((x) => ({ ...x, dmg: Math.min(EXPLOSIVES_DICE / 2, alive(x.e).reduce((a, m) => a + m.wounds, 0)) }))
             .sort((a, b) => b.dmg - a.dmg)[0]
           if (boom && boom.dmg >= own + 1)
-            return { cmd: boom.cmd, explanation: `${fac}: стратагема «Взрывчатка» — «${u.name}» бросает её в «${boom.e.name}» (≈ ${fmt(boom.dmg)} смертельн. ран против ≈ ${fmt(own)} от стрельбы).` }
+            return { cmd: boom.cmd, explanation: tr('{fac}: Stratagem “Explosives” — “{name}” throws them at “{name2}” (≈ {fmt} mortal wounds vs ≈ {fmt2} from shooting).', { fac, name: u.name, name2: boom.e.name, fmt: fmt(boom.dmg), fmt2: fmt(own) }) }
         }
         let best: { cmd: Command; dmg: number; target: string } | null = null
         for (const e of enemiesOf(s, u)) {
@@ -621,30 +622,32 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
         // a mission action (Sabotage, Extract Intelligence) instead of a volley, when its VP are worth more
         const action = missionActionFor(s, u)
         if (action && (!best || action.vp >= best.dmg * 0.8))
-          return { cmd: action.cmd, explanation: `${fac}: «${u.name}» начинает действие миссии «${action.name}» у цели Ц${action.n} (≈ ${action.vp} ПО в конце хода${best ? `, стрельба дала бы ≈ ${fmt(best.dmg)} урона` : ''}).` }
+          return { cmd: action.cmd, explanation: best
+            ? tr('{fac}: “{name}” starts the mission action “{action}” at objective {obj} (≈ {vp} VP at the end of the turn, shooting would have dealt ≈ {dmg} damage).', { fac, name: u.name, action: action.name, obj: tr('O{value}', { value: action.n }), vp: action.vp, dmg: fmt(best.dmg) })
+            : tr('{fac}: “{name}” starts the mission action “{action}” at objective {obj} (≈ {vp} VP at the end of the turn).', { fac, name: u.name, action: action.name, obj: tr('O{value}', { value: action.n }), vp: action.vp }) }
         // an army's shooting Stratagem on a volley worth it, keeping 1 CP in reserve
         if (best && level !== 'beginner' && best.dmg >= 2.5 && s.players[me].cp >= 2) {
           for (const id of SHOOTING_BUFFS) {
             const buff: Command = { type: 'stratagem', id, unitId: u.id }
-            if (validate(s, buff).ok) return { cmd: buff, explanation: `${fac}: стратагема «${STRATAGEMS[id].name}» для «${u.name}» перед залпом по «${best.target}».` }
+            if (validate(s, buff).ok) return { cmd: buff, explanation: tr('{fac}: Stratagem “{name}” for “{name2}” before the volley at “{target}”.', { fac, name: STRATAGEMS[id].name, name2: u.name, target: best.target }) }
           }
         }
         if (best && best.dmg > 0.05)
-          return { cmd: best.cmd, explanation: `${fac}: отряд «${u.name}» стреляет по «${best.target}» (ожидаемый урон ≈ ${fmt(best.dmg)}).` }
+          return { cmd: best.cmd, explanation: tr('{fac}: unit “{name}” shoots at “{target}” (expected damage ≈ {fmt}).', { fac, name: u.name, target: best.target, fmt: fmt(best.dmg) }) }
       }
-      return end(`${fac}: подходящих целей для стрельбы больше нет.`)
+      return end(tr('{fac}: no more suitable shooting targets.', { fac }))
     }
     case 'charge': {
       for (const u of mine) {
         for (const e of engagedUnits(s, u)) {
           const cmd: Command = { type: 'stratagem', id: 'crushingImpact', unitId: u.id, targetId: e.id }
-          if (validate(s, cmd).ok) return { cmd, explanation: `${fac}: стратагема «Сокрушительный удар» — «${u.name}» врезается в «${e.name}».` }
+          if (validate(s, cmd).ok) return { cmd, explanation: tr('{fac}: Stratagem “Crushing Blow” — “{name}” slams into “{name2}”.', { fac, name: u.name, name2: e.name }) }
         }
         const reroll: Command = { type: 'stratagem', id: 'commandReroll', unitId: u.id }
         if (level !== 'beginner' && validate(s, reroll).ok) {
           const d = Math.min(...enemiesOf(s, u).map((e) => unitDistance(u, e)).filter((x) => withinRange(x, CHARGE_RANGE)))
           if (Number.isFinite(d) && p2d6AtLeast(Math.ceil(d)) >= 0.3)
-            return { cmd: reroll, explanation: `${fac}: стратагема «Командный переброс» — атака «${u.name}» сорвалась, перебрасываем (нужно ${Math.ceil(d)}", шанс ≈ ${Math.round(p2d6AtLeast(Math.ceil(d)) * 100)}%).` }
+            return { cmd: reroll, explanation: tr('{fac}: Stratagem “Command Re-roll” — the charge of “{name}” failed, re-rolling (needs {ceil}", chance ≈ {round}%).', { fac, name: u.name, ceil: Math.ceil(d), round: Math.round(p2d6AtLeast(Math.ceil(d)) * 100) }) }
         }
       }
       for (const u of mine) {
@@ -659,15 +662,15 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
         const eager = AI_WEIGHTS[me].attackOpportunity
         const worth = level === 'beginner' ? best.p > 0.4 : best.p * best.dealt * eager > best.taken * 0.5 && best.p > 0.15
         if (worth)
-          return { cmd, explanation: `${fac}: отряд «${u.name}» объявляет атаку на «${best.e.name}» (нужно ${Math.ceil(best.d)}" на 2D6, шанс ≈ ${Math.round(best.p * 100)}%).` }
+          return { cmd, explanation: tr('{fac}: unit “{name}” declares a charge against “{name2}” (needs {ceil}" on 2D6, chance ≈ {round}%).', { fac, name: u.name, name2: best.e.name, ceil: Math.ceil(best.d), round: Math.round(best.p * 100) }) }
       }
-      return end(`${fac}: атаки не объявлены.`)
+      return end(tr('{fac}: no charges declared.', { fac }))
     }
     case 'fight': {
       // stale Tactical secondaries go at the end of the turn, for 1 CP each
       const stale = !s.fight && me === s.activePlayer ? aiDiscards(s, me)[0] : undefined
-      if (stale) return { cmd: { type: 'secondary', op: 'discard', card: stale }, explanation: `${fac}: вторичная «${SECONDARY[stale].name}» не даётся — сбросим её в конце хода за 1 CP.` }
-      if (!s.fight) return end(`${fac}: бои завершены.`)
+      if (stale) return { cmd: { type: 'secondary', op: 'discard', card: stale }, explanation: tr('{fac}: the secondary {name} is not coming — discard it at the end of the turn for 1 CP.', { fac, name: quote(SECONDARY[stale].name) }) }
+      if (!s.fight) return end(tr('{fac}: fights finished.', { fac }))
       for (const u of mine) {
         for (const e of engagedUnits(s, u).sort((a, b) => expectedMelee(s, u, b) - expectedMelee(s, u, a))) {
           const cmd: Command = { type: 'fight', unitId: u.id, targetId: e.id }
@@ -676,15 +679,15 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
           const finest: Command = { ...cmd, finestHour: true }
           const worthy = isMV(e) || alive(e).some((m) => profileOf(m).character) || alive(e).reduce((n, m) => n + m.wounds, 0) >= 8
           if (worthy && validate(s, finest).ok)
-            return { cmd: finest, explanation: `${fac}: «${u.name}» сражается с «${e.name}» — «Звёздный час» (+3 атаки, Devastating Wounds).` }
+            return { cmd: finest, explanation: tr('{fac}: “{name}” fights “{name2}” — “Finest Hour” (+3 attacks, Devastating Wounds).', { fac, name: u.name, name2: e.name }) }
           // an army's melee Stratagem before a fight worth it, keeping 1 CP in reserve
           if (level !== 'beginner' && expectedMelee(s, u, e) >= 2)
             for (const id of FIGHT_BUFFS) {
               const buff: Command = { type: 'stratagem', id, unitId: u.id }
               if (s.players[me].cp >= STRATAGEMS[id].cost + 1 && validate(s, buff).ok)
-                return { cmd: buff, explanation: `${fac}: стратагема «${STRATAGEMS[id].name}» — «${u.name}» бьёт по «${e.name}».` }
+                return { cmd: buff, explanation: tr('{fac}: Stratagem “{name}” — “{name2}” strikes “{name3}”.', { fac, name: STRATAGEMS[id].name, name2: u.name, name3: e.name }) }
             }
-          return { cmd, explanation: `${fac}: отряд «${u.name}» сражается с «${e.name}».` }
+          return { cmd, explanation: tr('{fac}: unit “{name}” fights “{name2}”.', { fac, name: u.name, name2: e.name }) }
         }
       }
       return null

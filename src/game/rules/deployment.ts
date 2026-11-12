@@ -3,6 +3,7 @@ import { alive, checkCoherency, enemiesOf, hasAbility, modelDistance, other, pro
 import { terrainBlock } from './movement'
 import { scenarioById } from '../scenarios/scenarios'
 import type { GameState, PlayerId, UnitState, Vec } from '../types'
+import { quote, tr } from '../../i18n/index'
 
 // Deployment = setting up units before round 1. Rule used here: every base
 // wholly within the player's deployment zone, on the board, no overlapping
@@ -32,19 +33,19 @@ export function deploymentProblem(s: GameState, unit: UnitState, positions: Reco
     const r = radiusOf(m)
     const name = profileOf(m).name
     if (pos.x - r < -EPS || pos.y - r < -EPS || pos.x + r > s.board.width + EPS || pos.y + r > s.board.height + EPS)
-      return `${name}: подставка выходит за край поля.`
+      return tr('{name}: the base goes beyond the edge of the field.', { name })
     if (infiltrates) {
       const foeZone = deploymentZone(s, other(s, unit.owner))
       if (circlePolygonDistance(pos, r, foeZone) <= INFILTRATE_DISTANCE + EPS)
-        return `${name}: диверсанты (Infiltrators) ставятся дальше ${INFILTRATE_DISTANCE}″ от зоны развёртывания противника.`
+        return tr('{name}: Infiltrators are set up more than {INFILTRATE_DISTANCE}″ from the enemy deployment zone.', { name, INFILTRATE_DISTANCE })
       if (foes.some((f) => modelDistance(m, f, pos) <= INFILTRATE_DISTANCE + EPS))
-        return `${name}: диверсанты (Infiltrators) ставятся дальше ${INFILTRATE_DISTANCE}″ от моделей противника.`
+        return tr('{name}: Infiltrators are set up more than {INFILTRATE_DISTANCE}″ from enemy models.', { name, INFILTRATE_DISTANCE })
     } else if (!baseWhollyWithin(pos, r, zone))
-      return `${name}: подставка должна целиком стоять в вашей зоне развёртывания — передвиньте модель внутрь подсвеченной области.`
-    for (const o of others) if (basesOverlap(pos, r, o.pos, radiusOf(o))) return `${name}: подставка пересекается с моделью другого отряда.`
+      return tr('{name}: the base must stand entirely in your deployment zone — move the model inside the highlighted area.', { name })
+    for (const o of others) if (basesOverlap(pos, r, o.pos, radiusOf(o))) return tr('{name}: the base overlaps a model of another unit.', { name })
     const tb = terrainBlock(s, unit, r, pos, pos, true)
     if (tb) return `${name}: ${tb}`
-    for (const f of final) if (f.m !== m && basesOverlap(pos, r, f.pos, radiusOf(f.m))) return `${name}: подставки моделей отряда пересекаются.`
+    for (const f of final) if (f.m !== m && basesOverlap(pos, r, f.pos, radiusOf(f.m))) return tr('{name}: the unit’s model bases overlap.', { name })
   }
   return checkCoherency(final)
 }
@@ -53,10 +54,10 @@ export function deploymentProblem(s: GameState, unit: UnitState, positions: Reco
 export function deploymentIssues(s: GameState, p: PlayerId, placed: string[]): string[] {
   const out: string[] = []
   for (const u of unitsOf(s, p)) {
-    if (!placed.includes(u.id)) out.push(`«${u.name}» ещё не расставлен.`)
+    if (!placed.includes(u.id)) out.push(tr('“{name}” has not been placed yet.', { name: u.name }))
     else {
       const why = deploymentProblem(s, u, {})
-      if (why) out.push(`«${u.name}»: ${why}`)
+      if (why) out.push(`${quote(u.name)}: ${why}`)
     }
   }
   return out

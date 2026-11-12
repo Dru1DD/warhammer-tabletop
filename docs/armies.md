@@ -2,7 +2,7 @@
 
 > The sixth army, **Adeptus Mechanicus** (added 2026-11-09), has its own document: [mechanicus.md](mechanicus.md). Its balance numbers are in the section [Adeptus Mechanicus balance](#adeptus-mechanicus-balance) at the end of this file. The text below covers the Tyranids, Necrons and Aeldari.
 
-Three complete armies play next to the original Space Marines and Orks (and the Adeptus Mechanicus) on the 44″×30″ «Боевой патруль» board. Any two different armies can fight each other (15 pairings with the Mechanicus, either seating). Small 30″×22″ boards keep the two Introductory Set armies only.
+Three complete armies play next to the original Space Marines and Orks (and the Adeptus Mechanicus) on the 44″×30″ “Combat Patrol” board. Any two different armies can fight each other (15 pairings with the Mechanicus, either seating). Small 30″×22″ boards keep the two Introductory Set armies only.
 
 ## Sources and edition
 
@@ -103,7 +103,7 @@ Interpretation choices (the transcription does not say, or the choice is the pla
 | Shadow in the Warp in the *opponent's* Command phase | A command from the non-active player would break the "who owns the decision" rule; it is available in your own Command phase only. |
 | Plasmacyte, Aspect Shrine tokens, shimmershield, Resurrection Orb | Optional wargear that was not taken in the training lists. |
 
-Each of these abilities is listed in the unit card with a "[не реализовано …]" note.
+Each of these abilities is listed in the unit card with a "[Not implemented …]" note.
 
 ## AI behaviour per army
 
@@ -138,7 +138,7 @@ The golden and aiEquivalence fingerprints were re-recorded for this change.
 
 Unit costs live in `src/game/data/points.ts`: Munitorum Field Manual values as listed by Dakkapedia (updated 2026-06-17), first-unit price only. A unit size the Field Manual does not list (the duel's 6 Boyz, 3 Kastelan Robots) is pro-rated from the smallest bracket and shown with «≈». The start screen shows each unit's cost, the army total and a warning when one army is 25% or more above the other. The unit card shows the unit cost and an indicative cost per model.
 
-| Army (Боевой патруль) | Points |
+| Army (Combat Patrol) | Points |
 |---|---|
 | Adeptus Mechanicus | ≈ 865 |
 | Space Marines | 475 |
@@ -153,15 +153,15 @@ The Orks have four more units for army lists (Warboss, Nobz, Gretchin, Kommandos
 
 The start screen has an army builder for both sides (yours and the AI's). Each faction keeps its own list in this browser.
 
-- **Учебный состав**: the scenario's training roster, no points limit. This is the old behaviour and the default.
-- **Пресет 500 / Пресет 1000**: a ready-made list for the limit. A preset is loaded into the list and can then be edited: change a unit size, remove a unit, add one.
+- **Training roster**: the scenario's training roster, no points limit. This is the old behaviour and the default.
+- **Preset 500 / Preset 1000**: a ready-made list for the limit. A preset is loaded into the list and can then be edited: change a unit size, remove a unit, add one.
 - **Rules checked** (`listProblems` in `src/game/army/armyList.ts`): only unit sizes the Field Manual lists, at most 3 copies of a datasheet (6 for BATTLELINE), total within the limit. Later copies of some units cost more (`POINTS_LATER` in `points.ts`). The start buttons stay disabled while a list breaks a rule.
-- **Board**: own lists play on «Боевой патруль». Picking a preset switches to it, and the duel boards are disabled while a list is in use. Online battles take each player's own list too (see `docs/multiplayer.md`).
+- **Board**: own lists play on “Combat Patrol”. Picking a preset switches to it, and the duel boards are disabled while a list is in use. Online battles take each player's own list too (see `docs/multiplayer.md`).
 - **Loadouts** come from `COMPOSITION`: the leader model, then a repeating pattern, so a 10-model unit carries twice the special weapons of a 5-model one. Wargear choices are not in the builder yet.
-- **Мои составы и код армии** (`src/game/army/armyCode.ts`, `src/ui/ArmyCodes.tsx`):
-  - **Мои составы.** Named lists per faction, saved in this browser (`wh40k-training-saved-armies`). The same name overwrites, the newest comes first, ✕ deletes.
-  - **📋 Код армии.** Copies the list as text, `WH40K1.` + base64url of `{f, l, u: [[datasheetId, size, loadout?]…]}`, to send to a friend. The loadouts are included.
-  - **📥 Вставить код.** Loads such a code. Spaces and line breaks from a messenger are ignored. A code of another faction, a cut code, or one with units this version does not have is refused with the reason.
+- **My rosters and army code** (`src/game/army/armyCode.ts`, `src/ui/ArmyCodes.tsx`):
+  - **My rosters.** Named lists per faction, saved in this browser (`wh40k-training-saved-armies`). The same name overwrites, the newest comes first, ✕ deletes.
+  - **📋 Army code.** Copies the list as text, `WH40K1.` + base64url of `{f, l, u: [[datasheetId, size, loadout?]…]}`, to send to a friend. The loadouts are included.
+  - **📥 Paste code.** Loads such a code. Spaces and line breaks from a messenger are ignored. A code of another faction, a cut code, or one with units this version does not have is refused with the reason.
 - **Set-up** (`src/game/army/placement.ts`): every unit is placed legally in its deployment zone with the same check as the deployment step. The bulkiest units go first from the front line back. Characters go last, next to a unit they can lead. If a list does not fit, the start screen says which unit has no room.
 
 | Preset | 500 | 1000 |
@@ -185,29 +185,29 @@ The browser freezes while the AI thinks. Speeding the AI up is separate work.
 
 ## Balance observations
 
-Measured on 2026-11-09: the tactical (**«Стандарт»**) AI plays both sides, «Боевой патруль», **seeds 1–4, both seatings** of every pairing = **80 battles** (8 per pairing, 32 per army). Reproduce with
+Measured on 2026-11-09: the tactical (**“Standard”**) AI plays both sides, “Combat Patrol”, **seeds 1–4, both seatings** of every pairing = **80 battles** (8 per pairing, 32 per army). Reproduce with
 `BALANCE_SIM=1 npx vitest run src/game/__tests__/balance.test.ts --disableConsoleIntercept` (about 11 minutes; `BALANCE_SEEDS=1,2` for a quick run). This is observation only: nothing was tuned.
 
 | Pairing (A vs B) | Wins A : B : draws | Avg end round | Avg VP (A : B) | Avg models lost (A / B) |
 |---|---|---|---|---|
-| Космодесант vs Орки | 8 : 0 : 0 | 4.4 | 22.5 : 11.9 | 3.6 / 31.0 |
-| Космодесант vs Тираниды | 7 : 1 : 0 | 3.8 | 14.4 : 10.0 | 6.0 / 23.8 |
-| Космодесант vs Некроны | 8 : 0 : 0 | 4.6 | 28.1 : 9.4 | 3.9 / 16.5 |
-| Космодесант vs Аэльдари | 8 : 0 : 0 | 4.6 | 28.1 : 11.9 | 1.8 / 19.4 |
-| Орки vs Тираниды | 3 : 5 : 0 | 4.6 | 18.8 : 13.1 | 28.3 / 22.9 |
-| Орки vs Некроны | 8 : 0 : 0 | 3.6 | 21.3 : 5.6 | 10.0 / 17.0 |
-| Орки vs Аэльдари | 6 : 1 : 1 | 4.9 | 23.1 : 11.3 | 23.8 / 18.3 |
-| Тираниды vs Некроны | 8 : 0 : 0 | 4.5 | 19.4 : 10.6 | 19.5 / 17.0 |
-| Тираниды vs Аэльдари | 6 : 1 : 1 | 5.0 | 20.0 : 13.8 | 22.9 / 18.1 |
-| Некроны vs Аэльдари | 6 : 2 : 0 | 4.6 | 21.3 : 15.0 | 8.5 / 15.9 |
+| Space Marines vs Orks | 8 : 0 : 0 | 4.4 | 22.5 : 11.9 | 3.6 / 31.0 |
+| Space Marines vs Tyranids | 7 : 1 : 0 | 3.8 | 14.4 : 10.0 | 6.0 / 23.8 |
+| Space Marines vs Necrons | 8 : 0 : 0 | 4.6 | 28.1 : 9.4 | 3.9 / 16.5 |
+| Space Marines vs Aeldari | 8 : 0 : 0 | 4.6 | 28.1 : 11.9 | 1.8 / 19.4 |
+| Orks vs Tyranids | 3 : 5 : 0 | 4.6 | 18.8 : 13.1 | 28.3 / 22.9 |
+| Orks vs Necrons | 8 : 0 : 0 | 3.6 | 21.3 : 5.6 | 10.0 / 17.0 |
+| Orks vs Aeldari | 6 : 1 : 1 | 4.9 | 23.1 : 11.3 | 23.8 / 18.3 |
+| Tyranids vs Necrons | 8 : 0 : 0 | 4.5 | 19.4 : 10.6 | 19.5 / 17.0 |
+| Tyranids vs Aeldari | 6 : 1 : 1 | 5.0 | 20.0 : 13.8 | 22.9 / 18.1 |
+| Necrons vs Aeldari | 6 : 2 : 0 | 4.6 | 21.3 : 15.0 | 8.5 / 15.9 |
 
 | Army | Wins | Games | Win rate |
 |---|---|---|---|
-| Космодесант | 31 | 32 | 97% |
-| Тираниды | 20 | 32 | 63% |
-| Орки | 17 | 32 | 53% |
-| Некроны | 6 | 32 | 19% |
-| Аэльдари | 4 | 32 | 13% |
+| Space Marines | 31 | 32 | 97% |
+| Tyranids | 20 | 32 | 63% |
+| Orks | 17 | 32 | 53% |
+| Necrons | 6 | 32 | 19% |
+| Aeldari | 4 | 32 | 13% |
 
 What the numbers do and do not say:
 
@@ -222,25 +222,25 @@ Possible follow-ups, deliberately not done here (they change rules or AI): give 
 
 ## Adeptus Mechanicus balance
 
-Measured on 2026-11-09: the tactical (**«Стандарт»**) AI plays both sides, «Боевой патруль», **seeds 1–4, both seatings** of every pairing = **40 battles** (8 per pairing). Reproduce with
+Measured on 2026-11-09: the tactical (**“Standard”**) AI plays both sides, “Combat Patrol”, **seeds 1–4, both seatings** of every pairing = **40 battles** (8 per pairing). Reproduce with
 `BALANCE_SIM=1 BALANCE_FACTION=adeptus_mechanicus npx vitest run src/game/__tests__/balance.test.ts --disableConsoleIntercept` (about 11 minutes). Observation only: **nothing was tuned**. The old pairings cannot change (every new effect is gated on Mechanicus abilities, the golden-master test confirms it), so the table in *Balance observations* above still stands.
 
 | Pairing (A vs B) | Wins A : B : draws | Avg end round | Avg VP (A : B) | Avg models lost (A / B) |
 |---|---|---|---|---|
-| Космодесант vs Адептус Механикус | 0 : 8 : 0 | 4.8 | 4.4 : 33.8 | 16.1 / 12.9 |
-| Орки vs Адептус Механикус | 0 : 8 : 0 | 4.3 | 6.3 : 25.0 | 30.8 / 6.5 |
-| Тираниды vs Адептус Механикус | 0 : 8 : 0 | 3.1 | 5.0 : 15.6 | 23.9 / 5.4 |
-| Некроны vs Адептус Механикус | 0 : 8 : 0 | 4.8 | 3.8 : 38.1 | 16.9 / 3.9 |
-| Аэльдари vs Адептус Механикус | 0 : 8 : 0 | 3.8 | 6.9 : 23.8 | 19.9 / 5.6 |
+| Space Marines vs Adeptus Mechanicus | 0 : 8 : 0 | 4.8 | 4.4 : 33.8 | 16.1 / 12.9 |
+| Orks vs Adeptus Mechanicus | 0 : 8 : 0 | 4.3 | 6.3 : 25.0 | 30.8 / 6.5 |
+| Tyranids vs Adeptus Mechanicus | 0 : 8 : 0 | 3.1 | 5.0 : 15.6 | 23.9 / 5.4 |
+| Necrons vs Adeptus Mechanicus | 0 : 8 : 0 | 4.8 | 3.8 : 38.1 | 16.9 / 3.9 |
+| Aeldari vs Adeptus Mechanicus | 0 : 8 : 0 | 3.8 | 6.9 : 23.8 | 19.9 / 5.6 |
 
 | Army (in these 40 battles) | Wins | Win rate | Wounds dealt / battle | Wounds taken / battle | Damage ratio | Units alive at the end | Avg VP |
 |---|---|---|---|---|---|---|---|
-| Адептус Механикус | 40 / 40 | **100 %** | 37.2 | 10.4 | **3.58** | 7.8 of 8 | 27.3 |
-| Космодесант | 0 / 8 | 0 % | 21.6 | 39.5 | 0.55 | 0.9 of 5 | 4.4 |
-| Орки | 0 / 8 | 0 % | 8.0 | 43.6 | 0.18 | 0.3 of 4 | 6.3 |
-| Тираниды | 0 / 8 | 0 % | 9.8 | 38.6 | 0.25 | 0.1 of 4 | 5.0 |
-| Некроны | 0 / 8 | 0 % | 6.9 | 36.8 | 0.19 | 0.1 of 4 | 3.8 |
-| Аэльдари | 0 / 8 | 0 % | 5.8 | 27.5 | 0.21 | 0.1 of 4 | 6.9 |
+| Adeptus Mechanicus | 40 / 40 | **100 %** | 37.2 | 10.4 | **3.58** | 7.8 of 8 | 27.3 |
+| Space Marines | 0 / 8 | 0 % | 21.6 | 39.5 | 0.55 | 0.9 of 5 | 4.4 |
+| Orks | 0 / 8 | 0 % | 8.0 | 43.6 | 0.18 | 0.3 of 4 | 6.3 |
+| Tyranids | 0 / 8 | 0 % | 9.8 | 38.6 | 0.25 | 0.1 of 4 | 5.0 |
+| Necrons | 0 / 8 | 0 % | 6.9 | 36.8 | 0.19 | 0.1 of 4 | 3.8 |
+| Aeldari | 0 / 8 | 0 % | 5.8 | 27.5 | 0.21 | 0.1 of 4 | 6.9 |
 
 (VP are 5 per controlled objective from round 2, so average VP is an objective-control measure: 27.3 ≈ 5.5 objective-turns per battle for the Mechanicus against 0.8–1.4 for the others.) The side that took the first turn won 50 % and the west seat won 50 %: no seat bias.
 
@@ -269,4 +269,4 @@ Measured on 2026-11-09: the tactical (**«Стандарт»**) AI plays both si
 
 ### AI speed
 
-The Mechanicus army has the most models, so AI decisions are the slowest of all armies. Measured in Node on the development machine, «Стандарт», 40 consecutive decisions on «Боевой патруль»: slowest single decision ≈ 0.6 s with the Mechanicus as the AI against Marines (0.5 s for Marines vs Orks, Necrons vs Aeldari) and ≈ 1.3 s for the Orks AI choosing moves against the 36-model army (before the visibility pre-filter it was up to 2.8 s). The old maximum on this board was 0.8 s.
+The Mechanicus army has the most models, so AI decisions are the slowest of all armies. Measured in Node on the development machine, “Standard”, 40 consecutive decisions on “Combat Patrol”: slowest single decision ≈ 0.6 s with the Mechanicus as the AI against Marines (0.5 s for Marines vs Orks, Necrons vs Aeldari) and ≈ 1.3 s for the Orks AI choosing moves against the 36-model army (before the visibility pre-filter it was up to 2.8 s). The old maximum on this board was 0.8 s.

@@ -2,6 +2,7 @@ import { unitProfile, ROLE_ICON, ROLE_NAME, type UnitRole } from './army/roles'
 import { alive, datasheetOf, enemiesOf, isMV, profileOf, weaponsOf } from './gameState'
 import type { GameState, UnitState } from './types'
 import { profileVs, REFERENCE, type Reference, type TargetKind } from './weaponAdvice'
+import { tr } from '../i18n/index'
 
 // "How do I play this unit?" for beginners: the unit's battlefield role (read off its datasheet, see army/roles.ts),
 // what that means on the table, what it hits hardest, what it should fear, and, in a battle, which enemy units it hurts
@@ -9,11 +10,11 @@ import { profileVs, REFERENCE, type Reference, type TargetKind } from './weaponA
 
 export interface UnitAdvice {
   role: UnitRole
-  /** «🎯 Стрелки» */
+  /** "🎯 Shooters" */
   title: string
   /** how to use it, 2–3 short lines */
   tips: string[]
-  /** «стрельба — против толп пехоты; рукопашная — против бронированной пехоты» */
+  /** "shooting — against infantry hordes; melee — against armoured infantry" */
   strongVs: string
   /** the kind of attack it should fear */
   fears: string
@@ -24,28 +25,28 @@ export interface UnitAdvice {
 
 const TIPS: Record<UnitRole, string[]> = {
   assault: [
-    'Сила — в рукопашной: подводите отряд под прикрытием руин и атакуйте (charge) тех, кого он рубит лучше всего.',
-    'Не стойте на открытом месте под огнём: до боя должно дойти как можно больше моделей.',
+    tr('Strength is in melee: bring the unit up under cover of ruins and charge those it cuts down best.'),
+    tr('Do not stand in the open under fire: as many models as possible must reach the fight.'),
   ],
   shooter: [
-    'Урон наносит издалека: держите на дальности своего оружия и в укрытии.',
-    'В рукопашную не лезьте: там отряд слабее, а связанный боем почти не стреляет.',
+    tr('It deals damage from afar: keep it at your weapons’ range and in cover.'),
+    tr('Do not rush into melee: the unit is weaker there, and one locked in combat barely shoots.'),
   ],
   screen: [
-    'Много дешёвых моделей: ставьте впереди, чтобы враг не дошёл до ценных отрядов.',
-    'Хорошо держит цели (много OC) — отправляйте на объекты, пусть враг тратит на них выстрелы.',
+    tr('Many cheap models: put them in front so the enemy does not reach the valuable units.'),
+    tr('Holds objectives well (high OC) — send it to objectives and let the enemy waste shots on it.'),
   ],
   character: [
-    'Персонаж: держите рядом с отрядом, которому он даёт бонус, и не подставляйте одного.',
-    'Его гибель — потеря способностей для всей группы: прячьте от тяжёлого оружия.',
+    tr('Character: keep it near the unit it gives a bonus to, and do not expose it alone.'),
+    tr('Its death means losing abilities for the whole group: hide it from heavy weapons.'),
   ],
   infiltrator: [
-    'Диверсанты: расставляются вне своей зоны — занимайте дальние цели и отвлекайте врага.',
-    'Отряд небольшой: бейте и прячьтесь, затяжной бой с сильным врагом ему не по силам.',
+    tr('Infiltrators: set up outside their own zone — take distant objectives and distract the enemy.'),
+    tr('A small unit: hit and hide, it cannot handle a prolonged fight with a strong enemy.'),
   ],
 }
 
-const AGAINST: Record<TargetKind, string> = { horde: 'толп пехоты', elite: 'бронированной пехоты', heavy: 'техники и монстров' }
+const AGAINST: Record<TargetKind, string> = { horde: tr('infantry hordes'), elite: tr('armoured infantry'), heavy: tr('vehicles and monsters') }
 /** a typical result per firing model against each kind (as in weaponAdvice.ts), to see what the unit leans towards */
 const TYPICAL: Record<TargetKind, number> = { horde: 0.8, elite: 0.3, heavy: 0.8 }
 
@@ -92,9 +93,9 @@ const leanOf = (u: UnitState, kind: 'ranged' | 'melee'): TargetKind | null => {
 function fearsOf(u: UnitState): string {
   const p = profileOf(alive(u)[0])
   const wPerModel = alive(u).reduce((a, m) => a + profileOf(m).w, 0) / alive(u).length
-  if (isMV(u) || wPerModel >= 5) return 'тяжёлого оружия — Сила 8+, урон 3+ и Anti-VEHICLE/MONSTER (мельты, лазпушки, гравиоружие)'
-  if (p.sv >= 5) return 'массового огня — огнемётов, Blast и оружия с большим числом выстрелов: защита слабая, каждая рана снимает модель'
-  return 'бронебойного оружия — AP −2 и лучше, урон 2+ (плазма, тяжёлые болтеры): обычные винтовки по нему слабы'
+  if (isMV(u) || wPerModel >= 5) return tr('heavy weapons — Strength 8+, damage 3+ and Anti-VEHICLE/MONSTER (meltas, lascannons, gravitic weapons)')
+  if (p.sv >= 5) return tr('mass fire — flamers, Blast and weapons with many shots: the defence is weak, every wound removes a model')
+  return tr('armour-piercing weapons — AP −2 and better, damage 2+ (plasma, heavy bolters): ordinary rifles are weak against it')
 }
 
 export function unitAdvice(unit: UnitState, s?: GameState): UnitAdvice {
@@ -104,8 +105,8 @@ export function unitAdvice(unit: UnitState, s?: GameState): UnitAdvice {
   const lean = { ranged: leanOf(u, 'ranged'), melee: leanOf(u, 'melee') }
   // a shooting unit's close combat weapons are not what it is for, so only its guns are rated
   const strong = [
-    lean.ranged ? `стрельба — против ${AGAINST[lean.ranged]}` : '',
-    lean.melee && role !== 'shooter' ? `рукопашная — против ${AGAINST[lean.melee]}` : '',
+    lean.ranged ? tr('shooting — against {item}', { item: AGAINST[lean.ranged] }) : '',
+    lean.melee && role !== 'shooter' ? tr('melee — against {item}', { item: AGAINST[lean.melee] }) : '',
   ].filter(Boolean).join('; ')
   let bestTargets: string[] = []
   let worstThreats: string[] = []
@@ -128,7 +129,7 @@ export function unitAdvice(unit: UnitState, s?: GameState): UnitAdvice {
     role,
     title: `${ROLE_ICON[role]} ${ROLE_NAME[role][0].toUpperCase()}${ROLE_NAME[role].slice(1)}`,
     tips: TIPS[role],
-    strongVs: strong || 'заметного урона не наносит — его работа другая (цели, прикрытие, способности)',
+    strongVs: strong || tr('it deals no noticeable damage — its job is different (objectives, cover, abilities)'),
     fears: fearsOf(u),
     bestTargets,
     worstThreats,
