@@ -4,10 +4,12 @@
 import { FACTION_NAME } from '../data/datasheets'
 import { dist, withinRange } from '../geometry/geometry'
 import {
-  alive, CHARGE_RANGE, datasheetOf, ledUnitOf, engagedUnits, enemiesOf, hasAbility, inSynapseRange, isFlyer, isMV, modelInTerrain, objectiveLevels, other, profileOf,
+  alive, CHARGE_RANGE, datasheetOf, ledUnitOf, engagedUnits, enemiesOf, hasAbility, hasKeyword, inSynapseRange, isEngaged, isFlyer, isMV, modelInTerrain, objectiveLevels, other, profileOf,
   sidesOf, unitDistance, unitNearObjective, unitsOf, unitsWithin, weaponsOf, fmt,
 } from '../gameState'
-import { actor, FLY_PENALTY, maxMove, meleePlan, meleeSetup, meleeWeaponsOf, shootPlan, SWIFT_BONUS, validate, moveModeFor } from '../engine'
+import { actor, FLY_PENALTY, hyperPending, maxMove, meleePlan, meleeSetup, meleeWeaponsOf, shootPlan, SWIFT_BONUS, validate, moveModeFor } from '../engine'
+import { unitProfile } from '../army/roles'
+import { DOCTRINE_NAME, HYPER_NAME } from '../rules/detachments'
 import { moveProblem, planMove } from '../rules/movement'
 import { EXPLOSIVES_DICE, STRATAGEMS } from '../rules/stratagems'
 import { reactionAdvice } from '../reactionAdvice'
@@ -18,7 +20,7 @@ const FIGHT_BUFFS: StratagemId[] = ['hitEmHarder', 'hungryVoid', 'adrenalSurge']
 import type { AttackContext, AttackGroup } from '../combat/attack'
 import { woundTarget } from '../combat/attack'
 import { avgDie } from '../dice/dice'
-import type { Command, GameState, PlayerId, StratagemId, UnitState, Vec } from '../types'
+import type { CombatDoctrine, Command, GameState, HyperAdaptation, PlayerId, StratagemId, UnitState, Vec } from '../types'
 import { WEAPONS } from '../data/datasheets'
 
 export type AiLevel = 'beginner' | 'standard'
@@ -372,12 +374,41 @@ function chooseImperative(s: GameState, me: PlayerId, level: AiLevel): { imperat
 
 // ------------------------------------------------------------ decisions
 
+/** Hyper-adaptations: Hyper-aggression when monsters and vehicles hold a good share of the enemy's wounds, else Swarming
+ * Instincts (most armies are infantry). Hive Predators only pays against an army of characters. */
+export function chooseHyper(s: GameState, me: PlayerId): { choice: HyperAdaptation; why: string } {
+  const w = (u: UnitState) => alive(u).reduce((a, m) => a + m.wounds, 0)
+  const foes = s.units.filter((u) => u.owner !== me && alive(u).length)
+  const heavy = foes.filter((u) => hasKeyword(u, 'MONSTER', 'VEHICLE')).reduce((a, u) => a + w(u), 0)
+  const all = foes.reduce((a, u) => a + w(u), 0)
+  return heavy >= all * 0.35
+    ? { choice: 'aggression', why: `у противника много монстров и техники (${Math.round((heavy / Math.max(1, all)) * 100)}% ран)` }
+    : { choice: 'swarming', why: 'противник — в основном пехота' }
+}
+
+/** Combat Doctrines: Tactical when a unit is locked in combat, Assault when an assault unit is an advance and a charge
+ * away, Devastator early on while the guns walk forward; nothing when none of them helps (each one is once per battle). */
+function chooseDoctrine(s: GameState, me: PlayerId): { doctrine: CombatDoctrine; why: string } | null {
+  const mine = unitsOf(s, me).filter((u) => alive(u).length)
+  const options: { doctrine: CombatDoctrine; why: string }[] = []
+  if (mine.some((u) => isEngaged(s, u))) options.push({ doctrine: 'tactical', why: 'отряд связан боем: отступит и всё равно выстрелит' })
+  const far = mine.some((u) => unitProfile(u).role === 'assault' && enemiesOf(s, u).some((e) => alive(e).length && unitDistance(u, e) > 8 && unitDistance(u, e) <= 14))
+  if (far) options.push({ doctrine: 'assault', why: 'штурмовой отряд дойдёт продвижением и атакой' })
+  if (s.round <= 2) options.push({ doctrine: 'devastator', why: 'армия идёт вперёд и стреляет на ходу' })
+  return options.find((o) => validate(s, { type: 'doctrine', doctrine: o.doctrine }).ok) ?? null
+}
+
 export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | null {
   if (s.winner) return null
   const me = actor(s)
   const fac = FACTION_NAME[me]
   const mine = unitsOf(s, me)
   const end = (why: string): AiDecision => ({ cmd: { type: 'endPhase' }, explanation: why })
+
+  if (hyperPending(s)) {
+    const h = chooseHyper(s, me)
+    return { cmd: { type: 'hyperAdaptation', choice: h.choice }, explanation: `${fac}: гиперадаптация «${HYPER_NAME[h.choice]}» — ${h.why}.` }
+  }
 
   if (s.pendingCharge) {
     const u = s.units.find((x) => x.id === s.pendingCharge!.unitId)!
@@ -419,6 +450,10 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
           .filter((f) => validate(s, { type: 'engrammatic', unitId: u.id, targetId: f.id }).ok)
           .sort((a, b) => Number(s.objectives.some((o) => unitNearObjective(b, o))) - Number(s.objectives.some((o) => unitNearObjective(a, o))) || alive(b).length - alive(a).length)[0]
         if (freed) return { cmd: { type: 'engrammatic', unitId: u.id, targetId: freed.id }, explanation: `${fac}: «${u.name}» снимает боевой шок с «${freed.name}» (Engrammatic Logic).` }
+      }
+      if (me === 'marines' && level !== 'beginner') {
+        const d = chooseDoctrine(s, me)
+        if (d) return { cmd: { type: 'doctrine', doctrine: d.doctrine }, explanation: `${fac}: боевая доктрина «${DOCTRINE_NAME[d.doctrine]}» — ${d.why}.` }
       }
       if (validate(s, { type: 'imperative', imperative: 'protector' }).ok) {
         const imp = chooseImperative(s, me, level)

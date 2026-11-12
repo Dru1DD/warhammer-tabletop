@@ -292,9 +292,19 @@ export interface PlayerState {
   stratagemUnitsThisPhase?: string[]
   /** Insane Bravery already used this battle */
   braveryUsed?: boolean
+  /** Space Marines: the combat doctrine active until this player's next Command phase (null = none this turn) */
+  doctrine?: CombatDoctrine | null
+  /** Space Marines: every doctrine selected so far this battle, in order */
+  doctrinesUsed?: CombatDoctrine[]
+  /** Tyranids: the Hyper-adaptation of this battle (null = still to choose at the start of the battle; absent = none) */
+  hyperAdaptation?: HyperAdaptation | null
 }
 
 export type Imperative = 'protector' | 'conqueror'
+/** Space Marines Combat Doctrines (army rule) */
+export type CombatDoctrine = 'assault' | 'devastator' | 'tactical'
+/** Tyranids Invasion Fleet detachment rule */
+export type HyperAdaptation = 'swarming' | 'aggression' | 'predators'
 
 /** An attack paused right after a die a Command Re-roll could change (the dice after it are not rolled yet). */
 export interface PendingReroll {
@@ -466,6 +476,10 @@ export type Command =
   | { type: 'passReaction' }
   /** The player asked about a Command Re-roll mid-attack answers: re-roll the die (1 CP) or keep it */
   | { type: 'rerollChoice'; reroll: boolean }
+  /** Space Marines: select a combat doctrine at the start of the Command phase */
+  | { type: 'doctrine'; doctrine: CombatDoctrine }
+  /** Tyranids: choose the Hyper-adaptation at the start of the battle */
+  | { type: 'hyperAdaptation'; choice: HyperAdaptation }
   | { type: 'endPhase' }
 
 export type Validation = { ok: true } | { ok: false; reason: string }

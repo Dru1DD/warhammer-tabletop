@@ -14,6 +14,7 @@ import { PHASES } from '../game/types'
 import { useStore } from '../store'
 import { weaponAdvice } from '../game/weaponAdvice'
 import { DETACHMENT, LATER_STRATAGEMS, STRATAGEM_IDS, STRATAGEMS } from '../game/rules/stratagems'
+import { DOCTRINE_NAME, DOCTRINE_TEXT, DOCTRINES } from '../game/rules/detachments'
 import type { PlayerId, StratagemId } from '../game/types'
 
 /** Every Stratagem the player can use right now, grouped by Stratagem, with one button per unit (and target). */
@@ -335,6 +336,7 @@ export function ActionPanel() {
         <ActionButton cmd={{ type: 'callShadow' }} label="Тень в Варпе (Shadow in the Warp, раз за битву)" />
       )}
       {!game.winner && myTurn && game.phase === 'command' && game.players[human].imperative !== undefined && <ImperativePicker />}
+      {!game.winner && myTurn && game.phase === 'command' && human === 'marines' && <DoctrinePicker />}
       {!game.winner && myTurn && lastRoundWarning(game, human) && (
         <p className="rounded border border-rose-500 bg-rose-950/60 p-2 text-xs text-rose-100" role="alert">{lastRoundWarning(game, human)}</p>
       )}
@@ -555,6 +557,25 @@ function DeploymentPanel() {
         {issues.length > 0 && <button className="btn mt-1 w-full" onClick={() => st.autoDeploy()} title="Поставить нерасставленные отряды на предложенные места">Оставить остальных на предложенных местах</button>}
       </div>
     </section>
+  )
+}
+
+/** Combat Doctrines (Space Marines army rule): at most one per Command phase, each once per battle, one of them twice
+ * (Codex Discipline). Optional, so the phase can end without one. */
+function DoctrinePicker() {
+  const game = useStore((s) => s.game!)
+  const p = game.players.marines
+  const used = p.doctrinesUsed ?? []
+  if (p.doctrine)
+    return <p className="rounded border border-sky-700 bg-sky-950/40 p-2 text-xs text-sky-200">Боевая доктрина: <b>{DOCTRINE_NAME[p.doctrine]}</b> — {DOCTRINE_TEXT[p.doctrine]}, до вашей следующей фазы командования.</p>
+  return (
+    <div className="flex flex-col gap-1 rounded border border-sky-700 bg-sky-950/40 p-2" aria-label="Боевые доктрины">
+      <b className="text-xs text-sky-200">Боевые доктрины (Combat Doctrines): можно выбрать одну — или сберечь</b>
+      {DOCTRINES.map((d) => (
+        <ActionButton key={d} cmd={{ type: 'doctrine', doctrine: d }} label={`${DOCTRINE_NAME[d]}: ${DOCTRINE_TEXT[d]}${used.includes(d) ? ' (уже была — повтор по Дисциплине Кодекса)' : ''}`} />
+      ))}
+      <span className="text-[11px] text-stone-400">Каждая — раз за битву, и одна из них — ещё раз. Выбрано: {used.length ? used.map((d) => DOCTRINE_NAME[d]).join(', ') : 'пока ни одной'}.</span>
+    </div>
   )
 }
 

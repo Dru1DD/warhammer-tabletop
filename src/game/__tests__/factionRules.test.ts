@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { scriptedRoller } from '../dice/dice'
-import { apply, BATTLE_FOCUS_TOKENS, meleePlan, shootPlan, startGame, validate } from '../engine'
+import { apply, BATTLE_FOCUS_TOKENS, meleePlan, shootPlan, startGame, SWIFT_BONUS, validate } from '../engine'
+import { MARTIAL_GRACE_TOKENS } from '../rules/detachments'
 import { alive, inSynapseRange, modelInObjectiveRange, objectiveLevels, unitDistance } from '../gameState'
 import { basesOverlap } from '../geometry/geometry'
 import { checkCoherency, profileOf, radiusOf } from '../gameState'
@@ -225,11 +226,12 @@ describe('Necrons: Canoptek Scarab Swarms', () => {
 
 describe('Aeldari: Battle Focus', () => {
   const guardMove = (s: GameState, d: number) => Object.fromEntries(unit(s, 'guardians').models.map((m) => [m.id, { x: m.pos.x + d, y: m.pos.y }]))
-  it('start with 2 tokens at the beginning of the battle', () => {
-    expect(startGame(battle('aeldari', 'orks', 'command', 'aeldari'), scriptedRoller([6, 1])).players.aeldari.focus).toBe(BATTLE_FOCUS_TOKENS)
-    expect(BATTLE_FOCUS_TOKENS).toBe(2)
+  it('start with 3 tokens at the beginning of the battle (2, plus 1 from Martial Grace)', () => {
+    expect(startGame(battle('aeldari', 'orks', 'command', 'aeldari'), scriptedRoller([6, 1])).players.aeldari.focus).toBe(BATTLE_FOCUS_TOKENS + MARTIAL_GRACE_TOKENS)
+    expect(BATTLE_FOCUS_TOKENS + MARTIAL_GRACE_TOKENS).toBe(3)
   })
-  it('Swift as the Wind spends a token for +2″ on the move', () => {
+  it('Swift as the Wind spends a token for +3″ on the move (2, plus 1 from Martial Grace)', () => {
+    expect(SWIFT_BONUS).toBe(3)
     const s = battle('aeldari', 'orks', 'movement', 'aeldari')
     s.players.aeldari.focus = 2
     const far: Command = { type: 'move', unitId: 'guardians', mode: 'normal', positions: guardMove(s, 8.5) }
@@ -253,7 +255,7 @@ describe('Aeldari: Battle Focus', () => {
     s.players.aeldari.focus = 0
     const after = apply(s, { type: 'endPhase' }, scriptedRoller([]))
     expect(after.round).toBe(2)
-    expect(after.players.aeldari.focus).toBe(BATTLE_FOCUS_TOKENS)
+    expect(after.players.aeldari.focus).toBe(BATTLE_FOCUS_TOKENS + MARTIAL_GRACE_TOKENS)
   })
 })
 

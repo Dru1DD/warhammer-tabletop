@@ -14,6 +14,9 @@ import { armyUnits, battleListProblems } from './ui/armyUnits'
 import { BattleOverDialog } from './ui/BattleOverDialog'
 import { ReactionPrompt } from './ui/ReactionPrompt'
 import { RerollPrompt } from './ui/RerollPrompt'
+import { HyperAdaptationPrompt } from './ui/HyperAdaptationPrompt'
+import { hyperPending } from './game/engine'
+import { DOCTRINE_NAME, HYPER_NAME } from './game/rules/detachments'
 import { Board } from './ui/Board'
 import { ActionPanel, AttackReview, BottomPanel, DiceFaces, RosterPanel } from './ui/Panels'
 import { PanelBoundary } from './ui/PanelBoundary'
@@ -248,6 +251,8 @@ function GameScreen() {
         <OnlineHeader />
         <span className="text-sm text-stone-300">ПО: {scoreText(game)}</span>
         {game.players.orks?.riledTurns > 0 && <span className="rounded bg-red-800 px-2 py-0.5 text-xs">WAAAGH!</span>}
+        {game.players.marines?.doctrine && <span className="rounded bg-sky-800 px-2 py-0.5 text-xs" title="Боевая доктрина Космодесанта до следующей фазы командования">Доктрина: {DOCTRINE_NAME[game.players.marines.doctrine]}</span>}
+        {game.players.tyranids?.hyperAdaptation && <span className="rounded bg-purple-800 px-2 py-0.5 text-xs" title="Гиперадаптация Тиранидов на всю битву">{HYPER_NAME[game.players.tyranids.hyperAdaptation]}</span>}
         {game.players.adeptus_mechanicus?.imperative && <span className="rounded bg-amber-800 px-2 py-0.5 text-xs" title="Доктрина Империатива армии Адептус Механикус">{game.players.adeptus_mechanicus.imperative === 'protector' ? 'Протектор' : 'Завоеватель'}</span>}
         <div className="ml-auto flex flex-wrap gap-1">
           {/* icons only on laptop widths; labels from 1536px */}
@@ -283,6 +288,7 @@ function GameScreen() {
       )}
       {game.reaction?.player === st.settings.human && !game.winner && !st.review && <ReactionPrompt game={game} human={st.settings.human} />}
       {game.pendingReroll?.player === st.settings.human && !game.winner && !st.review && <RerollPrompt game={game} human={st.settings.human} />}
+      {hyperPending(game) && st.settings.human === 'tyranids' && !st.review && <HyperAdaptationPrompt game={game} />}
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
     </div>
   )
