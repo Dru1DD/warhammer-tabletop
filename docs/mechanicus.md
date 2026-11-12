@@ -66,6 +66,31 @@ Roles (what makes the units different):
 | Tech-Priest Dominus | Support in the front line: Feel No Pain 5+ for the unit he leads, Data-spike against vehicles, Omnissian axe in melee. |
 | Tech-Priest Manipulus | Fire support: magnarail lance (36″, Heavy), Lethal Hits for the unit he leads, once-per-battle 4+ invulnerable save. |
 
+## Added units (12.11.2026)
+
+Four more datasheets for the army builder, transcribed from Wahapedia on 12.11.2026. The presets and the training roster do not change, so the AI fingerprints stay the same.
+
+| Unit | Points | What it is | Rules in the game |
+|---|---|---|---|
+| Serberys Sulphurhounds | 3 — 55, 6 — 95 | fast cavalry, M12″: sulphur breath (Torrent, 9″), phosphor pistols; one model in three may take a phosphor blast carbine | **Line-breakers**: when the charge move ends, a D6 per model engaged with the charged unit; 4+ is a mortal wound, +2 to each roll if the charge started within 6″ of friendly Mechanicus BATTLELINE |
+| Ironstrider Ballistarii | 1 — 80, 2 — 160, 3 — 250 (from the 3rd unit: 95 / 175 / 265) | walker, M10″, T7: twin cognis autocannon or lascannon, 48″ | **Elevated Strider**: shoots with every weapon after an Advance and after Falling Back. **Data-tether**: a Stratagem on it gives back 1 CP on a 5+. Deadly Demise 1 |
+| Onager Dunecrawler | 150 | heavy walker, T10, 2+ / 4+ invulnerable, OC3: eradication beamer (3D3, Blast), daedalus + Icarus, neutron laser + heavy stubber, or twin heavy phosphor blaster | **Emanatus Force Field**: friendly Mechanicus BATTLELINE within 6″ has a 4+ invulnerable save against shooting. **Damaged 1–4 wounds**: −1 to hit. Deadly Demise D3 |
+| Corpuscarii Electro-Priests | 5 — 60, 10 — 120 | zealots: electrostatic gauntlets, 12″ Pistol and melee, Sustained Hits 2 | **Feel No Pain 5+**. **Electro-shock**: the enemy unit it shot and hit (not MONSTER/VEHICLE) gets −2″ Move and −2 to Advance and Charge rolls until the end of its owner's next turn (the same state as Disruption Bombardment) |
+
+**New engine support:**
+
+- random attacks `3D3` (eradication beamer);
+- Feel No Pain from the datasheet (`feelNoPain5`);
+- the damaged state (`damaged1to4`).
+
+**Not modelled:**
+
+- Scuttling Walker (moving through terrain up to 4″ high; terrain has no height here);
+- the Onager's optional extra heavy stubber and data-tether;
+- the lascannon's +10 points.
+
+Oval bases are drawn as round ones: Sulphurhounds 50 mm, Ironstriders 90 mm. Each model has its own blueprint portrait (`src/assets/tokenArt.ts`).
+
 ## Faction mechanics
 
 Each is a reusable rule keyed on a datasheet ability, not a faction special case in the engine (the only faction-named logic is the army rule's own state, `PlayerState.imperative`). Everything is tested in `mechanicus.test.ts`; the Marines/Orks golden-master test still passes unchanged.

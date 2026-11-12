@@ -71,6 +71,10 @@ export const POINTS: Record<string, PointsBracket[]> = {
   destroyers: [{ models: 3, points: 100 }, { models: 6, points: 210 }],
   sicarians: [{ models: 5, points: 75 }, { models: 10, points: 155 }],
   kastelans: [{ models: 2, points: 160 }, { models: 4, points: 320 }],
+  sulphurhounds: [{ models: 3, points: 55 }, { models: 6, points: 95 }],
+  ironstriders: [{ models: 1, points: 80 }, { models: 2, points: 160 }, { models: 3, points: 250 }],
+  onager: [{ models: 1, points: 150 }],
+  electroPriests: [{ models: 5, points: 60 }, { models: 10, points: 120 }],
 }
 
 /**
@@ -87,6 +91,7 @@ export const POINTS_LATER: Record<string, { fromCopy: number; brackets: PointsBr
   skorpekhDestroyers: { fromCopy: 3, brackets: [{ models: 3, points: 95 }, { models: 6, points: 180 }] },
   sicarians: { fromCopy: 3, brackets: [{ models: 5, points: 85 }, { models: 10, points: 165 }] },
   kastelans: { fromCopy: 2, brackets: [{ models: 2, points: 180 }, { models: 4, points: 340 }] },
+  ironstriders: { fromCopy: 3, brackets: [{ models: 1, points: 95 }, { models: 2, points: 175 }, { models: 3, points: 265 }] },
 }
 
 /** Unit sizes the Field Manual lists for a datasheet. */

@@ -60,7 +60,7 @@ export interface WeaponProfile {
   keywords: WeaponKeywords
 }
 
-export type RandomDie = 'D3' | 'D6'
+export type RandomDie = 'D3' | 'D6' | '3D3'
 
 /** A weapon with one or more profiles; the player picks one profile per attack. */
 export interface Weapon {
@@ -136,6 +136,14 @@ export type AbilityId =
   | 'radSaturation'
   | 'breachingCommand'
   | 'infiltrators'
+  | 'lineBreakers'
+  | 'elevatedStrider'
+  | 'dataTether'
+  | 'emanatusForceField'
+  | 'scuttlingWalker'
+  | 'damaged1to4'
+  | 'feelNoPain5'
+  | 'electroShock'
   | 'deepStrike'
   | 'stealth'
   | 'voicesInTheCode'

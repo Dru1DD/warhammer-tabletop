@@ -95,7 +95,7 @@ export function leadersOf(s: GameState, u: UnitState, ability: string): UnitStat
 export const hasWargear = (u: UnitState, g: string) => alive(u).some((m) => profileOf(m).wargear?.includes(g as never))
 
 /** Feel No Pain value for damage to this unit (Lord of the Machine Cult), or undefined. */
-export const feelNoPainOf = (s: GameState, u: UnitState): number | undefined => (leadersOf(s, u, 'lordOfMachineCult').length ? 5 : undefined)
+export const feelNoPainOf = (s: GameState, u: UnitState): number | undefined => (leadersOf(s, u, 'lordOfMachineCult').length || hasAbility(u, 'feelNoPain5') ? 5 : undefined)
 
 /** Best invulnerable save granted to the unit as a whole (Waaagh! 5+, Defend the Divine Work 4+). */
 export function invulnOverrideOf(s: GameState, u: UnitState): number | undefined {

@@ -2,7 +2,8 @@ import type { Datasheet, ModelProfile, Weapon } from '../types'
 
 // Adeptus Mechanicus, 11th-edition datasheets as transcribed by Wahapedia (checked 2026-11-09):
 //   Tech-Priest Dominus, Tech-Priest Manipulus, Skitarii Rangers, Skitarii Vanguard, Kataphron Breachers,
-//   Kataphron Destroyers, Sicarian Infiltrators, Kastelan Robots. See docs/mechanicus.md.
+//   Kataphron Destroyers, Sicarian Infiltrators, Kastelan Robots; and (checked 2026-11-12) Serberys Sulphurhounds,
+//   Ironstrider Ballistarii, Onager Dunecrawler, Corpuscarii Electro-Priests. See docs/mechanicus.md.
 
 const anti = (keyword: string, roll: number) => ({ keyword, roll })
 
@@ -167,12 +168,94 @@ export const MECHANICUS_WEAPONS: Record<string, Weapon> = {
     id: 'twinKastelanFist', name: 'Сдвоенный кулак Кастелана (Twin Kastelan Fist)',
     profiles: [{ name: '', range: 'melee', attacks: 4, skill: 4, s: 12, ap: -2, d: 3, keywords: { twinLinked: true } }],
   },
+  // ---- Serberys Sulphurhounds
+  sulphurBreath: {
+    id: 'sulphurBreath', name: 'Серное дыхание (Sulphur Breath)',
+    profiles: [{ name: '', range: 9, attacks: 0, randomA: 'D6', skill: null, s: 3, ap: -1, d: 1, keywords: { closeQuarters: true, ignoresCover: true, torrent: true } }],
+  },
+  phosphorPistols: {
+    id: 'phosphorPistols', name: '2 фосфорных пистолета (Phosphor Pistols)',
+    profiles: [{ name: '', range: 12, attacks: 2, skill: 4, s: 4, ap: 0, d: 1, keywords: { closeQuarters: true, ignoresCover: true } }],
+  },
+  phosphorPistol: {
+    id: 'phosphorPistol', name: 'Фосфорный пистолет (Phosphor Pistol)',
+    profiles: [{ name: '', range: 12, attacks: 1, skill: 4, s: 4, ap: 0, d: 1, keywords: { closeQuarters: true, ignoresCover: true } }],
+  },
+  phosphorBlastCarbine: {
+    id: 'phosphorBlastCarbine', name: 'Фосфорный бласт-карабин (Phosphor Blast Carbine)',
+    profiles: [{ name: '', range: 18, attacks: 0, randomA: 'D6', skill: 4, s: 6, ap: 0, d: 1, keywords: { blast: 1, ignoresCover: true } }],
+  },
+  cavalryArcMaul: {
+    id: 'cavalryArcMaul', name: 'Кавалерийская дуговая булава (Cavalry Arc Maul)',
+    profiles: [{ name: '', range: 'melee', attacks: 1, skill: 4, s: 5, ap: -1, d: 1, keywords: { anti: anti('VEHICLE', 4), devastatingWounds: true, extraAttacks: true } }],
+  },
+  clawedLimbs: {
+    id: 'clawedLimbs', name: 'Когтистые лапы (Clawed Limbs)',
+    profiles: [{ name: '', range: 'melee', attacks: 4, skill: 4, s: 4, ap: 0, d: 1, keywords: {} }],
+  },
+  // ---- Ironstrider Ballistarii
+  twinCognisAutocannon: {
+    id: 'twinCognisAutocannon', name: 'Сдвоенная когнис-автопушка (Twin Cognis Autocannon)',
+    profiles: [{ name: '', range: 48, attacks: 4, skill: 4, s: 9, ap: -1, d: 3, keywords: { sustainedHits: 1, twinLinked: true } }],
+  },
+  twinCognisLascannon: {
+    id: 'twinCognisLascannon', name: 'Сдвоенная когнис-лазпушка (Twin Cognis Lascannon)',
+    profiles: [{ name: '', range: 48, attacks: 2, skill: 4, s: 12, ap: -3, d: 1, randomD: 'D6', keywords: { sustainedHits: 1, twinLinked: true } }],
+  },
+  ironstriderFeet: {
+    id: 'ironstriderFeet', name: 'Ноги Айронстрайдера (Ironstrider Feet)',
+    profiles: [{ name: '', range: 'melee', attacks: 3, skill: 4, s: 5, ap: 0, d: 1, keywords: {} }],
+  },
+  // ---- Onager Dunecrawler
+  eradicationBeamer: {
+    id: 'eradicationBeamer', name: 'Луч искоренения Онагра (Eradication Beamer)',
+    profiles: [
+      { name: 'Рассеянный (Dissipated)', range: 36, attacks: 0, randomA: '3D3', skill: 4, s: 10, ap: -2, d: 2, keywords: { blast: 1, sustainedHits: 1 } },
+      { name: 'Сфокусированный (Focused)', range: 18, attacks: 0, randomA: '3D3', skill: 4, s: 10, ap: -3, d: 3, keywords: { blast: 1, sustainedHits: 1 } },
+    ],
+  },
+  cognisHeavyStubber: {
+    id: 'cognisHeavyStubber', name: 'Когнис-тяжёлый стаббер (Cognis Heavy Stubber)',
+    profiles: [{ name: '', range: 36, attacks: 3, skill: 4, s: 4, ap: 0, d: 1, keywords: { rapidFire: 3, sustainedHits: 1 } }],
+  },
+  daedalusMissileLauncher: {
+    id: 'daedalusMissileLauncher', name: 'Ракетомёт «Дедал» (Daedalus Missile Launcher)',
+    profiles: [{ name: '', range: 48, attacks: 2, skill: 4, s: 10, ap: -2, d: 1, randomD: 'D6', keywords: { anti: anti('FLY', 2) } }],
+  },
+  neutronLaser: {
+    id: 'neutronLaser', name: 'Нейтронный лазер (Neutron Laser)',
+    profiles: [{ name: '', range: 48, attacks: 3, skill: 4, s: 16, ap: -4, d: 2, randomD: 'D6', keywords: { heavy: true } }],
+  },
+  icarusArray: {
+    id: 'icarusArray', name: 'Зенитный комплекс «Икар» (Icarus Array)',
+    profiles: [{ name: '', range: 48, attacks: 6, skill: 4, s: 8, ap: -1, d: 2, keywords: { anti: anti('FLY', 4), twinLinked: true } }],
+  },
+  twinOnagerPhosphor: {
+    id: 'twinOnagerPhosphor', name: 'Сдвоенный тяжёлый фосфорный бластер Онагра (Twin Onager Heavy Phosphor Blaster)',
+    profiles: [{ name: '', range: 36, attacks: 12, skill: 4, s: 6, ap: -1, d: 2, keywords: { ignoresCover: true, twinLinked: true } }],
+  },
+  dunecrawlerLegs: {
+    id: 'dunecrawlerLegs', name: 'Ноги Дюнохода (Dunecrawler Legs)',
+    profiles: [{ name: '', range: 'melee', attacks: 3, skill: 4, s: 6, ap: 0, d: 1, keywords: {} }],
+  },
+  // ---- Corpuscarii Electro-Priests
+  electrostaticGauntletsRanged: {
+    id: 'electrostaticGauntletsRanged', name: 'Электростатические перчатки (Electrostatic Gauntlets, выстрел)',
+    profiles: [{ name: '', range: 12, attacks: 3, skill: 3, s: 5, ap: 0, d: 1, keywords: { closeQuarters: true, sustainedHits: 2 } }],
+  },
+  electrostaticGauntlets: {
+    id: 'electrostaticGauntlets', name: 'Электростатические перчатки (Electrostatic Gauntlets)',
+    profiles: [{ name: '', range: 'melee', attacks: 3, skill: 4, s: 5, ap: 0, d: 1, keywords: { sustainedHits: 2 } }],
+  },
 }
 
 const skitarii = { m: 6, t: 3, sv: 4, w: 1, ld: 7, oc: 2, invuln: 5, baseMm: 25 }
 const kataphron = { m: 5, sv: 3, w: 3, ld: 7, oc: 1, invuln: 6, baseMm: 60 }
 const sicarian = { m: 8, t: 4, sv: 4, w: 2, ld: 7, oc: 1, invuln: 5, baseMm: 40 }
 const kastelan = { m: 6, t: 9, sv: 2, w: 7, ld: 7, oc: 2, invuln: 5, baseMm: 60 }
+const sulphurhound = { m: 12, t: 4, sv: 4, w: 2, ld: 7, oc: 2, invuln: 5, baseMm: 50 }
+const ironstrider = { m: 10, t: 7, sv: 3, w: 7, ld: 7, oc: 2, invuln: 5, baseMm: 90 }
+const onager = { m: 8, t: 10, sv: 2, w: 11, ld: 7, oc: 3, invuln: 4, baseMm: 130 }
 /** Tech-Priest Dominus and Manipulus share their characteristics */
 const dominus = { m: 6, t: 4, sv: 2, w: 4, ld: 7, oc: 1, invuln: 5, baseMm: 50, character: true }
 
@@ -227,6 +310,20 @@ export const MECHANICUS_PROFILES: Record<string, ModelProfile> = {
   kastelanCombustorBlaster: { id: 'kastelanCombustorBlaster', name: 'Кастелан с комбустором и бластером', ...kastelan, weapons: ['incendineCombustor', 'kastelanPhosphorBlaster', 'kastelanFist'] },
   kastelanCombustorTwin: { id: 'kastelanCombustorTwin', name: 'Кастелан с комбустором и сдвоенным бластером', ...kastelan, weapons: ['incendineCombustor', 'twinKastelanPhosphorBlaster', 'kastelanCCW'] },
   kastelanHeavyTwin: { id: 'kastelanHeavyTwin', name: 'Кастелан с тяжёлым и сдвоенным бластерами', ...kastelan, weapons: ['heavyPhosphorBlaster', 'twinKastelanPhosphorBlaster', 'kastelanCCW'] },
+  // Serberys Sulphurhounds (the oval 60x35.5 mm base is drawn as a 50 mm round one)
+  sulphurhoundAlpha: { id: 'sulphurhoundAlpha', name: 'Альфа Сульфурхаундов', ...sulphurhound, weapons: ['mechanicusPistol', 'sulphurBreath', 'cavalryArcMaul', 'clawedLimbs'] },
+  sulphurhound: { id: 'sulphurhound', name: 'Серберийский сульфурхаунд', ...sulphurhound, weapons: ['phosphorPistols', 'sulphurBreath', 'clawedLimbs'] },
+  sulphurhoundCarbine: { id: 'sulphurhoundCarbine', name: 'Сульфурхаунд с бласт-карабином', ...sulphurhound, weapons: ['phosphorBlastCarbine', 'phosphorPistol', 'sulphurBreath', 'clawedLimbs'] },
+  // Ironstrider Ballistarii (the oval 105x70 mm base is drawn as a 90 mm round one)
+  ironstrider: { id: 'ironstrider', name: 'Айронстрайдер с автопушкой', ...ironstrider, weapons: ['twinCognisAutocannon', 'ironstriderFeet'] },
+  ironstriderLascannon: { id: 'ironstriderLascannon', name: 'Айронстрайдер с лазпушкой', ...ironstrider, weapons: ['twinCognisLascannon', 'ironstriderFeet'] },
+  // Onager Dunecrawler: one model, four main weapon options
+  onager: { id: 'onager', name: 'Онагр с лучом искоренения', ...onager, weapons: ['eradicationBeamer', 'dunecrawlerLegs'] },
+  onagerMissiles: { id: 'onagerMissiles', name: 'Онагр с «Дедалом» и «Икаром»', ...onager, weapons: ['daedalusMissileLauncher', 'icarusArray', 'dunecrawlerLegs'] },
+  onagerNeutron: { id: 'onagerNeutron', name: 'Онагр с нейтронным лазером', ...onager, weapons: ['neutronLaser', 'cognisHeavyStubber', 'dunecrawlerLegs'] },
+  onagerPhosphor: { id: 'onagerPhosphor', name: 'Онагр с фосфорным бластером', ...onager, weapons: ['twinOnagerPhosphor', 'dunecrawlerLegs'] },
+  // Corpuscarii Electro-Priests
+  electroPriest: { id: 'electroPriest', name: 'Электрожрец-корпускарий', m: 6, t: 3, sv: 7, w: 1, ld: 7, oc: 1, invuln: 5, baseMm: 32, weapons: ['electrostaticGauntletsRanged', 'electrostaticGauntlets'] },
 }
 
 const AM = 'ADEPTUS MECHANICUS'
@@ -280,6 +377,30 @@ export const MECHANICUS_DATASHEETS: Record<string, Datasheet> = {
     abilities: ['doctrina', 'deadlyDemise1', 'repulsorGrid', 'roboticBodyguard'],
     description: 'Тяжёлые боевые платформы: T9, 2+ спас, фосфорные бластеры игнорируют укрытия, кулаки S12; ответный разряд бьёт стрелков.',
   },
+  sulphurhounds: {
+    id: 'sulphurhounds', name: 'Серберийские сульфурхаунды (Serberys Sulphurhounds)', faction: 'adeptus_mechanicus',
+    keywords: ['MOUNTED', 'IMPERIUM', 'SKITARII', 'SERBERYS SULPHURHOUNDS', AM],
+    abilities: ['doctrina', 'lineBreakers'],
+    description: 'Быстрая кавалерия: M12″, серное дыхание и фосфорные пистолеты в упор; врезаясь в строй врага, наносят смертельные раны.',
+  },
+  ironstriders: {
+    id: 'ironstriders', name: 'Айронстрайдеры-баллистарии (Ironstrider Ballistarii)', faction: 'adeptus_mechanicus',
+    keywords: ['VEHICLE', 'WALKER', 'SMOKE', 'IMPERIUM', 'SKITARII', 'IRONSTRIDER BALLISTARII', AM],
+    abilities: ['doctrina', 'deadlyDemise1', 'elevatedStrider', 'dataTether'],
+    description: 'Подвижные охотники на технику: M10″, автопушки или лазпушки на 48″, стреляют даже после продвижения и отступления.',
+  },
+  onager: {
+    id: 'onager', name: 'Онагр-дюноход (Onager Dunecrawler)', faction: 'adeptus_mechanicus',
+    keywords: ['VEHICLE', 'WALKER', 'IMPERIUM', 'SKITARII', 'SMOKE', 'ONAGER DUNECRAWLER', AM],
+    abilities: ['doctrina', 'deadlyDemiseD3', 'emanatusForceField', 'scuttlingWalker', 'damaged1to4'],
+    description: 'Тяжёлый шагоход поддержки: T10, 2+ и 4+ непробиваемый, сменное главное оружие на 36–48″; силовое поле прикрывает линейную пехоту рядом.',
+  },
+  electroPriests: {
+    id: 'electroPriests', name: 'Электрожрецы-корпускарии (Corpuscarii Electro-Priests)', faction: 'adeptus_mechanicus',
+    keywords: ['INFANTRY', 'IMPERIUM', 'CULT MECHANICUS', 'CORPUSCARII', 'ELECTRO-PRIESTS', AM],
+    abilities: ['doctrina', 'ledUnit', 'feelNoPain5', 'electroShock'],
+    description: 'Фанатики с молниями в руках: перчатки на 12″ и в рукопашной с Sustained Hits 2; разряд замедляет пехоту врага.',
+  },
 }
 
 export const MECHANICUS_ABILITY_TEXT: Record<string, string> = {
@@ -299,5 +420,13 @@ export const MECHANICUS_ABILITY_TEXT: Record<string, string> = {
   repulsorGrid: 'Отталкивающая решётка (Repulsor Grid): когда по отряду стреляют, каждый натуральный «6» в его спасброске причиняет стрелку 1 смертельную рану после выстрела.',
   sentinelDirectives: 'Директивы стража (Sentinel Directives): с Fire Overwatch попадания на 5+. [Не реализовано: в симуляторе нет стратагем и Fire Overwatch.]',
   scouts: 'Разведчики 6″ (Scouts 6″): предбоевое перемещение до 6″. [Не реализовано: перемещение перед битвой отсутствует.]',
+  lineBreakers: 'Прорыв строя (Line-breakers): когда отряд заканчивает перемещение атаки (charge), выберите врага в зоне контакта и бросьте D6 за каждую свою модель в контакте с ним; +2 к броску, если атака началась в 6″ от союзного линейного (BATTLELINE) отряда Адептус Механикус. Каждый результат 4+ — 1 смертельная рана.',
+  elevatedStrider: 'Возвышенный шагоход (Elevated Strider): отряд может стрелять в ход, когда продвигался или отступал. [Переброс проверок отчаянного бегства не нужен: в игре их нет.]',
+  dataTether: 'Широкополосный канал данных (Broad Spectrum Data-tether): когда на этот отряд применяют стратагему, бросьте D6; на 5+ вы получаете 1 CP.',
+  emanatusForceField: 'Эманатусное силовое поле (Emanatus Force Field, аура 6″): союзные линейные (BATTLELINE) модели Адептус Механикус в 6″ получают непробиваемый спасбросок 4+ против стрельбы.',
+  scuttlingWalker: 'Шагоход-краб (Scuttling Walker): при обычном движении, продвижении и отступлении может проходить сквозь союзных монстров и технику и сквозь тиррейн высотой до 4″. [Не реализовано: высоты тиррейна в игре нет.]',
+  damaged1to4: 'Повреждён (Damaged: 1–4 раны): пока у модели осталось 4 раны или меньше, −1 к её броскам на попадание.',
+  feelNoPain5: 'Не чувствует боли 5+ (Feel No Pain 5+): каждую потерянную рану модель отменяет на 5+.',
+  electroShock: 'Электрошок (Electro-shock): после стрельбы в свою фазу выберите вражеский отряд (не MONSTER и не VEHICLE), по которому было попадание: до конца следующего хода противника −2″ к его движению и −2 к броскам продвижения и атаки. [Выбирается цель стрельбы.]',
   roboticBodyguard: 'Роботизированная охрана (Robotic Bodyguard): Datasmith, ведущий отряд, получает Feel No Pain 4+. [Не реализовано: Кибернетика-Датасмит не входит в состав.]',
 }

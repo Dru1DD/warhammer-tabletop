@@ -116,4 +116,31 @@ export const MECHANICUS_WARGEAR: Record<string, WargearSpec> = {
       },
     ],
   },
+  sulphurhounds: {
+    leader: [{ profile: 'sulphurhoundAlpha', label: 'Альфа: пистолет Механикус, дыхание, дуговая булава' }],
+    base: { profile: 'sulphurhound', label: '2 фосфорных пистолета и серное дыхание' },
+    groups: [
+      { id: 'arms', label: 'Фосфорный бласт-карабин — одна модель на каждые 3', variants: [{ profile: 'sulphurhoundCarbine', label: 'Бласт-карабин и фосфорный пистолет' }], max: (size) => Math.floor(size / 3) },
+    ],
+  },
+  ironstriders: {
+    base: { profile: 'ironstrider', label: 'Сдвоенная когнис-автопушка' },
+    groups: [
+      { id: 'arms', label: 'Лазпушка вместо автопушки — любое число моделей', variants: [{ profile: 'ironstriderLascannon', label: 'Сдвоенная когнис-лазпушка' }], max: any },
+    ],
+  },
+  onager: {
+    base: { profile: 'onager', label: 'Луч искоренения' },
+    groups: [
+      {
+        id: 'arms', label: 'Главное оружие',
+        variants: [
+          { profile: 'onagerMissiles', label: 'Ракетомёт «Дедал» и комплекс «Икар»' },
+          { profile: 'onagerNeutron', label: 'Нейтронный лазер и тяжёлый стаббер' },
+          { profile: 'onagerPhosphor', label: 'Сдвоенный тяжёлый фосфорный бластер' },
+        ],
+        max: () => 1,
+      },
+    ],
+  },
 }

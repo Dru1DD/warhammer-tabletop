@@ -590,6 +590,63 @@ export const mechanicusEmblem = () =>
     <path d="M20 20 L34 34 M80 20 L66 34" fill="none" opacity="0.5"/>
   </g></svg>`
 
+type HoundGear = 'pistols' | 'carbine'
+
+/** Serberys Sulphurhound: a mechanical hound seen from above, a Skitarius rider on its back, sulphur cone ahead. */
+function sulphurhound(gear: HoundGear, alpha = false): string {
+  const weapon = gear === 'carbine'
+    ? `<rect x="46" y="30" width="26" height="6" rx="2.5" ${f(BRASS, 0.35)}/><circle cx="73" cy="33" r="3.4" ${f(RED, 0.5)}/>`
+    : `<rect x="48" y="30" width="14" height="4" rx="1.5" ${f(BRASS, 0.35)}/><rect x="48" y="66" width="14" height="4" rx="1.5" ${f(BRASS, 0.35)}/>`
+  const maul = alpha ? `<line x1="40" y1="68" x2="62" y2="80" stroke-width="2.4"/><circle cx="64" cy="81" r="3.6" ${f(RED, 0.55)}/>` : ''
+  return base(BRASS, `
+    <path d="M84 50 L96 42 M84 50 L96 50 M84 50 L96 58" fill="none" stroke-dasharray="2 2" opacity="0.7"/>
+    <path d="M22 36 L12 26 M22 64 L12 74 M56 36 L64 24 M56 64 L64 76" fill="none" stroke-width="3"/>
+    <ellipse cx="44" cy="50" rx="30" ry="14" ${rd(0.38)}/><path d="M20 50 H66" fill="none" opacity="0.4" stroke-dasharray="3 2"/>
+    <path d="M70 42 L86 46 L86 54 L70 58 Z" ${f(BRASS, 0.35)}/><circle cx="82" cy="47" r="1.6" fill="${RED}" stroke="none"/><circle cx="82" cy="53" r="1.6" fill="${RED}" stroke="none"/>
+    <path d="M14 50 L6 50" stroke-width="2"/>
+    <circle cx="40" cy="50" r="8" ${rd(0.55)}/>${skull(42, 50, 0.6)}${weapon}${maul}`, false)
+}
+
+type StriderGear = 'autocannon' | 'lascannon'
+
+/** Ironstrider Ballistarius: a tall two-legged walker; the cockpit pod with the pilot and twin long barrels forward. */
+function ironstrider(gear: StriderGear): string {
+  const guns = gear === 'lascannon'
+    ? `<rect x="58" y="38" width="38" height="5" rx="2" ${f(BRASS, 0.35)}/><rect x="58" y="57" width="38" height="5" rx="2" ${f(BRASS, 0.35)}/><circle cx="94" cy="40.5" r="2.8" ${f(RED, 0.6)}/><circle cx="94" cy="59.5" r="2.8" ${f(RED, 0.6)}/>`
+    : `<rect x="58" y="37" width="32" height="7" rx="2" ${f(BRASS, 0.35)}/><rect x="58" y="56" width="32" height="7" rx="2" ${f(BRASS, 0.35)}/><rect x="88" y="38.5" width="6" height="4" ${f(BRASS, 0.5)}/><rect x="88" y="57.5" width="6" height="4" ${f(BRASS, 0.5)}/>`
+  return base(BRASS, `
+    <path d="M30 34 L16 16 L24 12 M30 66 L16 84 L24 88" fill="none" stroke-width="3"/><circle cx="16" cy="16" r="3" ${f(BRASS, 0.4)}/><circle cx="16" cy="84" r="3" ${f(BRASS, 0.4)}/>
+    <rect x="26" y="30" width="34" height="40" rx="12" ${rd(0.4)}/>${cog(43, 50, 12, 8)}
+    <circle cx="50" cy="50" r="7" ${f(BRASS, 0.3)}/>${skull(52, 50, 0.55)}${guns}`, false)
+}
+
+type OnagerGear = 'beamer' | 'missiles' | 'neutron' | 'phosphor'
+
+/** Onager Dunecrawler: a wide four-legged hull with a turret; the turret weapon shows the loadout. */
+function onager(gear: OnagerGear): string {
+  const turret = {
+    beamer: `<rect x="56" y="44" width="30" height="12" rx="4" ${f(BRASS, 0.35)}/><path d="M86 42 L96 50 L86 58" fill="none" stroke-width="1.8"/><circle cx="72" cy="50" r="3" ${f(RED, 0.6)}/>`,
+    missiles: `<rect x="56" y="36" width="20" height="12" rx="2" ${f(BRASS, 0.35)}/><path d="M60 39 H72 M60 42 H72 M60 45 H72" fill="none" stroke-width="1"/><rect x="56" y="54" width="34" height="5" rx="2" ${f(BRASS, 0.35)}/><rect x="56" y="60" width="34" height="5" rx="2" ${f(BRASS, 0.35)}/>`,
+    neutron: `<rect x="56" y="46" width="40" height="8" rx="3" ${f(BRASS, 0.35)}/><circle cx="62" cy="50" r="5" ${f(RED, 0.5)}/><path d="M70 46 V54 M78 46 V54 M86 46 V54" fill="none" stroke-width="1"/>`,
+    phosphor: `<rect x="56" y="40" width="32" height="7" rx="3" ${f(BRASS, 0.35)}/><rect x="56" y="53" width="32" height="7" rx="3" ${f(BRASS, 0.35)}/><circle cx="90" cy="43.5" r="3" ${f(RED, 0.55)}/><circle cx="90" cy="56.5" r="3" ${f(RED, 0.55)}/>`,
+  }[gear]
+  return base(BRASS, `
+    <path d="M24 28 L10 14 M24 72 L10 86 M60 28 L72 12 M60 72 L72 88" fill="none" stroke-width="3.4"/>
+    <circle cx="10" cy="14" r="3" ${f(BRASS, 0.4)}/><circle cx="10" cy="86" r="3" ${f(BRASS, 0.4)}/><circle cx="72" cy="12" r="3" ${f(BRASS, 0.4)}/><circle cx="72" cy="88" r="3" ${f(BRASS, 0.4)}/>
+    <path d="M16 36 L28 24 H58 L68 36 V64 L58 76 H28 L16 64 Z" ${rd(0.38)}/><path d="M22 40 H62 M22 60 H62" fill="none" opacity="0.4"/>
+    <circle cx="44" cy="50" r="13" ${f(BRASS, 0.25)}/>${cog(44, 50, 9, 8)}${skull(30, 50, 0.6)}${turret}`, false)
+}
+
+/** Corpuscarii Electro-Priest: a robed zealot, arms spread, lightning arcing from the gauntlets. */
+function electroPriest(): string {
+  return base(BRASS, `
+    <path d="M60 24 L72 18 L68 26 L80 22 M60 76 L72 82 L68 74 L80 78" fill="none" stroke-width="1.8" stroke="${RED}"/>
+    <path d="M44 30 L60 24 M44 70 L60 76" fill="none" stroke-width="3"/><circle cx="60" cy="24" r="4" ${f(RED, 0.5)}/><circle cx="60" cy="76" r="4" ${f(RED, 0.5)}/>
+    <path d="M22 34 Q12 50 22 66 L46 62 L46 38 Z" ${rd(0.4)}/><path d="M28 42 L40 58 M40 42 L28 58" fill="none" opacity="0.4"/>
+    <circle cx="50" cy="50" r="9" ${rd(0.55)}/><path d="M46 44 L54 50 L46 56" fill="none" stroke-width="1.4"/>
+    <path d="M58 50 L66 46 L64 52 L72 48" fill="none" stroke="${RED}" stroke-width="1.6"/>`, false)
+}
+
 const SVGS: Record<string, string> = {
   hiveTyrant: hiveTyrant(),
   termagant: termagant('fleshborer'),
@@ -665,6 +722,16 @@ const SVGS: Record<string, string> = {
   kastelanCombustorBlaster: kastelan('combustor'),
   kastelanCombustorTwin: kastelan('combustor'),
   kastelanHeavyTwin: kastelan('guns'),
+  sulphurhoundAlpha: sulphurhound('pistols', true),
+  sulphurhound: sulphurhound('pistols'),
+  sulphurhoundCarbine: sulphurhound('carbine'),
+  ironstrider: ironstrider('autocannon'),
+  ironstriderLascannon: ironstrider('lascannon'),
+  onager: onager('beamer'),
+  onagerMissiles: onager('missiles'),
+  onagerNeutron: onager('neutron'),
+  onagerPhosphor: onager('phosphor'),
+  electroPriest: electroPriest(),
   lieutenant: marine('swordPistol', { officer: true }),
   captain: marine('bolterSword', { officer: true }),
   hellblasterSergeant: marine('plasma', { sergeant: true }),

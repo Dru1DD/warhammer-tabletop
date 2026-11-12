@@ -88,6 +88,10 @@ export const COMPOSITION: Record<string, { leader?: string; pattern: string[] }>
   destroyers: { pattern: ['destroyer', 'destroyer', 'destroyerCulverin'] },
   sicarians: { leader: 'sicarianPrinceps', pattern: ['sicarian', 'sicarianTaser'] },
   kastelans: { pattern: ['kastelanGun', 'kastelan'] },
+  sulphurhounds: { leader: 'sulphurhoundAlpha', pattern: ['sulphurhound', 'sulphurhound', 'sulphurhoundCarbine'] },
+  ironstriders: { pattern: ['ironstrider'] },
+  onager: { pattern: ['onager'] },
+  electroPriests: { pattern: ['electroPriest'] },
 }
 
 /** Model profile ids of a unit of `size` models, with the chosen wargear if any. */

@@ -25,7 +25,7 @@ export const REFERENCE: Record<TargetKind, Reference> = {
   heavy: { label: 'техника и монстры', t: 10, sv: 2, w: 12, models: 1, keywords: ['VEHICLE', 'MONSTER'] },
 }
 
-const AVG: Record<RandomDie, number> = { D3: 2, D6: 3.5 }
+const AVG: Record<RandomDie, number> = { D3: 2, D6: 3.5, '3D3': 6 }
 const faces = (ok: (v: number) => boolean) => [1, 2, 3, 4, 5, 6].filter(ok).length / 6
 
 /** Expected wounds removed per firing model against the reference (each failed save does at most `w` damage). */
