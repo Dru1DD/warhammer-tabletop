@@ -1,4 +1,6 @@
 import { expectedGroupDamage } from './ai/ai'
+import { chargeForecast, type ChargeForecast } from './chargeAdvice'
+import { engagementAdvice, type EngagementAdvice } from './engagementAdvice'
 import { shootPlan } from './engine'
 import { dist } from './geometry/geometry'
 import { alive, CHARGE_RANGE, enemiesOf, ENGAGEMENT_RANGE, profileOf, unitDistance } from './gameState'
@@ -36,6 +38,10 @@ export interface MovePreview {
   chargedBy: ChargeThreat[]
   /** what the move mode means for shooting */
   note: string | null
+  /** the charges this unit could declare from the planned spot (normal move only), best first */
+  charges: ChargeForecast[]
+  /** a unit locked in combat: stay or fall back (computed on where it stands now) */
+  engagement: EngagementAdvice | null
 }
 
 const P2D6_AT_LEAST: number[] = [1, 1, 1, 35 / 36, 33 / 36, 30 / 36, 26 / 36, 21 / 36, 15 / 36, 10 / 36, 6 / 36, 3 / 36, 1 / 36]
@@ -72,7 +78,7 @@ export function movePreview(s: GameState, unitId: string, draft: Record<string, 
   const me = movedUnit(u0, draft, mode)
   const hypo: GameState = { ...s, units: s.units.map((u) => (u.id === me.id ? me : u.owner !== me.owner ? fresh(u) : u)) }
   const foes = enemiesOf(hypo, me).filter((e) => alive(e).length)
-  const out: MovePreview = { canShoot: [], seenOutOfRange: [], shotBy: [], chargedBy: [], note: null }
+  const out: MovePreview = { canShoot: [], seenOutOfRange: [], shotBy: [], chargedBy: [], note: null, charges: [], engagement: null }
   if (mode === 'advance') out.note = 'После продвижения (Advance) стреляет только оружие Assault, и атаковать (charge) нельзя.'
   if (mode === 'fallBack') out.note = 'После отступления (Fall Back) отряд в этот ход не стреляет и не атакует.'
 
@@ -90,6 +96,9 @@ export function movePreview(s: GameState, unitId: string, draft: Record<string, 
     const need = Math.max(unitDistance(e, me) - m, ENGAGEMENT_RANGE)
     if (need <= CHARGE_RANGE) out.chargedBy.push({ ...row, need, p: chargeChance(need) })
   }
+  // charges from the new spot: only after a normal move (no charge after Advance or Fall Back)
+  if (mode === 'normal') out.charges = chargeForecast(hypo, me)
+  if (mode === 'fallBack') out.engagement = engagementAdvice(s, u0)
   out.canShoot.sort((a, b) => b.dmg - a.dmg)
   out.shotBy.sort((a, b) => b.dmg - a.dmg)
   out.chargedBy.sort((a, b) => b.p - a.p)

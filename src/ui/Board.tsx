@@ -134,6 +134,25 @@ function SightPanel({ sight }: { sight: Sight }) {
         {sight.seenOutOfRange.length > 0 && <li><span className="text-amber-300">👁 Видно, но не достать:</span> {list(sight.seenOutOfRange)}</li>}
         <li><span className="text-rose-300">⚠ По вам смогут стрелять:</span> {list(sight.shotBy.map((r) => ({ name: r.name, extra: `~${fmt(r.dmg)} ран` })))}</li>
         <li><span className="text-orange-300">⚔ Могут атаковать:</span> {list(sight.chargedBy.map((r) => ({ name: r.name, extra: pct(r.p) })))}</li>
+        {sight.charges.length > 0 && (
+          <li>
+            <span className="text-emerald-300">🗡 Сможете атаковать (charge):</span>{' '}
+            {sight.charges.slice(0, 3).map((c, i) => (
+              <span key={c.targetId} className={c.verdict === 'bad' ? 'text-rose-300' : c.verdict === 'good' ? 'text-emerald-200' : 'text-amber-200'}>
+                {i > 0 ? ', ' : ''}{c.name} ({Math.ceil(c.distance)}″ — {pct(c.p)}, ~{fmt(c.dealt)} ран{c.killsDealt >= c.enemyModels - 1e-9 ? ', добьёт' : ''})
+              </span>
+            ))}
+          </li>
+        )}
+        {sight.engagement && (
+          <li className={`rounded border px-1 py-0.5 ${sight.engagement.verdict === 'leave' ? 'border-amber-600' : 'border-emerald-700'}`}>
+            <b>{sight.engagement.verdict === 'leave' ? '↩ Лучше выйти из боя (Fall Back)' : '🛡 Лучше остаться в бою'}</b>
+            <span className="block">{sight.engagement.why}</span>
+            <span className="block text-stone-400">
+              Остаться: ~{fmt(sight.engagement.stayDealt)} ран врагу, ~{fmt(sight.engagement.stayTaken)} вам за бой. Выйти: в этот ход без стрельбы, со следующего ~{fmt(sight.engagement.shootNext)}{sight.engagement.shootTarget ? ` по «${sight.engagement.shootTarget}»` : ''}.
+            </span>
+          </li>
+        )}
         {sight.note && <li className="text-stone-400">{sight.note}</li>}
       </ul>
       <p className="mt-1 text-[10px] text-stone-500">Раны — средние. Угрозы — если враг останется на месте; для атаки — после его хода, без учёта руин на пути.</p>

@@ -22,3 +22,26 @@ The panel updates while you drag.
 `src/game/movePreview.ts` is pure. It builds a copy of the state with the unit at the planned positions and the move mode it would use (normal, Advance or Fall Back, with the distance moved, so Heavy and Protector work as in the shooting phase). It then runs the engine's own `shootPlan` (line of sight, range, cover, Assault after Advance) in both directions. The expected wounds come from `expectedGroupDamage`, the average the AI uses.
 
 The enemy is taken as it would stand at the start of its turn (not moved yet). For charges, the enemy first makes a normal move of its Move characteristic, which cannot end within Engagement Range. The chance is that of 2D6 reaching the rest, where a roll of 2 always fails, as in the engine. Terrain on the way is not taken into account, so the charge chance is an estimate.
+
+## Charges from the planned spot
+
+After a normal move, the panel also lists «🗡 Сможете атаковать (charge)» for up to three enemy units within 12″ of the planned spot:
+
+- the distance;
+- the chance on 2D6;
+- the expected wounds;
+- «добьёт» when that is enough to destroy the unit.
+
+These come from the charge forecast of the Charge phase (`chargeAdvice.ts`), run on the planned positions. Dragging a unit a few inches closer to its target shows straight away how much the charge chance improves. There is no charge after an Advance or a Fall Back, so the line is not shown then.
+
+## Stay in combat or fall back
+
+For a unit locked in melee, the panel shows a verdict, «↩ Лучше выйти из боя» or «🛡 Лучше остаться в бою», with the reason and the numbers:
+
+- **Staying:** expected wounds dealt to and taken from the enemies it is locked with, per fight.
+- **Falling back:** no shooting this turn (core rules), then its best volley next turn.
+- **The freed enemy:** what the enemy it held could charge instead, and how hard it would hit.
+
+The verdict is «leave» in two cases. Either staying costs a third of the unit or more and it takes more than it deals. Or its guns next turn are worth at least twice its fists (and at least 1.5 wounds), and freeing the enemy costs less than that. Otherwise the unit holds the enemy, which is often right for cheap infantry tying up a monster or a walker.
+
+`src/game/engagementAdvice.ts` is pure. Next turn's shooting is rated with `profileVs` from `weaponAdvice.ts`, without range, cover or line of sight.
