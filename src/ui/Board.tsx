@@ -8,6 +8,7 @@ import { baseRadius, dist, edgeDistance, withinRange } from '../game/geometry/ge
 import { alive, CHARGE_RANGE, findUnit, fmt, hasAbility, isFlyer, modelDistance, OBJECTIVE_MARKER_MM, OBJECTIVE_RANGE, profileOf, radiusOf, sidesOf, weaponsOf } from '../game/gameState'
 import type { Command, GameState, ModelState, Terrain, UnitState, Vec } from '../game/types'
 import { useStore } from '../store'
+import { objectiveStakes } from '../game/missionAdvice'
 import { clampToRadius, fitBoard, screenToWorld, worldToScreen, zoomAt, type Viewport } from '../view/transform'
 import { actedThisPhase, canActNow, deploymentHint, endPhaseWarning, nextPhaseLabel, nextStepHint, targetCommand } from './guidance'
 import { deploymentProblem, deploymentZone } from '../game/rules/deployment'
@@ -500,6 +501,8 @@ function ModelTooltip({ hover, view, width }: { hover: Hover; view: Viewport; wi
 
 function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameState; view: Viewport; stageRef: React.RefObject<Konva.Stage | null>; setHover: (h: Hover | null) => void; sight: Sight | null }) {
   const st = useStore()
+  // turn plan: primary VP at stake on each objective, for the human
+  const stakes = useMemo(() => (game.mission && !st.deploying && !game.winner ? objectiveStakes(game, st.settings.human) : {}), [game, st.deploying, st.settings.human])
   const sightOf = useMemo(() => {
     const m = new Map<string, { shoot: boolean; far: boolean; threat: boolean }>()
     if (!sight) return m
@@ -774,6 +777,7 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
         ))}
         {game.objectives.map((o, i) => {
           const r = baseRadius(OBJECTIVE_MARKER_MM)
+          const stake = stakes[o.id]
           const col = o.controller ? FACTION_LINE[o.controller] : BOARD_STYLE.objective
           return (
             <Group key={o.id} x={o.pos.x} y={o.pos.y} listening={false}>
@@ -784,6 +788,9 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
               <Line points={[-r - 0.35, 0, r + 0.35, 0]} stroke={col} strokeWidth={0.04} />
               <Line points={[0, -r - 0.35, 0, r + 0.35]} stroke={col} strokeWidth={0.04} />
               <Text x={r * 0.55} y={-r - 0.55} text={`Ц${i + 1}${o.role === 'home' ? ' дом' : o.role === 'central' ? ' центр' : o.role === 'expansion' ? ' фланг' : ''}`} fontSize={0.4} fontStyle="bold" fill={col} />
+              {/* turn plan: primary VP for taking (+N) or losing (−N) this objective */}
+              {stake?.gain ? <Text x={-r - 1.2} y={r + 0.15} text={`+${stake.gain}`} fontSize={0.55} fontStyle="bold" fill="#7dd3fc" />
+                : stake?.loss ? <Text x={-r - 1.2} y={r + 0.15} text={`−${stake.loss}`} fontSize={0.55} fontStyle="bold" fill="#fcd34d" /> : null}
               {/* Gather Intel: operation markers placed at this objective, one small diamond per player */}
               {(game.mission?.markers ?? []).filter((x) => x.objectiveId === o.id).map((x, k) => (
                 <Rect key={x.owner} x={-r - 0.9 + k * 0.7} y={r + 0.3} width={0.45} height={0.45} rotation={45} fill={FACTION_LINE[x.owner]} stroke="#000" strokeWidth={0.03} />

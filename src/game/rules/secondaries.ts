@@ -442,3 +442,100 @@ export function aiDiscards(s: GameState, p: PlayerId): SecondaryId[] {
   if (!st || st.mode !== 'tactical') return []
   return st.active.filter((c) => !st.toDiscard.includes(c) && cardValue(s, p, c, false, true).vp === 0 && (st.age?.[c] ?? 0) >= 2)
 }
+
+// ---------------------------------------------------------------- for the turn plan (missionAdvice.ts)
+
+const WHEN_TEXT: Record<When, string> = {
+  any: 'в конце любого хода',
+  yours: 'в конце вашего хода',
+  theirs: 'в конце хода противника',
+  both: 'в конце вашего хода (2 ПО) или хода противника (5 ПО)',
+}
+
+const objName = (s: GameState, o: Objective) => `Ц${s.objectives.indexOf(o) + 1}`
+const names = (us: UnitState[]) => us.map((u) => `«${u.name}»`).join(', ')
+
+/** What a card asks for right now, in words, with the targets named. */
+function cardNeed(s: GameState, p: PlayerId, card: SecondaryId): string {
+  const foe = other(s, p)
+  const st = s.secondary![p]
+  const enemies = unitsOf(s, foe)
+  switch (card) {
+    case 'noPrisoners': return 'уничтожьте вражеский отряд — 2 ПО за каждый (до 5)'
+    case 'overwhelmingForce': {
+      const on = enemies.filter((u) => (s.turnStart?.onObjective ?? []).includes(u.id))
+      return on.length ? `уничтожьте отряд, начавший ход у цели: ${names(on)}` : 'уничтожьте вражеский отряд, который начал ход у цели'
+    }
+    case 'displayOfMight': {
+      const a = eligible(s, p).filter((u) => inNoMansLand(s, u)).length, b = eligible(s, foe).filter((u) => inNoMansLand(s, u)).length
+      return `держите в нейтральной зоне больше отрядов, чем враг (сейчас ${a} против ${b})`
+    }
+    case 'outflank': return 'поставьте отряд в 6″ от края поля вне своей половины; два отряда у противоположных краёв — 5 ПО'
+    case 'beacon': {
+      const u = s.units.find((x) => x.id === st.beacon)
+      return u && !isDestroyed(u) ? `выведите маяк «${u.name}» из своей зоны (3 ПО) или со своей половины поля (5 ПО) и сохраните его до конца хода противника` : 'маяк погиб — карту не выполнить, её стоит сбросить за 1 CP'
+    }
+    case 'grievousBlow': {
+      const big = enemies.filter((u) => u.startingModels >= 13)
+      return big.length ? `уничтожьте отряд из 13+ моделей: ${names(big)}` : 'у противника не осталось отрядов из 13+ моделей — карту стоит сбросить'
+    }
+    case 'defendStronghold': {
+      const home = s.objectives.find((o) => isHomeOf(o, p))
+      return `держите свою домашнюю цель${home ? ` ${objName(s, home)}` : ''} и не пускайте врагов в свою зону расстановки${s.round < 2 ? ' (со 2-го раунда)' : ''}`
+    }
+    case 'engageAllFronts': {
+      const qs = new Set(eligible(s, p).map((u) => quarterOf(s, u)).filter((q) => q !== null)).size
+      return `отряды целиком в трёх или четырёх четвертях поля, дальше 6″ от центра (сейчас четвертей: ${qs})`
+    }
+    case 'secureNoMansLand': {
+      const nml = s.objectives.filter((o) => o.role !== 'home' && objInNoMansLand(s, o))
+      return `держите две цели в нейтральной зоне: ${nml.map((o) => objName(s, o)).join(', ')} (сейчас ваших: ${nml.filter((o) => o.controller === p).length})`
+    }
+    case 'forwardPosition': {
+      const home = s.objectives.find((o) => isHomeOf(o, foe))
+      const exp = s.objectives.filter((o) => o.role === 'expansion')
+      return `возьмите домашнюю цель противника${home ? ` ${objName(s, home)}` : ''} или обе фланговые: ${exp.map((o) => objName(s, o)).join(', ')}`
+    }
+    case 'centreGround': return 'отряд в 3″ от центра поля, а врагов там нет (если нет и в 6″ — 5 ПО)'
+    case 'assassination': {
+      const chars = enemies.filter((u) => alive(u).some((m) => profileOf(m).character))
+      return chars.length ? `убейте вражеского персонажа: ${names(chars)}` : 'все персонажи противника убиты'
+    }
+    case 'temptingTarget': {
+      const o = s.objectives.find((x) => x.id === st.tempting)
+      return o ? `держите цель ${objName(s, o)}` : 'цели нет'
+    }
+    case 'behindEnemyLines': return 'отряд целиком в зоне расстановки противника — 3 ПО (до 5)'
+    case 'bringItDown': {
+      const giants = enemies.filter((u) => alive(u).some((m) => profileOf(m).w >= 10))
+      return giants.length ? `уничтожьте модель с 10+ ранами: ${names(giants)}` : 'у противника не осталось моделей с 10+ ранами — карту стоит сбросить'
+    }
+    case 'burdenOfTrust': {
+      const g = Object.keys(st.guarded ?? {}).map((id) => s.objectives.find((o) => o.id === id)).filter((o): o is Objective => !!o)
+      return g.length ? `удержите охраняемые цели до конца хода противника: ${g.map((o) => objName(s, o)).join(', ')}` : 'возьмите цели: в начале вашего хода отряды у ваших целей станут охраной'
+    }
+  }
+}
+
+export interface CardOutlook {
+  card: SecondaryId
+  /** VP the card would give at its scoring moment if the board stayed as it is (0 = not met) */
+  vp: number
+  why: string
+  when: string
+  need: string
+}
+
+/** Each active card of `p`: would it score with the board as it is, when, and what it asks for. */
+export function cardOutlooks(s: GameState, p: PlayerId): CardOutlook[] {
+  const st = s.secondary?.[p]
+  if (!st) return []
+  const fixed = st.mode === 'fixed'
+  return st.active.map((card) => {
+    const when = SECONDARY[card].when
+    // the moment it is checked: your own turn for 'yours' (and the 2 VP side of Display of Might), the opponent's otherwise
+    const mine = when === 'yours' || when === 'both' || (when === 'any' && s.activePlayer === p)
+    const { vp, why } = cardValue(s, p, card, fixed, mine)
+    return { card, vp, why, when: WHEN_TEXT[when], need: cardNeed(s, p, card) }
+  })
+}
