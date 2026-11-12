@@ -206,7 +206,7 @@ for (const x of FACTION_STRATAGEMS) STRATAGEMS[x.id] = x
 export interface LaterStratagem { faction: PlayerId; name: string; nameEn: string; cost: number; why: string }
 export const LATER_STRATAGEMS: LaterStratagem[] = [
   { faction: 'marines', name: 'Мощь ангелов', nameEn: 'Might of Angels', cost: 1, why: 'нужно правило Lance' },
-  { faction: 'marines', name: 'Адаптивная стратегия', nameEn: 'Adaptive Strategy', cost: 1, why: 'нужны боевые доктрины' },
+  { faction: 'marines', name: 'Адаптивная стратегия', nameEn: 'Adaptive Strategy', cost: 1, why: 'появится позже' },
   { faction: 'marines', name: 'Ответная тактика', nameEn: 'Responsive Tactics', cost: 1, why: 'нужно движение в ход противника' },
   { faction: 'orks', name: 'Вправить мозги', nameEn: "Breakin' Heads", cost: 1, why: 'нужны присоединённые персонажи' },
   { faction: 'orks', name: 'Косить их!', nameEn: "Mow 'Em Down", cost: 1, why: 'только техника не-WALKER, таких у орков здесь нет' },

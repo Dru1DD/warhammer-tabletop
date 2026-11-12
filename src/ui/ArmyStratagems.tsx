@@ -1,3 +1,4 @@
+import { DETACHMENT_RULE } from '../game/rules/detachments'
 import { DETACHMENT, LATER_STRATAGEMS, stratagemAvailability } from '../game/rules/stratagems'
 import type { PlayerId } from '../game/types'
 
@@ -13,6 +14,10 @@ export function ArmyStratagems({ faction, datasheetIds }: { faction: PlayerId; d
         {missing.length > 0 && <span className="text-amber-300"> · {missing.length} недоступны с этим составом</span>}
       </summary>
       <p className="mt-1 text-[11px] text-stone-400">Детачмент: {DETACHMENT[faction]} (11-я редакция). Стратагемы стоят очки командования (CP): +1 каждому игроку в каждой фазе командования.</p>
+      <p className="mt-1 text-[11px] text-stone-300" aria-label="Правило детачмента">
+        <b>Правило детачмента — {DETACHMENT_RULE[faction].name}</b> ({DETACHMENT_RULE[faction].nameEn}): {DETACHMENT_RULE[faction].text}
+        {DETACHMENT_RULE[faction].note && <span className="block text-stone-500">{DETACHMENT_RULE[faction].note}</span>}
+      </p>
       <ul className="mt-1 flex flex-col gap-0.5">
         {all.map(({ info, available, why }) => (
           <li key={info.id} className={available ? 'text-stone-200' : 'text-stone-500'}>

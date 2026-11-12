@@ -1,5 +1,5 @@
 import { FACTION_NAME } from '../game/data/datasheets'
-import { actor, moveAllowance, moveCommand, PHASE_NAME, stratagemActions, validate, type MoveOptions } from '../game/engine'
+import { actor, hyperPending, moveAllowance, moveCommand, PHASE_NAME, stratagemActions, validate, type MoveOptions } from '../game/engine'
 import { STRATAGEMS } from '../game/rules/stratagems'
 import { alive, enemiesOf, findUnit, fmt, isDestroyed, sidesOf, unitsOf } from '../game/gameState'
 import { deploymentIssues, deploymentProblem } from '../game/rules/deployment'
@@ -26,7 +26,7 @@ export function targetCommand(s: GameState, unit: UnitState, target: UnitState):
 
 /** Can this unit still do something useful in the current phase? */
 export function canActNow(s: GameState, u: UnitState): boolean {
-  if (isDestroyed(u) || u.owner !== actor(s) || s.winner || s.reaction || s.pendingReroll) return false
+  if (isDestroyed(u) || u.owner !== actor(s) || s.winner || s.reaction || s.pendingReroll || hyperPending(s)) return false
   switch (s.phase) {
     case 'movement':
       return u.move === 'none'
@@ -151,6 +151,10 @@ export function nextStepHint(
   ui: { selectedUnitId: string | null; draft: Record<string, Vec>; measuring: boolean; aimTargetId?: string | null; groupDrag?: boolean; aimFirst?: boolean; moveOptions?: MoveOptions; shared?: object | null },
 ): Hint {
   if (s.winner) return { text: s.winner === 'draw' ? 'Битва окончена: ничья.' : `Битва окончена: победа — ${FACTION_NAME[s.winner]}.`, tone: 'info' }
+  if (hyperPending(s))
+    return human === 'tyranids'
+      ? { text: 'Начало битвы: выберите гиперадаптацию Тиранидов — она действует до конца битвы.', tone: 'action' }
+      : { text: `${ui.shared ? 'Соперник' : 'ИИ'} (Тираниды) выбирает гиперадаптацию на всю битву…`, tone: 'wait' }
   if (s.pendingReroll)
     return s.pendingReroll.player === human
       ? { text: 'Командный переброс: решите, перебрасывать ли кубик.', tone: 'action' }

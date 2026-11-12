@@ -8,13 +8,16 @@ import {
   alphaWarrior, battlelineSupport, feelNoPainOf, nobleLeads, ENGRAMMATIC_RANGE, psychicGuidance, GRENADE_PACK_RANGE, hasWargear, holdScoutedObjectives, imperativeOf, invulnOverrideOf, ledUnitOf, leadersOf, neurostaticMod,
   addLog, alive, atHalfStrength, CHARGE_RANGE, checkCoherency, CONSOLIDATE, datasheetOf, engagedUnits, ENGAGEMENT_RANGE,
   enemiesOf, findUnit, fmt, hasAbility, hasKeyword, inSynapseRange, isDestroyed, isEngaged, isFlyer, isMV, modelDistance, modelEngagedWith,
-  other, PILE_IN, profileOf, radiusOf, sidesOf, SYNAPSE_RANGE, unitDistance, unitNearObjective, unitsOf,
+  LEADER_RANGE, other, PILE_IN, profileOf, radiusOf, sidesOf, SYNAPSE_RANGE, unitDistance, unitNearObjective, unitsOf,
   updateObjectiveControl, weaponsOf, OBJECTIVE_MARKER_MM,
 } from './gameState'
 import { healUnit } from './rules/heal'
 import { applyMortalWounds, resolveGroup, type AttackContext, type AttackGroup, type RerollHook, type RerollKind } from './combat/attack'
 import { moveProblem, planMove } from './rules/movement'
 import { hasCover, nearestVisibleDistance, seesAny, unitCanSee } from './rules/visibility'
+import { DOCTRINE_NAME, DOCTRINE_TEXT, DOCTRINES, doctrineLeft, HYPER_ADAPTATIONS, HYPER_NAME, HYPER_TEXT, MARTIAL_GRACE_SWIFT, MARTIAL_GRACE_TOKENS, RAD_COVER_WOUNDS } from './rules/detachments'
+import { deploymentZone } from './rules/deployment'
+import { pointInPolygon } from './geometry/geometry'
 import { CRUSHING_MAX, EXPLOSIVES_DICE, EXPLOSIVES_RANGE, explosivesReach, hasBuff, LAST_STAND, meetsRequirement, reactionsIn, STRATAGEMS, targetedThisPhase, usedThisPhase } from './rules/stratagems'
 import { baseRadius } from './geometry/geometry'
 import type { Command, DiceEntry, GameState, ModelState, PendingReroll, Phase, PlayerId, ReactionWindow, StratagemId, UnitState, Validation, Vec, Weapon, WeaponProfile } from './types'
@@ -29,7 +32,8 @@ export const PHASE_NAME: Record<Phase, string> = {
 }
 
 export const VP_PER_OBJECTIVE = 5
-export const SWIFT_BONUS = 2
+/** Swift as the Wind: 2″, plus 1″ from Martial Grace (the Warhost detachment rule, every Aeldari army here) */
+export const SWIFT_BONUS = 2 + MARTIAL_GRACE_SWIFT
 export const FLY_PENALTY = 2
 export const GUIDE_RANGE = 18
 /** Bomb Squig (Kommandos): range to the target unit */
@@ -42,6 +46,7 @@ const OK: Validation = { ok: true }
 
 /** Player who must make the next decision. */
 export function actor(s: GameState): PlayerId {
+  if (hyperPending(s)) return 'tyranids'
   if (s.pendingReroll) return s.pendingReroll.player
   if (s.reaction) return s.reaction.player
   if (s.phase === 'fight' && s.fight) return s.fight.selecting
@@ -71,8 +76,29 @@ export function meleeWeaponsOf(m: ModelState): Weapon[] {
 }
 
 /** The unit's army can still "charge/shoot" in the situation (Bounding Leap, Adaptable Predators, Waaagh!). */
-const canChargeAfterAdvance = (s: GameState, u: UnitState) => riled(s, u) || hasAbility(u, 'boundingLeap')
-const canActAfterFallBack = (u: UnitState) => hasAbility(u, 'adaptablePredators') || hasAbility(u, 'adaptiveStrategy') || hasBuff(u, 'feignedRetreat')
+const canChargeAfterAdvance = (s: GameState, u: UnitState) => riled(s, u) || hasAbility(u, 'boundingLeap') || doctrineOf(s, u) === 'assault'
+const canActAfterFallBack = (s: GameState, u: UnitState) => hasAbility(u, 'adaptablePredators') || hasAbility(u, 'adaptiveStrategy') || hasBuff(u, 'feignedRetreat') || doctrineOf(s, u) === 'tactical'
+
+/** Space Marines Combat Doctrines: the doctrine active for this unit (Marines only). */
+export const doctrineOf = (s: GameState, u: UnitState) => (datasheetOf(u).faction === 'marines' ? s.players[u.owner].doctrine ?? null : null)
+
+/** Tyranids still have to choose their Hyper-adaptation (the battle waits for it). */
+export const hyperPending = (s: GameState) => s.players.tyranids?.hyperAdaptation === null && !s.winner
+
+/**
+ * Detachment rules that change an attack of `unit` on `target`: Hyper-adaptations (Tyranids) and Command Protocols
+ * (Necrons). Get Stuck In (Orks) is melee-only and lives in `meleeSetup`.
+ */
+function detachmentAttack(s: GameState, unit: UnitState, target: UnitState) {
+  const out = { sustained: false, lethal: false, critPrecision: false, hitMod: 0, notes: [] as string[], hitNotes: [] as string[] }
+  const faction = datasheetOf(unit).faction
+  const hyper = faction === 'tyranids' ? s.players[unit.owner].hyperAdaptation : null
+  if (hyper === 'swarming' && hasKeyword(target, 'INFANTRY', 'SWARM')) { out.sustained = true; out.notes.push('Роевые инстинкты: Sustained Hits 1') }
+  if (hyper === 'aggression' && hasKeyword(target, 'MONSTER', 'VEHICLE')) { out.lethal = true; out.notes.push('Гиперагрессия: Lethal Hits') }
+  if (hyper === 'predators' && hasKeyword(target, 'CHARACTER')) { out.critPrecision = true; out.notes.push('Хищники Улья: криты с Precision') }
+  if (faction === 'necrons' && isLed(s, unit)) { out.hitMod++; out.hitNotes.push('Командные протоколы +1') }
+  return out
+}
 
 // notes that mark Stratagem effects on an attack group (see shootPlan)
 const BLITZ_CRIT = 'Молниеносный огонь: крит на 5+'
@@ -86,7 +112,14 @@ const FUNGUS_BONUS = 2
 const EXTINCTION_RANGE = 24
 
 /** A CHARACTER of the same army leads this unit. */
-const isLed = (s: GameState, u: UnitState) => s.units.some((l) => l.owner === u.owner && !isDestroyed(l) && hasKeyword(l, 'CHARACTER') && ledUnitOf(s, l)?.id === u.id)
+const isLed = (s: GameState, u: UnitState) =>
+  s.units.some((l) => l.owner === u.owner && !isDestroyed(l) && hasKeyword(l, 'CHARACTER') && ledUnitOf(s, l)?.id === u.id) || necronLed(s, u)
+
+/** Necrons have no leader attachment here: as for Guardian Protocols (docs/necrons.md), a friendly NECRONS CHARACTER
+ * within 3″ of a non-CHARACTER Necrons unit counts as leading it. */
+const necronLed = (s: GameState, u: UnitState) =>
+  datasheetOf(u).faction === 'necrons' && !hasKeyword(u, 'CHARACTER') &&
+  s.units.some((l) => l.id !== u.id && l.owner === u.owner && !isDestroyed(l) && hasKeyword(l, 'CHARACTER') && datasheetOf(l).faction === 'necrons' && unitDistance(u, l) <= LEADER_RANGE + EPS)
 
 /** Lethal Hits marked "non-MONSTER/VEHICLE" (and Tactical Precision) don't work against M/V targets. */
 const lethalVs = (p: WeaponProfile, attacker: UnitState, target: UnitState) => {
@@ -183,7 +216,7 @@ export function shootPlan(
   const advanced = unit.move === 'advance'
   const onslaught = inOnslaught(s, unit)
   const bonus = attackerBonuses(s, unit)
-  const assaultAll = riled(s, unit) || onslaught || bonus.imp === 'conqueror' || hasBuff(unit, 'suddenStorm')
+  const assaultAll = riled(s, unit) || onslaught || bonus.imp === 'conqueror' || hasBuff(unit, 'suddenStorm') || doctrineOf(s, unit) === 'devastator'
   const mv = isMV(unit)
   if (engaged && advanced) return { ...plan, problem: 'Отряд продвинулся (Advance) и находится в контакте — стрелять нельзя.' }
   if (engaged && !engagedUnits(s, unit).some((e) => e.id === target.id))
@@ -286,6 +319,10 @@ export function shootPlan(
     if (guided(s, unit, target)) { notes.push('Guide +1'); hitMod++ }
     if (psychicGuidance(s, unit)) { notes.push('Psychic Guidance +1'); hitMod++ }
     if (hasBuff(target, 'lightningFastReactions')) { notes.push('Молниеносная реакция −1'); hitMod-- }
+    const det = detachmentAttack(s, unit, target)
+    if (det.hitMod) { notes.push(...det.hitNotes); hitMod += det.hitMod }
+    if (det.sustained && !(g.sustainedHits ?? g.profile.keywords.sustainedHits)) g.sustainedHits = 1
+    g.notes.push(...det.notes)
     // Swift Demise (Windriders): re-roll hit rolls of 1; any failed hit if the target is the closest eligible one
     let rerollHits: AttackContext['rerollHits'] = bonus.rerollHits
     if (hasAbility(unit, 'swiftDemise')) rerollHits = isClosestTarget(s, unit, target) ? 'all' : 'ones'
@@ -312,7 +349,8 @@ export function shootPlan(
       hitModNotes: notes,
       skillWorsen: (plan.cover && !ignores ? 1 : 0) - (protector ? 1 : 0),
       ...(protector ? { skillNote: 'Protector: BS на 1 лучше' } : {}),
-      lethalHits: lethalVs(g.profile, unit, target) || onslaught || bonus.galvanic || dosage,
+      lethalHits: lethalVs(g.profile, unit, target) || onslaught || bonus.galvanic || dosage || det.lethal,
+      ...(det.critPrecision ? { critPrecision: true } : {}),
       invulnOverride: rangedInvuln(s, target),
       ...(g.notes.includes(BLITZ_CRIT) ? { critHitOn: 5 } : {}),
       ...(g.profile.keywords.precision ? { precision: true } : {}),
@@ -385,6 +423,15 @@ export function meleeSetup(s: GameState, unit: UnitState, target: UnitState, p0:
   if (bonus.betterAp) { p = { ...p, ap: p.ap - 1 }; notes.push('Conqueror: AP +1') }
   if (imperativeOf(s, target) === 'protector' && battlelineSupport(s, target)) { hitMod--; hitModNotes.push('Protector цели −1') }
   if (hasBuff(target, 'lightningFastReactions')) { hitMod--; hitModNotes.push('Молниеносная реакция −1') }
+  const det = detachmentAttack(s, unit, target)
+  if (det.hitMod) { hitMod += det.hitMod; hitModNotes.push(...det.hitNotes) }
+  // Get Stuck In (War Horde): Orks' melee attacks have Sustained Hits 1; Swarming Instincts gives the same
+  const stuckIn = datasheetOf(unit).faction === 'orks'
+  if ((stuckIn || det.sustained) && !(p.keywords.sustainedHits ?? 0)) {
+    p = { ...p, keywords: { ...p.keywords, sustainedHits: 1 } }
+    if (stuckIn) notes.push('Ввяжись в драку: Sustained Hits 1')
+  }
+  notes.push(...det.notes)
   if (hasBuff(target, 'armourOfContempt') && p.ap < 0) { p = { ...p, ap: p.ap + 1 }; notes.push('Доспех презрения: AP хуже на 1') }
   // Data-spike: the unit's melee skill is worsened by 1 until the end of the Fight phase
   if (unit.spiked) { skillWorsen++; notes.push('Data-spike: WS на 1 хуже') }
@@ -396,7 +443,8 @@ export function meleeSetup(s: GameState, unit: UnitState, target: UnitState, p0:
   const ctx: AttackContext = {
     hitMod, hitModNotes, skillWorsen,
     ...(skillNote ? { skillNote } : {}),
-    lethalHits: lethalVs(p, unit, target) || (hasAbility(unit, 'tideOfMuscle') && unit.charged) || bonus.galvanic || hasBuff(unit, 'hitEmHarder'),
+    lethalHits: lethalVs(p, unit, target) || (hasAbility(unit, 'tideOfMuscle') && unit.charged) || bonus.galvanic || hasBuff(unit, 'hitEmHarder') || det.lethal,
+    ...(det.critPrecision ? { critPrecision: true } : {}),
     invulnOverride: invulnOverrideOf(s, target),
     ...(hasBuff(unit, 'adrenalSurge') ? { critHitOn: 5 } : {}),
     ...(p.keywords.precision || hasBuff(unit, 'epicChallenge') ? { precision: true } : {}),
@@ -468,6 +516,12 @@ function planCharge(s: GameState, unit: UnitState, targets: UnitState[], roll: n
 export function validate(s: GameState, cmd: Command): Validation {
   if (s.winner) return fail('Битва окончена.')
   const who = actor(s)
+  // the Tyranids choose their Hyper-adaptation before the battle starts
+  if (hyperPending(s)) {
+    if (cmd.type !== 'hyperAdaptation') return fail('Тираниды выбирают гиперадаптацию на всю битву (правило детачмента): до этого ход не начинается.')
+    return HYPER_ADAPTATIONS.includes(cmd.choice) ? OK : fail('Неизвестная гиперадаптация.')
+  }
+  if (cmd.type === 'hyperAdaptation') return fail('Гиперадаптация выбирается один раз, в начале битвы.')
   // an attack paused for a Command Re-roll: only the answer
   if (s.pendingReroll)
     return cmd.type === 'rerollChoice' ? OK : fail(`Атака ждёт решения стороны «${FACTION_NAME[s.pendingReroll.player]}»: перебросить кубик или нет.`)
@@ -497,6 +551,16 @@ export function validate(s: GameState, cmd: Command): Validation {
     if (s.players[me].shadowUsed === undefined) return fail('Тень в Варпе — правило армии Тиранидов.')
     if (s.players[me].shadowUsed) return fail('Тень в Варпе уже применена в этой битве (раз за битву).')
     if (!unitsOf(s, me).some((u) => hasAbility(u, 'shadowInTheWarp'))) return fail('На поле нет отряда с правилом «Тень в Варпе».')
+    return OK
+  }
+
+  if (cmd.type === 'doctrine') {
+    if (who !== 'marines') return fail('Боевые доктрины — правило армии Космодесанта.')
+    if (s.phase !== 'command') return fail('Боевая доктрина выбирается в фазе командования.')
+    const p = s.players.marines
+    if (p.doctrine) return fail('Доктрина уже выбрана в этом ходу.')
+    if (!DOCTRINES.includes(cmd.doctrine)) return fail('Неизвестная доктрина.')
+    if (!doctrineLeft(p.doctrinesUsed ?? [], cmd.doctrine)) return fail(`«${DOCTRINE_NAME[cmd.doctrine]}» больше выбрать нельзя: каждая доктрина — раз за битву, и одна из них — ещё раз (Дисциплина Кодекса).`)
     return OK
   }
 
@@ -547,7 +611,7 @@ export function validate(s: GameState, cmd: Command): Validation {
     case 'shoot': {
       if (s.phase !== 'shooting') return fail('Стрелять можно только в фазе стрельбы.')
       if (unit.shot) return fail('Отряд уже стрелял в этой фазе.')
-      if (unit.move === 'fallBack' && !canActAfterFallBack(unit) && !hasAbility(unit, 'warConstruct')) return fail('Отряд отступил (Fall Back) в этот ход и не может стрелять.')
+      if (unit.move === 'fallBack' && !canActAfterFallBack(s, unit) && !hasAbility(unit, 'warConstruct')) return fail('Отряд отступил (Fall Back) в этот ход и не может стрелять.')
       const target = findUnit(s, cmd.targetId)
       if (!target || isDestroyed(target) || target.owner === unit.owner) return fail('Недопустимая цель.')
       const plan = shootPlan(s, unit, target, cmd)
@@ -557,7 +621,7 @@ export function validate(s: GameState, cmd: Command): Validation {
       if (s.phase !== 'charge') return fail('Атаку (charge) объявляют в фазе атаки.')
       if (unit.chargeDeclared) return fail('Отряд уже объявлял атаку в этой фазе.')
       if (isEngaged(s, unit)) return fail('Отряд уже в контакте с врагом.')
-      if (unit.move === 'fallBack' && !canActAfterFallBack(unit)) return fail('Отряд отступил (Fall Back) в этот ход и не может атаковать.')
+      if (unit.move === 'fallBack' && !canActAfterFallBack(s, unit)) return fail('Отряд отступил (Fall Back) в этот ход и не может атаковать.')
       if (unit.move === 'advance' && !canChargeAfterAdvance(s, unit)) return fail('Отряд продвинулся (Advance) в этот ход и не может атаковать.')
       const near = enemiesOf(s, unit).filter((e) => withinRange(unitDistance(unit, e), CHARGE_RANGE))
       if (near.length === 0) {
@@ -747,7 +811,8 @@ function resetTurnFlags(s: GameState) {
 
 /** Aeldari Battle Focus: tokens are refreshed at the start of every battle round. */
 function refreshFocus(s: GameState) {
-  for (const p of sidesOf(s)) if (s.players[p].focus !== undefined) s.players[p].focus = BATTLE_FOCUS_TOKENS
+  // Martial Grace (Warhost): one more token every round
+  for (const p of sidesOf(s)) if (s.players[p].focus !== undefined) s.players[p].focus = BATTLE_FOCUS_TOKENS + MARTIAL_GRACE_TOKENS
 }
 
 function enterPhase(s: GameState, phase: Phase, r: Roller) {
@@ -805,6 +870,9 @@ export function shockFailChance(s: GameState, u: UnitState): number {
 }
 
 function commandPhase(s: GameState, r: Roller) {
+  // a combat doctrine lasts until the start of its player's next Command phase
+  if (s.players[s.activePlayer].doctrine) s.players[s.activePlayer].doctrine = null
+  if (s.activePlayer === 'adeptus_mechanicus' && s.round >= 2 && s.round <= 5) radFallout(s, r)
   for (const p of sidesOf(s)) s.players[p].cp++
   if (s.players[s.activePlayer].guide !== undefined) s.players[s.activePlayer].guide = null
   if (s.players[s.activePlayer].imperative !== undefined) s.players[s.activePlayer].imperative = null
@@ -922,6 +990,61 @@ function reanimateUnit(s: GameState, u: UnitState, r: Roller, bonus = 0, source 
   pushDice(s, `Реанимация: ${u.name}`, [{ label: bonus ? `D3+${bonus}` : 'D3', target: '—', dice, note: `Лечение ${v} ран: восстановлено ${healed}, возвращено моделей ${revived}.` }],
     `${u.name}: ${source} — ${healed} ран восстановлено, ${revived} модел. возвращено.`)
   addLog(s, `${u.name}: ${source} — лечение ${bonus ? `D3+${bonus}` : 'D3'} = ${v}${healed ? `, восстановлено ран: ${healed}` : ''}${revived ? `, возвращено моделей: ${revived}` : ''}.`, 'standard')
+}
+
+// ---------------------------------------------------------------- Rad-bombardment (Rad-Zone Corps)
+
+const woundsOf = (u: UnitState) => alive(u).reduce((a, m) => a + m.wounds, 0)
+
+/** Enemy units of the Adeptus Mechanicus with a model inside their own deployment zone. */
+function radTargets(s: GameState): UnitState[] {
+  const foe = other(s, 'adeptus_mechanicus')
+  const zone = deploymentZone(s, foe)
+  return unitsOf(s, foe).filter((u) => !isDestroyed(u) && alive(u).some((m) => pointInPolygon(m.pos, zone)))
+}
+
+/**
+ * Bombardment, at the start of the first battle round: each such unit takes cover (battle-shocked; 5+: D3 mortal
+ * wounds) or stands firm (3+: D3 mortal wounds). The owner's choice is made by the game: a unit that D3 mortal wounds
+ * could wipe out (RAD_COVER_WOUNDS or fewer) takes cover, the others stand firm.
+ */
+function radBombardment(s: GameState, r: Roller) {
+  if (!sidesOf(s).includes('adeptus_mechanicus')) return
+  const targets = radTargets(s)
+  addLog(s, `Радиационная бомбардировка (Rad-Zone Corps): обстрел зоны расстановки противника — отрядов под ударом: ${targets.length}.`, 'minimal')
+  for (const u of targets) {
+    const cover = woundsOf(u) <= RAD_COVER_WOUNDS
+    const v = r.d6()
+    const hit = v >= (cover ? 5 : 3)
+    if (cover) u.battleShocked = true
+    const mw = hit ? rollDie(r, 'D3') : 0
+    pushDice(s, `Радиационная бомбардировка: ${u.name}`, [{ label: 'D6', target: cover ? '5+' : '3+', dice: [{ value: v, success: hit }], note: cover ? 'Отряд залёг: боевой шок, на 5+ — D3 смертельных ран.' : 'Отряд держится: на 3+ — D3 смертельных ран.' }],
+      `${u.name}: ${cover ? 'залёг (боевой шок)' : 'держится'}${hit ? ` — ${mw} смертельн. ран` : ' — без потерь'}.`)
+    addLog(s, `${u.name}: ${cover ? 'залегает — отряд в боевом шоке' : 'держится'}${hit ? `, ${mw} смертельн. ран` : ', обстрел мимо'}.`, 'standard')
+    if (mw) applyMortalWounds(s, u, mw, 'радиационная бомбардировка')
+    if (isDestroyed(u)) addLog(s, `Отряд «${u.name}» уничтожен!`, 'minimal')
+  }
+  checkWinner(s)
+}
+
+/** Fallout, at the start of the Mechanicus Command phase in rounds 2–5: 3+ — 1 mortal wound and a Battle-shock test. */
+function radFallout(s: GameState, r: Roller) {
+  const targets = radTargets(s)
+  if (!targets.length) return
+  addLog(s, `Радиоактивные осадки (Rad-Zone Corps): отрядов в зоне расстановки противника — ${targets.length}.`, 'standard')
+  for (const u of targets) {
+    const v = r.d6()
+    pushDice(s, `Радиоактивные осадки: ${u.name}`, [{ label: 'D6', target: '3+', dice: [{ value: v, success: v >= 3 }], note: '3+ — 1 смертельная рана и проверка боевого шока' }],
+      v >= 3 ? `${u.name}: смертельная рана и проверка боевого шока.` : `${u.name}: без последствий.`)
+    if (v < 3) continue
+    applyMortalWounds(s, u, 1, 'радиоактивные осадки')
+    if (isDestroyed(u)) { addLog(s, `Отряд «${u.name}» уничтожен!`, 'minimal'); continue }
+    const t = leadershipRoll(s, u, r)
+    if (!t.pass) u.battleShocked = true
+    pushDice(s, `Боевой шок: ${u.name}`, [{ label: t.label, target: `${t.ld}+`, dice: t.dice.map((x) => ({ value: x, success: t.pass })), note: `Сумма ${t.total} против Ld ${t.ld}+` }],
+      t.pass ? `${u.name}: проверка пройдена.` : `${u.name}: провал — отряд в боевом шоке.`)
+  }
+  checkWinner(s)
 }
 
 /** Self-destruction (Canoptek Scarabs): at the start of the Fight phase an engaged swarm may sacrifice a model
@@ -1083,6 +1206,17 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       }
       break
     }
+    case 'doctrine': {
+      const p = s.players.marines
+      p.doctrine = cmd.doctrine
+      p.doctrinesUsed = [...(p.doctrinesUsed ?? []), cmd.doctrine]
+      addLog(s, `Боевая доктрина «${DOCTRINE_NAME[cmd.doctrine]}»: до следующей фазы командования ${DOCTRINE_TEXT[cmd.doctrine]}.`, 'minimal')
+      break
+    }
+    case 'hyperAdaptation':
+      s.players.tyranids.hyperAdaptation = cmd.choice
+      addLog(s, `Тираниды: гиперадаптация «${HYPER_NAME[cmd.choice]}» на всю битву — ${HYPER_TEXT[cmd.choice]}.`, 'minimal')
+      break
     case 'imperative': {
       s.players[s.activePlayer].imperative = cmd.imperative
       addLog(s, cmd.imperative === 'protector'
@@ -1408,6 +1542,9 @@ export function startGame(s0: GameState, r: Roller): GameState {
   refreshFocus(s)
   pushDice(s, 'Бросок за первый ход', [{ label: `${FACTION_NAME[west]} / ${FACTION_NAME[east]}`, target: '—', dice: rolls.map((v) => ({ value: v, success: true })) }], `Первым ходит: ${FACTION_NAME[s.firstPlayer]}.`)
   addLog(s, `===== Раунд 1 ===== Первым ходит: ${FACTION_NAME[s.firstPlayer]}.`, 'minimal')
+  // the start of the first battle round: the detachment rules that act then
+  if (sidesOf(s).includes('tyranids')) s.players.tyranids.hyperAdaptation = null
+  radBombardment(s, r)
   enterPhase(s, 'command', r)
   s.rng = r.state()
   return s

@@ -43,6 +43,8 @@ export interface AttackContext {
   critHitOn?: number
   /** Snap Shooting (Fire Overwatch): a hit only on an unmodified 6, for every weapon, Psychic ones included */
   snap?: boolean
+  /** Precision only for the wounds that come from Critical Hits (Hive Predators) */
+  critPrecision?: boolean
 }
 
 export function woundTarget(s: number, t: number): number {
@@ -136,6 +138,8 @@ export function resolveGroup(
   const steps: AttackStep[] = []
   let hits = 0
   let autoWounds = 0
+  /** Critical Hits that still roll to wound (not Lethal); rolled first, so the first `critHits` wound dice are theirs */
+  let critHits = 0
   const weapon = `${group.weaponName}${p.name ? ` (${p.name})` : ''}`
   const commandRerolls: string[] = []
 
@@ -205,7 +209,10 @@ export function resolveGroup(
       const crit = v >= critOn
       const success = passes(v)
       if (success && crit && ctx.lethalHits) autoWounds++
-      else if (success) hits++
+      else if (success) {
+        hits++
+        if (crit) critHits++
+      }
       if (success && crit && sustained) { hits += sustained; sustainedHitsGained += sustained }
       dice.push({ value: v, success, critical: crit, ...(from !== undefined ? { rerolledFrom: from } : {}) })
     }
@@ -227,6 +234,8 @@ export function resolveGroup(
   // 2. Wound roll (Twin-linked re-rolls failures; Anti-X makes high unmodified rolls critical wounds)
   const woundRerollsBefore = commandRerolls.length
   let wounds = autoWounds
+  /** wounds that came from Critical Hits: Lethal Hits first, then those of the first `critHits` wound dice */
+  let critWounds = autoWounds
   let devWounds = 0
   let woundRerolls = 0
   const wdice: DieRoll[] = []
@@ -246,7 +255,10 @@ export function resolveGroup(
     const success = wins(v)
     if (success) {
       if (crit && p.keywords.devastatingWounds) devWounds++
-      else wounds++
+      else {
+        wounds++
+        if (i < critHits) critWounds++
+      }
     }
     wdice.push({ value: v, success, critical: crit, ...(from !== undefined ? { rerolledFrom: from } : {}) })
   }
@@ -280,7 +292,7 @@ export function resolveGroup(
     return left
   }
   for (let i = 0; i < wounds && !isDestroyed(target); i++) {
-    const m = pickModelForDamage(target, ctx.precision)!
+    const m = pickModelForDamage(target, ctx.precision || (!!ctx.critPrecision && i < critWounds))!
     const st = saveTarget(m, p.ap, ctx.invulnOverride)
     saveNote = `Спасбросок ${st.kind}: Sv ${profileOf(m).sv}+${p.ap ? `, AP ${p.ap}` : ''} → ${st.need}+`
     let v = roller.d6()
