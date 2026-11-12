@@ -21,7 +21,7 @@ export function targetCommand(s: GameState, unit: UnitState, target: UnitState):
 
 /** Can this unit still do something useful in the current phase? */
 export function canActNow(s: GameState, u: UnitState): boolean {
-  if (isDestroyed(u) || u.owner !== actor(s) || s.winner) return false
+  if (isDestroyed(u) || u.owner !== actor(s) || s.winner || s.reaction) return false
   switch (s.phase) {
     case 'movement':
       return u.move === 'none'
@@ -124,6 +124,10 @@ export function nextStepHint(
   ui: { selectedUnitId: string | null; draft: Record<string, Vec>; measuring: boolean; aimTargetId?: string | null; groupDrag?: boolean; aimFirst?: boolean; moveOptions?: MoveOptions; shared?: object | null },
 ): Hint {
   if (s.winner) return { text: s.winner === 'draw' ? 'Битва окончена: ничья.' : `Битва окончена: победа — ${FACTION_NAME[s.winner]}.`, tone: 'info' }
+  if (s.reaction)
+    return s.reaction.player === human
+      ? { text: 'Ход противника: можно ответить стратагемой-реакцией или пропустить.', tone: 'action' }
+      : { text: `${ui.shared ? 'Соперник' : 'ИИ'} (${FACTION_NAME[s.reaction.player]}) решает, ответить ли реакцией…`, tone: 'wait' }
   if (actor(s) !== human) return { text: `Ходит ${ui.shared ? 'соперник' : 'ИИ'} (${FACTION_NAME[actor(s)]}) — ${PHASE_NAME[s.phase]}…`, tone: 'wait' }
   if (ui.measuring) return { text: 'Линейка: щёлкните две точки или две модели. Esc — выключить.', tone: 'info' }
 

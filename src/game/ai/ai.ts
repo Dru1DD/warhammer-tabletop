@@ -10,6 +10,7 @@ import {
 import { actor, FLY_PENALTY, maxMove, meleePlan, meleeSetup, meleeWeaponsOf, shootPlan, SWIFT_BONUS, validate, moveModeFor } from '../engine'
 import { moveProblem, planMove } from '../rules/movement'
 import { EXPLOSIVES_DICE, STRATAGEMS } from '../rules/stratagems'
+import { reactionAdvice } from '../reactionAdvice'
 
 /** Army Stratagems the AI spends on a good volley / a good fight. */
 const SHOOTING_BUFFS: StratagemId[] = ['stormOfDevastation', 'closeRangeDakka', 'conqueringTyrant', 'blitzingFirepower', 'lethalDosage']
@@ -384,6 +385,13 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
       if (validate(s, cmd).ok) return { cmd, explanation: `${fac}: отряд «${u.name}» врывается в рукопашную!` }
     }
     return { cmd: { type: 'skipCharge', unitId: u.id }, explanation: `${fac}: перемещение атаки невозможно — отряд остаётся на месте.` }
+  }
+
+  if (s.reaction) {
+    // a reaction in the opponent's turn: only when it is worth the CP (the beginner never reacts)
+    const best = level === 'beginner' ? undefined : reactionAdvice(s).find((o) => o.worth)
+    if (best) return { cmd: best.cmd, explanation: `${fac}: стратагема «${best.title}» — ${best.why}` }
+    return { cmd: { type: 'passReaction' }, explanation: `${fac}: без реакций.` }
   }
 
   switch (s.phase) {

@@ -1,5 +1,6 @@
 import { seededRoller } from '../dice/dice'
-import { startGame } from '../engine'
+import { apply, startGame } from '../engine'
+import type { Roller } from '../dice/dice'
 import { SCENARIOS, scenarioById } from '../scenarios/scenarios'
 import type { GameState, Phase, PlayerId, Vec } from '../types'
 
@@ -52,3 +53,10 @@ export function moveUnitTo(s: GameState, unitId: string, to: Vec) {
 }
 
 export const unit = (s: GameState, id: string) => s.units.find((x) => x.id === id)!
+
+/** End the phase; a reaction window the other side gets is passed, so the game moves on as before reactions existed. */
+export function endPhase(s: GameState, r: Roller): GameState {
+  let x = apply(s, { type: 'endPhase' }, r)
+  while (x.reaction && !x.winner) x = apply(x, { type: 'passReaction' }, r)
+  return x
+}

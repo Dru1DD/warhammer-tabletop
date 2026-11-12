@@ -45,6 +45,7 @@ function ready(opts?: Parameters<typeof setup>[0]) {
 }
 
 const END: Command = { type: 'endPhase' }
+const PASS: Command = { type: 'passReaction' }
 const hostCmd = (s: ReturnType<typeof setup>, c: Command) => s.hp.port.submit(nextEnvelope(s.hp.port.get()!, HOST_ID, c), { silent: false })
 const json = (m: MatchState | null) => JSON.stringify(m?.state)
 
@@ -53,12 +54,18 @@ function toGuestTurn(s: ReturnType<typeof setup>) {
   for (let i = 0; i < 40; i++) {
     const m = s.hp.port.get()!
     const side = m.assignments[Object.keys(m.assignments).find((k) => m.assignments[k as PlayerId].playerId === GUEST_ID) as PlayerId]
+    if (m.state.reaction) {
+      // a reaction window: whoever it waits for passes
+      if (decider(m) === HOST_ID) hostCmd(s, PASS)
+      else s.guest.sendCommand(nextEnvelope(s.gp.port.get()!, GUEST_ID, PASS))
+      continue
+    }
     if (side.playerId === GUEST_ID && decider(m) === GUEST_ID) return
     if (decider(m) === HOST_ID) hostCmd(s, END)
     else break
   }
 }
-const decider = (m: MatchState) => m.assignments[(m.state.fight?.selecting ?? m.state.activePlayer) as PlayerId].playerId
+const decider = (m: MatchState) => m.assignments[(m.state.reaction?.player ?? m.state.fight?.selecting ?? m.state.activePlayer) as PlayerId].playerId
 
 beforeEach(() => { vi.useFakeTimers() })
 afterEach(() => { vi.useRealTimers() })
@@ -364,7 +371,7 @@ describe('host-authoritative match', () => {
     for (let i = 0; i < 200 && !s.hp.port.get()!.state.winner; i++) {
       const m = s.hp.port.get()!
       const who = decider(m)
-      const cmd: Command = END
+      const cmd: Command = m.state.reaction ? PASS : END
       if (who === HOST_ID) hostCmd(s, cmd)
       else s.guest.sendCommand(nextEnvelope(s.gp.port.get()!, GUEST_ID, cmd))
     }

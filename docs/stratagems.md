@@ -98,3 +98,33 @@ Lasting effects are stored on the unit (`phaseBuffs` and `turnBuffs`), which exp
 Fight-phase Stratagems (Hit 'Em Harder, Hungry Void) work in either player's turn, because choosing which unit fights is that player's own decision.
 
 The AI spends army Stratagems on a volley or a fight worth it (2.5 or more expected wounds when shooting, 2 or more in melee), always keeping 1 CP in reserve. It also uses Extinction Order on an objective with enemies on it.
+
+# Reactions (stage 2: the opponent's turn)
+
+Some core Stratagems are used in the opponent's turn. The engine gives the other player a **reaction window** at two moments:
+
+| Window | When | Reactions |
+|---|---|---|
+| `beforeShooting` | the active player ends the Movement phase | Fire Overwatch, Smokescreen |
+| `afterCharges` | the active player ends the Charge phase | Heroic Intervention |
+
+While a window is open, `GameState.reaction` is `{ player, window, next }` and `actor()` returns the reacting player. That player may only use a reaction from this window or send `{ type: 'passReaction' }`. The window then enters the `next` phase. It also closes by itself once no usable reaction is left. A window opens only when the reacting player has a reaction they can use: the CP, a unit in range, and the right keyword.
+
+- **Fire Overwatch** (1 CP): a unit not in combat shoots an enemy within 24″. It is Snap Shooting: hits only on an unmodified 6, with no hit re-rolls or critical-hit changes.
+- **Smokescreen** (1 CP, SMOKE): the unit has cover for the rest of the turn.
+- **Heroic Intervention** (1 CP): a unit not in combat, within 12″ of an enemy that charged this phase, rolls 2D6 and moves into engagement with it. It does not count as having charged, so it gets no Fights First. A VEHICLE can do this only if it is a CHARACTER or WALKER.
+- **Epic Challenge** (1 CP, CHARACTER) is not a window reaction. It works in either player's Fight phase, just before the character fights: its melee attacks gain Precision for the phase.
+
+## «Only when useful»
+
+`reactionAdvice(s)` (`src/game/reactionAdvice.ts`) scores every legal reaction by expected value. The AI and the player's pause dialog share it.
+
+- Overwatch is worth it at 1 or more expected wounds.
+- Smokescreen is worth it when the strongest enemy volley at the unit is 3 or more wounds.
+- Heroic Intervention is worth it at a 50% or better chance to arrive, at least 1.5 expected wounds dealt, and not much more taken than dealt.
+
+The standard AI uses the best worthwhile reaction and passes otherwise; the beginner AI always passes.
+
+For the player, `ReactionPrompt` pauses the game only when some reaction is worthwhile. It lists the useful ones with the reason, and the rest under a fold. When none is useful, it passes on its own.
+
+Later stages: a Command Re-roll in the middle of an attack, Insane Bravery before the roll, faction reactions, and a timeout for network games.
