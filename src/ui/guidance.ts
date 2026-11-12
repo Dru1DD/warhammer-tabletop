@@ -1,5 +1,6 @@
 import { FACTION_NAME } from '../game/data/datasheets'
-import { actor, moveAllowance, moveCommand, PHASE_NAME, validate, type MoveOptions } from '../game/engine'
+import { actor, moveAllowance, moveCommand, PHASE_NAME, stratagemActions, validate, type MoveOptions } from '../game/engine'
+import { STRATAGEMS } from '../game/rules/stratagems'
 import { alive, enemiesOf, findUnit, fmt, isDestroyed, sidesOf, unitsOf } from '../game/gameState'
 import { deploymentIssues, deploymentProblem } from '../game/rules/deployment'
 import { dist } from '../game/geometry/geometry'
@@ -60,10 +61,32 @@ export function endPhaseWarning(s: GameState, human: PlayerId): string | null {
   const last = lastRoundWarning(s, human)
   if (s.phase === 'movement' && last) return `${last} Нажмите ещё раз, чтобы закончить движение.`
   const ready = actionableUnits(s, human)
-  if (!ready.length) return null
   const verb: Partial<Record<Phase, string>> = { movement: 'двигаться', shooting: 'стрелять', charge: 'объявить атаку' }
-  if (!verb[s.phase]) return null
-  return `Ещё могут ${verb[s.phase]}: ${ready.map((u) => `«${u.name}»`).join(', ')}. Это необязательно — нажмите ещё раз, чтобы перейти дальше.`
+  if (ready.length && verb[s.phase]) return `Ещё могут ${verb[s.phase]}: ${ready.map((u) => `«${u.name}»`).join(', ')}. Это необязательно — нажмите ещё раз, чтобы перейти дальше.`
+  const cp = cpReminder(s, human)
+  return cp ? `${cp} Нажмите ещё раз, чтобы идти дальше без стратагемы.` : null
+}
+
+/** CP worth a nudge: at this many the player is sitting on points that could already have bought something. */
+export const CP_HOARD = 3
+
+/** The Stratagems usable right now, once each by name. */
+export function usableStratagemNames(s: GameState, human: PlayerId): string[] {
+  const names = new Set<string>()
+  for (const u of unitsOf(s, human)) for (const a of stratagemActions(s, u.id)) if (a.cmd?.type === 'stratagem') names.add(STRATAGEMS[a.cmd.id].name)
+  return [...names]
+}
+
+/**
+ * The player has CP_HOARD or more CP, a Stratagem is usable now and none was used this phase: CP left unspent buy
+ * nothing (they piled up to 5–10 by the end of the player's games). Null otherwise.
+ */
+export function cpReminder(s: GameState, human: PlayerId): string | null {
+  const p = s.players[human]
+  if (s.winner || actor(s) !== human || p.cp < CP_HOARD || (p.stratagemsThisPhase ?? []).length) return null
+  const names = usableStratagemNames(s, human)
+  if (!names.length) return null
+  return `💡 У вас ${p.cp} CP, а сейчас можно применить: ${names.map((n) => `«${n}»`).join(', ')} (карточка «📜 Стратагемы» справа). Неистраченные CP ничего не дают.`
 }
 
 /**

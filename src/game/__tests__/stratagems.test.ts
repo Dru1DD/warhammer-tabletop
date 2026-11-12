@@ -7,6 +7,7 @@ import { stratagemAvailability } from '../rules/stratagems'
 import { reactionAdvice } from '../reactionAdvice'
 import { alive } from '../gameState'
 import type { Command, GameState } from '../types'
+import { cpReminder, endPhaseWarning } from '../../ui/guidance'
 import { battle, column, place, unit } from './helpers'
 
 const woundsOf = (s: GameState, id: string) => alive(unit(s, id)).reduce((a, m) => a + m.wounds, 0)
@@ -319,5 +320,35 @@ describe('stratagemActions: what the Stratagem panel lists for the whole army', 
     // the engine itself still allows the empty one (it just does nothing there)
     expect(validate(s, { type: 'stratagem', id: 'extinctionOrder', unitId: 'dominus', targetId: 'o1' }).ok).toBe(true)
     expect(orders.map((a) => a.id)).not.toContain('strat:extinctionOrder:o1')
+  })
+})
+
+describe('CP reminder', () => {
+  // the Dominus 15″ from Guardians standing on an objective: Extinction Order is usable in the Command phase
+  function command(cp: number) {
+    const s = battle('adeptus_mechanicus', 'aeldari', 'command', 'adeptus_mechanicus')
+    for (const u of s.units) if (!['dominus', 'guardians'].includes(u.id)) place(s, u.id, [])
+    place(s, 'dominus', [{ x: 10, y: 10 }])
+    place(s, 'guardians', column(25, 10, 11, 1.2))
+    s.objectives = [{ id: 'o1', pos: { x: 25, y: 10 }, controller: null }]
+    s.players.adeptus_mechanicus.cp = cp
+    s.players.adeptus_mechanicus.imperative = 'protector'
+    return s
+  }
+
+  it('3 CP or more and a usable Stratagem: ending the phase asks once, naming it', () => {
+    const s = command(3)
+    expect(cpReminder(s, 'adeptus_mechanicus')).toContain('«Приказ об истреблении»')
+    expect(endPhaseWarning(s, 'adeptus_mechanicus')).toContain('У вас 3 CP')
+  })
+
+  it('no reminder below 3 CP, after a Stratagem this phase, or with nothing usable', () => {
+    expect(cpReminder(command(2), 'adeptus_mechanicus')).toBeNull()
+    const used = apply(command(4), { type: 'stratagem', id: 'extinctionOrder', unitId: 'dominus', targetId: 'o1' }, scriptedRoller([1]))
+    expect(cpReminder(used, 'adeptus_mechanicus')).toBeNull()
+    const empty = command(5)
+    empty.objectives = []
+    expect(cpReminder(empty, 'adeptus_mechanicus')).toBeNull()
+    expect(endPhaseWarning(empty, 'adeptus_mechanicus')).toBeNull()
   })
 })
