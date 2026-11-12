@@ -35,6 +35,16 @@ Three layouts, drawn on the 60″×44″ board and transposed for the 44″×60�
 
 No objective sits in a container or a barricade. The terrain editor's saved layout is not used on this board, because the board changes with the map.
 
+## Layouts of the 44″×30″ board (Combat Patrol)
+
+«Боевой патруль» also gets a layout picker:
+
+- **A — «Классика (как раньше)»**: the original layout, still the default. The terrain editor's saved layout applies only with A.
+- **B — «Лесная опушка»** and **C — «Развалины улиц»**: new, point-symmetric (`patrolLayout`).
+- **Random.**
+
+The new pieces stay between x 11″ and 33″, so the training rosters keep their fixed spots in the zones.
+
 ## Armies
 
 Own lists from the army builder. A side without a list plays its 1000-point preset. Both armies start in the deployment preset that suits them, as on «Боевой патруль».

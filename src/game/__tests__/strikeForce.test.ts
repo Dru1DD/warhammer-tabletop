@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { presetList } from '../army/armyList'
 import { pointInPolygon } from '../geometry/geometry'
 import { deploymentProblem, deploymentZone } from '../rules/deployment'
 import { scenarioById } from '../scenarios/scenarios'
@@ -51,5 +52,25 @@ describe('44″×60″ battlefield', () => {
     const homes = s.objectives.filter((o) => o.role === 'home')
     expect(homes.map((o) => o.home).sort()).toEqual(['marines', 'orks'])
     for (const o of homes) expect(pointInPolygon(o.pos, deploymentZone(s, o.home!))).toBe(true)
+  })
+})
+
+describe('44″×30″ (Combat Patrol) layouts', () => {
+  const pairs: [PlayerId, PlayerId][] = [['marines', 'orks'], ['tyranids', 'necrons'], ['aeldari', 'adeptus_mechanicus']]
+  it('A is the original layout; B and C are new, and the default build stays A', () => {
+    const a = scenarioById('combat-patrol').build(['marines', 'orks'])
+    expect(a.layoutId).toBeUndefined()
+    expect(scenarioById('combat-patrol').build(['marines', 'orks'], {}, undefined, { layoutId: 'A' }).terrain).toEqual(a.terrain)
+    const b = scenarioById('combat-patrol').build(['marines', 'orks'], {}, undefined, { layoutId: 'B' })
+    expect(b.layoutId).toBe('B')
+    expect(b.terrain).not.toEqual(a.terrain)
+  })
+
+  it('training rosters and 500-point presets stand legally on B and C; no objective is in a container or a barricade', { timeout: 120_000 }, () => {
+    for (const l of ['B', 'C'] as const) for (const pair of pairs) for (const lists of [{}, { [pair[0]]: presetList(pair[0], 500), [pair[1]]: presetList(pair[1], 500) }]) {
+      const s = scenarioById('combat-patrol').build(pair, lists, undefined, { layoutId: l })
+      for (const u of s.units) expect(deploymentProblem(s, u, Object.fromEntries(u.models.map((m) => [m.id, m.pos]))), `${l} ${u.name}`).toBeNull()
+      for (const o of s.objectives) for (const t of s.terrain.filter((x) => x.kind === 'container' || x.kind === 'barricade')) expect(pointInPolygon(o.pos, t.poly)).toBe(false)
+    }
   })
 })

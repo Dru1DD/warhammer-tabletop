@@ -245,7 +245,8 @@ function savedLayouts(): Record<string, unknown> {
 function buildScenario(s: Settings): GameState {
   const sc = scenarioById(s.scenarioId)
   // the 44″×60″ boards change with the map, so a saved layout of the editor is not used there
-  const custom = sc.id === 'strike-force' ? null : parseLayout(savedLayouts()[sc.id])
+  // nor on Combat Patrol when another layout than the original (A) is chosen
+  const custom = sc.id === 'strike-force' || (sc.id === 'combat-patrol' && s.layoutId && s.layoutId !== 'A') ? null : parseLayout(savedLayouts()[sc.id])
   const g = sc.build(sidesFor(s.human, s.opponent), battleArmies(s), custom ?? undefined, { mapId: s.mapId, layoutId: s.layoutId })
   if (custom) g.terrain = custom
   if (sc.customArmies) {

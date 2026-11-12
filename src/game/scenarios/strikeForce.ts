@@ -120,3 +120,30 @@ export function layoutFor(id: LayoutId, board: { width: number; height: number }
 /** `id` or a random one when it is 'random' (or unknown). */
 export const pickMap = (id: string | undefined, rnd = Math.random): MapId => (id && id in MAPS ? (id as MapId) : MAP_IDS[Math.floor(rnd() * MAP_IDS.length)])
 export const pickLayout = (id: string | undefined, rnd = Math.random): LayoutId => (LAYOUT_IDS.includes(id as LayoutId) ? (id as LayoutId) : LAYOUT_IDS[Math.floor(rnd() * LAYOUT_IDS.length)])
+
+// ---------------------------------------------------------------- terrain layouts of the 44″×30″ board (Combat Patrol)
+
+/** Each piece and its point-mirror on the 44×30 board. Pieces stay between x 11 and 33: the zones (x < 10, x > 34) are
+ * left free for the training rosters, which stand on fixed spots. */
+function patrolPairs(list: [ReturnType<typeof piece>, number, number, number, number][], centre: Terrain[] = []): Terrain[] {
+  const out: Terrain[] = [...centre]
+  list.forEach(([make, x, y, w, h], i) => {
+    out.push(make(`p${i}`, rect(x, y, w, h)))
+    out.push(make(`q${i}`, mirror(rect(x, y, w, h), 44, 30)))
+  })
+  return out.map((t, i) => ({ ...t, id: `t${i + 1}` }))
+}
+
+/** A is the board's original layout (kept in scenarios.ts); B and C are new. */
+export const PATROL_LAYOUT_NAME: Record<LayoutId, string> = { A: 'Классика (как раньше)', B: 'Лесная опушка', C: 'Развалины улиц' }
+const PATROL_LAYOUTS: Record<'B' | 'C', Terrain[]> = {
+  B: patrolPairs([
+    [woods, 13, 3, 4, 4], [woods, 18, 18, 4, 4], [crater, 19, 11.5, 2.5, 2.5], [barricade, 16, 12.5, 0.6, 4], [ruin, 24, 2, 4, 3],
+  ]),
+  C: patrolPairs([
+    [ruin, 13, 2, 4, 5], [ruin, 18, 9.5, 3, 3], [container, 25, 6.5, 1.5, 4], [barricade, 12, 20, 4, 0.6], [crater, 28, 13, 2.5, 2.5],
+  ], [ruin('c0', rect(20.5, 13.5, 3, 3))]),
+}
+
+/** The terrain of a Combat Patrol layout, or null for A (the original layout). */
+export const patrolLayout = (id: LayoutId): Terrain[] | null => (id === 'A' ? null : PATROL_LAYOUTS[id].map((t) => ({ ...t, poly: t.poly.map((p) => ({ ...p })) })))

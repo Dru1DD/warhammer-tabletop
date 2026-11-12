@@ -10,7 +10,7 @@ import { mapLine, SCENARIOS } from './game/scenarios/scenarios'
 import { FACTIONS, type ExplainLevel, type PlayerId, type UnitState } from './game/types'
 import { AI_STEP_MS, AUTOSAVE_KEY, MANUAL_KEY, useStore, type Settings } from './store'
 import { ArmyBuilder } from './ui/ArmyBuilder'
-import { LAYOUT_IDS, LAYOUT_NAME, MAP_IDS, MAPS } from './game/scenarios/strikeForce'
+import { LAYOUT_IDS, LAYOUT_NAME, MAP_IDS, MAPS, PATROL_LAYOUT_NAME } from './game/scenarios/strikeForce'
 import { armyUnits, battleListProblems } from './ui/armyUnits'
 import { BattleOverDialog } from './ui/BattleOverDialog'
 import { ReactionPrompt } from './ui/ReactionPrompt'
@@ -174,6 +174,14 @@ function StartScreen() {
               ))}
             </select>
           </label>
+          {scenarioId === 'combat-patrol' && (
+            <label className="text-sm">Раскладка укрытий
+              <select className="input" value={st.settings.layoutId ?? 'A'} onChange={(e) => st.setSettings({ layoutId: e.target.value })}>
+                {LAYOUT_IDS.map((id) => <option key={id} value={id}>{id} — {PATROL_LAYOUT_NAME[id]}</option>)}
+                <option value="random">Случайная</option>
+              </select>
+            </label>
+          )}
           {scenarioId === 'strike-force' && (
             <>
               <label className="text-sm">Карта расстановки

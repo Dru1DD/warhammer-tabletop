@@ -5,7 +5,7 @@ import type { GameState, PlayerId, PlayerState, Terrain, UnitState, Vec } from '
 import type { ArmyList } from '../army/armyList'
 import { musterArmy } from '../army/placement'
 import { presetList } from '../army/armyList'
-import { LAYOUT_NAME, layoutFor, MAPS, pickLayout, pickMap, type LayoutId, type MapId } from './strikeForce'
+import { LAYOUT_NAME, layoutFor, MAPS, PATROL_LAYOUT_NAME, patrolLayout, pickLayout, pickMap, type LayoutId, type MapId } from './strikeForce'
 
 /** Army lists by faction; a faction without one fields its default training roster. */
 export type Armies = Partial<Record<PlayerId, ArmyList>>
@@ -303,12 +303,14 @@ export const SCENARIOS: Scenario[] = [
     deployment: { west: rect(0, 0, 10, 30), east: rect(34, 0, 10, 30) },
     factions: ['marines', 'orks', 'tyranids', 'necrons', 'aeldari', 'adeptus_mechanicus'],
     customArmies: true,
-    build: (sides = DEFAULT_SIDES, armies = {}, layout) => {
+    build: (sides = DEFAULT_SIDES, armies = {}, layout, opts = {}) => {
       assertSides(['marines', 'orks', 'tyranids', 'necrons', 'aeldari', 'adeptus_mechanicus'], sides)
+      // layout A (the original) unless another one is asked for; 'random' picks one of the three
+      const layoutId: LayoutId = opts.layoutId ? pickLayout(opts.layoutId) : 'A'
       const state = baseState(
         'combat-patrol',
         { width: 44, height: 30 },
-        layout ?? [
+        layout ?? patrolLayout(layoutId) ?? [
           ruin('t1', 'Руины мануфактории', rect(15, 2, 5, 4)),
           ruin('t2', 'Руины часовни', rect(24, 24, 5, 4)),
           woods('t3', rect(12, 17, 4, 5)),
@@ -327,6 +329,7 @@ export const SCENARIOS: Scenario[] = [
       for (const f of sides) if (armies[f]) musterArmy(state, f, armies[f])
       // a pure custom list plays without its detachment
       for (const f of sides) if (armies[f]?.noDetachment) state.players[f].noDetachment = true
+      if (layoutId !== 'A') state.layoutId = layoutId
       return state
     },
   },
@@ -361,7 +364,9 @@ export const SCENARIOS: Scenario[] = [
 
 /** The 44″×60″ map and layout of a battle, for the player: «Молот и наковальня, раскладка A (Руины мануфактории)». */
 export const mapLine = (s: GameState) =>
-  s.mapId && s.mapId in MAPS ? `${MAPS[s.mapId as MapId].name} (${MAPS[s.mapId as MapId].nameEn}), раскладка ${s.layoutId} — ${LAYOUT_NAME[s.layoutId as LayoutId]}` : null
+  s.mapId && s.mapId in MAPS
+    ? `${MAPS[s.mapId as MapId].name} (${MAPS[s.mapId as MapId].nameEn}), раскладка ${s.layoutId} — ${LAYOUT_NAME[s.layoutId as LayoutId]}`
+    : s.scenarioId === 'combat-patrol' && s.layoutId ? `Раскладка ${s.layoutId} — ${PATROL_LAYOUT_NAME[s.layoutId as LayoutId]}` : null
 
 /** The army `faction` fields in a scenario (null if the scenario has none): what the selection screen lists. */
 export function armyOf(scenarioId: string, faction: PlayerId): UnitState[] | null {
