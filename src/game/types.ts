@@ -316,8 +316,11 @@ export interface PendingReroll {
   weapon: string
 }
 
-/** When the opponent may react: at the end of the Movement phase (before shooting), at the end of the Charge phase (before fights). */
-export type ReactionWindow = 'beforeShooting' | 'afterCharges' | 'beforeShockTests'
+/** When a player may react: at the end of the opponent's Movement phase (before shooting) and Charge phase (before
+ * fights), before their own Battle-shock tests, when an enemy unit has selected one of their units as the target of an
+ * attack (`onTargeted`, before any dice), and after an enemy unit's attacks destroyed models of one of their units
+ * (`afterAttacks`). */
+export type ReactionWindow = 'beforeShooting' | 'afterCharges' | 'beforeShockTests' | 'onTargeted' | 'afterAttacks'
 
 export type StratagemId =
   | 'commandReroll' | 'insaneBravery' | 'explosives' | 'crushingImpact'
@@ -327,6 +330,9 @@ export type StratagemId =
   | 'extinctionOrder'
   // reactions in the opponent's turn (see rules/stratagems.ts, ReactionWindow)
   | 'fireOverwatch' | 'smokescreen' | 'heroicIntervention' | 'epicChallenge'
+  // army (detachment) reactions: when targeted by an attack, and after one
+  | 'armourOfContempt' | 'aWorthyDeath' | 'orksNeverBeaten' | 'rapidRegeneration' | 'deathFrenzy' | 'lightningFastReactions'
+  | 'balefulHalo' | 'bulwarkImperative' | 'undyingLegions'
 export const IMPERATIVES: Imperative[] = ['protector', 'conqueror']
 
 export interface PendingCharge {
@@ -394,7 +400,15 @@ export interface GameState {
   pendingCharge: PendingCharge | null
   /** A reaction window: the game waits for `player` (the side whose turn it is NOT) to use a reaction Stratagem or
    * pass, then enters `next`. Opened only when that player has a reaction it can use. */
-  reaction?: { player: PlayerId; window: ReactionWindow; next: Phase } | null
+  reaction?: {
+    player: PlayerId
+    window: ReactionWindow
+    next: Phase
+    /** onTargeted / afterAttacks: the reacting player's unit the window is about */
+    unitId?: string
+    /** onTargeted: the attack waiting for the answer (resolved when the window closes) */
+    attack?: Extract<Command, { type: 'shoot' } | { type: 'fight' }>
+  } | null
   /** Units still to take their Battle-shock test this Command phase (the tests wait while Insane Bravery is offered) */
   shockPending?: string[] | null
   /** An attack paused right after a die worth a Command Re-roll; resumed by `rerollChoice` */

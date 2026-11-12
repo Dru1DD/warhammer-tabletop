@@ -132,6 +132,10 @@ export function nextStepHint(
     return s.reaction.player === human
       ? { text: 'Перед проверкой боевого шока: можно применить «Безумную храбрость».', tone: 'action' }
       : { text: `${ui.shared ? 'Соперник' : 'ИИ'} (${FACTION_NAME[s.reaction.player]}) решает, применить ли «Безумную храбрость»…`, tone: 'wait' }
+  if (s.reaction?.window === 'onTargeted' || s.reaction?.window === 'afterAttacks')
+    return s.reaction.player === human
+      ? { text: s.reaction.window === 'onTargeted' ? 'Ваш отряд выбран целью атаки: можно ответить стратагемой до бросков.' : 'Ваш отряд потерял модели: можно запустить реанимацию стратагемой.', tone: 'action' }
+      : { text: `${ui.shared ? 'Соперник' : 'ИИ'} (${FACTION_NAME[s.reaction.player]}) решает, ответить ли стратагемой…`, tone: 'wait' }
   if (s.reaction)
     return s.reaction.player === human
       ? { text: 'Ход противника: можно ответить стратагемой-реакцией или пропустить.', tone: 'action' }

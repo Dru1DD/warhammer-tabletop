@@ -21,6 +21,12 @@ function fight() {
   return apply(s, { type: 'endPhase' }, scriptedRoller([]))
 }
 const swing: Command = { type: 'fight', unitId: 'dread', targetId: 'red' }
+/** The Dread swings; the Marines first pass on Armour of Contempt (their onTargeted window), then the dice roll. */
+function hit(s0: GameState, dice: number[]) {
+  const w = apply(s0, swing, scriptedRoller([]))
+  expect(w.reaction).toMatchObject({ player: 'marines', window: 'onTargeted', unitId: 'red' })
+  return apply(w, { type: 'passReaction' }, scriptedRoller(dice))
+}
 // 5 Dread Klaws attacks: all hit (3+), all wound (6s), then the first save is a 2 (needs 4+)
 const UNTIL_FIRST_SAVE = [3, 3, 3, 3, 3, 6, 6, 6, 6, 6, 2]
 
@@ -28,7 +34,7 @@ describe('Command Re-roll in the middle of an attack', () => {
   it('a failed save that matters stops the attack: the defender decides, nothing is applied yet', () => {
     const s0 = fight()
     expect(s0.phase).toBe('fight')
-    const s = apply(s0, swing, scriptedRoller(UNTIL_FIRST_SAVE))
+    const s = hit(s0, UNTIL_FIRST_SAVE)
     expect(s.pendingReroll).toMatchObject({ player: 'marines', unitId: 'red', kind: 'save', value: 2 })
     expect(s.pendingReroll!.gain).toBeGreaterThanOrEqual(1.5)
     expect(actor(s)).toBe('marines')
@@ -41,7 +47,7 @@ describe('Command Re-roll in the middle of an attack', () => {
   })
 
   it('re-rolling: 1 CP, the new die counts, and the rest of the attack goes on (no second re-roll this phase)', () => {
-    const s = apply(fight(), swing, scriptedRoller(UNTIL_FIRST_SAVE))
+    const s = hit(fight(), UNTIL_FIRST_SAVE)
     // the re-roll is a 5 (saved); of the other four saves one more fails, and is not offered again
     const after = apply(s, { type: 'rerollChoice', reroll: true }, scriptedRoller([5, 2, 5, 5, 5]))
     expect(after.pendingReroll).toBeNull()
@@ -55,7 +61,7 @@ describe('Command Re-roll in the middle of an attack', () => {
 
   it('keeping the die: no CP spent, the failed save stands', () => {
     const s0 = fight()
-    const s = apply(s0, swing, scriptedRoller(UNTIL_FIRST_SAVE))
+    const s = hit(s0, UNTIL_FIRST_SAVE)
     const kept = apply(s, { type: 'rerollChoice', reroll: false }, scriptedRoller([5, 5, 5, 5]))
     expect(kept.pendingReroll).toBeNull()
     expect(kept.players.marines.cp).toBe(2)
@@ -71,7 +77,7 @@ describe('Command Re-roll in the middle of an attack', () => {
   })
 
   it('the AI re-rolls (the game only stops when it is worth it); the beginner keeps its dice', () => {
-    const s = apply(fight(), swing, scriptedRoller(UNTIL_FIRST_SAVE))
+    const s = hit(fight(), UNTIL_FIRST_SAVE)
     expect(decide(s, 'standard')!.cmd).toEqual({ type: 'rerollChoice', reroll: true })
     expect(decide(s, 'beginner')!.cmd).toEqual({ type: 'rerollChoice', reroll: false })
   })

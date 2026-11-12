@@ -205,29 +205,20 @@ for (const x of FACTION_STRATAGEMS) STRATAGEMS[x.id] = x
  * game does not have. Listed on the army screen so the player knows what the full detachment has. */
 export interface LaterStratagem { faction: PlayerId; name: string; nameEn: string; cost: number; why: string }
 export const LATER_STRATAGEMS: LaterStratagem[] = [
-  { faction: 'marines', name: 'Доспех презрения', nameEn: 'Armour of Contempt', cost: 1, why: 'в ход противника' },
-  { faction: 'marines', name: 'Достойная смерть', nameEn: 'A Worthy Death', cost: 1, why: 'в ход противника' },
   { faction: 'marines', name: 'Мощь ангелов', nameEn: 'Might of Angels', cost: 1, why: 'нужно правило Lance' },
   { faction: 'marines', name: 'Адаптивная стратегия', nameEn: 'Adaptive Strategy', cost: 1, why: 'нужны боевые доктрины' },
-  { faction: 'marines', name: 'Ответная тактика', nameEn: 'Responsive Tactics', cost: 1, why: 'в ход противника' },
+  { faction: 'marines', name: 'Ответная тактика', nameEn: 'Responsive Tactics', cost: 1, why: 'нужно движение в ход противника' },
   { faction: 'orks', name: 'Вправить мозги', nameEn: "Breakin' Heads", cost: 1, why: 'нужны присоединённые персонажи' },
-  { faction: 'orks', name: 'Орков не победить', nameEn: 'Orks Is Never Beaten', cost: 1, why: 'в ход противника' },
   { faction: 'orks', name: 'Косить их!', nameEn: "Mow 'Em Down", cost: 1, why: 'только техника не-WALKER, таких у орков здесь нет' },
-  { faction: 'tyranids', name: 'Быстрая регенерация', nameEn: 'Rapid Regeneration', cost: 1, why: 'в ход противника' },
-  { faction: 'tyranids', name: 'Предсмертное неистовство', nameEn: 'Death Frenzy', cost: 1, why: 'в ход противника' },
   { faction: 'tyranids', name: 'Захлестнуть', nameEn: 'Overrun', cost: 1, why: 'нужен выбор закрепления после боя' },
   { faction: 'tyranids', name: 'Хищный императив', nameEn: 'Predatory Imperative', cost: 1, why: 'нужны гиперадаптации' },
   { faction: 'tyranids', name: 'Бесконечный рой', nameEn: 'Endless Swarm', cost: 1, why: 'нужно возвращение моделей на поле' },
   { faction: 'necrons', name: 'Протокол вечного возвращения', nameEn: 'Protocol of the Eternal Revenant', cost: 1, why: 'срабатывает в момент гибели' },
-  { faction: 'necrons', name: 'Протокол бессмертных легионов', nameEn: 'Protocol of the Undying Legions', cost: 1, why: 'в ход противника' },
-  { faction: 'necrons', name: 'Протокол мстительных звёзд', nameEn: 'Protocol of the Vengeful Stars', cost: 2, why: 'в ход противника' },
-  { faction: 'aeldari', name: 'Молниеносная реакция', nameEn: 'Lightning-Fast Reactions', cost: 1, why: 'в ход противника' },
+  { faction: 'necrons', name: 'Протокол мстительных звёзд', nameEn: 'Protocol of the Vengeful Stars', cost: 2, why: 'нужна стрельба в ход противника' },
   { faction: 'aeldari', name: 'Небесное убежище', nameEn: 'Skyborne Sanctuary', cost: 1, why: 'нужен транспорт' },
   { faction: 'aeldari', name: 'Выстрел и отход', nameEn: 'Fire and Fade', cost: 1, why: 'нужно движение после стрельбы' },
   { faction: 'aeldari', name: 'Тоннель Паутины', nameEn: 'Webway Tunnel', cost: 1, why: 'в ход противника, нужны резервы' },
-  { faction: 'adeptus_mechanicus', name: 'Зловещий ореол', nameEn: 'Baleful Halo', cost: 2, why: 'в ход противника' },
   { faction: 'adeptus_mechanicus', name: 'Предустановленная зачистка', nameEn: 'Pre-Calibrated Purge Solution', cost: 1, why: 'появится позже' },
-  { faction: 'adeptus_mechanicus', name: 'Империатив бастиона', nameEn: 'Bulwark Imperative', cost: 2, why: 'в ход противника' },
 ]
 
 // ---------------------------------------------------------------- reactions (core, 11th edition)
@@ -257,6 +248,63 @@ export const REACTION_STRATAGEMS: StratagemInfo[] = [
   },
 ]
 for (const x of REACTION_STRATAGEMS) STRATAGEMS[x.id] = x
+
+// ---------------------------------------------------------------- army (detachment) reactions
+
+/** Used when an enemy unit has selected one of your units as the target of its attacks, before any dice (`onTargeted`),
+ * or after its attacks destroyed models of your unit (`afterAttacks`). The unit is the one the window is about. */
+export const FACTION_REACTIONS: StratagemInfo[] = [
+  {
+    id: 'armourOfContempt', faction: 'marines', name: 'Доспех презрения', nameEn: 'Armour of Contempt', cost: 1, phases: ['shooting', 'fight'], turn: 'either', window: 'onTargeted', buff: 'phase',
+    text: 'Когда вражеский отряд выбрал целью ваш отряд (в стрельбе противника или в бою): бронебойность (AP) его атак по вам хуже на 1, пока он не закончит атаковать.',
+    when: 'Против оружия с AP −1…−2 по пехоте с хорошей бронёй: спасбросок 3+ снова работает.',
+  },
+  {
+    id: 'aWorthyDeath', faction: 'marines', name: 'Достойная смерть', nameEn: 'A Worthy Death', cost: 1, phases: ['fight'], turn: 'either', window: 'onTargeted', buff: 'phase',
+    text: 'В бою, когда враг выбрал целью ваш отряд, который ещё не сражался: каждая убитая модель на 4+ успевает ударить. Здесь — сразу после атаки врага, по этому врагу (на столе — вместе со своим отрядом позже в фазе).',
+    when: 'Когда по отряду бьёт сильный враг, а у ваших моделей опасное оружие ближнего боя.',
+  },
+  {
+    id: 'orksNeverBeaten', faction: 'orks', name: 'Орков не победить', nameEn: 'Orks Is Never Beaten', cost: 1, phases: ['fight'], turn: 'either', window: 'onTargeted', buff: 'phase',
+    text: 'В бою, когда враг выбрал целью ваш отряд (кроме TITANIC), который ещё не сражался: каждая убитая модель на 4+ (на 3+, если отряд разъярён WAAAGH!) успевает ударить. Здесь — сразу после атаки врага, по этому врагу.',
+    when: 'Когда большой отряд Бойз вот-вот потеряет много моделей в рукопашной.',
+  },
+  {
+    id: 'rapidRegeneration', faction: 'tyranids', name: 'Быстрая регенерация', nameEn: 'Rapid Regeneration', cost: 1, phases: ['shooting', 'fight'], turn: 'either', window: 'onTargeted', buff: 'phase',
+    text: 'Когда враг выбрал целью ваш отряд (в стрельбе противника или в бою): до конца фазы у моделей «Не чувствует боли» 6+ (5+ в зоне Синапса) — каждую потерянную рану можно отменить броском.',
+    when: 'Когда по крупному монстру летит много урона: 5+ в Синапсе спасает треть ран.',
+  },
+  {
+    id: 'deathFrenzy', faction: 'tyranids', name: 'Предсмертное неистовство', nameEn: 'Death Frenzy', cost: 1, phases: ['fight'], turn: 'either', window: 'onTargeted', buff: 'phase',
+    text: 'В бою, когда враг выбрал целью ваш отряд, который ещё не сражался: каждая убитая модель на 4+ успевает ударить сразу после атаки врага.',
+    when: 'Когда по отряду гаунтов или воинов бьёт сильный враг, а ответить они уже не успеют.',
+  },
+  {
+    id: 'lightningFastReactions', faction: 'aeldari', name: 'Молниеносная реакция', nameEn: 'Lightning-Fast Reactions', cost: 1, phases: ['shooting', 'fight'], turn: 'either', window: 'onTargeted', buff: 'phase',
+    text: 'Когда враг выбрал целью ваш отряд (не WRAITH CONSTRUCT; в стрельбе противника или в бою): до конца фазы −1 к броскам на попадание по этому отряду.',
+    when: 'Против оружия, которое попадает на 3+ или 4+: каждая шестая атака мимо.',
+  },
+  {
+    id: 'balefulHalo', faction: 'adeptus_mechanicus', name: 'Зловещий ореол', nameEn: 'Baleful Halo', cost: 2, phases: ['fight'], turn: 'either', window: 'onTargeted', buff: 'phase',
+    text: 'В бою, когда враг выбрал целью ваш отряд (не VEHICLE): до конца фазы −1 к броскам на ранение по нему.',
+    when: 'Когда по пехоте бьёт сильная рукопашная, которая ранит на 2+ или 3+.',
+  },
+  {
+    id: 'bulwarkImperative', faction: 'adeptus_mechanicus', name: 'Империатив бастиона', nameEn: 'Bulwark Imperative', cost: 2, phases: ['shooting'], turn: 'either', window: 'onTargeted', buff: 'phase',
+    text: 'В стрельбе противника, когда враг выбрал целью ваш отряд Скитариев: до конца фазы у моделей непробиваемый спасбросок 4+.',
+    when: 'Против бронебойного оружия (AP −2 и лучше): спасбросок 4+ вместо почти никакого.',
+    requires: { any: [['SKITARII']], label: 'отряд Скитариев (SKITARII)' },
+  },
+  {
+    id: 'undyingLegions', faction: 'necrons', name: 'Протокол бессмертных легионов', nameEn: 'Protocol of the Undying Legions', cost: 1, phases: ['shooting', 'fight'], turn: 'either', window: 'afterAttacks',
+    text: 'После атак врага (в стрельбе противника или в бою), убивших модели вашего отряда: отряд сразу запускает протоколы реанимации — лечит D3 ран (D3+1, если его ведёт персонаж) и возвращает модели.',
+    when: 'Когда отряд воинов потерял несколько моделей: в среднем две модели возвращаются в строй.',
+  },
+]
+for (const x of FACTION_REACTIONS) STRATAGEMS[x.id] = x
+
+/** Reactions whose fallen models strike back right after the enemy's attacks (A Worthy Death and its cousins). */
+export const LAST_STAND: StratagemId[] = ['aWorthyDeath', 'orksNeverBeaten', 'deathFrenzy']
 
 export const STRATAGEM_IDS = Object.keys(STRATAGEMS) as StratagemId[]
 
