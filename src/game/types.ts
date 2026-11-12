@@ -298,6 +298,8 @@ export interface PlayerState {
   doctrinesUsed?: CombatDoctrine[]
   /** Tyranids: the Hyper-adaptation of this battle (null = still to choose at the start of the battle; absent = none) */
   hyperAdaptation?: HyperAdaptation | null
+  /** a pure custom army: no detachment rule and no detachment Stratagems (army rules still apply) */
+  noDetachment?: boolean
 }
 
 export type Imperative = 'protector' | 'conqueror'

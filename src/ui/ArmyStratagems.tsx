@@ -3,8 +3,8 @@ import { DETACHMENT, LATER_STRATAGEMS, stratagemAvailability } from '../game/rul
 import type { PlayerId } from '../game/types'
 
 /** On the army screen: which Stratagems this army will have, which it will not (and why), and which come later. */
-export function ArmyStratagems({ faction, datasheetIds }: { faction: PlayerId; datasheetIds: string[] }) {
-  const all = stratagemAvailability(faction, datasheetIds)
+export function ArmyStratagems({ faction, datasheetIds, noDetachment = false }: { faction: PlayerId; datasheetIds: string[]; noDetachment?: boolean }) {
+  const all = stratagemAvailability(faction, datasheetIds, noDetachment)
   const missing = all.filter((a) => !a.available)
   const later = LATER_STRATAGEMS.filter((x) => x.faction === faction)
   return (
@@ -15,7 +15,7 @@ export function ArmyStratagems({ faction, datasheetIds }: { faction: PlayerId; d
       </summary>
       <p className="mt-1 text-[11px] text-stone-400">Детачмент: {DETACHMENT[faction]} (11-я редакция). Стратагемы стоят очки командования (CP): +1 каждому игроку в каждой фазе командования.</p>
       <p className="mt-1 text-[11px] text-stone-300" aria-label="Правило детачмента">
-        <b>Правило детачмента — {DETACHMENT_RULE[faction].name}</b> ({DETACHMENT_RULE[faction].nameEn}): {DETACHMENT_RULE[faction].text}
+        <b>Правило детачмента — {DETACHMENT_RULE[faction].name}</b> ({DETACHMENT_RULE[faction].nameEn}){noDetachment ? <span className="text-amber-300"> — выключено: армия собрана без детачмента</span> : <>: {DETACHMENT_RULE[faction].text}</>}
         {DETACHMENT_RULE[faction].note && <span className="block text-stone-500">{DETACHMENT_RULE[faction].note}</span>}
       </p>
       <ul className="mt-1 flex flex-col gap-0.5">

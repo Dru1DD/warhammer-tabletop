@@ -51,11 +51,11 @@ export const DOCTRINES: CombatDoctrine[] = ['assault', 'devastator', 'tactical']
 /** Codex Discipline (Gladius Task Force): one doctrine may be selected one more time per battle */
 export const EXTRA_DOCTRINE_PICKS = 1
 
-/** Can this doctrine still be selected, given the ones used so far (each once, plus EXTRA_DOCTRINE_PICKS repeats)? */
-export function doctrineLeft(used: CombatDoctrine[], d: CombatDoctrine): boolean {
+/** Can this doctrine still be selected, given the ones used so far (each once, plus `extra` repeats: Codex Discipline)? */
+export function doctrineLeft(used: CombatDoctrine[], d: CombatDoctrine, extra = EXTRA_DOCTRINE_PICKS): boolean {
   const times = used.filter((x) => x === d).length
   const repeats = used.length - new Set(used).size
-  return times === 0 || (times === 1 && repeats < EXTRA_DOCTRINE_PICKS)
+  return times === 0 || (times === 1 && repeats < extra)
 }
 
 export const HYPER_NAME: Record<HyperAdaptation, string> = { swarming: 'Роевые инстинкты', aggression: 'Гиперагрессия', predators: 'Хищники Улья' }

@@ -66,6 +66,22 @@ On the tabletop the owner chooses. Here the game chooses for them: a unit that D
 
 Martial Grace also adds 1 to the D6 of Agile Manoeuvres that roll one. The game has no such manoeuvre yet, only Swift as the Wind.
 
+## A pure custom army (no detachment)
+
+An own list (a preset or a custom list) has a checkbox in the army builder: «Правила детачмента «…»», on by default. Unchecked (`ArmyList.noDetachment`), the army plays without its detachment.
+
+- No detachment rule: no Codex Discipline repeat, Get Stuck In, Hyper-adaptations, Command Protocols, Martial Grace or Rad-bombardment.
+- No detachment Stratagems or detachment reactions: they are refused with the reason, and the army screen marks them ✗. The core Stratagems stay.
+- The army rules stay: Combat Doctrines (each once), the Waaagh!, Synapse, Shadow in the Warp, Reanimation Protocols, Battle Focus with 2 tokens and Swift as the Wind +2″, the Doctrina Imperatives.
+
+The flag travels with the list:
+
+- in saved lists and the army code (`d: 0`);
+- in online games (the lobby shows «…, без детачмента»);
+- into the battle as `players[side].noDetachment`, checked by `detachmentOn`.
+
+The training roster always plays with its detachment.
+
 ## Tests
 
 `src/game/__tests__/detachments.test.ts`:
