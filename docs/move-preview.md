@@ -4,7 +4,8 @@ In the movement phase, select one of your units that has not moved yet. A panel 
 
 | Row | Meaning |
 |---|---|
-| 🎯 Сможете стрелять | enemy units this unit could shoot in the coming shooting phase, with the expected wounds |
+| 🎯 Сможете стрелять | enemy units this unit could shoot in the coming shooting phase, with the expected wounds and, when not all of them would fire, how many models do («стреляют 4 из 10») |
+| ⚠ По «…» выстрелят только N из M | the best target is reached by fewer than half of the unit's models (terrain blocks the rest, or they are out of range): move so that the whole unit sees it |
 | 👁 Видно, но не достать | enemy units it sees, but no weapon reaches (or only Assault weapons may fire after an Advance) |
 | ⚠ По вам смогут стрелять | enemy units that could shoot it there in their next turn if they stay where they are, with the expected wounds |
 | ⚔ Могут атаковать | enemy units that could charge it next turn, with the chance that the 2D6 roll covers the distance after their normal move |
@@ -16,6 +17,8 @@ On the board the same enemy units get rings, which the legend explains:
 - **red dotted:** it is a danger to you (it can shoot you, or charge you with a 30% chance or more).
 
 The panel updates while you drag.
+
+The firing count comes from the same `shootPlan` (`firingModels`: models with at least one weapon in range and sight). It was added after the battle analyses: a unit ending its move where only part of it sees the target was the most frequent slip (5 of 6 games).
 
 ## How it is computed
 

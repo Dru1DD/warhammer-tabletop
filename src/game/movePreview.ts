@@ -16,6 +16,9 @@ export interface SightRow {
   name: string
   /** expected wounds (an average over all dice, see ai/ai.ts expectedGroupDamage) */
   dmg: number
+  /** own shooting: how many models of the unit would fire at it (in range and sight), and how many there are */
+  firing?: number
+  models?: number
 }
 
 export interface ChargeThreat {
@@ -38,6 +41,8 @@ export interface MovePreview {
   chargedBy: ChargeThreat[]
   /** what the move mode means for shooting */
   note: string | null
+  /** the best target is reached by fewer than half of the unit's models: move so that the whole unit fires */
+  partial: SightRow | null
   /** the charges this unit could declare from the planned spot (normal move only), best first */
   charges: ChargeForecast[]
   /** a unit locked in combat: stay or fall back (computed on where it stands now) */
@@ -67,9 +72,12 @@ function movedUnit(u: UnitState, draft: Record<string, Vec>, mode: UnitState['mo
 /** Enemy unit as it would be at the start of its next turn (not moved yet, so Heavy and the like apply). */
 const fresh = (u: UnitState): UnitState => ({ ...u, move: 'none', movedDistance: 0 })
 
-const expected = (s: GameState, shooter: UnitState, target: UnitState): number | null => {
+const expected = (s: GameState, shooter: UnitState, target: UnitState): number | null => volley(s, shooter, target)?.dmg ?? null
+
+/** Expected wounds and the number of models that fire, or null when the unit cannot shoot the target at all. */
+function volley(s: GameState, shooter: UnitState, target: UnitState): { dmg: number; firing: number } | null {
   const plan = shootPlan(s, shooter, target)
-  return plan.problem ? null : plan.groups.reduce((a, g) => a + expectedGroupDamage(g, target), 0)
+  return plan.problem ? null : { dmg: plan.groups.reduce((a, g) => a + expectedGroupDamage(g, target), 0), firing: plan.firingModels.length }
 }
 
 export function movePreview(s: GameState, unitId: string, draft: Record<string, Vec>, mode: 'normal' | 'advance' | 'fallBack'): MovePreview | null {
@@ -78,15 +86,15 @@ export function movePreview(s: GameState, unitId: string, draft: Record<string, 
   const me = movedUnit(u0, draft, mode)
   const hypo: GameState = { ...s, units: s.units.map((u) => (u.id === me.id ? me : u.owner !== me.owner ? fresh(u) : u)) }
   const foes = enemiesOf(hypo, me).filter((e) => alive(e).length)
-  const out: MovePreview = { canShoot: [], seenOutOfRange: [], shotBy: [], chargedBy: [], note: null, charges: [], engagement: null }
+  const out: MovePreview = { canShoot: [], seenOutOfRange: [], shotBy: [], chargedBy: [], note: null, partial: null, charges: [], engagement: null }
   if (mode === 'advance') out.note = 'После продвижения (Advance) стреляет только оружие Assault, и атаковать (charge) нельзя.'
   if (mode === 'fallBack') out.note = 'После отступления (Fall Back) отряд в этот ход не стреляет и не атакует.'
 
   for (const e of foes) {
     const row = { unitId: e.id, name: e.name }
     if (mode !== 'fallBack') {
-      const dmg = expected(hypo, me, e)
-      if (dmg !== null) out.canShoot.push({ ...row, dmg })
+      const v = volley(hypo, me, e)
+      if (v) out.canShoot.push({ ...row, dmg: v.dmg, firing: v.firing, models: alive(me).length })
       else if (unitCanSee(hypo, me, e)) out.seenOutOfRange.push({ ...row, dmg: 0 })
     }
     const back = expected(hypo, e, me)
@@ -100,6 +108,9 @@ export function movePreview(s: GameState, unitId: string, draft: Record<string, 
   if (mode === 'normal') out.charges = chargeForecast(hypo, me)
   if (mode === 'fallBack') out.engagement = engagementAdvice(s, u0)
   out.canShoot.sort((a, b) => b.dmg - a.dmg)
+  // the most common slip in the battles: a unit that ends its move where only part of it sees the target
+  const best = out.canShoot[0]
+  if (best && best.models! > 1 && best.firing! * 2 < best.models!) out.partial = best
   out.shotBy.sort((a, b) => b.dmg - a.dmg)
   out.chargedBy.sort((a, b) => b.p - a.p)
   return out

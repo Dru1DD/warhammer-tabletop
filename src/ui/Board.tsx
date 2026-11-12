@@ -129,7 +129,8 @@ function SightPanel({ sight }: { sight: Sight }) {
     <details open className="absolute left-2 top-[5.5rem] z-[1] w-[min(19rem,calc(100%-4rem))] rounded-lg border border-sky-700 bg-stone-950/90 px-2 py-1.5 text-[11px] leading-snug text-stone-200 shadow-lg" data-testid="sight-panel">
       <summary className="cursor-pointer font-semibold text-sky-300">👁 {sight.planned ? 'Если встать здесь' : 'С текущей позиции'}</summary>
       <ul className="mt-1 flex flex-col gap-1">
-        <li><span className="text-emerald-300">🎯 Сможете стрелять:</span> {list(sight.canShoot.map((r) => ({ name: r.name, extra: `~${fmt(r.dmg)} ран` })))}</li>
+        <li><span className="text-emerald-300">🎯 Сможете стрелять:</span> {list(sight.canShoot.map((r) => ({ name: r.name, extra: `~${fmt(r.dmg)} ран${r.firing !== undefined && r.models !== undefined && r.firing < r.models ? `, стреляют ${r.firing} из ${r.models}` : ''}` })))}</li>
+        {sight.partial && <li className="rounded border border-amber-600 px-1 py-0.5 text-amber-200">⚠ По «{sight.partial.name}» выстрелят только {sight.partial.firing} из {sight.partial.models} моделей: остальным мешает укрытие или не хватает дальности. Сдвиньте отряд, чтобы видел весь.</li>}
         {sight.seenOutOfRange.length > 0 && <li><span className="text-amber-300">👁 Видно, но не достать:</span> {list(sight.seenOutOfRange)}</li>}
         <li><span className="text-rose-300">⚠ По вам смогут стрелять:</span> {list(sight.shotBy.map((r) => ({ name: r.name, extra: `~${fmt(r.dmg)} ран` })))}</li>
         <li><span className="text-orange-300">⚔ Могут атаковать:</span> {list(sight.chargedBy.map((r) => ({ name: r.name, extra: pct(r.p) })))}</li>
