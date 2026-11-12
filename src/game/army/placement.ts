@@ -3,6 +3,7 @@ import { COHERENCY_ALL, hasAbility, newUnit, radiusOf, sidesOf } from '../gameSt
 import { deploymentProblem, deploymentZone } from '../rules/deployment'
 import type { GameState, PlayerId, UnitState, Vec } from '../types'
 import { composeUnit, shortName, type ArmyList } from './armyList'
+import { tr } from '../../i18n/index'
 
 // Puts an army list on the board: every unit is set up legally inside its side's deployment zone
 // (the same check as the deployment step, rules/deployment.ts). Units fill the zone from the front
@@ -114,7 +115,7 @@ export function musterArmy(s: GameState, faction: PlayerId, list: ArmyList): voi
     const spot = anchors
       .map((a) => Object.fromEntries(u.models.map((m, i) => [m.id, { x: a.x + back * offs[i].dx, y: a.y + offs[i].dy }])) as Record<string, Vec>)
       .find((pos) => !deploymentProblem(s, u, pos))
-    if (!spot) throw new Error(`Не хватает места в зоне развёртывания для «${u.name}». Уберите часть отрядов.`)
+    if (!spot) throw new Error(tr('Not enough room in the deployment zone for “{name}”. Remove some units.', { name: u.name }))
     for (const m of u.models) m.pos = spot[m.id]
     s.units.push(u)
     placed.push(u)

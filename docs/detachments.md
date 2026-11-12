@@ -1,6 +1,6 @@
 # Detachment rules
 
-Each army plays the generic detachment of its 11th edition faction page on Wahapedia (see `docs/stratagems.md`). Besides its Stratagems, a detachment gives the whole army one rule. The texts are in `src/game/rules/detachments.ts` (`DETACHMENT_RULE`); the army screen shows each army's rule under «📜 Стратагемы».
+Each army plays the generic detachment of its 11th edition faction page on Wahapedia (see `docs/stratagems.md`). Besides its Stratagems, a detachment gives the whole army one rule. The texts are in `src/game/rules/detachments.ts` (`DETACHMENT_RULE`); the army screen shows each army's rule under «📜 Stratagems».
 
 | Army | Detachment | Rule | Here |
 |---|---|---|---|
@@ -15,17 +15,17 @@ Each army plays the generic detachment of its 11th edition faction page on Wahap
 
 **Combat Doctrines** (army rule). At the start of their Command phase the Marines may select one doctrine. It is active for every Marine unit until their next Command phase (`players.marines.doctrine`, command `{ type: 'doctrine' }`):
 
-- **«Штурм»** (Assault): an Advance does not prevent a charge.
-- **«Опустошитель»** (Devastator): ranged attacks have Assault, so every gun fires after an Advance.
-- **«Тактика»** (Tactical): a Fall Back does not prevent shooting or a charge.
+- **Assault**: an Advance does not prevent a charge.
+- **Devastator**: ranged attacks have Assault, so every gun fires after an Advance.
+- **Tactical**: a Fall Back does not prevent shooting or a charge.
 
 Each doctrine can be selected once per battle. **Codex Discipline** lets one of them be selected one more time (`doctrineLeft`, `doctrinesUsed`).
 
-For the player, the right panel shows «Боевые доктрины» with a button for each doctrine still available, and the header shows the active one. The standard AI picks one of them, if still available:
+For the player, the right panel shows «Combat Doctrines» with a button for each doctrine still available, and the header shows the active one. The standard AI picks one of them, if still available:
 
-- «Тактика» when a unit is locked in combat;
-- «Штурм» when an assault unit is 8–14″ from an enemy;
-- «Опустошитель» in rounds 1–2.
+- Tactical when a unit is locked in combat;
+- Assault when an assault unit is 8–14″ from an enemy;
+- Devastator in rounds 1–2.
 
 The beginner AI does not use doctrines.
 
@@ -33,9 +33,9 @@ The beginner AI does not use doctrines.
 
 At the start of the battle (in `startGame`) the Tyranids must choose one Hyper-adaptation for the whole battle. Until they do, `actor()` returns the Tyranids (`hyperPending`) and only `{ type: 'hyperAdaptation' }` is accepted. The player gets a dialog with the AI's advice.
 
-- **«Роевые инстинкты»** (Swarming Instincts): attacks on INFANTRY or SWARM units have Sustained Hits 1.
-- **«Гиперагрессия»** (Hyper-aggression): attacks on MONSTER or VEHICLE units have Lethal Hits.
-- **«Хищники Улья»** (Hive Predators): Critical Hits on CHARACTER units have Precision. `AttackContext.critPrecision` gives Precision only to the wounds that come from Critical Hits: Lethal Hits first, then the wound dice of the Critical Hits.
+- **Swarming Instincts**: attacks on INFANTRY or SWARM units have Sustained Hits 1.
+- **Hyper-aggression**: attacks on MONSTER or VEHICLE units have Lethal Hits.
+- **Hive Predators**: Critical Hits on CHARACTER units have Precision. `AttackContext.critPrecision` gives Precision only to the wounds that come from Critical Hits: Lethal Hits first, then the wound dice of the Critical Hits.
 
 The AI takes Hyper-aggression when monsters and vehicles hold 35% or more of the enemy's wounds, else Swarming Instincts.
 
@@ -68,7 +68,7 @@ Martial Grace also adds 1 to the D6 of Agile Manoeuvres that roll one. The game 
 
 ## A pure custom army (no detachment)
 
-An own list (a preset or a custom list) has a checkbox in the army builder: «Правила детачмента «…»», on by default. Unchecked (`ArmyList.noDetachment`), the army plays without its detachment.
+An own list (a preset or a custom list) has a checkbox in the army builder: the “Detachment rules” checkbox, on by default. Unchecked (`ArmyList.noDetachment`), the army plays without its detachment.
 
 - No detachment rule: no Codex Discipline repeat, Get Stuck In, Hyper-adaptations, Command Protocols, Martial Grace or Rad-bombardment.
 - No detachment Stratagems or detachment reactions: they are refused with the reason, and the army screen marks them ✗. The core Stratagems stay.
@@ -77,7 +77,7 @@ An own list (a preset or a custom list) has a checkbox in the army builder: «П
 The flag travels with the list:
 
 - in saved lists and the army code (`d: 0`);
-- in online games (the lobby shows «…, без детачмента»);
+- in online games (the lobby shows «…, no detachment»);
 - into the battle as `players[side].noDetachment`, checked by `detachmentOn`.
 
 The training roster always plays with its detachment.

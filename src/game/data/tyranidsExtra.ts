@@ -1,4 +1,5 @@
 import type { Datasheet, ModelProfile, Weapon } from '../types'
+import { tr } from '../../i18n/index'
 
 // Tyranids beyond the first four units, 11th-edition datasheets as transcribed by Wahapedia (Tyranids Faction
 // Pack v1.3, checked 2026-11-10): Winged Tyranid Prime, Zoanthropes, Carnifexes, Barbgaunts. Default loadouts
@@ -8,43 +9,43 @@ export const TYRANID_EXTRA_WEAPONS: Record<string, Weapon> = {
   // ---- Winged Tyranid Prime
   primeTalons: {
     id: 'primeTalons',
-    name: 'Когти Прайма (Prime Talons)',
+    name: tr('Prime Talons'),
     profiles: [{ name: '', range: 'melee', attacks: 6, skill: 2, s: 6, ap: -1, d: 2, keywords: {} }],
   },
   // ---- Zoanthropes (D6+1 damage: fixed 1 plus a D6)
   warpBlast: {
     id: 'warpBlast',
-    name: 'Варп-взрыв (Warp Blast)',
+    name: tr('Warp Blast'),
     profiles: [
-      { name: 'Ведьмин огонь (Witchfire)', range: 24, attacks: 0, randomA: 'D3', skill: 3, s: 7, ap: -2, d: 0, randomD: 'D3', keywords: { blast: 1, psychic: true } },
-      { name: 'Сфокусированный (Focused Witchfire)', range: 24, attacks: 1, skill: 3, s: 12, ap: -3, d: 1, randomD: 'D6', keywords: { lethalHits: true, psychic: true } },
+      { name: tr('Witchfire'), range: 24, attacks: 0, randomA: 'D3', skill: 3, s: 7, ap: -2, d: 0, randomD: 'D3', keywords: { blast: 1, psychic: true } },
+      { name: tr('Focused Witchfire'), range: 24, attacks: 1, skill: 3, s: 12, ap: -3, d: 1, randomD: 'D6', keywords: { lethalHits: true, psychic: true } },
     ],
   },
   zoanthropeClaws: {
     id: 'zoanthropeClaws',
-    name: 'Хитиновые когти и зубы (Chitinous Claws and Teeth)',
+    name: tr('Chitinous Claws and Teeth'),
     profiles: [{ name: '', range: 'melee', attacks: 2, skill: 5, s: 3, ap: 0, d: 1, keywords: {} }],
   },
   // ---- Carnifexes (default: scything talons + extra scything talons)
   carnifexTalons: {
     id: 'carnifexTalons',
-    name: 'Косы Карнифекса (Carnifex Scything Talons)',
+    name: tr('Carnifex Scything Talons'),
     profiles: [{ name: '', range: 'melee', attacks: 6, skill: 4, s: 9, ap: -2, d: 3, keywords: {} }],
   },
   carnifexExtraTalons: {
     id: 'carnifexExtraTalons',
-    name: 'Дополнительные косы Карнифекса (Carnifex Extra Scything Talons)',
+    name: tr('Carnifex Extra Scything Talons'),
     profiles: [{ name: '', range: 'melee', attacks: 2, skill: 4, s: 9, ap: -2, d: 3, keywords: { extraAttacks: true } }],
   },
   // ---- Barbgaunts
   barblauncher: {
     id: 'barblauncher',
-    name: 'Шипомёт-бомбардир (Barblauncher)',
+    name: tr('Barblauncher'),
     profiles: [{ name: '', range: 24, attacks: 0, randomA: 'D6', skill: 4, s: 5, ap: 0, d: 1, keywords: { blast: 1, heavy: true } }],
   },
   barbgauntClaws: {
     id: 'barbgauntClaws',
-    name: 'Хитиновые когти и зубы (Chitinous Claws and Teeth)',
+    name: tr('Chitinous Claws and Teeth'),
     profiles: [{ name: '', range: 'melee', attacks: 1, skill: 4, s: 4, ap: 0, d: 1, keywords: {} }],
   },
 }
@@ -53,60 +54,60 @@ const zoanthrope = { m: 5, t: 5, sv: 5, w: 3, ld: 7, oc: 1, invuln: 4, baseMm: 4
 
 export const TYRANID_EXTRA_PROFILES: Record<string, ModelProfile> = {
   wingedPrime: {
-    id: 'wingedPrime', name: 'Крылатый Прайм тиранидов', m: 12, t: 5, sv: 4, w: 6, ld: 7, oc: 1, baseMm: 50, character: true,
+    id: 'wingedPrime', name: tr('Winged Tyranid Prime|short'), m: 12, t: 5, sv: 4, w: 6, ld: 7, oc: 1, baseMm: 50, character: true,
     weapons: ['primeTalons'],
   },
   // the page gives no separate Neurothrope profile: it uses the Zoanthrope one
-  neurothrope: { id: 'neurothrope', name: 'Нейротроп', ...zoanthrope },
-  zoanthrope: { id: 'zoanthrope', name: 'Зоантроп', ...zoanthrope },
+  neurothrope: { id: 'neurothrope', name: tr('Neurothrope'), ...zoanthrope },
+  zoanthrope: { id: 'zoanthrope', name: tr('Zoanthrope'), ...zoanthrope },
   // the datasheet base is a 105×70 mm oval; the engine has round bases, so this is the round base of the same area
   carnifex: {
-    id: 'carnifex', name: 'Карнифекс', m: 8, t: 9, sv: 2, w: 8, ld: 8, oc: 3, baseMm: 86,
+    id: 'carnifex', name: tr('Carnifex'), m: 8, t: 9, sv: 2, w: 8, ld: 8, oc: 3, baseMm: 86,
     weapons: ['carnifexTalons', 'carnifexExtraTalons'],
   },
   barbgaunt: {
-    id: 'barbgaunt', name: 'Барбгаунт', m: 6, t: 4, sv: 4, w: 2, ld: 8, oc: 1, baseMm: 40,
+    id: 'barbgaunt', name: tr('Barbgaunt'), m: 6, t: 4, sv: 4, w: 2, ld: 8, oc: 1, baseMm: 40,
     weapons: ['barblauncher', 'barbgauntClaws'],
   },
 }
 
 export const TYRANID_EXTRA_DATASHEETS: Record<string, Datasheet> = {
   wingedPrime: {
-    id: 'wingedPrime', name: 'Крылатый Прайм тиранидов (Winged Tyranid Prime)', faction: 'tyranids',
+    id: 'wingedPrime', name: tr('Winged Tyranid Prime'), faction: 'tyranids',
     keywords: ['INFANTRY', 'CHARACTER', 'FLY', 'GREAT DEVOURER', 'SYNAPSE', 'VANGUARD INVADER', 'WINGED TYRANID PRIME', 'TYRANIDS'],
     abilities: ['synapse', 'shadowInTheWarp', 'alphaWarrior', 'deathBlow', 'deepStrike'],
-    description: 'Крылатый командир-синапс: M12″, летает; рядом с Воинами тиранидов их атаки получают Sustained Hits 1.',
+    description: tr('Winged synapse commander: M12″, flies; near Tyranid Warriors their attacks get Sustained Hits 1.'),
   },
   zoanthropes: {
-    id: 'zoanthropes', name: 'Зоантропы (Zoanthropes)', faction: 'tyranids',
+    id: 'zoanthropes', name: tr('Zoanthropes'), faction: 'tyranids',
     keywords: ['INFANTRY', 'PSYKER', 'FLY', 'GREAT DEVOURER', 'SYNAPSE', 'ZOANTHROPES', 'TYRANIDS'],
     abilities: ['synapse', 'warpField', 'spiritLeech'],
-    description: 'Психические пушки: варп-взрыв на 24″ бьёт по технике (S12, D6+1); аура дарит соседям 6+ непробиваемый спас.',
+    description: tr('Psychic cannons: a 24″ warp blast hits vehicles (S12, D6+1); the aura gives neighbours a 6+ invulnerable save.'),
   },
   carnifexes: {
-    id: 'carnifexes', name: 'Карнифексы (Carnifexes)', faction: 'tyranids',
+    id: 'carnifexes', name: tr('Carnifexes'), faction: 'tyranids',
     keywords: ['MONSTER', 'GREAT DEVOURER', 'CARNIFEXES', 'TYRANIDS'],
     abilities: ['synapse', 'deadlyDemise1', 'blisteringAssault'],
-    description: 'Живой таран: T9, 2+ спас, W8; косы S9 D3 рвут технику и тяжёлую пехоту.',
+    description: tr('Living battering ram: T9, 2+ save, W8; S9 D3 talons tear through vehicles and heavy infantry.'),
   },
   barbgaunts: {
-    id: 'barbgaunts', name: 'Барбгаунты (Barbgaunts)', faction: 'tyranids',
+    id: 'barbgaunts', name: tr('Barbgaunts'), faction: 'tyranids',
     keywords: ['INFANTRY', 'GREAT DEVOURER', 'BARBGAUNTS', 'TYRANIDS'],
     abilities: ['synapse', 'disruptionBombardment'],
-    description: 'Обстрел с 24″: попав по пехоте, «оглушают» её — −2″ к движению, продвижению и атаке до конца её следующего хода.',
+    description: tr('Bombardment from 24″: after hitting infantry they “stun” it — −2″ to its movement, Advance and charge until the end of its next turn.'),
   },
 }
 
 export const TYRANID_EXTRA_ABILITY_TEXT: Record<string, string> = {
   alphaWarrior:
-    'Альфа-воин (Alpha Warrior): пока Прайм ведёт отряд, оружие отряда получает Sustained Hits 1. [Приближение: присоединения лидеров нет — Прайм в 3″ от отряда Воинов тиранидов считается ведущим его, Sustained Hits 1 получают и Прайм, и Воины.]',
+    tr('Alpha Warrior: while a Prime leads the unit, the unit’s weapons get Sustained Hits 1. [Approximation: there is no leader attachment — a Prime within 3″ of a Tyranid Warriors unit counts as leading it, and both the Prime and the Warriors get Sustained Hits 1.]'),
   deathBlow:
-    'Смертельный удар (Death Blow): если Прайм уничтожен в ближнем бою до того, как сражался, на 4+ он успевает ударить в ответ. [Не реализовано.]',
-  warpField: 'Варп-поле (Warp Field, аура): союзные отряды Тиранидов в 6″ от Зоантропов имеют 6+ непробиваемый спасбросок.',
+    tr('Death Blow: if the Prime is destroyed in melee before it fought, on a 4+ it manages to strike back. [Not implemented.]'),
+  warpField: tr('Warp Field (aura): friendly Tyranid units within 6″ of the Zoanthropes have a 6+ invulnerable save.'),
   spiritLeech:
-    'Пожиратель духа (Spirit Leech, аура): вражеский отряд в 6″, проваливший проверку боевого шока, получает D3 смертельные раны, а один Зоантроп лечит D3 раны. [Не реализовано.]',
+    tr('Spirit Leech (aura): an enemy unit within 6″ that fails a Battle-shock test takes D3 mortal wounds, and one Zoanthrope heals D3 wounds. [Not implemented.]'),
   blisteringAssault:
-    'Яростный натиск (Blistering Assault): в фазе стрельбы противника, если стрелявший враг ранил модель отряда, отряд может сделать рывок до D6+2″. [Не реализовано: в игре нет ответных действий в чужой ход.]',
+    tr('Blistering Assault: in the opponent’s Shooting phase, if the shooting enemy wounded a model of the unit, the unit can make a dash of up to D6+2″. [Not implemented: the game has no reactive actions in the opponent’s turn.]'),
   disruptionBombardment:
-    'Подавляющий обстрел (Disruption Bombardment): после стрельбы выберите вражескую пехоту, по которой были попадания: до конца её следующего хода −2″ к характеристике движения и −2 к броскам продвижения и атаки (charge).',
+    tr('Disruption Bombardment: after shooting pick the enemy infantry that was hit: until the end of its next turn −2″ to its Move characteristic and −2 to Advance and charge rolls.'),
 }

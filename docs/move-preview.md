@@ -1,14 +1,14 @@
 # Line of sight preview while moving
 
-In the movement phase, select one of your units that has not moved yet. A panel in the top-left corner of the board, «👁 Если встать здесь» («С текущей позиции» before you drag), shows what happens if the unit ends its move there:
+In the movement phase, select one of your units that has not moved yet. A panel in the top-left corner of the board, “👁 If you stand here” (“From the current position” before you drag), shows what happens if the unit ends its move there:
 
 | Row | Meaning |
 |---|---|
-| 🎯 Сможете стрелять | enemy units this unit could shoot in the coming shooting phase, with the expected wounds and, when not all of them would fire, how many models do («стреляют 4 из 10») |
-| ⚠ По «…» выстрелят только N из M | the best target is reached by fewer than half of the unit's models (terrain blocks the rest, or they are out of range): move so that the whole unit sees it |
-| 👁 Видно, но не достать | enemy units it sees, but no weapon reaches (or only Assault weapons may fire after an Advance) |
-| ⚠ По вам смогут стрелять | enemy units that could shoot it there in their next turn if they stay where they are, with the expected wounds |
-| ⚔ Могут атаковать | enemy units that could charge it next turn, with the chance that the 2D6 roll covers the distance after their normal move |
+| 🎯 You will be able to shoot | enemy units this unit could shoot in the coming shooting phase, with the expected wounds and, when not all of them would fire, how many models do (“4 of 10 fire”) |
+| ⚠ Only N of M models will fire at “…” | the best target is reached by fewer than half of the unit's models (terrain blocks the rest, or they are out of range): move so that the whole unit sees it |
+| 👁 Visible but out of reach | enemy units it sees, but no weapon reaches (or only Assault weapons may fire after an Advance) |
+| ⚠ They will be able to shoot you | enemy units that could shoot it there in their next turn if they stay where they are, with the expected wounds |
+| ⚔ They can charge | enemy units that could charge it next turn, with the chance that the 2D6 roll covers the distance after their normal move |
 
 On the board the same enemy units get rings, which the legend explains:
 
@@ -28,18 +28,18 @@ The enemy is taken as it would stand at the start of its turn (not moved yet). F
 
 ## Charges from the planned spot
 
-After a normal move, the panel also lists «🗡 Сможете атаковать (charge)» for up to three enemy units within 12″ of the planned spot:
+After a normal move, the panel also lists “🗡 You will be able to charge (charge)” for up to three enemy units within 12″ of the planned spot:
 
 - the distance;
 - the chance on 2D6;
 - the expected wounds;
-- «добьёт» when that is enough to destroy the unit.
+- “will finish it off” when that is enough to destroy the unit.
 
 These come from the charge forecast of the Charge phase (`chargeAdvice.ts`), run on the planned positions. Dragging a unit a few inches closer to its target shows straight away how much the charge chance improves. There is no charge after an Advance or a Fall Back, so the line is not shown then.
 
 ## Stay in combat or fall back
 
-For a unit locked in melee, the panel shows a verdict, «↩ Лучше выйти из боя» or «🛡 Лучше остаться в бою», with the reason and the numbers:
+For a unit locked in melee, the panel shows a verdict, “↩ Better to disengage” or “🛡 Better to stay in the fight”, with the reason and the numbers:
 
 - **Staying:** expected wounds dealt to and taken from the enemies it is locked with, per fight.
 - **Falling back:** no shooting this turn (core rules), then its best volley next turn.

@@ -36,7 +36,7 @@ The AI's `decide` is a pure function of the state, so where it runs does not cha
 - **The submit path is unchanged.** The decision goes through the same pipeline as before (`nextEnvelope` → `submit`), including the forced `endPhase` safeguard.
 - **Fallbacks.** Without workers (tests, jsdom, old browsers), when the worker reports an error, or when it crashes, `decideAsync` computes on the main thread instead.
 - **Synchronous path.** `store.aiStep()` stays synchronous. Tests and tools use it, and it makes exactly the same move.
-- **Indicator.** The side panel shows «ИИ думает над ходом…» while a decision is in flight (`store.aiThinking`).
+- **Indicator.** The side panel shows “AI is thinking about its move…” while a decision is in flight (`store.aiThinking`).
 
 ## Sides, participants, controllers
 

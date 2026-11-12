@@ -5,6 +5,7 @@ import { DATASHEETS, FACTION_NAME } from '../game/data/datasheets'
 import { FACTIONS, type PlayerId } from '../game/types'
 import { scenarioById, SCENARIOS } from '../game/scenarios/scenarios'
 import type { LobbyState } from './protocol'
+import { tr } from '../i18n/index'
 
 const supports = (scenarioId: string, a: PlayerId, b: PlayerId) => {
   const f = SCENARIOS.find((s) => s.id === scenarioId)?.factions
@@ -36,17 +37,17 @@ export const guestChoices = (l: LobbyState): PlayerId[] => FACTIONS.filter((f) =
 
 /** Returns a Russian reason when the match cannot start yet, else null. */
 export function startProblem(l: LobbyState): string | null {
-  if (!l.guestConnected) return 'Ждём второго игрока.'
-  if (!l.guestReady) return 'Второй игрок ещё не готов.'
-  if (l.hostSide === l.guestSide) return 'Фракции игроков должны различаться.'
-  if (!supports(l.scenarioId, l.hostSide, l.guestSide)) return 'В сценарии нет армий для этой пары фракций.'
-  for (const [who, side, list] of [['хозяина', l.hostSide, l.hostArmy], ['гостя', l.guestSide, l.guestArmy]] as const) {
+  if (!l.guestConnected) return tr('Waiting for the second player.')
+  if (!l.guestReady) return tr('The second player is not ready yet.')
+  if (l.hostSide === l.guestSide) return tr('The players’ factions must differ.')
+  if (!supports(l.scenarioId, l.hostSide, l.guestSide)) return tr('The scenario has no armies for this pair of factions.')
+  for (const [who, side, list] of [[tr('host’s'), l.hostSide, l.hostArmy], [tr('guest’s'), l.guestSide, l.guestArmy]] as const) {
     const p = list ? listProblems(side, list) : []
-    if (p.length) return `Состав ${who} (${FACTION_NAME[side]}) нарушает правила: ${p[0]}`
+    if (p.length) return tr('The {who} roster ({item}) breaks the rules: {item2}', { who, item: FACTION_NAME[side], item2: p[0] })
   }
   return null
 }
 
-/** «Учебный состав» or «Свой состав: 495 / 500 очк., 6 отр.» for the lobby. */
+/** "Training roster" or "Own roster: 495 / 500 pts, 6 units" for the lobby. */
 export const armyLine = (list: ArmyList | null | undefined, points: (l: ArmyList) => number) =>
-  list ? `Свой состав: ${points(list)} / ${list.limit} очк., ${list.units.length} отр.${list.noDetachment ? ', без детачмента' : ''}` : 'Учебный состав'
+  list ? tr('Own roster: {points} / {limit} pts, {length} units{noDetachment}', { points: points(list), limit: list.limit, length: list.units.length, noDetachment: list.noDetachment ? tr(', no detachment') : '' }) : tr('Training roster')

@@ -14,6 +14,7 @@ import { deploymentProblem, deploymentZone } from '../game/rules/deployment'
 import { movePreview, type MovePreview } from '../game/movePreview'
 import { adviceLine, adviceWarnings, shotAdvice } from '../game/shotAdvice'
 import { chargeForecast, forecastLine } from '../game/chargeAdvice'
+import { tr } from '../i18n/index'
 
 const flat = (pts: Vec[]) => pts.flatMap((p) => [p.x, p.y])
 
@@ -89,9 +90,9 @@ export function Board() {
       <GuideBanner />
       {sight && <SightPanel sight={sight} />}
       <div className="absolute right-2 top-14 flex flex-col gap-1">
-        <button className="board-btn" onClick={() => zoomBy(1.25)} aria-label="Приблизить" title="Приблизить (колесо мыши)">+</button>
-        <button className="board-btn" onClick={() => zoomBy(0.8)} aria-label="Отдалить" title="Отдалить">−</button>
-        <button className="board-btn text-xs" onClick={() => setVp(null)} title="Вписать поле">⤢</button>
+        <button className="board-btn" onClick={() => zoomBy(1.25)} aria-label={tr('Zoom in')} title={tr('Zoom in (mouse wheel)')}>+</button>
+        <button className="board-btn" onClick={() => zoomBy(0.8)} aria-label={tr('Zoom out')} title={tr('Zoom out')}>−</button>
+        <button className="board-btn text-xs" onClick={() => setVp(null)} title={tr('Fit the field')}>⤢</button>
       </div>
       <Legend />
       {hover && <ModelTooltip hover={hover} view={view} width={size.w} />}
@@ -123,39 +124,39 @@ function useSightPreview(): Sight | null {
 
 function SightPanel({ sight }: { sight: Sight }) {
   const list = (rows: { name: string; extra?: string }[]) =>
-    rows.length ? rows.map((r) => (r.extra ? `${r.name} (${r.extra})` : r.name)).join(', ') : 'никого'
+    rows.length ? rows.map((r) => (r.extra ? `${r.name} (${r.extra})` : r.name)).join(', ') : tr('nobody')
   const pct = (p: number) => `${Math.round(p * 100)}%`
   return (
     <details open className="absolute left-2 top-[5.5rem] z-[1] w-[min(19rem,calc(100%-4rem))] rounded-lg border border-sky-700 bg-stone-950/90 px-2 py-1.5 text-[11px] leading-snug text-stone-200 shadow-lg" data-testid="sight-panel">
-      <summary className="cursor-pointer font-semibold text-sky-300">👁 {sight.planned ? 'Если встать здесь' : 'С текущей позиции'}</summary>
+      <summary className="cursor-pointer font-semibold text-sky-300">👁 {sight.planned ? tr('If you stand here') : tr('From the current position')}</summary>
       <ul className="mt-1 flex flex-col gap-1">
-        <li><span className="text-emerald-300">🎯 Сможете стрелять:</span> {list(sight.canShoot.map((r) => ({ name: r.name, extra: `~${fmt(r.dmg)} ран${r.firing !== undefined && r.models !== undefined && r.firing < r.models ? `, стреляют ${r.firing} из ${r.models}` : ''}` })))}</li>
-        {sight.partial && <li className="rounded border border-amber-600 px-1 py-0.5 text-amber-200">⚠ По «{sight.partial.name}» выстрелят только {sight.partial.firing} из {sight.partial.models} моделей: остальным мешает укрытие или не хватает дальности. Сдвиньте отряд, чтобы видел весь.</li>}
-        {sight.seenOutOfRange.length > 0 && <li><span className="text-amber-300">👁 Видно, но не достать:</span> {list(sight.seenOutOfRange)}</li>}
-        <li><span className="text-rose-300">⚠ По вам смогут стрелять:</span> {list(sight.shotBy.map((r) => ({ name: r.name, extra: `~${fmt(r.dmg)} ран` })))}</li>
-        <li><span className="text-orange-300">⚔ Могут атаковать:</span> {list(sight.chargedBy.map((r) => ({ name: r.name, extra: pct(r.p) })))}</li>
+        <li><span className="text-emerald-300">{tr('🎯 You will be able to shoot:')}</span> {list(sight.canShoot.map((r) => ({ name: r.name, extra: r.firing !== undefined && r.models !== undefined && r.firing < r.models ? tr('~{fmt} wounds, {firing} of {models} fire', { fmt: fmt(r.dmg), firing: r.firing, models: r.models }) : tr('~{fmt} wounds', { fmt: fmt(r.dmg) }) })))}</li>
+        {sight.partial && <li className="rounded border border-amber-600 px-1 py-0.5 text-amber-200">{tr('⚠ Only {firing} of {models} models will fire at “{name}”: cover blocks the rest or they lack range. Move the unit so that it all sees the target.', { name: sight.partial.name, firing: sight.partial.firing, models: sight.partial.models })}</li>}
+        {sight.seenOutOfRange.length > 0 && <li><span className="text-amber-300">{tr('👁 Visible but out of reach:')}</span> {list(sight.seenOutOfRange)}</li>}
+        <li><span className="text-rose-300">{tr('⚠ They will be able to shoot you:')}</span> {list(sight.shotBy.map((r) => ({ name: r.name, extra: tr('~{fmt} wounds', { fmt: fmt(r.dmg) }) })))}</li>
+        <li><span className="text-orange-300">{tr('⚔ They can charge:')}</span> {list(sight.chargedBy.map((r) => ({ name: r.name, extra: pct(r.p) })))}</li>
         {sight.charges.length > 0 && (
           <li>
-            <span className="text-emerald-300">🗡 Сможете атаковать (charge):</span>{' '}
+            <span className="text-emerald-300">{tr('🗡 You will be able to charge:')}</span>{' '}
             {sight.charges.slice(0, 3).map((c, i) => (
               <span key={c.targetId} className={c.verdict === 'bad' ? 'text-rose-300' : c.verdict === 'good' ? 'text-emerald-200' : 'text-amber-200'}>
-                {i > 0 ? ', ' : ''}{c.name} ({Math.ceil(c.distance)}″ — {pct(c.p)}, ~{fmt(c.dealt)} ран{c.killsDealt >= c.enemyModels - 1e-9 ? ', добьёт' : ''})
+                {i > 0 ? ', ' : ''}{tr('{name} ({ceil}″ — {pct}, ~{fmt} wounds', { name: c.name, ceil: Math.ceil(c.distance), pct: pct(c.p), fmt: fmt(c.dealt) })}{c.killsDealt >= c.enemyModels - 1e-9 ? tr(', will finish it off') : ''})
               </span>
             ))}
           </li>
         )}
         {sight.engagement && (
           <li className={`rounded border px-1 py-0.5 ${sight.engagement.verdict === 'leave' ? 'border-amber-600' : 'border-emerald-700'}`}>
-            <b>{sight.engagement.verdict === 'leave' ? '↩ Лучше выйти из боя (Fall Back)' : '🛡 Лучше остаться в бою'}</b>
+            <b>{sight.engagement.verdict === 'leave' ? tr('↩ Better to disengage (Fall Back)') : tr('🛡 Better to stay in the fight')}</b>
             <span className="block">{sight.engagement.why}</span>
             <span className="block text-stone-400">
-              Остаться: ~{fmt(sight.engagement.stayDealt)} ран врагу, ~{fmt(sight.engagement.stayTaken)} вам за бой. Выйти: в этот ход без стрельбы, со следующего ~{fmt(sight.engagement.shootNext)}{sight.engagement.shootTarget ? ` по «${sight.engagement.shootTarget}»` : ''}.
+              {tr('Stay: ~{fmt} wounds to the enemy, ~{fmt2} to you per fight. Disengage: no shooting this turn, from the next ~{fmt3}', { fmt: fmt(sight.engagement.stayDealt), fmt2: fmt(sight.engagement.stayTaken), fmt3: fmt(sight.engagement.shootNext) })}{sight.engagement.shootTarget ? tr(' at “{shootTarget}”', { shootTarget: sight.engagement.shootTarget }) : ''}.
             </span>
           </li>
         )}
         {sight.note && <li className="text-stone-400">{sight.note}</li>}
       </ul>
-      <p className="mt-1 text-[10px] text-stone-500">Раны — средние. Угрозы — если враг останется на месте; для атаки — после его хода, без учёта руин на пути.</p>
+      <p className="mt-1 text-[10px] text-stone-500">{tr('Wounds are averages. Threats — if the enemy stays in place; for a charge — after its move, not counting ruins in the way.')}</p>
     </details>
   )
 }
@@ -178,7 +179,7 @@ function useKeyboard() {
       } else if (e.key === 'Escape') {
         if (st.measuring) st.toggleMeasure()
         else if (Object.keys(st.draft).length) st.clearDraft()
-      } else if (e.key === 'r' || e.key === 'к') {
+      } else if (e.key === 'r' || e.key === '\u043a' /* the R key on a Russian layout */) {
         st.toggleMeasure()
       }
     }
@@ -192,7 +193,7 @@ function useKeyboard() {
 function GuideBanner() {
   const st = useStore()
   const hint = st.review
-    ? { text: 'Разбор атаки: нажимайте «Дальше ▶», чтобы пройти броски по шагам. Игра ждёт вас.', tone: 'info' as const }
+    ? { text: tr('Attack review: press “Next ▶” to go through the rolls step by step. The game is waiting for you.'), tone: 'info' as const }
     : st.deploying
     ? deploymentHint(st.game!, st.settings.human, { selectedUnitId: st.selectedUnitId, draft: st.draft, placed: st.deploying.placed })
     : nextStepHint(st.game!, st.settings.human, { ...st, aimFirst: st.settings.explain !== 'minimal' })
@@ -219,10 +220,10 @@ function TerrainShape({ t, editable, selected, onClick, onMove }: { t: Terrain; 
   const hatch: number[][] = []
   for (let k = -b.h; k < b.w; k += 0.4) hatch.push([k, 0, k + b.h, b.h])
   const effect: Record<Terrain['kind'], string> = {
-    ruin: 'закрывает обзор · технике не пройти', woods: 'закрывает обзор · технике не пройти', container: 'закрывает обзор · внутри не встать',
-    barricade: 'закрывает обзор · укрытие', crater: 'укрытие',
+    ruin: tr('blocks line of sight · vehicles cannot pass'), woods: tr('blocks line of sight · vehicles cannot pass'), container: tr('blocks line of sight · you cannot stand inside'),
+    barricade: tr('blocks line of sight · cover'), crater: tr('cover'),
   }
-  const dims = `${fmt(b.w)}×${fmt(b.h)}″ · ${effect[t.kind] ?? (t.obscuring ? 'закрывает обзор' : 'укрытие')}`
+  const dims = `${fmt(b.w)}×${fmt(b.h)}″ · ${effect[t.kind] ?? (t.obscuring ? tr('blocks line of sight') : tr('cover'))}`
   return (
     <Group
       x={b.x}
@@ -306,18 +307,18 @@ function Legend() {
   const ring = (cls: string) => <span className={`inline-block h-3.5 w-3.5 shrink-0 rounded-full border-2 ${cls}`} />
   return (
     <details className="absolute left-2 top-14 z-[2] max-w-56 rounded bg-black/70 px-2 py-1 text-[11px] text-stone-200">
-      <summary className="cursor-pointer">Обозначения</summary>
+      <summary className="cursor-pointer">{tr('Legend')}</summary>
       <ul className="mt-1 flex flex-col gap-0.5">
-        {row(ring('border-yellow-400'), 'выбранный отряд')}
-        {row(ring('border-dashed border-green-400'), 'может действовать / ждёт расстановки')}
-        {row(<span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-stone-600 text-[9px]">✓</span>, 'уже действовал в этой фазе')}
-        {row(ring('border-green-400 border-[3px]'), 'законная цель (клик — атаковать)')}
-        {row(ring('border-red-500'), 'недоступная цель / недопустимая позиция')}
-        {row(ring('border-dashed border-white/70'), 'исходная позиция (черновик хода)')}
-        {row(ring('border-dashed border-green-400'), 'фаза движения: отсюда сможете стрелять по нему')}
-        {row(ring('border-dotted border-amber-400'), 'фаза движения: видно, но оружие не достаёт')}
-        {row(ring('border-dotted border-rose-500'), 'фаза движения: опасен для вас (стрельба или атака)')}
-        {row(<span className="inline-block h-3 w-4 shrink-0 border-2 border-dashed border-yellow-400 bg-blue-800/50" />, 'зона развёртывания')}
+        {row(ring('border-yellow-400'), tr('selected unit'))}
+        {row(ring('border-dashed border-green-400'), tr('can act / waiting to be placed'))}
+        {row(<span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-stone-600 text-[9px]">✓</span>, tr('has already acted in this phase'))}
+        {row(ring('border-green-400 border-[3px]'), tr('legal target (click to attack)'))}
+        {row(ring('border-red-500'), tr('unavailable target / illegal position'))}
+        {row(ring('border-dashed border-white/70'), tr('starting position (draft of the move)'))}
+        {row(ring('border-dashed border-green-400'), tr('Movement phase: from here you can shoot at it'))}
+        {row(ring('border-dotted border-amber-400'), tr('Movement phase: visible, but the weapon does not reach'))}
+        {row(ring('border-dotted border-rose-500'), tr('Movement phase: dangerous to you (shooting or a charge)'))}
+        {row(<span className="inline-block h-3 w-4 shrink-0 border-2 border-dashed border-yellow-400 bg-blue-800/50" />, tr('deployment zone'))}
       </ul>
     </details>
   )
@@ -346,41 +347,41 @@ function ActionBar() {
   }
 
   if (game.phase === 'command' && human === 'orks' && !game.players.orks.waaaghUsed) btn('waaagh', { type: 'callWaaagh' }, '📣 WAAAGH!')
-  if (game.phase === 'command' && game.players[human].shadowUsed === false) btn('shadow', { type: 'callShadow' }, '🌑 Тень в Варпе')
+  if (game.phase === 'command' && game.players[human].shadowUsed === false) btn('shadow', { type: 'callShadow' }, tr('🌑 Shadow in the Warp'))
   if (game.phase === 'command' && game.players[human].imperative === null) {
-    btn('protector', { type: 'imperative', imperative: 'protector' }, '🛡 Протектор')
-    btn('conqueror', { type: 'imperative', imperative: 'conqueror' }, '⚔ Завоеватель')
+    btn('protector', { type: 'imperative', imperative: 'protector' }, tr('🛡 Protector'))
+    btn('conqueror', { type: 'imperative', imperative: 'conqueror' }, tr('⚔ Conqueror'))
   }
-  if (mine && hasAbility(mine, 'defendDivineWork') && !game.players[human].divineUsed) btn('divine', { type: 'divineWork', unitId: mine.id }, '⚙ Защита божественного труда')
+  if (mine && hasAbility(mine, 'defendDivineWork') && !game.players[human].divineUsed) btn('divine', { type: 'divineWork', unitId: mine.id }, tr('⚙ Defend the Divine Work'))
   if (game.phase === 'movement' && mine && mine.move === 'none') {
     const mode = moveModeFor(game, mine)
     if (hasDraft) {
-      buttons.push(<button key="reset" className="btn" onClick={() => st.clearDraft()} title="Вернуть модели на исходные места (Esc)">↺ Вернуть</button>)
-      btn('confirm', moveCommand(game, mine, st.draft, st.moveOptions), `✓ Подтвердить ${mode === 'advance' ? 'продвижение' : mode === 'fallBack' ? 'отступление' : 'движение'}`, true)
+      buttons.push(<button key="reset" className="btn" onClick={() => st.clearDraft()} title={tr('Return the models to their starting places (Esc)')}>{tr('↺ Undo')}</button>)
+      btn('confirm', moveCommand(game, mine, st.draft, st.moveOptions), tr('✓ Confirm {value}', { value: mode === 'advance' ? tr('advance') : mode === 'fallBack' ? tr('fall back') : tr('movement') }), true)
     } else if (mine.advanceRoll === null && mode === 'normal') {
-      btn('advance', { type: 'declareAdvance', unitId: mine.id }, '⚡ Продвинуться (+D6″)')
+      btn('advance', { type: 'declareAdvance', unitId: mine.id }, tr('⚡ Advance (+D6″)'))
     }
     if (mine.advanceRoll !== null && !mine.advanceRerolled && (hasAbility(mine, 'waaagh') || hasAbility(mine, 'superlativeStrategist')))
-      btn('reroll', { type: 'rerollAdvance', unitId: mine.id }, hasAbility(mine, 'waaagh') ? '🎲 Перебросить (Waaagh!)' : '🎲 Перебросить (Superlative Strategist)')
-    if (isFlyer(mine)) buttons.push(<button key="fly" className={`btn ${st.moveOptions.fly ? 'btn-primary' : ''}`} aria-pressed={st.moveOptions.fly} onClick={() => st.setMoveOptions({ fly: !st.moveOptions.fly })} title="FLY: −2″ к движению, зато модели пролетают над моделями и тиррейном">🕊 Взлететь (−2″)</button>)
-    if (hasAbility(mine, 'battleFocus') && (game.players[human].focus ?? 0) > 0) buttons.push(<button key="swift" className={`btn ${st.moveOptions.swift ? 'btn-primary' : ''}`} aria-pressed={st.moveOptions.swift} onClick={() => st.setMoveOptions({ swift: !st.moveOptions.swift })} title="Боевой фокус: жетон даёт +2″ к движению">✦ Swift as the Wind (+2″) · жетонов {game.players[human].focus}</button>)
+      btn('reroll', { type: 'rerollAdvance', unitId: mine.id }, hasAbility(mine, 'waaagh') ? tr('🎲 Re-roll (Waaagh!)') : tr('🎲 Re-roll (Superlative Strategist)'))
+    if (isFlyer(mine)) buttons.push(<button key="fly" className={`btn ${st.moveOptions.fly ? 'btn-primary' : ''}`} aria-pressed={st.moveOptions.fly} onClick={() => st.setMoveOptions({ fly: !st.moveOptions.fly })} title={tr('FLY: −2″ to movement, but the models fly over models and terrain')}>{tr('🕊 Take off (−2″)')}</button>)
+    if (hasAbility(mine, 'battleFocus') && (game.players[human].focus ?? 0) > 0) buttons.push(<button key="swift" className={`btn ${st.moveOptions.swift ? 'btn-primary' : ''}`} aria-pressed={st.moveOptions.swift} onClick={() => st.setMoveOptions({ swift: !st.moveOptions.swift })} title={tr('Battle Focus: a token gives +2″ to movement')}>{tr('✦ Swift as the Wind (+2″) · tokens {focus}', { focus: game.players[human].focus })}</button>)
     buttons.push(<DragModeToggle key="group" />)
   }
   if (game.phase === 'shooting' && mine && st.aimTargetId) {
     const aim = findUnit(game, st.aimTargetId)
     if (aim) {
-      buttons.push(<button key="unaim" className="btn" onClick={() => st.setAim(null)}>✕ Другая цель</button>)
-      btn('fire', { type: 'shoot', unitId: mine.id, targetId: aim.id, ...st.shotOptions }, `🎯 Огонь по «${aim.name}»`, true)
+      buttons.push(<button key="unaim" className="btn" onClick={() => st.setAim(null)}>{tr('✕ Another target')}</button>)
+      btn('fire', { type: 'shoot', unitId: mine.id, targetId: aim.id, ...st.shotOptions }, tr('🎯 Fire at “{name}”', { name: aim.name }), true)
     }
   }
   if (game.phase === 'charge' && mine) {
     // right after the charge roll (even a failed one): Command Re-roll, 1 CP
     const reroll: Command = { type: 'stratagem', id: 'commandReroll', unitId: mine.id }
-    if (game.lastCharge?.unitId === mine.id && validate(game, reroll).ok) btn('cmdReroll', reroll, '🎲 Перебросить атаку (1 CP)')
-    if (game.pendingCharge?.unitId === mine.id) btn('skip', { type: 'skipCharge', unitId: mine.id }, 'Отказаться от атаки')
-    else if (canActNow(game, mine)) btn('charge', { type: 'declareCharge', unitId: mine.id }, '🎲 Объявить атаку (2D6)')
+    if (game.lastCharge?.unitId === mine.id && validate(game, reroll).ok) btn('cmdReroll', reroll, tr('🎲 Re-roll the charge (1 CP)'))
+    if (game.pendingCharge?.unitId === mine.id) btn('skip', { type: 'skipCharge', unitId: mine.id }, tr('Give up the charge'))
+    else if (canActNow(game, mine)) btn('charge', { type: 'declareCharge', unitId: mine.id }, tr('🎲 Declare a charge (2D6)'))
   }
-  if (st.history.length) buttons.push(<button key="undo" className="btn" onClick={() => st.undo()} title="Отменить последнее действие без бросков кубиков">↶ Отменить</button>)
+  if (st.history.length) buttons.push(<button key="undo" className="btn" onClick={() => st.undo()} title={tr('Undo the last action without dice rolls')}>{tr('↶ Undo')}</button>)
 
   const endV = validate(game, { type: 'endPhase' })
   const warn = st.settings.explain !== 'minimal' ? endPhaseWarning(game, human) : null
@@ -395,7 +396,7 @@ function ActionBar() {
   }
   buttons.push(
     <button key="end" className={`btn ${hasDraft || (warn && armed !== phaseKey) ? '' : 'btn-primary'}`} disabled={!endV.ok} title={endV.ok ? warn ?? undefined : endV.reason} onClick={onEnd} data-testid="next-phase">
-      {armed === phaseKey && warn ? `Да, ${nextPhaseLabel(game).toLowerCase()}` : nextPhaseLabel(game)} ▶
+      {armed === phaseKey && warn ? tr('Yes, {toLowerCase}', { toLowerCase: nextPhaseLabel(game).toLowerCase() }) : nextPhaseLabel(game)} ▶
     </button>,
   )
   return (
@@ -415,9 +416,9 @@ export function DragModeToggle() {
     </button>
   )
   return (
-    <div className="flex overflow-hidden rounded border border-stone-600" role="group" aria-label="Что двигает перетаскивание">
-      {opt(true, 'Весь отряд', 'Перетаскивание одной модели сдвигает весь отряд')}
-      {opt(false, 'По одной модели', 'Каждая модель двигается отдельно; можно сдвинуть одну, две или все, затем одно подтверждение')}
+    <div className="flex overflow-hidden rounded border border-stone-600" role="group" aria-label={tr('What dragging moves')}>
+      {opt(true, tr('Whole unit'), tr('Dragging one model moves the whole unit'))}
+      {opt(false, tr('One model at a time'), tr('Each model moves separately; you can move one, two or all, then one confirmation'))}
     </div>
   )
 }
@@ -428,21 +429,21 @@ function DeployBar() {
   const sel = st.selectedUnitId ? findUnit(game, st.selectedUnitId) : undefined
   const mine = sel && sel.owner === st.settings.human ? sel : undefined
   const hasDraft = Object.keys(st.draft).length > 0
-  const why = mine ? deploymentProblem(game, mine, st.draft) : 'Выберите свой отряд.'
+  const why = mine ? deploymentProblem(game, mine, st.draft) : tr('Pick your unit.')
   const placed = st.deploying!.placed
   const allPlaced = game.units.every((u) => u.owner !== st.settings.human || placed.includes(u.id))
   return (
     <div className="absolute bottom-3 left-1/2 z-[1] flex max-w-[95%] -translate-x-1/2 flex-wrap items-stretch justify-center gap-1 rounded-xl bg-black/70 p-1.5 shadow-xl">
-      {hasDraft && <button className="btn" onClick={() => st.clearDraft()} title="Вернуть модели как было (Esc)">↺ Вернуть</button>}
+      {hasDraft && <button className="btn" onClick={() => st.clearDraft()} title={tr('Return the models as they were (Esc)')}>{tr('↺ Undo')}</button>}
       {mine && (
         <button className={`btn ${allPlaced && !hasDraft ? '' : 'btn-primary'}`} disabled={!!why} title={why ?? 'Enter'} onClick={() => st.placeUnit(mine.id)}>
-          ✓ Поставить «{mine.name}»{placed.includes(mine.id) && !hasDraft ? ' (уже стоит)' : ''}
+          {tr('✓ Place “{name}”', { name: mine.name })}{placed.includes(mine.id) && !hasDraft ? tr(' (already placed)') : ''}
         </button>
       )}
       <DragModeToggle />
-      {st.deployHistory.length > 0 && <button className="btn" onClick={() => st.undo()} title="Отменить последнюю расстановку">↶ Отменить</button>}
-      <button className={`btn ${allPlaced && !hasDraft ? 'btn-primary' : ''}`} disabled={!allPlaced} title={allPlaced ? 'Бросок за первый ход и начало раунда 1' : 'Сначала расставьте все свои отряды'} onClick={() => st.finishDeployment()}>
-        Начать битву ▶
+      {st.deployHistory.length > 0 && <button className="btn" onClick={() => st.undo()} title={tr('Undo the last placement')}>{tr('↶ Undo')}</button>}
+      <button className={`btn ${allPlaced && !hasDraft ? 'btn-primary' : ''}`} disabled={!allPlaced} title={allPlaced ? tr('Roll for the first turn and the start of round 1') : tr('First place all your units')} onClick={() => st.finishDeployment()}>
+        {tr('Start the battle ▶')}
       </button>
     </div>
   )
@@ -462,20 +463,20 @@ function ModelTooltip({ hover, view, width }: { hover: Hover; view: Viewport; wi
   const lines: { text: string; cls?: string }[] = []
   if (sel && sel.owner === human && u.owner !== human && actor(game) === human) {
     const d = Math.min(...alive(sel).map((a) => modelDistance(a, m)))
-    lines.push({ text: `До «${sel.name}»: ${fmt(d)}″ (от края подставки)` })
+    lines.push({ text: tr('To “{name}”: {fmt}″ (from the base edge)', { name: sel.name, fmt: fmt(d) }) })
     const cmd = targetCommand(game, sel, u)
     if (cmd) {
       const v = validate(game, cmd.type === 'shoot' ? { ...cmd, ...st.shotOptions } : cmd)
       if (v.ok && cmd.type === 'shoot') {
         const plan = shootPlan(game, sel, u, st.shotOptions)
-        lines.push({ text: `🎯 Клик — стрелять: ${plan.groups.reduce((a, g) => a + g.attacks, 0)} атак${plan.cover ? ', цель в укрытии (−1 BS)' : ''}`, cls: 'text-emerald-300' })
+        lines.push({ text: tr('🎯 Click to shoot: {reduce} attacks{value}', { reduce: plan.groups.reduce((a, g) => a + g.attacks, 0), value: plan.cover ? tr(', target in cover (−1 BS)') : '' }), cls: 'text-emerald-300' })
         const all = shotAdvice(game, sel, st.shotOptions)
         const a = all.find((x) => x.targetId === u.id)
         if (a) {
-          lines.push({ text: `${adviceLine(a)}${a.best ? ' · лучшая цель' : ''}`, cls: a.best ? 'text-emerald-300' : undefined })
+          lines.push({ text: `${adviceLine(a)}${a.best ? tr(' · best target') : ''}`, cls: a.best ? 'text-emerald-300' : undefined })
           for (const w of adviceWarnings(a, all)) lines.push({ text: `⚠ ${w}`, cls: 'text-amber-300' })
         }
-      } else if (v.ok) lines.push({ text: cmd.type === 'fight' ? '⚔ Клик — сражаться' : '⚔ Клик — атаковать (charge)', cls: 'text-emerald-300' })
+      } else if (v.ok) lines.push({ text: cmd.type === 'fight' ? tr('⚔ Click to fight') : tr('⚔ Click to charge'), cls: 'text-emerald-300' })
       else lines.push({ text: `⛔ ${v.reason}`, cls: 'text-rose-300' })
     }
     // charge forecast for this enemy unit
@@ -569,7 +570,7 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
     }
     const t = targets[u.id]
     if (t) {
-      // shooting for learners: first pick the target and read the breakdown, then «Огонь»
+      // shooting for learners: first pick the target and read the breakdown, then "Fire"
       if (t.ok && t.cmd.type === 'shoot' && st.settings.explain !== 'minimal') st.setAim(u.id)
       else if (t.ok) st.dispatch(t.cmd)
       else {
@@ -623,7 +624,7 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
             <>
               <Circle x={m.pos.x} y={m.pos.y} radius={r} stroke="#ffffff" strokeWidth={0.05} dash={[0.15, 0.1]} opacity={0.6} listening={false} />
               <Line points={flat([m.pos, pos])} stroke="#ffffff" strokeWidth={0.05} dash={[0.2, 0.1]} listening={false} />
-              {!deploying && <Text x={m.pos.x - 1} y={m.pos.y - r - 0.5} width={2} align="center" text={`${fmt(dist(m.pos, pos))}″ из ${fmt(max)}″`} fontSize={0.38} fill="#ffffff" shadowColor="black" shadowBlur={0.1} listening={false} />}
+              {!deploying && <Text x={m.pos.x - 1} y={m.pos.y - r - 0.5} width={2} align="center" text={tr('{fmt}″ of {fmt2}″', { fmt: fmt(dist(m.pos, pos)), fmt2: fmt(max) })} fontSize={0.38} fill="#ffffff" shadowColor="black" shadowBlur={0.1} listening={false} />}
             </>
           )}
           <Group
@@ -735,7 +736,7 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
     grid.push(<Line key={`gy${y}`} points={[0, y, W, y]} stroke={major ? BOARD_STYLE.gridMajor : BOARD_STYLE.grid} strokeWidth={major ? 0.04 : 0.015} listening={false} />)
     if (major) grid.push(<Text key={`ry${y}`} x={-1.1} y={y - 0.17} width={0.95} align="right" text={`${y}″`} fontSize={0.34} fill={BOARD_STYLE.ink} opacity={0.7} listening={false} />)
   }
-  grid.push(<Text key="dims" x={0} y={H + 0.2} width={W} align="center" text={`ПОЛЕ ${W}″ × ${H}″ · СЕТКА 1″`} fontSize={0.34} fill={BOARD_STYLE.ink} opacity={0.6} letterSpacing={0.05} listening={false} />)
+  grid.push(<Text key="dims" x={0} y={H + 0.2} width={W} align="center" text={tr('FIELD {W}″ × {H}″ · GRID 1″', { W, H })} fontSize={0.34} fill={BOARD_STYLE.ink} opacity={0.6} letterSpacing={0.05} listening={false} />)
 
   const onTerrainMove = (t: Terrain, b: Box, node: Konva.Node) => {
     const fitted = fitBox(b, game.board)
@@ -757,7 +758,7 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
               <Line points={flat(zone)} closed stroke={FACTION_LINE[p]} strokeWidth={0.04} dash={[0.15, 0.15]} opacity={0.5} />
               {deploying && own && <Line points={flat(zone)} closed stroke="#facc15" strokeWidth={0.1} dash={[0.4, 0.2]} />}
               {deploying && (
-                <Text x={zone[0].x + 0.2} y={game.board.height - 0.7} text={own ? 'ВАША ЗОНА' : 'зона противника'} fontSize={0.45} fontStyle="bold" fill={own ? '#facc15' : '#d6d3d1'} />
+                <Text x={zone[0].x + 0.2} y={game.board.height - 0.7} text={own ? tr('YOUR ZONE') : tr('enemy zone')} fontSize={0.45} fontStyle="bold" fill={own ? '#facc15' : '#d6d3d1'} />
               )}
             </Group>
           )
@@ -784,7 +785,7 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
               <Circle radius={r * 0.45} stroke={col} strokeWidth={0.05} />
               <Line points={[-r - 0.35, 0, r + 0.35, 0]} stroke={col} strokeWidth={0.04} />
               <Line points={[0, -r - 0.35, 0, r + 0.35]} stroke={col} strokeWidth={0.04} />
-              <Text x={r * 0.55} y={-r - 0.55} text={`Ц${i + 1}${o.role === 'home' ? ' дом' : o.role === 'central' ? ' центр' : o.role === 'expansion' ? ' фланг' : ''}`} fontSize={0.4} fontStyle="bold" fill={col} />
+              <Text x={r * 0.55} y={-r - 0.55} text={o.role === 'home' ? tr('O{value} home', { value: i + 1 }) : o.role === 'central' ? tr('O{value} center', { value: i + 1 }) : o.role === 'expansion' ? tr('O{value} flank', { value: i + 1 }) : tr('O{value}', { value: i + 1 })} fontSize={0.4} fontStyle="bold" fill={col} />
               {/* Gather Intel: operation markers placed at this objective, one small diamond per player */}
               {(game.mission?.markers ?? []).filter((x) => x.objectiveId === o.id).map((x, k) => (
                 <Rect key={x.owner} x={-r - 0.9 + k * 0.7} y={r + 0.3} width={0.45} height={0.45} rotation={45} fill={FACTION_LINE[x.owner]} stroke="#000" strokeWidth={0.03} />

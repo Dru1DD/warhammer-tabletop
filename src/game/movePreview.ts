@@ -6,6 +6,7 @@ import { dist } from './geometry/geometry'
 import { alive, CHARGE_RANGE, enemiesOf, ENGAGEMENT_RANGE, profileOf, unitDistance } from './gameState'
 import { unitCanSee } from './rules/visibility'
 import type { GameState, UnitState, Vec } from './types'
+import { tr } from '../i18n/index'
 
 // "What happens if I stand here?" for the movement phase: from the planned positions of one unit, which enemy units it
 // could shoot in the coming shooting phase (and the expected damage), which it sees but cannot reach, and which enemy
@@ -87,8 +88,8 @@ export function movePreview(s: GameState, unitId: string, draft: Record<string, 
   const hypo: GameState = { ...s, units: s.units.map((u) => (u.id === me.id ? me : u.owner !== me.owner ? fresh(u) : u)) }
   const foes = enemiesOf(hypo, me).filter((e) => alive(e).length)
   const out: MovePreview = { canShoot: [], seenOutOfRange: [], shotBy: [], chargedBy: [], note: null, partial: null, charges: [], engagement: null }
-  if (mode === 'advance') out.note = 'После продвижения (Advance) стреляет только оружие Assault, и атаковать (charge) нельзя.'
-  if (mode === 'fallBack') out.note = 'После отступления (Fall Back) отряд в этот ход не стреляет и не атакует.'
+  if (mode === 'advance') out.note = tr('After an Advance only Assault weapons shoot, and the unit cannot charge.')
+  if (mode === 'fallBack') out.note = tr('After falling back (Fall Back) the unit neither shoots nor charges this turn.')
 
   for (const e of foes) {
     const row = { unitId: e.id, name: e.name }
