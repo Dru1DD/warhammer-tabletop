@@ -158,11 +158,13 @@ export async function createRoom(restore?: { session: SavedHost; match: MatchSta
     host = new HostSession({
       port: storePort,
       newToken,
-      startMatch: (l) => useStore.getState().startSharedHost({ scenarioId: l.scenarioId, hostSide: l.hostSide, guestSide: l.guestSide, assignments: sharedAssignments(l.hostSide, l.guestSide) }),
+      startMatch: (l) => useStore.getState().startSharedHost({ scenarioId: l.scenarioId, hostSide: l.hostSide, guestSide: l.guestSide, hostArmy: l.hostArmy ?? null, guestArmy: l.guestArmy ?? null, assignments: sharedAssignments(l.hostSide, l.guestSide) }),
       onChange: (s: HostState) => set({ lobby: s.lobby, playing: s.playing, guest: s.guest }),
       onSession: ({ token, gameId }) => saveToStorage(HOST_SESSION_KEY, JSON.stringify({ code, token, gameId })),
     })
     if (restore) host.resume(restore.match, restore.session.token)
+    // the host plays the faction and the army list of its start screen
+    else configureRoom({ hostSide: useStore.getState().settings.human })
     h.onConnection((link) => host?.accept(link))
     h.onSignaling((up) => set({ status: up ? 'connected' : 'reconnecting' }))
     set({ code, status: 'connected', busy: false, lobby: host.state.lobby, playing: host.state.playing })
@@ -174,7 +176,9 @@ export async function createRoom(restore?: { session: SavedHost; match: MatchSta
   }
 }
 
-export const configureRoom = (c: { scenarioId?: string; hostSide?: PlayerId }) => host?.setConfig(c)
+/** Host lobby settings; a faction change also brings that faction's list from the army builder (or the training roster). */
+export const configureRoom = (c: { scenarioId?: string; hostSide?: PlayerId }) =>
+  host?.setConfig(c.hostSide ? { ...c, hostArmy: useStore.getState().settings.armies?.[c.hostSide] ?? null } : c)
 
 /** Host presses «Начать матч»; returns a Russian reason on failure. */
 export const startRoomMatch = (): string | null => (host ? host.start() : 'Комната не создана.')
@@ -258,7 +262,12 @@ async function reconnect(my: number, delays?: number[]) {
 /** Manual retry after the automatic attempts ran out. */
 export const retryReconnect = () => void reconnect(epoch, [0])
 
-export const setGuestPrefs = (p: { side?: PlayerId; ready?: boolean }) => guest?.setPrefs(p)
+/** Guest lobby choices; picking a faction or getting ready also sends that faction's list from the army builder. */
+export function setGuestPrefs(p: { side?: PlayerId; ready?: boolean }) {
+  const side = p.side ?? useMp.getState().lobby?.guestSide
+  const send = p.side !== undefined || p.ready === true
+  guest?.setPrefs(send && side ? { ...p, army: useStore.getState().settings.armies?.[side] ?? null } : p)
+}
 
 // ------------------------------------------------------------ leaving
 

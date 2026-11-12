@@ -144,7 +144,7 @@ The start screen has an army builder for both sides (yours and the AI's). Each f
 - **Учебный состав**: the scenario's training roster, no points limit. This is the old behaviour and the default.
 - **Пресет 500 / Пресет 1000**: a ready-made list for the limit. A preset is loaded into the list and can then be edited: change a unit size, remove a unit, add one.
 - **Rules checked** (`listProblems` in `src/game/army/armyList.ts`): only unit sizes the Field Manual lists, at most 3 copies of a datasheet (6 for BATTLELINE), total within the limit. Later copies of some units cost more (`POINTS_LATER` in `points.ts`). The start buttons stay disabled while a list breaks a rule.
-- **Board**: own lists play on «Боевой патруль». Picking a preset switches to it, and the duel boards are disabled while a list is in use. Online battles still use the training rosters.
+- **Board**: own lists play on «Боевой патруль». Picking a preset switches to it, and the duel boards are disabled while a list is in use. Online battles take each player's own list too (see `docs/multiplayer.md`).
 - **Loadouts** come from `COMPOSITION`: the leader model, then a repeating pattern, so a 10-model unit carries twice the special weapons of a 5-model one. Wargear choices are not in the builder yet.
 - **Мои составы и код армии** (`src/game/army/armyCode.ts`, `src/ui/ArmyCodes.tsx`):
   - **Мои составы.** Named lists per faction, saved in this browser (`wh40k-training-saved-armies`). The same name overwrites, the newest comes first, ✕ deletes.

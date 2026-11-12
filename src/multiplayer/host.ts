@@ -79,7 +79,7 @@ export class HostSession {
 
   // ------------------------------------------------------------ lobby
 
-  setConfig(c: { scenarioId?: string; hostSide?: PlayerId }) {
+  setConfig(c: { scenarioId?: string; hostSide?: PlayerId; hostArmy?: LobbyState['hostArmy'] }) {
     if (this.playing) return
     this.lobby = normalizeLobby({ ...this.lobby, ...c, guestReady: false })
     this.pushLobby()
@@ -205,6 +205,10 @@ export class HostSession {
         if (m.side !== undefined) {
           next.guestSide = m.side
           next.guestReady = false
+        }
+        if (m.army !== undefined) {
+          next.guestArmy = m.army
+          if (m.ready === undefined) next.guestReady = false
         }
         if (m.ready !== undefined) next.guestReady = m.ready
         const fixed = normalizeLobby(next)

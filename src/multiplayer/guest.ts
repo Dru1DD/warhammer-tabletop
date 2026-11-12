@@ -2,6 +2,7 @@
 // accepted actions are re-applied only to be checked against the host's dice record, a mismatch is answered with a host snapshot.
 
 import type { ActionRecord, CommandEnvelope, MatchState, RejectCode } from '../game/match/types'
+import type { ArmyList } from '../game/army/armyList'
 import type { PlayerId } from '../game/types'
 import type { Link } from './link'
 import { encode, GUEST_ID, parseMessage, PROTOCOL_VERSION, type JoinRefusal, type LobbyState, type NetMessage } from './protocol'
@@ -171,7 +172,7 @@ export class GuestSession {
     return true
   }
 
-  setPrefs(p: { side?: PlayerId; ready?: boolean }) {
+  setPrefs(p: { side?: PlayerId; ready?: boolean; army?: ArmyList | null }) {
     this.send({ type: 'prefs', ...p })
   }
 
