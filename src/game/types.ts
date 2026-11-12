@@ -268,6 +268,9 @@ export interface Objective {
   controller: PlayerId | null
   /** Objective Scouted: this player keeps control until the opponent's level exceeds theirs (absent otherwise) */
   held?: PlayerId
+  /** 44″×60″ maps: what the objective is for missions (home objectives belong to `home`) */
+  role?: 'home' | 'central' | 'expansion'
+  home?: PlayerId
 }
 
 export interface PlayerState {
@@ -400,6 +403,13 @@ export interface GameState {
   schemaVersion: number
   scenarioId: string
   board: { width: number; height: number }
+  /** the deployment zones of this battle, when the map is chosen per battle (44″×60″); else the scenario's */
+  deployment?: { west: Vec[]; east: Vec[] }
+  /** each player's half of the battlefield (44″×60″ maps) */
+  territory?: { west: Vec[]; east: Vec[] }
+  /** 44″×60″: the deployment map and terrain layout of this battle */
+  mapId?: string
+  layoutId?: string
   terrain: Terrain[]
   objectives: Objective[]
   players: Record<PlayerId, PlayerState>

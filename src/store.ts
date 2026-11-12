@@ -56,6 +56,9 @@ export interface Settings {
   scenarioId: string
   /** army-builder lists by faction; a faction without one fields its default training roster */
   armies?: Partial<Record<PlayerId, ArmyList>>
+  /** 44″×60″ board: the deployment map and the terrain layout ('random' or absent = a random one each battle) */
+  mapId?: string
+  layoutId?: string
 }
 
 /** A measuring endpoint: a point, or a model base (r > 0) for edge-to-edge distance. */
@@ -241,8 +244,9 @@ function savedLayouts(): Record<string, unknown> {
 /** Scenario state with the player's saved terrain layout (if valid) and the army lists. Throws when a list does not fit. */
 function buildScenario(s: Settings): GameState {
   const sc = scenarioById(s.scenarioId)
-  const custom = parseLayout(savedLayouts()[sc.id])
-  const g = sc.build(sidesFor(s.human, s.opponent), battleArmies(s), custom ?? undefined)
+  // the 44″×60″ boards change with the map, so a saved layout of the editor is not used there
+  const custom = sc.id === 'strike-force' ? null : parseLayout(savedLayouts()[sc.id])
+  const g = sc.build(sidesFor(s.human, s.opponent), battleArmies(s), custom ?? undefined, { mapId: s.mapId, layoutId: s.layoutId })
   if (custom) g.terrain = custom
   if (sc.customArmies) {
     // open battle: both armies start in the deployment preset that suits them (the AI first, unaware of the player)

@@ -171,7 +171,7 @@ describe('deployment of every army on either side', () => {
     expect(() => SCENARIOS[0].build(['tyranids', 'marines'])).toThrow()
     expect(() => scenarioById('combat-patrol').build(['necrons', 'necrons'])).toThrow()
   })
-  it('every scenario lists the factions it can field and builds for every listed pair', () => {
+  it('every scenario lists the factions it can field and builds for every listed pair', { timeout: 60_000 }, () => {
     for (const sc of SCENARIOS)
       for (const a of sc.factions) for (const b of sc.factions) if (a !== b) expect(sc.build([a, b]).units.length).toBeGreaterThan(0)
   })

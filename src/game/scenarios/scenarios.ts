@@ -4,6 +4,8 @@ import { DEFAULT_SIDES, newUnit, SCHEMA_VERSION, seats } from '../gameState'
 import type { GameState, PlayerId, PlayerState, Terrain, UnitState, Vec } from '../types'
 import type { ArmyList } from '../army/armyList'
 import { musterArmy } from '../army/placement'
+import { presetList } from '../army/armyList'
+import { LAYOUT_NAME, layoutFor, MAPS, pickLayout, pickMap, type LayoutId, type MapId } from './strikeForce'
 
 /** Army lists by faction; a faction without one fields its default training roster. */
 export type Armies = Partial<Record<PlayerId, ArmyList>>
@@ -17,8 +19,9 @@ export interface Scenario {
   deployment: { west: Vec[]; east: Vec[] }
   /** factions that have an army for this board */
   factions: PlayerId[]
-  /** `sides` = [west, east] factions; default Space Marines (west) vs Orks (east) */
-  build: (sides?: [PlayerId, PlayerId], armies?: Armies, terrain?: Terrain[]) => GameState
+  /** `sides` = [west, east] factions; default Space Marines (west) vs Orks (east). `opts`: the map and layout of a
+   * board that has several (44″×60″); 'random' or absent picks one. */
+  build: (sides?: [PlayerId, PlayerId], armies?: Armies, terrain?: Terrain[], opts?: { mapId?: string; layoutId?: string }) => GameState
   /** true when the board takes army lists from the army builder (`armies` in `build`, set up around `terrain` if given) */
   customArmies?: boolean
 }
@@ -327,7 +330,38 @@ export const SCENARIOS: Scenario[] = [
       return state
     },
   },
+  {
+    id: 'strike-force',
+    name: 'Битва 44″×60″ (карты 11-й редакции)',
+    description:
+      'Полноразмерное поле 11-й редакции. Карта расстановки — одна из шести карточек колоды миссий 2026-27 (зоны и пять целей: по одной «домашней» у каждого, центральная и две на флангах), укрытия — одна из трёх раскладок. Армии — свои составы; без своего состава сторона играет пресетом на 1000 очков. Позиции на картах восстановлены по картам 10-й редакции (на карточках они только на картинках).',
+    victory: VICTORY,
+    deployment: MAPS.hammerAnvil.deployment,
+    factions: ['marines', 'orks', 'tyranids', 'necrons', 'aeldari', 'adeptus_mechanicus'],
+    customArmies: true,
+    build: (sides = DEFAULT_SIDES, armies = {}, layout, opts = {}) => {
+      assertSides(['marines', 'orks', 'tyranids', 'necrons', 'aeldari', 'adeptus_mechanicus'], sides)
+      const m = MAPS[pickMap(opts.mapId) as MapId]
+      const layoutId: LayoutId = pickLayout(opts.layoutId)
+      const state = baseState('strike-force', m.board, layout ?? layoutFor(layoutId, m.board), m.objectives.map((o) => o.pos), [], sides)
+      state.objectives.forEach((o, i) => {
+        const def = m.objectives[i]
+        o.role = def.role
+        if (def.side) o.home = def.side === 'west' ? sides[0] : sides[1]
+      })
+      state.deployment = m.deployment
+      state.territory = m.territory
+      state.mapId = m.id
+      state.layoutId = layoutId
+      for (const f of sides) musterArmy(state, f, armies[f] ?? presetList(f, 1000))
+      return state
+    },
+  },
 ]
+
+/** The 44″×60″ map and layout of a battle, for the player: «Молот и наковальня, раскладка A (Руины мануфактории)». */
+export const mapLine = (s: GameState) =>
+  s.mapId && s.mapId in MAPS ? `${MAPS[s.mapId as MapId].name} (${MAPS[s.mapId as MapId].nameEn}), раскладка ${s.layoutId} — ${LAYOUT_NAME[s.layoutId as LayoutId]}` : null
 
 /** The army `faction` fields in a scenario (null if the scenario has none): what the selection screen lists. */
 export function armyOf(scenarioId: string, faction: PlayerId): UnitState[] | null {

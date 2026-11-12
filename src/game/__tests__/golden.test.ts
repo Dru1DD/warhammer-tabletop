@@ -119,6 +119,9 @@ describe('golden master: engine + AI', () => {
   it('matches recorded AI-vs-AI games', { timeout: 300_000 }, () => {
     const actual: Record<string, Golden> = {}
     SCENARIOS.forEach((sc, i) => {
+      // the 44″×60″ board picks a random map when none is given, and its 1000-point battles are long: it has its own
+      // tests (strikeForce.test.ts) instead of golden games
+      if (sc.id === 'strike-force') return
       for (const level of LEVELS) for (const seed of SEEDS) actual[key(sc.id, level, seed)] = play(i, level, seed)
     })
 
