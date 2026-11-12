@@ -2,7 +2,9 @@ import { useEffect, useRef } from 'react'
 import type { RerollKind } from '../game/combat/attack'
 import { findUnit, fmt } from '../game/gameState'
 import type { GameState, PlayerId } from '../game/types'
+import { DECISION_TIMEOUT } from '../multiplayer/host'
 import { useStore } from '../store'
+import { useCountdown } from './useCountdown'
 
 const KIND_TEXT: Record<RerollKind, string> = {
   attacks: 'Бросок числа атак',
@@ -15,6 +17,8 @@ const KIND_TEXT: Record<RerollKind, string> = {
 /** The pause in the middle of an attack: one die is worth a Command Re-roll (the game only stops when it is). */
 export function RerollPrompt({ game, human }: { game: GameState; human: PlayerId }) {
   const dispatch = useStore((s) => s.dispatch)
+  // online: the host keeps the die for a player who does not answer in time
+  const left = useCountdown(game, useStore((s) => !!s.shared) ? DECISION_TIMEOUT : 0)
   const primary = useRef<HTMLButtonElement>(null)
   useEffect(() => primary.current?.focus(), [game])
   const pr = game.pendingReroll
@@ -39,6 +43,7 @@ export function RerollPrompt({ game, human }: { game: GameState; human: PlayerId
           <button ref={primary} className="btn btn-primary flex-1" onClick={() => dispatch({ type: 'rerollChoice', reroll: true })}>Перебросить (1 CP)</button>
           <button className="btn flex-1" onClick={() => dispatch({ type: 'rerollChoice', reroll: false })}>Оставить</button>
         </div>
+        {left !== null && <p className="mt-2 text-center text-xs text-amber-300" role="timer">⏱ {left} с — потом кубик останется как есть.</p>}
       </div>
     </div>
   )

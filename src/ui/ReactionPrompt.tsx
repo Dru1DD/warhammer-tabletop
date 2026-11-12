@@ -3,7 +3,9 @@ import { findUnit } from '../game/gameState'
 import { reactionAdvice } from '../game/reactionAdvice'
 import { STRATAGEMS } from '../game/rules/stratagems'
 import type { GameState, PlayerId, ReactionWindow } from '../game/types'
+import { DECISION_TIMEOUT } from '../multiplayer/host'
 import { useStore } from '../store'
+import { useCountdown } from './useCountdown'
 
 const WINDOW_TEXT: Record<ReactionWindow, string | ((g: GameState) => string)> = {
   beforeShooting: 'Противник закончил движение. Сейчас начнётся его стрельба — можно ответить стратагемой.',
@@ -33,6 +35,8 @@ function windowText(g: GameState) {
 /** The pause in the opponent's turn: offers the reactions worth their CP, or passes on its own when none is. */
 export function ReactionPrompt({ game, human }: { game: GameState; human: PlayerId }) {
   const dispatch = useStore((s) => s.dispatch)
+  // online: the host passes for a player who does not answer in time
+  const left = useCountdown(game, useStore((s) => !!s.shared) ? DECISION_TIMEOUT : 0)
   const setMessage = useStore((s) => s.setMessage)
   const options = reactionAdvice(game)
   const useful = options.filter((o) => o.worth)
@@ -77,6 +81,7 @@ export function ReactionPrompt({ game, human }: { game: GameState; human: Player
           </details>
         )}
         <button className="btn mt-3 w-full" onClick={() => { setMessage(null); dispatch({ type: 'passReaction' }) }}>Пропустить</button>
+        {left !== null && <p className="mt-2 text-center text-xs text-amber-300" role="timer">⏱ {left} с — потом ход пойдёт дальше без реакции.</p>}
       </div>
     </div>
   )

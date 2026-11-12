@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMatch, nextEnvelope } from '../game/match/match'
+import { apply } from '../game/engine'
+import { scriptedRoller } from '../game/dice/dice'
+import { scenarioById } from '../game/scenarios/scenarios'
 import { bare } from '../game/__tests__/helpers'
 import { applyAccepted, matchFromSave, sharedAssignments, snapshotOf, viewAs } from './sync'
 import type { ActionRecord, CommandEnvelope, MatchState } from '../game/match/types'
@@ -13,12 +16,13 @@ import type { LobbyState } from './protocol'
 import { encode, GUEST_ID, HOST_ID, MAX_FROM_GUEST, parseMessage, PROTOCOL_VERSION } from './protocol'
 
 let tokenN = 0
-function setup(opts: { silence_ms?: number; match?: (l: LobbyState) => MatchState } = {}) {
+function setup(opts: { silence_ms?: number; decision_timeout_ms?: number; match?: (l: LobbyState) => MatchState } = {}) {
   const hp = hostPort()
   const host = new HostSession({
     port: hp.port,
     newToken: () => `tok-${++tokenN}`,
     silence_ms: opts.silence_ms,
+    decision_timeout_ms: opts.decision_timeout_ms,
     startMatch: (l) => {
       const m = opts.match ? opts.match(l) : testMatch(l)
       hp.set(m)
@@ -509,5 +513,70 @@ describe('disconnect and reconnect', () => {
     s.host.close()
     expect(s.guest.sendCommand(nextEnvelope(m, GUEST_ID, END))).toBe(false)
     expect(s.gp.port.get()).toBe(m)
+  })
+})
+
+// ---------------------------------------------------------------- decision timeout (stage 2 of the Stratagems)
+
+describe('a reaction or a re-roll question nobody answers', () => {
+  /** The guest's reaction window is open at the start (the host's Movement phase has just ended). */
+  const guestReaction = (l: LobbyState) => {
+    const m = testMatch(l)
+    const st = structuredClone(m.state)
+    st.phase = 'movement'
+    st.activePlayer = l.hostSide
+    st.reaction = { player: l.guestSide, window: 'beforeShooting', next: 'shooting' }
+    return createMatch(st, m.assignments, { gameId: 'g-test', mode: 'shared' })
+  }
+
+  it('is passed for the deciding player after the timeout, and the guest receives that action', () => {
+    const s = ready({ match: guestReaction, decision_timeout_ms: 1000 })
+    vi.advanceTimersByTime(999)
+    expect(s.hp.port.get()!.state.reaction).toBeTruthy()
+    vi.advanceTimersByTime(2)
+    const m = s.hp.port.get()!
+    expect(m.state.reaction).toBeFalsy()
+    expect(m.state.phase).toBe('shooting')
+    expect(m.history.at(-1)).toMatchObject({ playerId: GUEST_ID, command: PASS })
+    expect(json(s.gp.port.get())).toBe(json(m))
+  })
+
+  it('an answer in time cancels the timer', () => {
+    const s = ready({ match: guestReaction, decision_timeout_ms: 1000 })
+    vi.advanceTimersByTime(500)
+    s.guest.sendCommand(nextEnvelope(s.gp.port.get()!, GUEST_ID, PASS))
+    const v = s.hp.port.get()!.version
+    vi.advanceTimersByTime(5000)
+    expect(s.hp.port.get()!.version).toBe(v)
+  })
+
+  it('a Command Re-roll question of the host itself: the die is kept', () => {
+    // the Orks' Deff Dread fights the Marines' Redemptor; the Marines pass Armour of Contempt, then a failed save is offered
+    const fixture = () => {
+      let st = scenarioById('combat-patrol').build(['marines', 'orks'])
+      st.terrain = []
+      st.objectives = []
+      st.phase = 'charge'
+      st.activePlayer = 'orks'
+      st.firstPlayer = 'marines'
+      for (const u of st.units) if (!['red', 'dread'].includes(u.id)) u.models.forEach((x) => { x.destroyed = true })
+      st.units.find((u) => u.id === 'red')!.models[0].pos = { x: 10, y: 10 }
+      st.units.find((u) => u.id === 'dread')!.models[0].pos = { x: 14.2, y: 10 }
+      st.units.find((u) => u.id === 'dread')!.charged = true
+      st.players.marines.cp = 2
+      st.players.orks.cp = 0
+      st = apply(st, END, scriptedRoller([]))
+      st = apply(st, { type: 'fight', unitId: 'dread', targetId: 'red' }, scriptedRoller([]))
+      st = apply(st, PASS, scriptedRoller([3, 3, 3, 3, 3, 6, 6, 6, 6, 6, 2]))
+      expect(st.pendingReroll?.player).toBe('marines')
+      return createMatch(st, sharedAssignments('marines', 'orks'), { gameId: 'g-test', mode: 'shared' })
+    }
+    const s = ready({ match: fixture, decision_timeout_ms: 1000 })
+    vi.advanceTimersByTime(1001)
+    // the next failed save of the same attack may be offered again (no CP was spent): that is a new question
+    const m = s.hp.port.get()!
+    expect(m.history.at(-1)).toMatchObject({ playerId: HOST_ID, command: { type: 'rerollChoice', reroll: false } })
+    expect(m.state.players.marines.cp).toBe(2)
+    expect(json(s.gp.port.get())).toBe(json(m))
   })
 })
