@@ -293,7 +293,8 @@ describe('Aeldari: Guide', () => {
 describe('Aeldari: FLY and unit abilities', () => {
   it('Windriders can only cross dense terrain by taking to the skies (−2″)', () => {
     const s = battle('aeldari', 'orks', 'movement', 'aeldari')
-    s.terrain = [{ id: 'w', name: 'Руины', kind: 'ruin', poly: [{ x: 20, y: 20 }, { x: 22, y: 20 }, { x: 22, y: 22 }, { x: 20, y: 22 }], obscuring: true }]
+    // a wall of ruins across the whole board: no way round, so only flying gets them over it
+    s.terrain = [{ id: 'w', name: 'Руины', kind: 'ruin', poly: [{ x: 20, y: 0 }, { x: 22, y: 0 }, { x: 22, y: s.board.height }, { x: 20, y: s.board.height }], obscuring: true }]
     moveUnitTo(s, 'riders', { x: 18, y: 21 })
     const r = unit(s, 'riders')
     const go = (dx: number) => Object.fromEntries(r.models.map((m) => [m.id, { x: m.pos.x + dx, y: m.pos.y }]))
