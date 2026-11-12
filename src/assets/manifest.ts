@@ -130,6 +130,17 @@ export const TOKENS: Record<string, TokenStyle> = {
   kastelanCombustorBlaster: { fill: '#7d1d1d', stroke: '#e8b04a', text: '#ffffff', label: tr('KaCB') },
   kastelanCombustorTwin: { fill: '#7d1d1d', stroke: '#e8b04a', text: '#ffffff', label: tr('KaCT') },
   kastelanHeavyTwin: { fill: '#7d1d1d', stroke: '#f1d9a6', text: '#ffffff', label: tr('KaHT') },
+  // Serberys Sulphurhounds, Ironstrider Ballistarii, Onager Dunecrawler, Corpuscarii Electro-Priests
+  sulphurhoundAlpha: { fill: '#8a1f1f', stroke: '#e8b04a', text: '#ffffff', label: tr('ASh') },
+  sulphurhound: { fill: '#9a2a2a', stroke: '#f1d9a6', text: '#ffffff', label: tr('Sh') },
+  sulphurhoundCarbine: { fill: '#9a2a2a', stroke: '#e8b04a', text: '#ffffff', label: tr('ShC') },
+  ironstrider: { fill: '#7d1d1d', stroke: '#f1d9a6', text: '#ffffff', label: tr('Is') },
+  ironstriderLascannon: { fill: '#7d1d1d', stroke: '#e8b04a', text: '#ffffff', label: tr('IsL') },
+  onager: { fill: '#6e1b1b', stroke: '#e8b04a', text: '#ffffff', label: tr('On') },
+  onagerMissiles: { fill: '#6e1b1b', stroke: '#f1d9a6', text: '#ffffff', label: tr('OnM') },
+  onagerNeutron: { fill: '#6e1b1b', stroke: '#e8b04a', text: '#ffffff', label: tr('OnN') },
+  onagerPhosphor: { fill: '#6e1b1b', stroke: '#f1d9a6', text: '#ffffff', label: tr('OnP') },
+  electroPriest: { fill: '#8a1f1f', stroke: '#f1d9a6', text: '#ffffff', label: tr('EP') },
 }
 
 // wargear variants without their own token use the token of the profile they are built from

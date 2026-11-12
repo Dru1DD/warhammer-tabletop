@@ -117,4 +117,31 @@ export const MECHANICUS_WARGEAR: Record<string, WargearSpec> = {
       },
     ],
   },
+  sulphurhounds: {
+    leader: [{ profile: 'sulphurhoundAlpha', label: tr('Alpha: Mechanicus pistol, breath, arc maul') }],
+    base: { profile: 'sulphurhound', label: tr('2 phosphor pistols and sulphur breath') },
+    groups: [
+      { id: 'arms', label: tr('Phosphor blast carbine — one model per 3'), variants: [{ profile: 'sulphurhoundCarbine', label: tr('Blast carbine and phosphor pistol') }], max: (size) => Math.floor(size / 3) },
+    ],
+  },
+  ironstriders: {
+    base: { profile: 'ironstrider', label: tr('Twin cognis autocannon') },
+    groups: [
+      { id: 'arms', label: tr('Lascannon instead of autocannon — any number of models'), variants: [{ profile: 'ironstriderLascannon', label: tr('Twin cognis lascannon') }], max: any },
+    ],
+  },
+  onager: {
+    base: { profile: 'onager', label: tr('Eradication beamer') },
+    groups: [
+      {
+        id: 'arms', label: tr('Main weapon'),
+        variants: [
+          { profile: 'onagerMissiles', label: tr('Daedalus missile launcher and Icarus array') },
+          { profile: 'onagerNeutron', label: tr('Neutron laser and heavy stubber') },
+          { profile: 'onagerPhosphor', label: tr('Twin heavy phosphor blaster') },
+        ],
+        max: () => 1,
+      },
+    ],
+  },
 }

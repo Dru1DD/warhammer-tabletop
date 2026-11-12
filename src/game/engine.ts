@@ -160,8 +160,14 @@ function defenceMods(s: GameState, p: WeaponProfile, target: UnitState) {
 }
 
 /** Invulnerable save against ranged attacks: the general override, and the Rangers' 5+ (ranged attacks only). */
+/** Emanatus Force Field (Onager Dunecrawler): friendly ADEPTUS MECHANICUS BATTLELINE within 6″ of it. */
+export const EMANATUS_RANGE = 6
+const emanatus = (s: GameState, target: UnitState) =>
+  hasKeyword(target, 'BATTLELINE') && datasheetOf(target).faction === 'adeptus_mechanicus' &&
+  s.units.some((x) => x.owner === target.owner && x.id !== target.id && !isDestroyed(x) && hasAbility(x, 'emanatusForceField') && unitDistance(x, target) <= EMANATUS_RANGE + EPS)
+
 function rangedInvuln(s: GameState, target: UnitState): number | undefined {
-  const v = [invulnOverrideOf(s, target), hasAbility(target, 'cameleoline') ? 5 : undefined, hasBuff(target, 'bulwarkImperative') ? 4 : undefined].filter((x): x is number => x !== undefined)
+  const v = [invulnOverrideOf(s, target), hasAbility(target, 'cameleoline') ? 5 : undefined, hasBuff(target, 'bulwarkImperative') ? 4 : undefined, emanatus(s, target) ? 4 : undefined].filter((x): x is number => x !== undefined)
   return v.length ? Math.min(...v) : undefined
 }
 
@@ -174,6 +180,10 @@ function eradication(s: GameState, unit: UnitState, target: UnitState, notes: st
 }
 
 /** Doctrina Imperatives / Breaching Command / Galvanic Field: attacker-side modifiers shared by shooting and melee. */
+/** Damaged: 1–4 wounds remaining (Onager Dunecrawler): −1 to its hit rolls. */
+export const DAMAGED_WOUNDS = 4
+export const isDamaged = (u: UnitState) => hasAbility(u, 'damaged1to4') && alive(u).some((m) => m.wounds <= DAMAGED_WOUNDS)
+
 function attackerBonuses(s: GameState, unit: UnitState) {
   const imp = imperativeOf(s, unit)
   const support = imp === 'conqueror' || hasAbility(unit, 'breachingCommand') ? battlelineSupport(s, unit) : false
@@ -246,7 +256,7 @@ export function shootPlan(
     let chosen = engaged && mv
       ? ranged.filter((w) => !w.profiles[Math.min(opts.profiles?.[w.id] ?? 0, w.profiles.length - 1)].keywords.blast)
       : engaged || opts.usePistols || main.length === 0 ? cq : main
-    if (advanced && !engaged) {
+    if (advanced && !engaged && !hasAbility(unit, 'elevatedStrider')) {
       const before = chosen.length
       chosen = chosen.filter((w) => assaultAll || w.profiles[opts.profiles?.[w.id] ?? 0].keywords.assault)
       if (before > chosen.length) plan.skipped.push(tr('{name}: after an Advance only Assault weapons shoot.', { name: profileOf(m).name }))
@@ -327,6 +337,7 @@ export function shootPlan(
     if (bolter) { notes.push(tr('Bolter Discipline +1')); hitMod++ }
     if (runts) { notes.push(tr('Ammo Runts +1')); hitMod++ }
     if (engaged && mv && !g.profile.keywords.closeQuarters) { notes.push(tr('vehicle in engagement range −1')); hitMod-- }
+    if (isDamaged(unit)) { notes.push(tr('damaged −1')); hitMod-- }
     if (guided(s, unit, target)) { notes.push('Guide +1'); hitMod++ }
     if (psychicGuidance(s, unit)) { notes.push('Psychic Guidance +1'); hitMod++ }
     if (hasBuff(target, 'lightningFastReactions')) { notes.push(tr('Lightning-fast Reactions −1')); hitMod-- }
@@ -426,6 +437,7 @@ export function meleeSetup(s: GameState, unit: UnitState, target: UnitState, p0:
   let skillNote: string | undefined
   if (guided(s, unit, target)) { hitMod++; hitModNotes.push('Guide +1') }
   if (psychicGuidance(s, unit)) { hitMod++; hitModNotes.push('Psychic Guidance +1') }
+  if (isDamaged(unit)) { hitMod--; hitModNotes.push(tr('damaged −1')) }
   // Bladeguard: once per turn, when selected to fight, +1 to melee hit rolls (a unit fights once per turn here)
   if (hasAbility(unit, 'bladeguard')) { hitMod++; hitModNotes.push('Bladeguard +1') }
   // Doctrina Imperatives: Conqueror improves WS and (near BATTLELINE) AP; Protector of the target subtracts 1 from melee hit rolls
@@ -643,7 +655,7 @@ export function validate(s: GameState, cmd: Command): Validation {
       if (s.phase !== 'shooting') return fail(tr('You can only shoot in the Shooting phase.'))
       if (unit.action) return fail(tr('The unit is performing a mission action and does not shoot this turn.'))
       if (unit.shot) return fail(tr('The unit has already shot in this phase.'))
-      if (unit.move === 'fallBack' && !canActAfterFallBack(s, unit) && !hasAbility(unit, 'warConstruct')) return fail(tr('The unit fell back (Fall Back) this turn and cannot shoot.'))
+      if (unit.move === 'fallBack' && !canActAfterFallBack(s, unit) && !hasAbility(unit, 'warConstruct') && !hasAbility(unit, 'elevatedStrider')) return fail(tr('The unit fell back (Fall Back) this turn and cannot shoot.'))
       const target = findUnit(s, cmd.targetId)
       if (!target || isDestroyed(target) || target.owner === unit.owner) return fail(tr('Invalid target.'))
       const plan = shootPlan(s, unit, target, cmd)
@@ -1434,10 +1446,13 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       const u = findUnit(s, cmd.unitId)!
       const targets = cmd.targetIds.map((id) => findUnit(s, id)!)
       const pos = planCharge(s, u, targets, s.pendingCharge!.roll)!
+      // Line-breakers: +2 if the charge started within 6″ of friendly ADEPTUS MECHANICUS BATTLELINE (measured before moving)
+      const lineSupport = hasAbility(u, 'lineBreakers') && s.units.some((x) => x.owner === u.owner && x.id !== u.id && !isDestroyed(x) && hasKeyword(x, 'BATTLELINE') && datasheetOf(x).faction === 'adeptus_mechanicus' && unitDistance(u, x) <= LINE_BREAKERS_SUPPORT + EPS)
       movedTo(u, pos)
       u.charged = true
       s.pendingCharge = null
       addLog(s, tr('{name} charges unit “{list}” and gets Fights First.', { name: u.name, list: targets.map((x) => x.name).join(', ') }), 'minimal')
+      if (hasAbility(u, 'lineBreakers')) lineBreakers(s, u, targets, lineSupport, r)
       break
     }
     case 'fight':
@@ -1729,6 +1744,11 @@ function resolveShooting(s: GameState, u: UnitState, t: UnitState, opts: { profi
     t.disrupted = true
     addLog(s, tr('{name}: “{name2}” is under Disruption Bombardment — until the end of its next turn −2″ to movement, −2 to Advance and charge rolls.', { name: u.name, name2: t.name }), 'standard')
   }
+  // Electro-shock (Corpuscarii): a target it hit, not a MONSTER or VEHICLE, is shocked until the end of its owner's next turn
+  if (scored && !snap && hasAbility(u, 'electroShock') && !isDestroyed(t) && !isMV(t) && !t.disrupted) {
+    t.disrupted = true
+    addLog(s, tr('{name}: {target} is electro-shocked — until the end of its next turn −2″ to move, −2 to Advance and Charge rolls.', { name: u.name, target: quote(t.name) }), 'standard')
+  }
   // Driven from Cover (Infernus): the target it hit loses cover against this army's shooting until the end of the turn
   if (scored && hasAbility(u, 'drivenFromCover') && !isDestroyed(t) && t.drivenFromCover !== u.owner) {
     t.drivenFromCover = u.owner
@@ -1913,6 +1933,11 @@ function applyStratagem(s: GameState, cmd: Extract<Command, { type: 'stratagem' 
   ;(s.players[me].stratagemsThisPhase ??= []).push(cmd.id)
   ;(s.players[me].stratagemUnitsThisPhase ??= []).push(u.id)
   addLog(s, (showOfficialName ? tr('{item}: Stratagem “{name}” ({nameEn}) — {name2}, −{cost} CP.', { item: FACTION_NAME[me], name: info.name, nameEn: info.nameEn, name2: u.name, cost: info.cost }) : tr('{item}: Stratagem “{name}” — {name2}, −{cost} CP.', { item: FACTION_NAME[me], name: info.name, name2: u.name, cost: info.cost })), 'minimal')
+  if (hasAbility(u, 'dataTether')) {
+    const v = r.d6()
+    if (v >= DATA_TETHER_ROLL) s.players[me].cp++
+    pushDice(s, tr('Data-tether: {name}', { name: u.name }), [{ label: 'D6', target: `${DATA_TETHER_ROLL}+`, dice: [{ value: v, success: v >= DATA_TETHER_ROLL }] }], v >= DATA_TETHER_ROLL ? tr('{name}: Data-tether — +1 CP.', { name: u.name }) : tr('{name}: Data-tether — no CP returned.', { name: u.name }))
+  }
   if (info.buff) {
     ;(info.buff === 'phase' ? (u.phaseBuffs ??= []) : (u.turnBuffs ??= [])).push(cmd.id)
     addLog(s, `${u.name}: ${info.text}`, 'standard')
@@ -2063,3 +2088,21 @@ export function moveModeFor(s: GameState, u: UnitState): 'normal' | 'advance' | 
   return u.advanceRoll !== null ? 'advance' : 'normal'
 }
 
+
+/** Line-breakers (Serberys Sulphurhounds): a D6 per model engaged with the charged unit, +2 near friendly BATTLELINE. */
+export const LINE_BREAKERS_SUPPORT = 6
+const LINE_BREAKERS_ROLL = 4
+/** Broad Spectrum Data-tether: a Stratagem on the unit gives back 1 CP on this roll */
+const DATA_TETHER_ROLL = 5
+
+function lineBreakers(s: GameState, u: UnitState, targets: UnitState[], support: boolean, r: Roller) {
+  const t = targets.find((x) => !isDestroyed(x) && alive(u).some((m) => modelEngagedWith(m, x)))
+  if (!t) return
+  const n = alive(u).filter((m) => modelEngagedWith(m, t)).length
+  const bonus = support ? 2 : 0
+  const dice = rollMany(r, n)
+  const mw = dice.filter((v) => v + bonus >= LINE_BREAKERS_ROLL).length
+  pushDice(s, tr('Line-breakers: {name} → {target}', { name: u.name, target: t.name }), [{ label: bonus ? tr('D6 × {n} (+2: friendly Battleline nearby)', { n }) : tr('D6 × {n}', { n }), target: `${LINE_BREAKERS_ROLL}+`, dice: dice.map((v) => ({ value: v, success: v + bonus >= LINE_BREAKERS_ROLL })) }],
+    mw ? tr('{name}: {mw} mortal wounds from the line-breakers.', { name: t.name, mw }) : tr('{name}: line-breakers without wounds.', { name: u.name }))
+  if (mw) applyMortalWounds(s, t, mw, tr('line-breakers'))
+}

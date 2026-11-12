@@ -3,7 +3,8 @@ import { tr } from '../../i18n/index'
 
 // Adeptus Mechanicus, 11th-edition datasheets as transcribed by Wahapedia (checked 2026-11-09):
 //   Tech-Priest Dominus, Tech-Priest Manipulus, Skitarii Rangers, Skitarii Vanguard, Kataphron Breachers,
-//   Kataphron Destroyers, Sicarian Infiltrators, Kastelan Robots. See docs/mechanicus.md.
+//   Kataphron Destroyers, Sicarian Infiltrators, Kastelan Robots; and (checked 2026-11-12) Serberys Sulphurhounds,
+//   Ironstrider Ballistarii, Onager Dunecrawler, Corpuscarii Electro-Priests. See docs/mechanicus.md.
 
 const anti = (keyword: string, roll: number) => ({ keyword, roll })
 
@@ -168,12 +169,94 @@ export const MECHANICUS_WEAPONS: Record<string, Weapon> = {
     id: 'twinKastelanFist', name: tr('Twin Kastelan Fist'),
     profiles: [{ name: '', range: 'melee', attacks: 4, skill: 4, s: 12, ap: -2, d: 3, keywords: { twinLinked: true } }],
   },
+  // ---- Serberys Sulphurhounds
+  sulphurBreath: {
+    id: 'sulphurBreath', name: tr('Sulphur Breath'),
+    profiles: [{ name: '', range: 9, attacks: 0, randomA: 'D6', skill: null, s: 3, ap: -1, d: 1, keywords: { closeQuarters: true, ignoresCover: true, torrent: true } }],
+  },
+  phosphorPistols: {
+    id: 'phosphorPistols', name: tr('Phosphor Pistols'),
+    profiles: [{ name: '', range: 12, attacks: 2, skill: 4, s: 4, ap: 0, d: 1, keywords: { closeQuarters: true, ignoresCover: true } }],
+  },
+  phosphorPistol: {
+    id: 'phosphorPistol', name: tr('Phosphor Pistol'),
+    profiles: [{ name: '', range: 12, attacks: 1, skill: 4, s: 4, ap: 0, d: 1, keywords: { closeQuarters: true, ignoresCover: true } }],
+  },
+  phosphorBlastCarbine: {
+    id: 'phosphorBlastCarbine', name: tr('Phosphor Blast Carbine'),
+    profiles: [{ name: '', range: 18, attacks: 0, randomA: 'D6', skill: 4, s: 6, ap: 0, d: 1, keywords: { blast: 1, ignoresCover: true } }],
+  },
+  cavalryArcMaul: {
+    id: 'cavalryArcMaul', name: tr('Cavalry Arc Maul'),
+    profiles: [{ name: '', range: 'melee', attacks: 1, skill: 4, s: 5, ap: -1, d: 1, keywords: { anti: anti('VEHICLE', 4), devastatingWounds: true, extraAttacks: true } }],
+  },
+  clawedLimbs: {
+    id: 'clawedLimbs', name: tr('Clawed Limbs'),
+    profiles: [{ name: '', range: 'melee', attacks: 4, skill: 4, s: 4, ap: 0, d: 1, keywords: {} }],
+  },
+  // ---- Ironstrider Ballistarii
+  twinCognisAutocannon: {
+    id: 'twinCognisAutocannon', name: tr('Twin Cognis Autocannon'),
+    profiles: [{ name: '', range: 48, attacks: 4, skill: 4, s: 9, ap: -1, d: 3, keywords: { sustainedHits: 1, twinLinked: true } }],
+  },
+  twinCognisLascannon: {
+    id: 'twinCognisLascannon', name: tr('Twin Cognis Lascannon'),
+    profiles: [{ name: '', range: 48, attacks: 2, skill: 4, s: 12, ap: -3, d: 1, randomD: 'D6', keywords: { sustainedHits: 1, twinLinked: true } }],
+  },
+  ironstriderFeet: {
+    id: 'ironstriderFeet', name: tr('Ironstrider Feet'),
+    profiles: [{ name: '', range: 'melee', attacks: 3, skill: 4, s: 5, ap: 0, d: 1, keywords: {} }],
+  },
+  // ---- Onager Dunecrawler
+  eradicationBeamer: {
+    id: 'eradicationBeamer', name: tr('Onager Eradication Beamer'),
+    profiles: [
+      { name: tr('Dissipated'), range: 36, attacks: 0, randomA: '3D3', skill: 4, s: 10, ap: -2, d: 2, keywords: { blast: 1, sustainedHits: 1 } },
+      { name: tr('Focused'), range: 18, attacks: 0, randomA: '3D3', skill: 4, s: 10, ap: -3, d: 3, keywords: { blast: 1, sustainedHits: 1 } },
+    ],
+  },
+  cognisHeavyStubber: {
+    id: 'cognisHeavyStubber', name: tr('Cognis Heavy Stubber'),
+    profiles: [{ name: '', range: 36, attacks: 3, skill: 4, s: 4, ap: 0, d: 1, keywords: { rapidFire: 3, sustainedHits: 1 } }],
+  },
+  daedalusMissileLauncher: {
+    id: 'daedalusMissileLauncher', name: tr('Daedalus Missile Launcher'),
+    profiles: [{ name: '', range: 48, attacks: 2, skill: 4, s: 10, ap: -2, d: 1, randomD: 'D6', keywords: { anti: anti('FLY', 2) } }],
+  },
+  neutronLaser: {
+    id: 'neutronLaser', name: tr('Neutron Laser'),
+    profiles: [{ name: '', range: 48, attacks: 3, skill: 4, s: 16, ap: -4, d: 2, randomD: 'D6', keywords: { heavy: true } }],
+  },
+  icarusArray: {
+    id: 'icarusArray', name: tr('Icarus Array'),
+    profiles: [{ name: '', range: 48, attacks: 6, skill: 4, s: 8, ap: -1, d: 2, keywords: { anti: anti('FLY', 4), twinLinked: true } }],
+  },
+  twinOnagerPhosphor: {
+    id: 'twinOnagerPhosphor', name: tr('Twin Onager Heavy Phosphor Blaster'),
+    profiles: [{ name: '', range: 36, attacks: 12, skill: 4, s: 6, ap: -1, d: 2, keywords: { ignoresCover: true, twinLinked: true } }],
+  },
+  dunecrawlerLegs: {
+    id: 'dunecrawlerLegs', name: tr('Dunecrawler Legs'),
+    profiles: [{ name: '', range: 'melee', attacks: 3, skill: 4, s: 6, ap: 0, d: 1, keywords: {} }],
+  },
+  // ---- Corpuscarii Electro-Priests
+  electrostaticGauntletsRanged: {
+    id: 'electrostaticGauntletsRanged', name: tr('Electrostatic Gauntlets (shooting)'),
+    profiles: [{ name: '', range: 12, attacks: 3, skill: 3, s: 5, ap: 0, d: 1, keywords: { closeQuarters: true, sustainedHits: 2 } }],
+  },
+  electrostaticGauntlets: {
+    id: 'electrostaticGauntlets', name: tr('Electrostatic Gauntlets'),
+    profiles: [{ name: '', range: 'melee', attacks: 3, skill: 4, s: 5, ap: 0, d: 1, keywords: { sustainedHits: 2 } }],
+  },
 }
 
 const skitarii = { m: 6, t: 3, sv: 4, w: 1, ld: 7, oc: 2, invuln: 5, baseMm: 25 }
 const kataphron = { m: 5, sv: 3, w: 3, ld: 7, oc: 1, invuln: 6, baseMm: 60 }
 const sicarian = { m: 8, t: 4, sv: 4, w: 2, ld: 7, oc: 1, invuln: 5, baseMm: 40 }
 const kastelan = { m: 6, t: 9, sv: 2, w: 7, ld: 7, oc: 2, invuln: 5, baseMm: 60 }
+const sulphurhound = { m: 12, t: 4, sv: 4, w: 2, ld: 7, oc: 2, invuln: 5, baseMm: 50 }
+const ironstrider = { m: 10, t: 7, sv: 3, w: 7, ld: 7, oc: 2, invuln: 5, baseMm: 90 }
+const onager = { m: 8, t: 10, sv: 2, w: 11, ld: 7, oc: 3, invuln: 4, baseMm: 130 }
 /** Tech-Priest Dominus and Manipulus share their characteristics */
 const dominus = { m: 6, t: 4, sv: 2, w: 4, ld: 7, oc: 1, invuln: 5, baseMm: 50, character: true }
 
@@ -228,6 +311,20 @@ export const MECHANICUS_PROFILES: Record<string, ModelProfile> = {
   kastelanCombustorBlaster: { id: 'kastelanCombustorBlaster', name: tr('Kastelan with combustor and blaster'), ...kastelan, weapons: ['incendineCombustor', 'kastelanPhosphorBlaster', 'kastelanFist'] },
   kastelanCombustorTwin: { id: 'kastelanCombustorTwin', name: tr('Kastelan with combustor and twin blaster'), ...kastelan, weapons: ['incendineCombustor', 'twinKastelanPhosphorBlaster', 'kastelanCCW'] },
   kastelanHeavyTwin: { id: 'kastelanHeavyTwin', name: tr('Kastelan with heavy and twin blasters'), ...kastelan, weapons: ['heavyPhosphorBlaster', 'twinKastelanPhosphorBlaster', 'kastelanCCW'] },
+  // Serberys Sulphurhounds (the oval 60x35.5 mm base is drawn as a 50 mm round one)
+  sulphurhoundAlpha: { id: 'sulphurhoundAlpha', name: tr('Sulphurhound Alpha'), ...sulphurhound, weapons: ['mechanicusPistol', 'sulphurBreath', 'cavalryArcMaul', 'clawedLimbs'] },
+  sulphurhound: { id: 'sulphurhound', name: tr('Serberys Sulphurhound'), ...sulphurhound, weapons: ['phosphorPistols', 'sulphurBreath', 'clawedLimbs'] },
+  sulphurhoundCarbine: { id: 'sulphurhoundCarbine', name: tr('Sulphurhound with blast carbine'), ...sulphurhound, weapons: ['phosphorBlastCarbine', 'phosphorPistol', 'sulphurBreath', 'clawedLimbs'] },
+  // Ironstrider Ballistarii (the oval 105x70 mm base is drawn as a 90 mm round one)
+  ironstrider: { id: 'ironstrider', name: tr('Ironstrider with autocannon'), ...ironstrider, weapons: ['twinCognisAutocannon', 'ironstriderFeet'] },
+  ironstriderLascannon: { id: 'ironstriderLascannon', name: tr('Ironstrider with lascannon'), ...ironstrider, weapons: ['twinCognisLascannon', 'ironstriderFeet'] },
+  // Onager Dunecrawler: one model, four main weapon options
+  onager: { id: 'onager', name: tr('Onager with eradication beamer'), ...onager, weapons: ['eradicationBeamer', 'dunecrawlerLegs'] },
+  onagerMissiles: { id: 'onagerMissiles', name: tr('Onager with Daedalus and Icarus'), ...onager, weapons: ['daedalusMissileLauncher', 'icarusArray', 'dunecrawlerLegs'] },
+  onagerNeutron: { id: 'onagerNeutron', name: tr('Onager with neutron laser'), ...onager, weapons: ['neutronLaser', 'cognisHeavyStubber', 'dunecrawlerLegs'] },
+  onagerPhosphor: { id: 'onagerPhosphor', name: tr('Onager with phosphor blaster'), ...onager, weapons: ['twinOnagerPhosphor', 'dunecrawlerLegs'] },
+  // Corpuscarii Electro-Priests
+  electroPriest: { id: 'electroPriest', name: tr('Corpuscarii Electro-Priest'), m: 6, t: 3, sv: 7, w: 1, ld: 7, oc: 1, invuln: 5, baseMm: 32, weapons: ['electrostaticGauntletsRanged', 'electrostaticGauntlets'] },
 }
 
 const AM = 'ADEPTUS MECHANICUS'
@@ -281,6 +378,30 @@ export const MECHANICUS_DATASHEETS: Record<string, Datasheet> = {
     abilities: ['doctrina', 'deadlyDemise1', 'repulsorGrid', 'roboticBodyguard'],
     description: tr('Heavy combat platforms: T9, 2+ save, phosphor blasters ignore cover, S12 fists; the return discharge hits shooters.'),
   },
+  sulphurhounds: {
+    id: 'sulphurhounds', name: tr('Serberys Sulphurhounds'), faction: 'adeptus_mechanicus',
+    keywords: ['MOUNTED', 'IMPERIUM', 'SKITARII', 'SERBERYS SULPHURHOUNDS', AM],
+    abilities: ['doctrina', 'lineBreakers'],
+    description: tr('Fast cavalry: M12″, sulphur breath and phosphor pistols at point-blank range; crashing into the enemy line, they deal mortal wounds.'),
+  },
+  ironstriders: {
+    id: 'ironstriders', name: tr('Ironstrider Ballistarii'), faction: 'adeptus_mechanicus',
+    keywords: ['VEHICLE', 'WALKER', 'SMOKE', 'IMPERIUM', 'SKITARII', 'IRONSTRIDER BALLISTARII', AM],
+    abilities: ['doctrina', 'deadlyDemise1', 'elevatedStrider', 'dataTether'],
+    description: tr('Mobile vehicle hunters: M10″, autocannons or lascannons at 48″, they shoot even after advancing and falling back.'),
+  },
+  onager: {
+    id: 'onager', name: tr('Onager Dunecrawler'), faction: 'adeptus_mechanicus',
+    keywords: ['VEHICLE', 'WALKER', 'IMPERIUM', 'SKITARII', 'SMOKE', 'ONAGER DUNECRAWLER', AM],
+    abilities: ['doctrina', 'deadlyDemiseD3', 'emanatusForceField', 'scuttlingWalker', 'damaged1to4'],
+    description: tr('A heavy support walker: T10, 2+ save and 4+ invulnerable, a swappable main weapon at 36–48″; its force field covers the line infantry nearby.'),
+  },
+  electroPriests: {
+    id: 'electroPriests', name: tr('Corpuscarii Electro-Priests'), faction: 'adeptus_mechanicus',
+    keywords: ['INFANTRY', 'IMPERIUM', 'CULT MECHANICUS', 'CORPUSCARII', 'ELECTRO-PRIESTS', AM],
+    abilities: ['doctrina', 'ledUnit', 'feelNoPain5', 'electroShock'],
+    description: tr('Fanatics with lightning in their hands: gauntlets at 12″ and in melee with Sustained Hits 2; the discharge slows enemy infantry.'),
+  },
 }
 
 export const MECHANICUS_ABILITY_TEXT: Record<string, string> = {
@@ -300,5 +421,13 @@ export const MECHANICUS_ABILITY_TEXT: Record<string, string> = {
   repulsorGrid: tr('Repulsor Grid: when the unit is shot at, each natural “6” on its save roll deals the shooter 1 mortal wound after the shot.'),
   sentinelDirectives: tr('Sentinel Directives: Fire Overwatch hits on 5+. [Not implemented: the simulator has no Stratagems or Fire Overwatch.]'),
   scouts: tr('Scouts 6″: pre-battle move of up to 6″. [Not implemented: there is no pre-battle movement.]'),
+  lineBreakers: tr('Line-breakers: when the unit ends a charge move, pick an enemy in engagement range and roll a D6 for each of its models in contact with it; +2 to the roll if the charge started within 6″ of a friendly Adeptus Mechanicus BATTLELINE unit. Each 4+ is a mortal wound.'),
+  elevatedStrider: tr('Elevated Strider: the unit can shoot in a turn when it Advanced or fell back. [Re-rolling Desperate Escape tests is not needed: the game has none.]'),
+  dataTether: tr('Broad Spectrum Data-tether: when a Stratagem is used on this unit, roll a D6; on a 5+ you get 1 CP.'),
+  emanatusForceField: tr('Emanatus Force Field (6″ aura): friendly Adeptus Mechanicus BATTLELINE models within 6″ get a 4+ invulnerable save against ranged attacks.'),
+  scuttlingWalker: tr('Scuttling Walker: when making a Normal move, Advancing or falling back, it can move through friendly Monsters and Vehicles and through terrain up to 4″ high. [Not implemented: the game has no terrain heights.]'),
+  damaged1to4: tr('Damaged (1–4 wounds): while the model has 4 wounds or fewer left, −1 to its hit rolls.'),
+  feelNoPain5: tr('Feel No Pain 5+: the model cancels each lost wound on a 5+.'),
+  electroShock: tr('Electro-shock: after shooting in your phase, pick an enemy unit (not MONSTER or VEHICLE) that was hit: until the end of the opponent’s next turn −2″ to its move and −2 to its Advance and Charge rolls. [The target of the shooting is chosen.]'),
   roboticBodyguard: tr('Robotic Bodyguard: the Datasmith leading the unit gets Feel No Pain 4+. [Not implemented: the Cybernetica Datasmith is not in the roster.]'),
 }
