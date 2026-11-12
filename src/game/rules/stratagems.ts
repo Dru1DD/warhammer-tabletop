@@ -51,11 +51,12 @@ export interface Availability {
 }
 
 /** Which Stratagems an army can use at all, given its datasheets: core ones plus its own faction's. */
-export function stratagemAvailability(faction: PlayerId, datasheetIds: string[]): Availability[] {
+export function stratagemAvailability(faction: PlayerId, datasheetIds: string[], noDetachment = false): Availability[] {
   const keywords = datasheetIds.map((id) => DATASHEETS[id]?.keywords ?? [])
   return Object.values(STRATAGEMS)
     .filter((info) => !info.faction || info.faction === faction)
     .map((info) => {
+      if (info.faction && noDetachment) return { info, available: false, why: tr('army without a detachment: only shared Stratagems') }
       const ok = !info.requires || keywords.some((k) => matchesKeywords(k, info.requires!))
       return ok ? { info, available: true } : { info, available: false, why: tr('no unit: {label} needed', { label: info.requires!.label }) }
     })
@@ -207,7 +208,7 @@ for (const x of FACTION_STRATAGEMS) STRATAGEMS[x.id] = x
 export interface LaterStratagem { faction: PlayerId; name: string; nameEn: string; cost: number; why: string }
 export const LATER_STRATAGEMS: LaterStratagem[] = [
   { faction: 'marines', name: tr('Might of the Angels'), nameEn: 'Might of Angels', cost: 1, why: tr('needs the Lance rule') },
-  { faction: 'marines', name: tr('Adaptive Strategy|stratagem'), nameEn: 'Adaptive Strategy', cost: 1, why: tr('needs Combat Doctrines') },
+  { faction: 'marines', name: tr('Adaptive Strategy|stratagem'), nameEn: 'Adaptive Strategy', cost: 1, why: tr('will appear later') },
   { faction: 'marines', name: tr('Counter-tactics'), nameEn: 'Responsive Tactics', cost: 1, why: tr('needs movement in the opponent’s turn') },
   { faction: 'orks', name: tr('Knock Some Sense'), nameEn: "Breakin' Heads", cost: 1, why: tr('needs attached characters') },
   { faction: 'orks', name: tr('Mow Them Down!'), nameEn: "Mow 'Em Down", cost: 1, why: tr('only non-WALKER vehicles, the Orks have none here') },

@@ -10,6 +10,7 @@ import { WARGEAR } from '../game/army/wargear'
 import { LoadoutEditor } from './LoadoutEditor'
 import { armyOf } from '../game/scenarios/scenarios'
 import { ArmyStratagems } from './ArmyStratagems'
+import { DETACHMENT } from '../game/rules/stratagems'
 import { ArmyCodes } from './ArmyCodes'
 import { tr } from '../i18n/index'
 
@@ -56,7 +57,17 @@ export function ArmyBuilder({ faction, role }: { faction: PlayerId; role: string
 
       <ArmyCodes faction={faction} list={list} setList={(l) => { setOpen(null); setList(l) }} />
 
-      <ArmyStratagems faction={faction} datasheetIds={list ? list.units.map((e) => e.datasheetId) : (armyOf(settings.scenarioId, faction) ?? []).map((u) => u.datasheetId)} />
+      {list && (
+        <label className="mt-2 flex items-start gap-2 text-xs" title={tr('Without the detachment: no its rule and no its Stratagems, the common Stratagems and army rules remain')}>
+          <input type="checkbox" checked={!list.noDetachment} onChange={(e) => {
+            const { noDetachment: _off, ...rest } = list
+            setList(e.target.checked ? rest : { ...rest, noDetachment: true })
+          }} />
+          <span>{tr('Rules of the “{item}” detachment (the detachment rule and Stratagems). Untick to play a pure custom: only the common Stratagems and army rules.', { item: DETACHMENT[faction] })}</span>
+        </label>
+      )}
+
+      <ArmyStratagems faction={faction} noDetachment={!!list?.noDetachment} datasheetIds={list ? list.units.map((e) => e.datasheetId) : (armyOf(settings.scenarioId, faction) ?? []).map((u) => u.datasheetId)} />
 
       {list && (
         <>

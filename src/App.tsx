@@ -6,14 +6,21 @@ import { FACTION_NAME } from './game/data/datasheets'
 import { armyPoints, copyIndex, fmtPoints, POINTS_SOURCE, unitPoints } from './game/data/points'
 import { actor } from './game/engine'
 import { deserialize, readStorage } from './game/persistence'
-import { SCENARIOS } from './game/scenarios/scenarios'
+import { mapLine, SCENARIOS } from './game/scenarios/scenarios'
+import { missionName, PRIMARY, PRIMARY_IDS } from './game/rules/missions'
+import { FIXED_IDS, SECONDARY } from './game/rules/secondaries'
+import type { SecondaryId } from './game/types'
 import { FACTIONS, type ExplainLevel, type PlayerId, type UnitState } from './game/types'
 import { AI_STEP_MS, AUTOSAVE_KEY, MANUAL_KEY, useStore, type Settings } from './store'
 import { ArmyBuilder } from './ui/ArmyBuilder'
+import { LAYOUT_IDS, LAYOUT_NAME, MAP_IDS, MAPS, PATROL_LAYOUT_NAME } from './game/scenarios/strikeForce'
 import { armyUnits, battleListProblems } from './ui/armyUnits'
 import { BattleOverDialog } from './ui/BattleOverDialog'
 import { ReactionPrompt } from './ui/ReactionPrompt'
 import { RerollPrompt } from './ui/RerollPrompt'
+import { HyperAdaptationPrompt } from './ui/HyperAdaptationPrompt'
+import { hyperPending } from './game/engine'
+import { DOCTRINE_NAME, HYPER_NAME } from './game/rules/detachments'
 import { Board } from './ui/Board'
 import { ActionPanel, AttackReview, BottomPanel, DiceFaces, RosterPanel } from './ui/Panels'
 import { PanelBoundary } from './ui/PanelBoundary'
@@ -30,6 +37,9 @@ export default function App() {
 }
 
 /** Opening `?room=CODE` (an invitation link) joins that room right away. */
+/** A name with the official English one beside it; English shows the name alone. */
+const withEn = ({ name, nameEn }: { name: string; nameEn: string }) => (name === nameEn ? name : `${name} (${nameEn})`)
+
 function useInviteLink() {
   useEffect(() => {
     const raw = new URLSearchParams(location.search).get('room')
@@ -179,6 +189,54 @@ function StartScreen() {
               ))}
             </select>
           </label>
+          {scenarioId === 'combat-patrol' && (
+            <label className="text-sm">{tr('Cover layout')}
+              <select className="input" value={st.settings.layoutId ?? 'A'} onChange={(e) => st.setSettings({ layoutId: e.target.value })}>
+                {LAYOUT_IDS.map((id) => <option key={id} value={id}>{id} — {PATROL_LAYOUT_NAME[id]}</option>)}
+                <option value="random">{tr('Random|f')}</option>
+              </select>
+            </label>
+          )}
+          {scenarioId === 'strike-force' && (
+            <>
+              <label className="text-sm">{tr('Deployment map')}
+                <select className="input" value={st.settings.mapId ?? 'random'} onChange={(e) => st.setSettings({ mapId: e.target.value })}>
+                  <option value="random">{tr('Random (as drawn from the deck)')}</option>
+                  {MAP_IDS.map((id) => <option key={id} value={id}>{withEn(MAPS[id])}</option>)}
+                </select>
+              </label>
+              <label className="text-sm">{tr('Cover layout')}
+                <select className="input" value={st.settings.layoutId ?? 'random'} onChange={(e) => st.setSettings({ layoutId: e.target.value })}>
+                  <option value="random">{tr('Random|f')}</option>
+                  {LAYOUT_IDS.map((id) => <option key={id} value={id}>{id} — {LAYOUT_NAME[id]}</option>)}
+                </select>
+              </label>
+              <label className="text-sm">{tr('Primary mission (one for both)')}
+                <select className="input" value={st.settings.primary ?? 'random'} onChange={(e) => st.setSettings({ primary: e.target.value })}>
+                  <option value="random">{tr('Random (D6 roll, as in Mirrored World)')}</option>
+                  {PRIMARY_IDS.map((id) => <option key={id} value={id}>{withEn(PRIMARY[id])}</option>)}
+                  <option value="training">{tr('Training score — 5 VP per objective from round 2')}</option>
+                </select>
+              </label>
+              <label className="text-sm">{tr('Secondary missions (yours; the AI plays Tactical)')}
+                <select className="input" value={st.settings.secondary ?? 'tactical'} onChange={(e) => st.setSettings({ secondary: e.target.value as never })}>
+                  <option value="tactical">{tr('Tactical — two cards from the deck each turn')}</option>
+                  <option value="fixed">{tr('Fixed — two cards for the whole battle')}</option>
+                  <option value="none">{tr('No secondaries (for both)')}</option>
+                </select>
+              </label>
+              {st.settings.secondary === 'fixed' && [0, 1].map((i) => {
+                const cards = st.settings.fixedCards ?? ['assassination', 'bringItDown']
+                return (
+                  <label key={i} className="text-sm">{tr('Fixed card {n}', { n: i + 1 })}
+                    <select className="input" value={cards[i]} onChange={(e) => { const next = [...cards]; next[i] = e.target.value as SecondaryId; st.setSettings({ fixedCards: next }) }}>
+                      {FIXED_IDS.filter((id) => id === cards[i] || id !== cards[1 - i]).map((id) => <option key={id} value={id}>{withEn(SECONDARY[id])} — {SECONDARY[id].fixedText}</option>)}
+                    </select>
+                  </label>
+                )
+              })}
+            </>
+          )}
           <label className="text-sm">{tr('AI level')}
             <select className="input" value={st.settings.aiLevel} onChange={(e) => st.setSettings({ aiLevel: e.target.value as never })}>
               <option value="beginner">{tr('Beginner — simple priorities')}</option>
@@ -249,6 +307,8 @@ function GameScreen() {
         ) : (
           <>
             <span className="rounded bg-stone-800 px-2 py-0.5 text-sm">{tr('Round {round}/{maxRounds}', { round: game.round, maxRounds: game.maxRounds })}</span>
+            {missionName(game) && <span className="rounded bg-emerald-900 px-2 py-0.5 text-xs" title={tr('Primary mission of both sides: {name}', { name: missionName(game) })}>🎯 {missionName(game)!.split(' (')[0]}</span>}
+            {mapLine(game) && <span className="hidden rounded bg-stone-800 px-2 py-0.5 text-xs xl:inline" title={mapLine(game)!}>🗺 {mapLine(game)!.split(' (')[0]}</span>}
             <span className="rounded px-2 py-0.5 text-sm" style={{ background: FACTION_STYLE[game.activePlayer].primary }}>
               {tr('Turn: {item}', { item: FACTION_NAME[game.activePlayer] })}
             </span>
@@ -257,6 +317,8 @@ function GameScreen() {
         <OnlineHeader />
         <span className="text-sm text-stone-300">{tr('VP: {scoreText}', { scoreText: scoreText(game) })}</span>
         {game.players.orks?.riledTurns > 0 && <span className="rounded bg-red-800 px-2 py-0.5 text-xs">WAAAGH!</span>}
+        {game.players.marines?.doctrine && <span className="rounded bg-sky-800 px-2 py-0.5 text-xs" title={tr('Space Marines Combat Doctrine until the next Command phase')}>{tr('Doctrine: {name}', { name: DOCTRINE_NAME[game.players.marines.doctrine] })}</span>}
+        {game.players.tyranids?.hyperAdaptation && <span className="rounded bg-purple-800 px-2 py-0.5 text-xs" title={tr('Tyranid hyper-adaptation for the whole battle')}>{HYPER_NAME[game.players.tyranids.hyperAdaptation]}</span>}
         {game.players.adeptus_mechanicus?.imperative && <span className="rounded bg-amber-800 px-2 py-0.5 text-xs" title={tr('Adeptus Mechanicus army Imperative doctrine')}>{game.players.adeptus_mechanicus.imperative === 'protector' ? tr('Protector') : tr('Conqueror')}</span>}
         <div className="ml-auto flex flex-wrap gap-1">
           {/* icons only on laptop widths; labels from 1536px */}
@@ -292,6 +354,7 @@ function GameScreen() {
       )}
       {game.reaction?.player === st.settings.human && !game.winner && !st.review && <ReactionPrompt game={game} human={st.settings.human} />}
       {game.pendingReroll?.player === st.settings.human && !game.winner && !st.review && <RerollPrompt game={game} human={st.settings.human} />}
+      {hyperPending(game) && st.settings.human === 'tyranids' && !st.review && <HyperAdaptationPrompt game={game} />}
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
     </div>
   )

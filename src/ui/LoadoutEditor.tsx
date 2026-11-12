@@ -1,17 +1,17 @@
 import { composeUnit, type ListEntry } from '../game/army/armyList'
 import { loadoutOf, loadoutProblems, WARGEAR, type Loadout } from '../game/army/wargear'
 import { PROFILES, WEAPONS } from '../game/data/datasheets'
-import { weaponAdvice } from '../game/weaponAdvice'
+import { weaponAdvice, weaponReach } from '../game/weaponAdvice'
 import { tr } from '../i18n/index'
 
-/** The weapons a model profile carries, with the first hint of the most notable one ("🔨 Pierces vehicles…"). */
+/** The weapons a model profile carries with their reach, and the first hint of the most notable one ("🔨 Pierces vehicles…"). */
 function VariantWeapons({ profile }: { profile: string }) {
   const weapons = PROFILES[profile]?.weapons.map((id) => WEAPONS[id]).filter(Boolean) ?? []
   const ranged = weapons.filter((w) => w.profiles[0].range !== 'melee')
   const hint = ranged[0] ? weaponAdvice(ranged[0].profiles[0]).lines[0] : weapons[0] ? weaponAdvice(weapons[0].profiles[0]).lines[0] : ''
   return (
     <span className="block text-[10px] text-stone-400">
-      {weapons.map((w) => w.name.replace(/ \(.*\)$/, '')).join(', ')}
+      {weapons.map((w) => `${w.name.replace(/ \(.*\)$/, '')} — ${weaponReach(w)}`).join(', ')}
       {hint && <span className="block text-emerald-300">{hint}</span>}
     </span>
   )
@@ -60,7 +60,7 @@ export function LoadoutEditor({ entry, onChange }: { entry: ListEntry; onChange:
         </fieldset>
       ))}
       {spec.groups.length > 0 && (
-        <p className="mt-1 text-stone-400">{tr('The other {max}: {label}.', { max: Math.max(0, troopers - taken), label: spec.base.label })}</p>
+        <div className="mt-1 text-stone-400">{tr('The other {max}: {label}.', { max: Math.max(0, troopers - taken), label: spec.base.label })}<VariantWeapons profile={spec.base.profile} /></div>
       )}
       {problems.length > 0 && (
         <ul className="mt-1 list-disc pl-4 text-rose-300">

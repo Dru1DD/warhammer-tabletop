@@ -75,7 +75,7 @@ export const TYRANID_EXTRA_DATASHEETS: Record<string, Datasheet> = {
   wingedPrime: {
     id: 'wingedPrime', name: tr('Winged Tyranid Prime'), faction: 'tyranids',
     keywords: ['INFANTRY', 'CHARACTER', 'FLY', 'GREAT DEVOURER', 'SYNAPSE', 'VANGUARD INVADER', 'WINGED TYRANID PRIME', 'TYRANIDS'],
-    abilities: ['synapse', 'shadowInTheWarp', 'alphaWarrior', 'deathBlow'],
+    abilities: ['synapse', 'shadowInTheWarp', 'alphaWarrior', 'deathBlow', 'deepStrike'],
     description: tr('Winged synapse commander: M12″, flies; near Tyranid Warriors their attacks get Sustained Hits 1.'),
   },
   zoanthropes: {

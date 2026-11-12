@@ -10,7 +10,7 @@ import { quote, tr } from '../../i18n/index'
 // bases, unit in coherency, not inside solid terrain, non-INFANTRY not inside
 // dense terrain (see docs/research.md).
 
-export const deploymentZone = (s: GameState, p: PlayerId): Vec[] => scenarioById(s.scenarioId).deployment[sidesOf(s)[0] === p ? 'west' : 'east']
+export const deploymentZone = (s: GameState, p: PlayerId): Vec[] => (s.deployment ?? scenarioById(s.scenarioId).deployment)[sidesOf(s)[0] === p ? 'west' : 'east']
 
 /** Base of radius r at c lies entirely inside the polygon. */
 export function baseWhollyWithin(c: Vec, r: number, poly: Vec[]): boolean {

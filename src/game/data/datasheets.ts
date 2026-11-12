@@ -227,6 +227,7 @@ const CORE_DATASHEETS: Record<string, Datasheet> = {
 }
 
 const CORE_ABILITY_TEXT: Record<string, string> = {
+  deepStrike: tr('Deep Strike: the unit can be left in Reserves; arriving from them (from round 2), it is set up anywhere on the battlefield more than 8″ from all enemy models — not necessarily at the edge.'),
   boltDiscipline: tr('Bolter Discipline: +1 to the hit roll when shooting if the unit or the target is within an objective zone.'),
   tacticalPrecision: tr('Tactical Precision: the unit’s attacks have Lethal Hits against targets that are not MONSTER/VEHICLE.'),
   ammoRunts: tr('Ammo Runts: once per battle +1 to the hit roll when shooting.'),

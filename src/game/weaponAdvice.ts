@@ -1,5 +1,5 @@
 import { woundTarget } from './combat/attack'
-import type { RandomDie, WeaponProfile } from './types'
+import type { RandomDie, Weapon, WeaponProfile } from './types'
 import { tr } from '../i18n/index'
 
 // What a weapon profile is good at, for beginners: its expected result per firing model against three reference
@@ -107,4 +107,11 @@ export function weaponAdvice(p: WeaponProfile): WeaponAdvice {
     lines.push(tr('🎯 Against {keyword} it wounds on {roll}+ (Anti-{keyword}){value}', { keyword, roll, value: roll <= 4 && who[keyword] ? tr(' — hits {item} well', { item: who[keyword] }) : '' }))
   }
   return { value, best, cracksArmour, uselessVsArmour, lines }
+}
+
+/** How far a weapon reaches: «30″», «24″ / 12″» for two profiles, “melee” for a melee weapon. */
+export function weaponReach(w: Weapon): string {
+  if (w.profiles.some((p) => p.range === 'melee')) return tr('melee|reach')
+  const ranges = [...new Set(w.profiles.map((p) => p.range as number))].sort((a, b) => b - a)
+  return ranges.map((r) => `${r}″`).join(' / ')
 }
