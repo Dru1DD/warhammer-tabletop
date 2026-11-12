@@ -2308,6 +2308,7 @@ const catalog: Catalog = {
   "Zoom in (mouse wheel)": "Приблизить (колесо мыши)",
   "Zoom out": "Отдалить",
   "a character killed ({n})": "убит персонаж ({n})",
+  "a charge next turn, with {fmt} damage": "атака в следующий ход с уроном {fmt}",
   "a unit at a board edge outside your territory": "отряд у края поля вне своей территории",
   "a unit wholly in the enemy deployment zone — 3 VP (up to 5)": "отряд целиком в зоне расстановки противника — 3 ПО (до 5)",
   "a unit within 3″ of the board centre with no enemies there (none within 6″ — 5 VP)": "отряд в 3″ от центра поля, а врагов там нет (если нет и в 6″ — 5 ПО)",

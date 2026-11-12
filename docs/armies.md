@@ -115,6 +115,18 @@ All armies use the same utility AI (`ai/ai.ts`) with faction weights and a few h
 | Necrons | Methodical gunline: values objectives and survival, shoots first; Skorpekh Destroyers and Scarab Swarms are melee hunters. Reanimation makes losses cheaper (the AI does not need to retreat). |
 | Aeldari | Fragile hit-and-run shooters: high survival and cover weights, falls back from a lost melee, uses Swift as the Wind only when the move needs the extra 2″, flies when the flying path scores better, and uses Guide at the end of the Movement phase on the nearest visible enemy. |
 
+**Charging next turn.** Aggressive armies (Orks, Tyranids, and the hunter units of the others) also value a charge they could make **next turn**. The unit first makes its normal move, then 2D6 has to cover the rest. The value is weighted by `NEXT_TURN_CHARGE` (0.5) against a charge possible now.
+
+**Capped risk.** The risk of a position is capped at the wounds the unit has left. Summed over every enemy gun, it used to exceed what a big swarm can lose.
+
+**Why.** Before this, a melee swarm far from the enemy saw only that risk and no gain in closing in. In a battle on 12.11.2026 the Hormagaunts stood in cover for two turns and never charged.
+
+**Effect** (AI-vs-AI, 3 seeds each):
+- Tyranids against Aeldari win faster;
+- Orks against Space Marines now lose by round 3 instead of rounds 4–5: they run into the guns rather than wait.
+
+The golden and aiEquivalence fingerprints were re-recorded for this change.
+
 ## Tests
 
 - `armyData.test.ts`: every characteristic and weapon profile, compositions and loadout limits, legal deployment of every army in either seat for all 20 ordered pairings, a token and an original portrait for every model.

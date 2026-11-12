@@ -2308,6 +2308,7 @@ const catalog: Catalog = {
   "Zoom in (mouse wheel)": "Przybliż (kółko myszy)",
   "Zoom out": "Oddal",
   "a character killed ({n})": "zabito postać ({n})",
+  "a charge next turn, with {fmt} damage": "szarża w następnej turze z obrażeniami {fmt}",
   "a unit at a board edge outside your territory": "oddział przy krawędzi pola poza własnym terytorium",
   "a unit wholly in the enemy deployment zone — 3 VP (up to 5)": "oddział w całości w strefie rozstawienia przeciwnika — 3 PZ (do 5)",
   "a unit within 3″ of the board centre with no enemies there (none within 6″ — 5 VP)": "oddział w 3″ od środka pola, a wrogów tam nie ma (brak także w 6″ — 5 PZ)",
