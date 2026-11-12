@@ -91,7 +91,7 @@ export const LOW_CHARGE_CHANCE = 0.3
 
 /**
  * Why to think twice before declaring this charge, or null when it looks fine. Asked when the player presses
- * «Объявить атаку»: the forecast is on screen, but the battles showed it is easy to charge without reading it (from 11″
+ * “Declare a charge”: the forecast is on screen, but the battles showed it is easy to charge without reading it (from 11″
  * at 3%, a support Tech-Priest into a Captain, shooters into melee). Flags: every target out of reasonable reach, every
  * fight a bad trade, or a shooter or a character heading into a fight that is not a good one.
  */
@@ -103,8 +103,10 @@ export function chargeWarning(s: GameState, unit: UnitState): { why: string[]; b
   const role = unitProfile(unit).role
   const why: string[] = []
   if (likeliest.p < LOW_CHARGE_CHANCE)
-    why.push(`Мало шансов дойти: даже до ближайшей цели «${likeliest.name}» нужно ${Math.ceil(likeliest.distance)}″ на 2D6 — ${Math.round(likeliest.p * 100)}%. Не дойдёт — отряд просто останется стоять.`)
+    why.push(tr('Little chance to make it: even the nearest target {name} needs {ceil}″ on 2D6 — {round}%. If it falls short, the unit just stays where it is.', { name: quote(likeliest.name), ceil: Math.ceil(likeliest.distance), round: Math.round(likeliest.p * 100) }))
   const reasons = list.every((f) => f.verdict === 'bad') || ((role === 'shooter' || role === 'character') && top.verdict !== 'good')
-  if (reasons) for (const w of top.warnings) if (!w.startsWith('Мало шансов')) why.push(`«${top.name}»: ${w}`)
+  // the forecast's own "little chance" warning repeats the first reason, so it is left out
+  const little = tr('Little chance to make it: needs {ceil}″ on 2D6 — {round}%.', { ceil: Math.ceil(top.distance), round: Math.round(top.p * 100) })
+  if (reasons) for (const w of top.warnings) if (w !== little) why.push(tr('{name}: {warning}', { name: quote(top.name), warning: w }))
   return why.length ? { why, best: top } : null
 }

@@ -125,7 +125,7 @@ interface Store {
   arriveAt: (p: Vec) => void
   /** shooting target picked on the board, waiting for the "Fire" button */
   aimTargetId: string | null
-  /** a charge the forecast advises against, waiting for «Атаковать всё равно» (chargeAdvice.ts chargeWarning) */
+  /** a charge the forecast advises against, waiting for “Charge anyway” (chargeAdvice.ts chargeWarning) */
   chargeConfirm: { unitId: string; why: string[] } | null
   /** the player confirmed that charge: the next declareCharge of this unit goes through */
   chargeOk: string | null

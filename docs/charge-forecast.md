@@ -41,12 +41,12 @@ A CHARACTER that would deal under 2 wounds, or lose half its wounds, gets its ow
 
 The battles showed that the forecast is easy to ignore. Charges from 11″ (3%), a support Tech-Priest charging next to a Captain, shooters charging into melee.
 
-So pressing «Объявить атаку» first asks «Точно атаковать?» when `chargeWarning` (`src/game/chargeAdvice.ts`) finds a reason:
+So pressing “🎲 Declare a charge (2D6)” first asks “Really charge with …?” when `chargeWarning` (`src/game/chargeAdvice.ts`) finds a reason:
 
 - **every target out of reasonable reach**: the best chance to get there is below 30% (`LOW_CHARGE_CHANCE`);
 - **every possible fight a bad trade** (verdict `bad`);
 - **a shooter or a character** whose best fight is not a good one.
 
-**The dialog** lists those reasons (with the forecast's own warnings). «Отмена» is the default button, so Enter or Esc keeps the unit back. «Атаковать всё равно» declares the charge.
+**The dialog** lists those reasons (with the forecast's own warnings). “Cancel” is the default button, so Enter or Esc keeps the unit back. “Charge anyway” declares the charge.
 
 **Where it lives.** The check sits in the store's `dispatch`, so it covers every charge button: the action bar under the board and the unit's action list. It is skipped in the «minimal» explanation mode. The AI never goes through it.
