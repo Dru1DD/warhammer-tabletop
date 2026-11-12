@@ -357,6 +357,8 @@ export const SCENARIOS: Scenario[] = [
       state.mapId = m.id
       state.layoutId = layoutId
       for (const f of sides) musterArmy(state, f, armies[f] ?? presetList(f, 1000))
+      // a pure custom list plays without its detachment
+      for (const f of sides) if (armies[f]?.noDetachment) state.players[f].noDetachment = true
       return state
     },
   },
