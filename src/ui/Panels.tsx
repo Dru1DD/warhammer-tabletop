@@ -3,7 +3,7 @@ import { FACTION_STYLE, TOKENS, tokenImageFor } from '../assets/manifest'
 import { ABILITY_TEXT, FACTION_NAME, PROFILES } from '../game/data/datasheets'
 import { copyIndex, fmtPoints, pointsPerModel, unitPoints } from '../game/data/points'
 import { actor, moveAllowance, moveCommand, moveModeFor, PHASE_NAME, shootPlan, stratagemActions, unitActions, validate } from '../game/engine'
-import { alive, datasheetOf, engagedUnits, fmt, hasAbility, isDestroyed, isMV, other, profileOf, sidesOf, unitsOf, weaponsOf } from '../game/gameState'
+import { alive, datasheetOf, engagedUnits, fmt, hasAbility, hasKeyword, isDestroyed, isMV, other, profileOf, sidesOf, unitsOf, weaponsOf } from '../game/gameState'
 import { hitRoll, saveTarget, toughness, woundTarget } from '../game/combat/attack'
 import { fmtRandom } from '../game/dice/dice'
 import { deploymentIssues, deploymentZone } from '../game/rules/deployment'
@@ -50,6 +50,7 @@ import { leaveRoom } from '../multiplayer/session'
 import { turnPlan, type PlanKind } from '../game/missionAdvice'
 import { quote, tr } from '../i18n/index'
 import { MISSION_ACTION, PRIMARY, PRIMARY_CAP, primaryTotal, ROUND_CAP } from '../game/rules/missions'
+import { carryProblem, disembarkMode, disembarkSpot, disembarkWindow, embarkedOf, isTransport, passengersOf, transportSpec } from '../game/rules/transports'
 import { aiArrivalTarget, arrivalSpot, canDeepStrike, ingressWindow, INGRESS_EDGE, INGRESS_ENEMY, RAPID_INGRESS_CP, RESERVE_DEADLINE, RESERVE_FROM_ROUND, reserveBudget, reservesOf } from '../game/rules/reserves'
 import { FIXED_CARD_CAP, SECONDARY, SECONDARY_CAP, SECONDARY_ROUND_CAP, secondaryTotal } from '../game/rules/secondaries'
 
@@ -331,6 +332,7 @@ export function ActionPanel() {
       {game.mission && <MissionCard game={game} />}
       {game.secondary && <SecondaryPanel game={game} me={human} />}
       {(game.reserves?.length ?? 0) > 0 && <ReservePanel game={game} me={human} />}
+      {(game.embarked?.length ?? 0) > 0 && <TransportPanel game={game} me={human} />}
       {!game.winner && explain !== 'minimal' && (
         <details className="text-xs text-stone-300">
           <summary className="cursor-pointer text-sky-300">{tr('Phase rules')}</summary>
@@ -543,6 +545,7 @@ function DeploymentPanel() {
       </div>
 
       {game.deployment && !st.shared && <ReserveSetup />}
+      {!st.shared && game.units.some((u) => u.owner === human && isTransport(u)) && <TransportSetup />}
 
       <div>
         <h3 className="mb-1 text-xs font-semibold uppercase text-stone-400">{tr('2. Where to place')}</h3>
@@ -1175,5 +1178,78 @@ function TurnPlan({ game, me }: { game: GameState; me: PlayerId }) {
       </ul>
       <p className="mt-1 text-[11px] text-stone-400">{tr('Points are counted for the current board, with the limits of {round} per round and {battle} per battle. On the board by the objectives: “+N” is what taking the objective gives, “−N” is what you lose if you give it up.', { round: ROUND_CAP, battle: PRIMARY_CAP })}</p>
     </details>
+  )
+}
+
+/** Deployment: which units start the battle inside a transport. */
+function TransportSetup() {
+  const st = useStore()
+  const game = st.game!
+  const human = st.settings.human
+  const sel = game.units.find((u) => u.id === st.selectedUnitId && u.owner === human)
+  const transports = game.units.filter((u) => u.owner === human && isTransport(u))
+  return (
+    <div className="rounded border border-amber-700 bg-amber-950/30 p-2 text-xs">
+      <h3 className="mb-1 font-semibold uppercase text-amber-200">{tr('🚚 Transports')}</h3>
+      <p className="text-stone-300">{tr('A unit can start the battle inside a transport: it is not set up now and gets out in your Movement phase, wholly within 3″ of the transport. A Dedicated Transport with nobody inside is removed before the battle.')}</p>
+      {transports.map((t) => {
+        const spec = transportSpec(t)!
+        const inside = passengersOf(game, t.id)
+        const used = inside.reduce((a, u) => a + alive(u).length, 0)
+        const canTake = sel && sel.id !== t.id && !carryProblem(game, sel, t)
+        return (
+          <div key={t.id} className="mt-1 rounded bg-stone-900/60 p-1.5">
+            <div className="font-medium">{t.name} · {tr('{used}/{capacity} places · {kinds}', { used, capacity: spec.capacity, kinds: spec.label })}</div>
+            {inside.length === 0 && hasKeyword(t, 'DEDICATED TRANSPORT') && <div className="text-rose-300">{tr('⚠ Empty: it will be removed before the battle.')}</div>}
+            {inside.map((u) => (
+              <div key={u.id} className="mt-1 flex items-center justify-between gap-2">
+                <span>{u.name} · {tr('{count} models|short', { count: alive(u).length })}</span>
+                <button className="btn text-xs" onClick={() => st.leaveTransport(u.id)}>{tr('⏫ Onto the board')}</button>
+              </div>
+            ))}
+            {canTake && <button className="btn mt-1 w-full" onClick={() => st.embarkBeforeBattle(sel!.id, t.id)}>{tr('🚚 {name} — into {transport}', { name: sel!.name, transport: t.name })}</button>}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/** In battle: who is inside which transport, and for the player's own units the way out. */
+function TransportPanel({ game, me }: { game: GameState; me: PlayerId }) {
+  const st = useStore()
+  const mine = embarkedOf(game, me)
+  const theirs = embarkedOf(game, other(game, me))
+  const auto = (id: string) => {
+    const u = game.embarked!.find((x) => x.id === id)!
+    const positions = disembarkSpot(game, u, aiArrivalTarget(game, me))
+    if (positions) st.dispatch({ type: 'disembark', unitId: id, positions })
+    else st.setMessage(tr('No room to get out: every model must be wholly within 3″ of the transport, not next to enemies.'), 'error')
+  }
+  return (
+    <div className="rounded border border-amber-700 bg-amber-950/30 p-2 text-xs">
+      <div className="font-semibold text-amber-200">{tr('🚚 In transports')}</div>
+      {mine.map((u) => {
+        const t = game.units.find((x) => x.id === u.embarkedIn)
+        const closed = disembarkWindow(game, u)
+        return (
+          <div key={u.id} className="mt-1 rounded bg-stone-900/60 p-1.5">
+            <div>{tr('{name} in {transport}', { name: u.name, transport: t?.name ?? '?' })} · {tr('{count} models|short', { count: alive(u).length })}</div>
+            {!closed && !game.winner && t && (
+              <>
+                <div className="text-stone-400">{disembarkMode(t) === 'tactical' ? tr('Tactical disembark: the transport has not moved yet, so the unit can still move after getting out.') : tr('Rapid disembark: the transport has already moved, so the unit gets out but makes no move and no charge this turn.')}</div>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  <button className={`btn text-xs ${st.arriving?.unitId === u.id ? 'btn-primary' : ''}`} onClick={() => st.startDisembark(st.arriving?.unitId === u.id ? null : u.id)}>{tr('📍 Choose the side on the board')}</button>
+                  <button className="btn text-xs" onClick={() => auto(u.id)}>{tr('🚚 Get out towards the objective')}</button>
+                </div>
+              </>
+            )}
+            {closed && <div className="text-stone-400">{closed}</div>}
+          </div>
+        )
+      })}
+      {st.arriving?.disembark && <button className="btn mt-1 w-full text-xs" onClick={() => st.startDisembark(null)}>{tr('✕ Cancel the spot choice')}</button>}
+      {theirs.length > 0 && <p className="mt-1 text-stone-400">{tr('Inside enemy transports: {list}.', { list: theirs.map((u) => u.name).join(', ') })}</p>}
+    </div>
   )
 }

@@ -124,9 +124,9 @@ describe('Adeptus Mechanicus datasheets', () => {
     expect(anti('torsionCannon')).toEqual({ keyword: 'INFANTRY', roll: 2 })
     expect(anti('radiumCarbine')).toEqual({ keyword: 'INFANTRY', roll: 4 })
   })
-  it('all twelve datasheets exist for the faction, every ability has Russian rules text, every weapon exists', () => {
+  it('all thirteen datasheets exist for the faction, every ability has Russian rules text, every weapon exists', () => {
     const sheets = Object.values(DATASHEETS).filter((d) => d.faction === AM)
-    expect(sheets.map((d) => d.id).sort()).toEqual(['breachers', 'destroyers', 'electroPriests', 'ironstriders', 'kastelans', 'onager', 'rangers', 'sicarians', 'sulphurhounds', 'techDominus', 'techManipulus', 'vanguard'])
+    expect(sheets.map((d) => d.id).sort()).toEqual(['breachers', 'destroyers', 'dunerider', 'electroPriests', 'ironstriders', 'kastelans', 'onager', 'rangers', 'sicarians', 'sulphurhounds', 'techDominus', 'techManipulus', 'vanguard'])
     for (const d of sheets) {
       expect(d.keywords).toContain('ADEPTUS MECHANICUS')
       expect(d.description, d.id).toBeTruthy()

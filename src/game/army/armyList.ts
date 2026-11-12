@@ -93,6 +93,7 @@ export const COMPOSITION: Record<string, { leader?: string; pattern: string[] }>
   ironstriders: { pattern: ['ironstrider'] },
   onager: { pattern: ['onager'] },
   electroPriests: { pattern: ['electroPriest'] },
+  dunerider: { pattern: ['dunerider'] },
 }
 
 /** Model profile ids of a unit of `size` models, with the chosen wargear if any. */

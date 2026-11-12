@@ -12,6 +12,7 @@ import {
   updateObjectiveControl, weaponsOf, OBJECTIVE_MARKER_MM,
 } from './gameState'
 import { healUnit } from './rules/heal'
+import { disembark, disembarkProblem, embark, embarkedOf, embarkProblem, emergencyDisembark, firingDeckWeapons, passengersOf, removeEmptyDedicated } from './rules/transports'
 import { aiArrivalTarget, arrivalProblem, arrivalSpot, arrive, expireReserves, reservesOf } from './rules/reserves'
 import { applySecondary, secondaryCommandStart, secondaryProblem, secondaryTurnEnd } from './rules/secondaries'
 import { actionProblem, MISSION_ACTION, missionBattleEnd, missionCommandEnd, missionTurnEnd, missionTurnStart, PRIMARY } from './rules/missions'
@@ -248,8 +249,9 @@ export function shootPlan(
   const byKey = new Map<string, AttackGroup & { ctx: AttackContext }>()
   let anyVisible = false
   let closest = Infinity
+  const deck = firingDeckWeapons(s, unit)
   for (const m of alive(unit)) {
-    const ranged = weaponsOf(m).filter((w) => w.profiles[0].range !== 'melee')
+    const ranged = [...weaponsOf(m), ...(m === alive(unit)[0] ? deck : [])].filter((w) => w.profiles[0].range !== 'melee')
     const cq = ranged.filter((w) => w.profiles[0].keywords.closeQuarters)
     const main = ranged.filter((w) => !w.profiles[0].keywords.closeQuarters)
     // close-quarters shooting (10.06): MONSTER/VEHICLE may use any non-Blast ranged weapon
@@ -550,6 +552,14 @@ export function validate(s: GameState, cmd: Command): Validation {
     return cmd.type === 'rerollChoice' ? OK : fail(tr('The attack is waiting for the decision of side “{item}”: re-roll the die or not.', { item: FACTION_NAME[s.pendingReroll.player] }))
   if (cmd.type === 'rerollChoice') return fail(tr('There is nothing to re-roll right now.'))
   // a unit arriving from reserves: in its own Movement phase, or Rapid Ingress in the reaction window before shooting
+  // an embarked unit sets up out of its transport (it is not on the board, so not found below)
+  if (cmd.type === 'disembark') {
+    const u = s.embarked?.find((x) => x.id === cmd.unitId)
+    if (!u) return fail(tr('This unit is not in a transport.'))
+    if (u.owner !== who) return fail(tr('{item} is making the decision now.', { item: FACTION_NAME[who] }))
+    const p = disembarkProblem(s, u, cmd.positions)
+    return p ? fail(p) : OK
+  }
   if (cmd.type === 'arrive') {
     const u = s.reserves?.find((x) => x.id === cmd.unitId)
     if (!u) return fail(tr('This unit is not in Reserves.'))
@@ -661,8 +671,15 @@ export function validate(s: GameState, cmd: Command): Validation {
       const plan = shootPlan(s, unit, target, cmd)
       return plan.problem ? fail(plan.problem) : OK
     }
+    case 'embark': {
+      const t = findUnit(s, cmd.transportId)
+      if (!t) return fail(tr('No such transport.'))
+      const p = embarkProblem(s, unit, t)
+      return p ? fail(p) : OK
+    }
     case 'declareCharge': {
       if (s.phase !== 'charge') return fail(tr('A charge is declared in the Charge phase.'))
+      if (unit.noChargeThisTurn) return fail(tr('The unit disembarked Rapidly or in an emergency this turn and cannot charge.'))
       if (unit.chargeDeclared) return fail(tr('The unit has already declared a charge in this phase.'))
       if (unit.action) return fail(tr('The unit is performing a mission action and cannot charge this turn.'))
       if (isEngaged(s, unit)) return fail(tr('The unit is already in engagement range of the enemy.'))
@@ -836,6 +853,8 @@ function movedTo(u: UnitState, pos: Record<string, Vec>) {
 
 function resetTurnFlags(s: GameState) {
   for (const u of s.units) {
+    if (u.setUpThisTurn) delete u.setUpThisTurn
+    if (u.noChargeThisTurn) delete u.noChargeThisTurn
     u.move = 'none'
     u.movedDistance = 0
     u.advanceRoll = null
@@ -871,6 +890,7 @@ function enterPhase(s: GameState, phase: Phase, r: Roller) {
     if (u.shockedThisPhase) u.shockedThisPhase = false
     if (u.phaseBuffs?.length) u.phaseBuffs = []
   }
+  for (const u of s.embarked ?? []) if (u.embarkedThisPhase) delete u.embarkedThisPhase
   addLog(s, `— ${PHASE_NAME[phase]}: ${FACTION_NAME[s.activePlayer]} —`, 'minimal')
   if (phase === 'command') commandPhase(s, r)
   if (phase === 'fight') {
@@ -1001,7 +1021,7 @@ function checkWinner(s: GameState) {
   if (s.winner) return
   enforceCrews(s)
   const [wa, wb] = sidesOf(s)
-  const m = unitsOf(s, wa).length + reservesOf(s, wa).length, o = unitsOf(s, wb).length + reservesOf(s, wb).length
+  const m = unitsOf(s, wa).length + reservesOf(s, wa).length + embarkedOf(s, wa).length, o = unitsOf(s, wb).length + reservesOf(s, wb).length + embarkedOf(s, wb).length
   if (m && o) return
   s.winner = m ? wa : o ? wb : 'draw'
   addLog(s, tr('The enemy army is destroyed. {value}', { value: s.winner === 'draw' ? tr('Draw!') : tr('Victory: {item}!', { item: FACTION_NAME[s.winner] }) }), 'minimal')
@@ -1248,6 +1268,12 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
     case 'secondary':
       applySecondary(s, s.activePlayer, cmd.op, cmd.card)
       break
+    case 'embark':
+      embark(s, cmd.unitId, cmd.transportId)
+      break
+    case 'disembark':
+      disembark(s, cmd.unitId, cmd.positions)
+      break
     case 'arrive':
       arrive(s, cmd.unitId, cmd.positions, !!cmd.rapid)
       if (s.reaction && !reactionCommands(s).length) closeReaction(s, r)
@@ -1460,6 +1486,8 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       break
   }
   enforceCrews(s)
+  // a transport destroyed by this command: its passengers make an Emergency Disembark
+  if (s.embarked?.length) emergencyDisembarks(s, r)
   s.rng = r.state()
   return s
 }
@@ -1618,6 +1646,8 @@ export function startGame(s0: GameState, r: Roller): GameState {
   s.firstPlayer = a > b ? west : east
   s.activePlayer = s.firstPlayer
   refreshFocus(s)
+  // Declare Battle Formations: a Dedicated Transport with nobody inside does not take part in the battle
+  removeEmptyDedicated(s)
   pushDice(s, tr('Roll for the first turn'), [{ label: `${FACTION_NAME[west]} / ${FACTION_NAME[east]}`, target: '—', dice: rolls.map((v) => ({ value: v, success: true })) }], tr('{item} goes first.', { item: FACTION_NAME[s.firstPlayer] }))
   addLog(s, tr('===== Round 1 ===== {item} goes first.', { item: FACTION_NAME[s.firstPlayer] }), 'minimal')
   if (s.mission) addLog(s, tr('Primary mission (both sides): {name} ({nameEn}).', { name: PRIMARY[s.mission.primary].name, nameEn: PRIMARY[s.mission.primary].nameEn }), 'minimal')
@@ -1651,6 +1681,12 @@ export function unitActions(s: GameState, unitId: string): ActionInfo[] {
     out.push({ id, label, ok: v.ok, reason: v.ok ? undefined : v.reason, cmd })
   }
   if (s.phase === 'movement') {
+    // a unit that has moved can get into a friendly transport nearby
+    if (u.move !== 'none')
+      for (const t of s.units.filter((x) => x.owner === u.owner && x.id !== u.id && !isDestroyed(x) && datasheetOf(x).transport)) {
+        const cmd: Command = { type: 'embark', unitId, transportId: t.id }
+        if (validate(s, cmd).ok) add(`embark:${t.id}`, tr('🚚 Embark in “{transport}”', { transport: t.name }), cmd)
+      }
     add('advance', tr('Declare an Advance: M + D6'), { type: 'declareAdvance', unitId })
     add('reroll', tr('Re-roll the Advance (Waaagh!)'), { type: 'rerollAdvance', unitId })
     if (hasAbility(u, 'guide'))
@@ -2105,4 +2141,10 @@ function lineBreakers(s: GameState, u: UnitState, targets: UnitState[], support:
   pushDice(s, tr('Line-breakers: {name} → {target}', { name: u.name, target: t.name }), [{ label: bonus ? tr('D6 × {n} (+2: friendly Battleline nearby)', { n }) : tr('D6 × {n}', { n }), target: `${LINE_BREAKERS_ROLL}+`, dice: dice.map((v) => ({ value: v, success: v + bonus >= LINE_BREAKERS_ROLL })) }],
     mw ? tr('{name}: {mw} mortal wounds from the line-breakers.', { name: t.name, mw }) : tr('{name}: line-breakers without wounds.', { name: u.name }))
   if (mw) applyMortalWounds(s, t, mw, tr('line-breakers'))
+}
+
+/** Every destroyed transport with passengers: they set up around it (rules/transports.ts) and roll hazard per model. */
+function emergencyDisembarks(s: GameState, r: Roller) {
+  for (const t of s.units.filter((u) => isDestroyed(u) && passengersOf(s, u.id).length))
+    for (const { unit, models } of emergencyDisembark(s, t)) hazard(s, unit, models, r, tr('Emergency Disembark'))
 }

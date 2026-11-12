@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { AiDecision, AiLevel } from './game/ai/ai'
 import { chargeWarning } from './game/chargeAdvice'
+import { aiEmbark, carryProblem, disembarkSpot, embark, leaveBeforeBattle } from './game/rules/transports'
 import { aiReserves, arrivalSpot, fromReserve, reserveProblem, toReserve } from './game/rules/reserves'
 import { decideAsync } from './game/ai/aiClient'
 import { seededRoller } from './game/dice/dice'
@@ -19,7 +20,7 @@ import { parseLayout } from './game/terrainLayout'
 import { FACTIONS, type Command, type ExplainLevel, type GameState, type PlayerId, type SecondaryId, type Terrain, type Vec } from './game/types'
 import type { TutorialStart } from './ui/help'
 import { actionableUnits, canActNow } from './ui/guidance'
-import { tr } from './i18n/index'
+import { quote, tr } from './i18n/index'
 
 export const AUTOSAVE_KEY = 'wh40k-training-autosave'
 export const MANUAL_KEY = 'wh40k-training-save'
@@ -115,8 +116,14 @@ interface Store {
   /** non-null while the human sets up their army before round 1 */
   deploying: { placed: string[] } | null
   deployHistory: { game: GameState; placed: string[] }[]
-  /** a reserve unit waiting for the player to click where it arrives (`rapid`: Rapid Ingress) */
-  arriving: { unitId: string; rapid: boolean } | null
+  /** a reserve unit waiting for the player to click where it arrives (`rapid`: Rapid Ingress), or an embarked unit
+   * waiting for where it disembarks (`disembark`) */
+  arriving: { unitId: string; rapid: boolean; disembark?: boolean } | null
+  /** pick an embarked unit to disembark with the next click on the board (null cancels) */
+  startDisembark: (unitId: string | null) => void
+  /** deployment: start the battle inside a transport, or take the unit out again */
+  embarkBeforeBattle: (unitId: string, transportId: string) => void
+  leaveTransport: (unitId: string) => void
   /** deployment: put the unit into Strategic Reserves, or back onto the battlefield */
   toggleReserve: (unitId: string) => void
   /** pick a reserve unit to set up with the next click on the board (null cancels) */
@@ -391,6 +398,8 @@ export const useStore = create<Store>((set, get) => {
     const game = built.game
     // the AI keeps its Deep Strike units in reserve (44″×60″)
     if (game.deployment) aiReserves(game, settings.opponent)
+    // the AI fills its Dedicated Transports (an empty one would be removed before the battle)
+    aiEmbark(game, settings.opponent)
     const first = game.units.find((u) => u.owner === settings.human)?.id ?? null
     set({ game, match: null, settings, deploying: { placed: [] }, deployHistory: [], review: null, aimTargetId: null, selectedUnitId: first, draft: {}, history: [], aiNotes: [], message: null, groupDrag: true, measuring: false, aiActionsThisTurn: 0, measure: { a: null, b: null, range: 12 } })
   },
@@ -550,9 +559,41 @@ export const useStore = create<Store>((set, get) => {
 
   startArrival: (unitId, rapid = false) => set({ arriving: unitId ? { unitId, rapid } : null, measuring: false, message: unitId ? { text: rapid ? tr('Click the board where to set up the unit: Rapid Ingress places it at the edge (within 6″), more than 8″ from enemies.') : tr('Click the board where to set up the unit: at the edge (within 6″) or, with Deep Strike, anywhere — more than 8″ from enemies.'), kind: 'info' } : null }),
 
+  startDisembark: (unitId) => set({ arriving: unitId ? { unitId, rapid: false, disembark: true } : null, measuring: false, message: unitId ? { text: tr('Click the board on the side of the transport where the unit should get out: it is set up wholly within 3″ of the transport.'), kind: 'info' } : null }),
+
+  embarkBeforeBattle: (unitId, transportId) => {
+    const { game, deploying, deployHistory } = get()
+    if (!game || !deploying) return
+    const next = structuredClone(game)
+    const u = next.units.find((x) => x.id === unitId), t = next.units.find((x) => x.id === transportId)
+    if (!u || !t) return
+    const why = carryProblem(next, u, t)
+    if (why) return set({ message: { text: why, kind: 'error' } })
+    embark(next, unitId, transportId, true)
+    const nextUnit = next.units.find((x) => x.owner === u.owner && !deploying.placed.includes(x.id))?.id ?? transportId
+    set({ game: next, deploying: { placed: deploying.placed.filter((id) => id !== unitId) }, deployHistory: [...deployHistory, { game, placed: deploying.placed }], draft: {}, selectedUnitId: nextUnit, message: { text: tr('{name} starts the battle inside {transport}.', { name: quote(u.name), transport: quote(t.name) }), kind: 'info' } })
+  },
+
+  leaveTransport: (unitId) => {
+    const { game, deploying, deployHistory } = get()
+    if (!game || !deploying) return
+    const next = structuredClone(game)
+    leaveBeforeBattle(next, unitId)
+    set({ game: next, deployHistory: [...deployHistory, { game, placed: deploying.placed }], selectedUnitId: unitId, message: { text: tr('The unit got out of the transport — set it up.'), kind: 'info' } })
+  },
+
   arriveAt: (p) => {
     const { game, arriving } = get()
     if (!game || !arriving) return
+    if (arriving.disembark) {
+      const inside = game.embarked?.find((x) => x.id === arriving.unitId)
+      if (!inside) return set({ arriving: null })
+      const pos = disembarkSpot(game, inside, p)
+      if (!pos) return set({ message: { text: tr('The unit cannot get out on that side: every model must be wholly within 3″ of the transport, not next to enemies.'), kind: 'error' } })
+      set({ arriving: null, message: null })
+      get().dispatch({ type: 'disembark', unitId: inside.id, positions: pos })
+      return
+    }
     const u = game.reserves?.find((x) => x.id === arriving.unitId)
     if (!u) return set({ arriving: null })
     const positions = arrivalSpot(game, u, p, arriving.rapid)

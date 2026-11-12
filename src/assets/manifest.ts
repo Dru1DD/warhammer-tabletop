@@ -141,6 +141,7 @@ export const TOKENS: Record<string, TokenStyle> = {
   onagerNeutron: { fill: '#6e1b1b', stroke: '#e8b04a', text: '#ffffff', label: tr('OnN') },
   onagerPhosphor: { fill: '#6e1b1b', stroke: '#f1d9a6', text: '#ffffff', label: tr('OnP') },
   electroPriest: { fill: '#8a1f1f', stroke: '#f1d9a6', text: '#ffffff', label: tr('EP') },
+  dunerider: { fill: '#6e1b1b', stroke: '#e8b04a', text: '#ffffff', label: tr('SD') },
 }
 
 // wargear variants without their own token use the token of the profile they are built from

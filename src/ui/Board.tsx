@@ -9,6 +9,7 @@ import { alive, CHARGE_RANGE, findUnit, fmt, hasAbility, isFlyer, modelDistance,
 import type { Command, GameState, ModelState, Terrain, UnitState, Vec } from '../game/types'
 import { useStore } from '../store'
 import { objectiveStakes } from '../game/missionAdvice'
+import { passengersOf } from '../game/rules/transports'
 import { clampToRadius, fitBoard, screenToWorld, worldToScreen, zoomAt, type Viewport } from '../view/transform'
 import { actedThisPhase, canActNow, deploymentHint, endPhaseWarning, nextPhaseLabel, nextStepHint, targetCommand } from './guidance'
 import { deploymentProblem, deploymentZone } from '../game/rules/deployment'
@@ -628,6 +629,7 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
               <Circle x={m.pos.x} y={m.pos.y} radius={r} stroke="#ffffff" strokeWidth={0.05} dash={[0.15, 0.1]} opacity={0.6} listening={false} />
               <Line points={flat([m.pos, pos])} stroke="#ffffff" strokeWidth={0.05} dash={[0.2, 0.1]} listening={false} />
               {!deploying && <Text x={m.pos.x - 1} y={m.pos.y - r - 0.5} width={2} align="center" text={tr('{fmt}″ of {fmt2}″', { fmt: fmt(dist(m.pos, pos)), fmt2: fmt(max) })} fontSize={0.38} fill="#ffffff" shadowColor="black" shadowBlur={0.1} listening={false} />}
+
             </>
           )}
           <Group
@@ -678,6 +680,13 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
               <Group x={-r * 0.75} y={-r * 0.75} listening={false}>
                 <Circle radius={0.22} fill="#57534e" stroke="#fff" strokeWidth={0.04} />
                 <Text text="✓" fontSize={0.3} fill="#fff" x={-0.2} y={-0.15} width={0.4} align="center" />
+              </Group>
+            )}
+            {/* a transport shows how many models ride inside */}
+            {(game.embarked?.length ?? 0) > 0 && passengersOf(game, u.id).length > 0 && (
+              <Group x={-r * 0.75} y={r * 0.75} listening={false}>
+                <Rect x={-0.45} y={-0.2} width={0.9} height={0.38} fill="#92400e" cornerRadius={0.1} opacity={0.95} />
+                <Text text={`🚚${passengersOf(game, u.id).reduce((a, x) => a + alive(x).length, 0)}`} fontSize={0.28} fill="#fff" x={-0.45} y={-0.15} width={0.9} align="center" />
               </Group>
             )}
             {u.battleShocked && (
