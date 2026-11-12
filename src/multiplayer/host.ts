@@ -1,7 +1,9 @@
 // Host side: owns the lobby and the authoritative match. Guest commands go through the same `port.submit`
 // as the host's own UI clicks, so there is exactly one rules pipeline. No PeerJS, no React.
 
+import { controllerOf, nextEnvelope } from '../game/match/match'
 import type { CommandEnvelope, MatchState, SubmitResult } from '../game/match/types'
+import type { Command } from '../game/types'
 import type { PlayerId } from '../game/types'
 import type { Link } from './link'
 import { defaultLobby, normalizeLobby, startProblem } from './lobby'
@@ -34,10 +36,15 @@ export interface HostOptions {
   onSession?(s: { token: string | null; gameId: string | null }): void
   hello_timeout_ms?: number
   silence_ms?: number
+  /** how long a reaction or a Command Re-roll question waits for its player before it is passed (DECISION_TIMEOUT) */
+  decision_timeout_ms?: number
 }
 
 const HELLO_TIMEOUT = 10_000
 const SILENCE = 20_000
+/** A reaction window or a Command Re-roll question unanswered this long is passed for its player (stage 2 of the Stratagems:
+ * "wait for the opponent with a timeout, then skip"). The UI shows the same countdown. */
+export const DECISION_TIMEOUT = 20_000
 
 export class HostSession {
   private lobby: LobbyState = defaultLobby()
@@ -51,11 +58,16 @@ export class HostSession {
   private timer: ReturnType<typeof setInterval> | null = null
   private unsub: () => void
   private closed = false
+  /** the open question being timed: the match version it appeared at */
+  private decision: { version: number; timer: ReturnType<typeof setTimeout> } | null = null
 
   private o: HostOptions
   constructor(o: HostOptions) {
     this.o = o
-    this.unsub = o.port.subscribe((m) => this.flush(m))
+    this.unsub = o.port.subscribe((m) => {
+      this.flush(m)
+      this.watchDecision(m)
+    })
     this.timer = setInterval(() => {
       if (this.link && Date.now() - this.lastSeen > (o.silence_ms ?? SILENCE)) this.drop(this.link, 'lost')
     }, 2000)
@@ -110,6 +122,7 @@ export class HostSession {
     this.sentVersion = match.version
     this.o.onSession?.({ token, gameId: match.gameId })
     this.emit()
+    this.watchDecision(match)
   }
 
   // ------------------------------------------------------------ connections
@@ -246,11 +259,40 @@ export class HostSession {
     this.sentVersion = m.version
   }
 
+  // ------------------------------------------------------------ decision timeout
+
+  /** A reaction window or a re-roll question is open: time it (once per match version); anything else clears the timer. */
+  private watchDecision(m: MatchState | null) {
+    const open = this.playing && !!m && m.gameId === this.gameId && !m.state.winner && !!(m.state.reaction || m.state.pendingReroll)
+    if (!open) return this.clearDecision()
+    if (this.decision?.version === m!.version) return
+    this.clearDecision()
+    const version = m!.version
+    this.decision = { version, timer: setTimeout(() => this.timeOut(version), this.o.decision_timeout_ms ?? DECISION_TIMEOUT) }
+  }
+
+  private clearDecision() {
+    if (this.decision) clearTimeout(this.decision.timer)
+    this.decision = null
+  }
+
+  /** Nobody answered: pass for the deciding player, through the same pipeline (the envelope carries that player's id). */
+  private timeOut(version: number) {
+    this.decision = null
+    const m = this.o.port.get()
+    if (this.closed || !this.playing || !m || m.version !== version) return
+    const cmd: Command | null = m.state.pendingReroll ? { type: 'rerollChoice', reroll: false } : m.state.reaction ? { type: 'passReaction' } : null
+    if (!cmd) return
+    const r = this.o.port.submit(nextEnvelope(m, controllerOf(m).playerId, cmd), { silent: true })
+    if (r.ok) this.flush(this.o.port.get())
+  }
+
   /** Leave the room: tell the guest, release everything. */
   close() {
     if (this.closed) return
     this.closed = true
     this.unsub()
+    this.clearDecision()
     if (this.timer) clearInterval(this.timer)
     const link = this.link
     this.link = null

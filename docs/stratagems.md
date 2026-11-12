@@ -203,4 +203,17 @@ Simplifications:
 - Bulwark Imperative and Baleful Halo do not extend to a second SKITARII unit within 6″ of a BATTLELINE one.
 - Protocol of the Vengeful Stars, Protocol of the Eternal Revenant, Responsive Tactics and Webway Tunnel are still listed as «later».
 
-Later stages: a timeout for network games.
+# Online: a timeout for reactions and re-roll questions (stage 2, part 4)
+
+In an online game a reaction window or a Command Re-roll question waits for the player who decides it, but not forever. The host times every open question (`DECISION_TIMEOUT`, 20 s, in `src/multiplayer/host.ts`). If the match is still at that version when the time is up, the host submits the skip for that player: `passReaction`, or `rerollChoice` with `reroll: false`.
+
+- The skip goes through the normal pipeline with the deciding player's id, so the guest receives it as an ordinary accepted action.
+- It applies to both players, the host's own questions included. An answer in time, or any other accepted action, cancels the timer.
+- A new question gets a new timer.
+
+Both sides see the time:
+
+- the prompts (`ReactionPrompt`, `RerollPrompt`) show «⏱ N с»;
+- the waiting side's hint says «Ждём не больше 20 с, потом — пропуск».
+
+Each side counts locally (`useCountdown`); only the host's timer acts. Games against the AI have no limit.

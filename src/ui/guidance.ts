@@ -6,11 +6,15 @@ import { deploymentIssues, deploymentProblem } from '../game/rules/deployment'
 import { dist } from '../game/geometry/geometry'
 import type { Command, GameState, Phase, PlayerId, UnitState, Vec } from '../game/types'
 import { PHASES } from '../game/types'
+import { DECISION_TIMEOUT } from '../multiplayer/host'
 
 // Pure helpers that tell the player what they can do next. All legality
 // comes from engine.validate — nothing here decides rules on its own.
 
 const ok = (s: GameState, c: Command) => validate(s, c).ok
+
+/** online: how long the other side may think about a reaction or a re-roll (multiplayer/host.ts DECISION_TIMEOUT) */
+const WAIT_LIMIT = ` Ждём не больше ${DECISION_TIMEOUT / 1000} с, потом — пропуск.`
 
 /** The command a click on `target` would issue for the selected unit, if any. */
 export function targetCommand(s: GameState, unit: UnitState, target: UnitState): Command | null {
@@ -150,19 +154,19 @@ export function nextStepHint(
   if (s.pendingReroll)
     return s.pendingReroll.player === human
       ? { text: 'Командный переброс: решите, перебрасывать ли кубик.', tone: 'action' }
-      : { text: `${ui.shared ? 'Соперник' : 'ИИ'} (${FACTION_NAME[s.pendingReroll.player]}) решает, перебросить ли кубик…`, tone: 'wait' }
+      : { text: `${ui.shared ? 'Соперник' : 'ИИ'} (${FACTION_NAME[s.pendingReroll.player]}) решает, перебросить ли кубик…${ui.shared ? WAIT_LIMIT : ''}`, tone: 'wait' }
   if (s.reaction?.window === 'beforeShockTests')
     return s.reaction.player === human
       ? { text: 'Перед проверкой боевого шока: можно применить «Безумную храбрость».', tone: 'action' }
-      : { text: `${ui.shared ? 'Соперник' : 'ИИ'} (${FACTION_NAME[s.reaction.player]}) решает, применить ли «Безумную храбрость»…`, tone: 'wait' }
+      : { text: `${ui.shared ? 'Соперник' : 'ИИ'} (${FACTION_NAME[s.reaction.player]}) решает, применить ли «Безумную храбрость»…${ui.shared ? WAIT_LIMIT : ''}`, tone: 'wait' }
   if (s.reaction?.window === 'onTargeted' || s.reaction?.window === 'afterAttacks')
     return s.reaction.player === human
       ? { text: s.reaction.window === 'onTargeted' ? 'Ваш отряд выбран целью атаки: можно ответить стратагемой до бросков.' : 'Ваш отряд потерял модели: можно запустить реанимацию стратагемой.', tone: 'action' }
-      : { text: `${ui.shared ? 'Соперник' : 'ИИ'} (${FACTION_NAME[s.reaction.player]}) решает, ответить ли стратагемой…`, tone: 'wait' }
+      : { text: `${ui.shared ? 'Соперник' : 'ИИ'} (${FACTION_NAME[s.reaction.player]}) решает, ответить ли стратагемой…${ui.shared ? WAIT_LIMIT : ''}`, tone: 'wait' }
   if (s.reaction)
     return s.reaction.player === human
       ? { text: 'Ход противника: можно ответить стратагемой-реакцией или пропустить.', tone: 'action' }
-      : { text: `${ui.shared ? 'Соперник' : 'ИИ'} (${FACTION_NAME[s.reaction.player]}) решает, ответить ли реакцией…`, tone: 'wait' }
+      : { text: `${ui.shared ? 'Соперник' : 'ИИ'} (${FACTION_NAME[s.reaction.player]}) решает, ответить ли реакцией…${ui.shared ? WAIT_LIMIT : ''}`, tone: 'wait' }
   if (actor(s) !== human) return { text: `Ходит ${ui.shared ? 'соперник' : 'ИИ'} (${FACTION_NAME[actor(s)]}) — ${PHASE_NAME[s.phase]}…`, tone: 'wait' }
   if (ui.measuring) return { text: 'Линейка: щёлкните две точки или две модели. Esc — выключить.', tone: 'info' }
 

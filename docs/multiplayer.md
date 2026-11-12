@@ -35,7 +35,8 @@ Host-authoritative. The host's browser owns the match and runs the **one** rules
 5. **Guest applies** the accepted action through `submit(envelopeOf(action))` from the host's RNG state and compares dice and version with the host's
    record. Any gap, mismatch or failure → `syncRequest` → host `snapshot`, which replaces the guest copy. The guest never sends state and
    never applies its own commands; only one command is in flight at a time.
-6. **Liveness**: guest pings every 5 s; either side treats 15–20 s of silence as a lost connection (PeerJS `close` is unreliable on abrupt drops).
+6. **Reactions and re-roll questions** (Stratagems in the opponent's turn) wait for the deciding player at most 20 s (`DECISION_TIMEOUT`). After that the host submits the skip for them through the same pipeline; see `docs/stratagems.md`.
+7. **Liveness**: guest pings every 5 s; either side treats 15–20 s of silence as a lost connection (PeerJS `close` is unreliable on abrupt drops).
 
 ## Reconnect and persistence
 
