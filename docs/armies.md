@@ -146,6 +146,10 @@ The start screen has an army builder for both sides (yours and the AI's). Each f
 - **Rules checked** (`listProblems` in `src/game/army/armyList.ts`): only unit sizes the Field Manual lists, at most 3 copies of a datasheet (6 for BATTLELINE), total within the limit. Later copies of some units cost more (`POINTS_LATER` in `points.ts`). The start buttons stay disabled while a list breaks a rule.
 - **Board**: own lists play on «Боевой патруль». Picking a preset switches to it, and the duel boards are disabled while a list is in use. Online battles still use the training rosters.
 - **Loadouts** come from `COMPOSITION`: the leader model, then a repeating pattern, so a 10-model unit carries twice the special weapons of a 5-model one. Wargear choices are not in the builder yet.
+- **Мои составы и код армии** (`src/game/army/armyCode.ts`, `src/ui/ArmyCodes.tsx`):
+  - **Мои составы.** Named lists per faction, saved in this browser (`wh40k-training-saved-armies`). The same name overwrites, the newest comes first, ✕ deletes.
+  - **📋 Код армии.** Copies the list as text, `WH40K1.` + base64url of `{f, l, u: [[datasheetId, size, loadout?]…]}`, to send to a friend. The loadouts are included.
+  - **📥 Вставить код.** Loads such a code. Spaces and line breaks from a messenger are ignored. A code of another faction, a cut code, or one with units this version does not have is refused with the reason.
 - **Set-up** (`src/game/army/placement.ts`): every unit is placed legally in its deployment zone with the same check as the deployment step. The bulkiest units go first from the front line back. Characters go last, next to a unit they can lead. If a list does not fit, the start screen says which unit has no room.
 
 | Preset | 500 | 1000 |

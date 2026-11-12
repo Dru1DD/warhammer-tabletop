@@ -10,6 +10,7 @@ import { WARGEAR } from '../game/army/wargear'
 import { LoadoutEditor } from './LoadoutEditor'
 import { armyOf } from '../game/scenarios/scenarios'
 import { ArmyStratagems } from './ArmyStratagems'
+import { ArmyCodes } from './ArmyCodes'
 
 const samePreset = (faction: PlayerId, list: ArmyList, limit: PointsLimit) =>
   list.limit === limit && JSON.stringify(list.units) === JSON.stringify(presetList(faction, limit).units)
@@ -51,6 +52,8 @@ export function ArmyBuilder({ faction, role }: { faction: PlayerId; role: string
       </div>
 
       {!list && <p className="mt-2 text-xs text-stone-400">Состав сценария без лимита очков. Выберите пресет, чтобы собрать армию под 500 или 1000 очков.</p>}
+
+      <ArmyCodes faction={faction} list={list} setList={(l) => { setOpen(null); setList(l) }} />
 
       <ArmyStratagems faction={faction} datasheetIds={list ? list.units.map((e) => e.datasheetId) : (armyOf(settings.scenarioId, faction) ?? []).map((u) => u.datasheetId)} />
 
