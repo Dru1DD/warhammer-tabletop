@@ -1,6 +1,21 @@
 # Tabletop Trainer 40K
 
-This is a browser tabletop trainer for **Warhammer 40,000 (11th edition)**, built around the two armies in the **Introductory Set**:
+**Tabletop Trainer 40K** is a free, open-source, browser-based training tool for learning the rules of the tabletop wargame *Warhammer 40,000* (11th edition). You play a small battle on a virtual table against an AI opponent, or online against a friend, and the app explains every step: what you may do next, why an action is illegal, and how each dice roll was decided.
+
+> **Disclaimer.** This is an independent, unofficial fan project. It is **not affiliated with, endorsed by or sponsored by Games Workshop**. Warhammer, Warhammer 40,000 and the names of its factions, units and rules are trademarks of Games Workshop Limited. The project ships no official images, logos or rules text, and its license does not cover those trademarks. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and [docs/LICENSING.md](docs/LICENSING.md).
+
+## Technical highlights
+
+- **Deterministic rules engine.** `src/game` is pure TypeScript with no React or browser APIs. State changes only through validated commands (`validate` / `apply`), and dice come from a seeded roller kept in the game state, so games can be saved, replayed and tested exactly (a golden-master test plays AI-vs-AI games).
+- **AI opponents.** A utility AI with two levels and faction-specific weights, which goes through the same command path as the human and explains each decision.
+- **Online play for two people.** Peer-to-peer over WebRTC (PeerJS), host-authoritative, with no server of our own ([docs/multiplayer.md](docs/multiplayer.md)).
+- **Six armies** that can fight each other, and a hand-drawn SVG board and token set.
+- **Four interface languages** (English, Ukrainian, Polish, Russian) chosen from the system language ([docs/i18n.md](docs/i18n.md)).
+- Vitest unit, engine, AI, multiplayer and UI tests; React 19, Konva, Zustand, Vite and TypeScript (strict).
+
+## Scope
+
+Built around the two armies in the **Introductory Set**:
 - Space Marines: a Lieutenant and 5 Intercessors
 - Orks: a Nob and 5 Boyz
 
@@ -10,7 +25,7 @@ Four more complete armies play on that large board: **Tyranids** (Hive Tyrant, 1
 
 You pick a faction and an opponent, and a rules-driven AI plays the other side. The interface comes in English, Ukrainian, Polish and Russian: it starts in your system language (English if that is not one of them) and the start screen has a language switcher. See [docs/i18n.md](docs/i18n.md).
 
-It is a private hobby and learning project, not a Games Workshop product, and it ships no official images or rules text.
+It is a hobby and learning project. Rules that are simplified or not implemented are listed under [Known limitations](#known-limitations) and in [docs/research.md](docs/research.md).
 
 ## Run
 
@@ -23,7 +38,7 @@ npm run lint       # oxlint
 npm run build      # production build into dist/
 ```
 
-Requires Node 20 or newer. Runs entirely in the browser: no backend, no external APIs.
+Requires Node 22.12 or newer (`.nvmrc` pins 24; CI and the Dockerfile use 24). The app runs entirely in the browser with no backend of its own. Only online play contacts an outside service, the public PeerJS signalling server, which can be replaced by your own ([docs/multiplayer.md](docs/multiplayer.md)). The `Dockerfile` builds the app and serves it with nginx on port 3000.
 
 ## How to play
 
@@ -74,7 +89,7 @@ src/ui/              Konva board and React panels
 - Commands are typed. `apply` validates first, then works on a `structuredClone`, so an invalid command never mutates state.
 - The RNG state lives inside `GameState`, so saved games and tests replay deterministically.
 - The AI and the human use the same path: every command is a `CommandEnvelope` that goes through `match.submit` (ownership, sequence, state version, then `validate`/`apply`). The AI has a per-turn action cap as a guard against loops.
-- Multiplayer readiness (no networking yet): see [docs/architecture.md](docs/architecture.md).
+- The command pipeline is the seam that online play plugs into: see [docs/architecture.md](docs/architecture.md) and [docs/multiplayer.md](docs/multiplayer.md).
 
 ## What's implemented
 
@@ -97,7 +112,8 @@ The full list, with what is exact and what is approximated, is in [docs/research
 - **Unofficial training mission.** Scoring is 5 VP per objective held from round 2. The handbook's missions were not available.
 - **Training-size Ork unit.** The 6-model Boyz unit is below the datasheet minimum of 10, and the box's special weapons exceed the datasheet allowance. The UI flags this.
 - **The Lieutenant is a separate unit** rather than attached to the Intercessors.
-- **No stratagems, Combat Doctrines, Hidden, vertical terrain, Overrun or reserves.** CP accumulate but can't be spent.
+- **Only some Stratagems are implemented**: the core Stratagems used in your own turn, reactions, and one detachment per army (see [docs/stratagems.md](docs/stratagems.md) for what is missing). Combat Doctrines, Hidden, vertical terrain, Overrun and reserves are not implemented.
+- **Online play** is host-authoritative, so it gives no anti-cheat against a malicious host. There is no matchmaking, chat or spectator mode ([docs/multiplayer.md](docs/multiplayer.md)).
 - **Approximations** (see research.md):
   - Line of sight is sampled.
   - Hit modifiers are capped at ±1.
@@ -124,6 +140,9 @@ The full list, with what is exact and what is approximated, is in [docs/research
 
 PeerJS / WebRTC, host-authoritative, no backend of our own. See [docs/multiplayer.md](docs/multiplayer.md) for the architecture, signaling/STUN/TURN setup, limits and a manual two-browser test plan.
 
-## License
+## Contributing, security and license
 
-Copyright 2026 Dru1DD. The source code is licensed under the [Apache License 2.0](LICENSE) (see also [NOTICE](NOTICE)). Warhammer 40,000 and related names are trademarks of Games Workshop; this project is unofficial and the license does not cover them.
+- Contributions are welcome: read [CONTRIBUTING.md](CONTRIBUTING.md) (fork, branch, Pull Request, game-rules accuracy) and the [Code of Conduct](CODE_OF_CONDUCT.md).
+- Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+- Maintainers: [docs/OPEN_SOURCE_MAINTENANCE.md](docs/OPEN_SOURCE_MAINTENANCE.md).
+- License: source code and documentation are under the [Apache License 2.0](LICENSE) (see [NOTICE](NOTICE)). Third-party components and what the license does not cover are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Warhammer 40,000 and related names are trademarks of Games Workshop; this project is unofficial and the license does not cover them.
