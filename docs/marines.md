@@ -45,7 +45,7 @@ Unit sizes: Captain 1; Hellblasters and Infernus 5 or 10; Bladeguard 3 or 6.
 
 | Rule | Unit | Status |
 |---|---|---|
-| Finest Hour | Captain | Once per battle, when the Captain fights: +3 A and Devastating Wounds for that fight. The unit card offers a separate «⭐ Звёздный час» fight action. The AI uses it on a vehicle, monster, character or a unit with 8+ wounds left. |
+| Finest Hour | Captain | Once per battle, when the Captain fights: +3 A and Devastating Wounds for that fight. The unit card offers a separate “⭐ Finest Hour” fight action. The AI uses it on a vehicle, monster, character or a unit with 8+ wounds left. |
 | Rites of Thermal Appeasement | Hellblasters | +1 to Hazardous rolls, so only a 1 fails. The dice panel shows the target as 2+. |
 | Driven from Cover | Infernus | After the Infernus shoot and score at least one hit, the target gets no cover against this army's shooting until the end of the turn. The datasheet gives no duration. The AI shoots with the Infernus first so the rest of the army benefits. |
 | Bladeguard | Bladeguard | The fight option: +1 to melee hit rolls when the unit fights. **The defensive option** (−1 to hit when the unit is attacked) **is not implemented**: the game has no decisions in the opponent's turn. |

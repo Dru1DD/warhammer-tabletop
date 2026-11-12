@@ -4,6 +4,7 @@ import { deploymentProblem, deploymentZone } from '../rules/deployment'
 import type { GameState, PlayerId, UnitState, Vec } from '../types'
 import { footprint, formation } from './placement'
 import { unitProfile, type UnitProfile, type UnitRole } from './roles'
+import { tr } from '../../i18n/index'
 
 // Deployment presets: one click sets up a whole army in a doctrine (storm forward, gun line, hold the
 // objectives, hide). A preset is not a list of positions but weights per unit role (army/roles.ts), so it
@@ -21,10 +22,10 @@ export interface DeployPreset {
 }
 
 export const DEPLOY_PRESETS: DeployPreset[] = [
-  { id: 'assault', name: 'Штурм', icon: '⚔', blurb: 'Рукопашные отряды и заслон — на передней линии напротив ближайших целей, стрелки прикрывают сзади.' },
-  { id: 'gunline', name: 'Огневой рубеж', icon: '🎯', blurb: 'Стрелки растянуты по всей зоне с обзором на поле, рукопашные ждут в укрытии для контратаки.' },
-  { id: 'control', name: 'Контроль поля', icon: '🚩', blurb: 'По отряду на каждую цель, быстрые — на флангах, стрелки — в центре. Следит за всем полем.' },
-  { id: 'defensive', name: 'Оборона', icon: '🛡', blurb: 'Всё за укрытиями и вне линии огня противника. Если враг стреляет первым.' },
+  { id: 'assault', name: tr('Assault'), icon: '⚔', blurb: tr('Melee units and screens go on the front line opposite the nearest targets, shooters cover from behind.') },
+  { id: 'gunline', name: tr('Firing line'), icon: '🎯', blurb: tr('Shooters are spread across the whole zone with a view of the field, melee units wait in cover for a counterattack.') },
+  { id: 'control', name: tr('Field control'), icon: '🚩', blurb: tr('One unit per objective, fast ones on the flanks, shooters in the centre. Watches the whole field.') },
+  { id: 'defensive', name: tr('Defence'), icon: '🛡', blurb: tr('Everything behind cover and out of the enemy’s line of fire. If the enemy shoots first.') },
 ]
 
 /** How a doctrine treats one role. */
@@ -312,21 +313,21 @@ export function presetFit(s: GameState, faction: PlayerId, preset: DeployPresetI
   switch (preset) {
     case 'assault': {
       const v = share(faction, ['assault', 'screen'])
-      return { fit: v, why: `рукопашные и заслон — ${pct(v)} армии` }
+      return { fit: v, why: tr('melee and screens — {pct} of the army', { pct: pct(v) }) }
     }
     case 'gunline': {
       const v = share(faction, ['shooter'])
-      return { fit: v, why: `стрелки — ${pct(v)} армии` }
+      return { fit: v, why: tr('shooters — {pct} of the army', { pct: pct(v) }) }
     }
     case 'control': {
       const a = share(faction, ['assault', 'screen'])
       const g = share(faction, ['shooter'])
       const v = Math.max(0, 1 - Math.abs(a - g)) * 0.9
-      return { fit: v, why: `смешанная армия: штурм ${pct(a)}, стрелки ${pct(g)}` }
+      return { fit: v, why: tr('mixed army: assault {pct}, shooters {pct2}', { pct: pct(a), pct2: pct(g) }) }
     }
     case 'defensive': {
       const v = share(other(s, faction), ['shooter']) * 0.85
-      return { fit: v, why: `у противника стрелков — ${pct(v / 0.85)}` }
+      return { fit: v, why: tr('the opponent’s shooters — {pct}', { pct: pct(v / 0.85) }) }
     }
   }
 }

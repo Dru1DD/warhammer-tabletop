@@ -11,12 +11,13 @@ import {
   describeFinding, emptyText, headlineText, namesFor, noteText, planText, whenText,
 } from './text'
 import type { Names, SectionId } from './text'
+import { tr } from '../../i18n/index'
 
 export interface CoachReportViewProps {
   report: CoachReport
   /** Overrides the id → name lookup (default: names of `report.battle.scenarioId`). */
   names?: Names
-  /** When given, findings with a frame get a «Показать момент» button (a later task wires it to the board). */
+  /** When given, findings with a frame get a "Show the moment" button (a later task wires it to the board). */
   onShowMoment?: (frameIndex: number, finding: Finding) => void
   /**
    * Level of the report's own title (sections are one level lower, cards two). Default 2: the report is embedded
@@ -167,7 +168,7 @@ function PlanList({ report }: { report: CoachReport }) {
 function Timeline({ rows, human }: { rows: RoundSummary[]; human: PlayerId }) {
   if (!rows.length) return <p className="text-sm text-stone-400">{SECTION_TEXT.timeline.empty}</p>
   const enemy: PlayerId = human === 'marines' ? 'orks' : 'marines'
-  const head = ['Раунд', 'ПО: вы', 'ПО: противник', 'Нанесено вами', 'Получено вами', 'Потеряно отрядов: вы', 'Потеряно отрядов: противник']
+  const head = [tr('Round'), tr('VP: you'), tr('VP: opponent'), tr('Dealt by you'), tr('Taken by you'), tr('Units lost: you'), tr('Units lost: opponent')]
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[34rem] border-collapse text-left text-xs">
@@ -204,7 +205,7 @@ export function CoachReportView({ report, names, onShowMoment, headingLevel = 2 
     <HeadingLevel.Provider value={headingLevel}>
       <article className="mx-auto flex max-w-3xl flex-col gap-3 p-3 text-sm text-stone-100" aria-labelledby={titleId} data-testid="coach-report">
         <header className={`rounded border p-3 ${HEADLINE_TONE[head.tone]}`}>
-          <H offset={0} id={titleId} className="m-0 text-lg font-bold">Разбор битвы: {head.verdict}</H>
+          <H offset={0} id={titleId} className="m-0 text-lg font-bold">{tr('Battle review: {verdict}', { verdict: head.verdict })}</H>
           <p className="mt-0.5 text-xs text-stone-400">{head.context}</p>
           <p className="mt-1 font-semibold">{head.score}</p>
           <p className="text-stone-300">{head.totals}</p>

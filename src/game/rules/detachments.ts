@@ -1,3 +1,4 @@
+import { tr } from '../../i18n/index'
 import type { CombatDoctrine, HyperAdaptation, PlayerId } from '../types'
 
 // Detachment rules: the one rule each army's detachment gives the whole army (11th edition, Wahapedia), next to its
@@ -14,38 +15,38 @@ export interface DetachmentRule {
 
 export const DETACHMENT_RULE: Record<PlayerId, DetachmentRule> = {
   marines: {
-    name: 'Дисциплина Кодекса', nameEn: 'Codex Discipline',
-    text: 'Боевые доктрины (правило армии): в начале своей фазы командования можно выбрать одну доктрину для всей армии до следующей фазы командования — «Штурм» (после продвижения можно атаковать), «Опустошитель» (оружие дальнего боя получает Assault), «Тактика» (после отступления можно стрелять и атаковать). Каждую доктрину — раз за битву; детачмент разрешает выбрать одну из них ещё один раз.',
+    name: tr('Codex Discipline'), nameEn: 'Codex Discipline',
+    text: tr('Combat Doctrines (army rule): at the start of your Command phase you can choose one doctrine for the whole army until the next Command phase — “Assault” (can charge after Advancing), “Devastator” (ranged weapons get Assault), “Tactical” (can shoot and charge after Falling Back). Each doctrine once per battle; the detachment lets you choose one of them one more time.'),
   },
   orks: {
-    name: 'Ввяжись в драку', nameEn: 'Get Stuck In',
-    text: 'Атаки ближнего боя всех отрядов Орков получают Sustained Hits 1: каждая шестёрка на попадание даёт ещё одно попадание.',
+    name: tr('Get Stuck In'), nameEn: 'Get Stuck In',
+    text: tr('Melee attacks of all Ork units get Sustained Hits 1: every 6 to hit scores one extra hit.'),
   },
   tyranids: {
-    name: 'Гиперадаптации', nameEn: 'Hyper-adaptations',
-    text: 'В начале битвы выберите одну гиперадаптацию для всех Тиранидов: «Роевые инстинкты» (атаки по пехоте и роям — Sustained Hits 1), «Гиперагрессия» (атаки по монстрам и технике — Lethal Hits) или «Хищники Улья» (критические попадания по персонажам — Precision).',
+    name: tr('Hyper-adaptations'), nameEn: 'Hyper-adaptations',
+    text: tr('At the start of the battle choose one hyper-adaptation for all Tyranids: “Swarming Instincts” (attacks against infantry and swarms — Sustained Hits 1), “Hyper-aggression” (attacks against monsters and vehicles — Lethal Hits) or “Hive Predators” (critical hits against characters — Precision).'),
   },
   necrons: {
-    name: 'Командные протоколы', nameEn: 'Command Protocols',
-    text: 'Пока отряд ведёт персонаж Некронов, все атаки моделей отряда получают +1 к броску на попадание.',
+    name: tr('Command Protocols'), nameEn: 'Command Protocols',
+    text: tr('While a unit is led by a Necron character, all attacks by the unit’s models get +1 to the hit roll.'),
   },
   aeldari: {
-    name: 'Боевое изящество', nameEn: 'Martial Grace',
-    text: 'В начале каждого раунда — ещё один жетон Боевого фокуса (Battle Focus), а «Быстрый, как ветер» (Swift as the Wind) даёт ещё +1″ к движению.',
-    note: 'Третья часть правила (+1 к броску D6 манёвров) здесь не действует: таких манёвров в игре пока нет.',
+    name: tr('Martial Grace'), nameEn: 'Martial Grace',
+    text: tr('At the start of each round — one more Battle Focus token, and “Swift as the Wind” gives +1″ more movement.'),
+    note: tr('The third part of the rule (+1 to the D6 roll of manoeuvres) does not work here: the game has no such manoeuvres yet.'),
   },
   adeptus_mechanicus: {
-    name: 'Радиационная бомбардировка', nameEn: 'Rad-bombardment',
-    text: 'В начале битвы — обстрел зоны расстановки противника: каждый его отряд там либо залегает (боевой шок; на 5+ — D3 смертельных ран), либо держится (на 3+ — D3 смертельных ран). Во 2–5 раундах, в начале вашей фазы командования, — «осадки»: каждый вражеский отряд в его зоне расстановки на 3+ получает 1 смертельную рану и проходит проверку боевого шока.',
-    note: 'Залечь или держаться, решает игра за владельца отряда: залегает отряд, который D3 смертельных ран может уничтожить (3 раны и меньше), остальные держатся.',
+    name: tr('Rad-bombardment'), nameEn: 'Rad-bombardment',
+    text: tr('At the start of the battle — a bombardment of the enemy deployment zone: each enemy unit there either goes to ground (Battle-shock; on a 5+ — D3 mortal wounds) or holds (on a 3+ — D3 mortal wounds). In rounds 2–5, at the start of your Command phase — “fallout”: each enemy unit in its deployment zone takes 1 mortal wound on a 3+ and takes a Battle-shock test.'),
+    note: tr('Going to ground or holding is decided by the game for the unit’s owner: a unit that D3 mortal wounds could wipe out (3 wounds or fewer) goes to ground, the rest hold.'),
   },
 }
 
-export const DOCTRINE_NAME: Record<CombatDoctrine, string> = { assault: 'Штурм', devastator: 'Опустошитель', tactical: 'Тактика' }
+export const DOCTRINE_NAME: Record<CombatDoctrine, string> = { assault: tr('Assault|doctrine'), devastator: tr('Devastator|doctrine'), tactical: tr('Tactical|doctrine') }
 export const DOCTRINE_TEXT: Record<CombatDoctrine, string> = {
-  assault: 'после продвижения (Advance) можно объявить атаку',
-  devastator: 'оружие дальнего боя получает Assault: стреляет и после продвижения',
-  tactical: 'после отступления (Fall Back) можно стрелять и атаковать',
+  assault: tr('after Advancing, a charge can be declared'),
+  devastator: tr('ranged weapons get Assault: the unit shoots even after Advancing'),
+  tactical: tr('after Falling Back, the unit can shoot and charge'),
 }
 export const DOCTRINES: CombatDoctrine[] = ['assault', 'devastator', 'tactical']
 /** Codex Discipline (Gladius Task Force): one doctrine may be selected one more time per battle */
@@ -58,11 +59,11 @@ export function doctrineLeft(used: CombatDoctrine[], d: CombatDoctrine, extra = 
   return times === 0 || (times === 1 && repeats < extra)
 }
 
-export const HYPER_NAME: Record<HyperAdaptation, string> = { swarming: 'Роевые инстинкты', aggression: 'Гиперагрессия', predators: 'Хищники Улья' }
+export const HYPER_NAME: Record<HyperAdaptation, string> = { swarming: tr('Swarming Instincts'), aggression: tr('Hyper-aggression'), predators: tr('Hive Predators') }
 export const HYPER_TEXT: Record<HyperAdaptation, string> = {
-  swarming: 'атаки по пехоте и роям (INFANTRY, SWARM) получают Sustained Hits 1',
-  aggression: 'атаки по монстрам и технике (MONSTER, VEHICLE) получают Lethal Hits',
-  predators: 'критические попадания по персонажам (CHARACTER) получают Precision: раны можно направить в персонажа',
+  swarming: tr('attacks against infantry and swarms (INFANTRY, SWARM) get Sustained Hits 1'),
+  aggression: tr('attacks against monsters and vehicles (MONSTER, VEHICLE) get Lethal Hits'),
+  predators: tr('critical hits against characters (CHARACTER) get Precision: wounds can be allocated to the character'),
 }
 export const HYPER_ADAPTATIONS: HyperAdaptation[] = ['swarming', 'aggression', 'predators']
 

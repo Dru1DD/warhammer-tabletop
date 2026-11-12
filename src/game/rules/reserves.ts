@@ -5,6 +5,7 @@ import { formation } from '../army/placement'
 import { addLog, alive, checkCoherency, hasAbility, other, profileOf, radiusOf, sidesOf, unitsOf } from '../gameState'
 import { terrainBlock } from './movement'
 import type { GameState, PlayerId, UnitState, Vec } from '../types'
+import { quote, tr } from '../../i18n/index'
 
 // Strategic Reserves (Core Rules 20, 11th edition, Wahapedia): before the battle up to half of the army's points may wait
 // off the battlefield. From round 2 a unit arrives in its owner's Movement phase (Ingress Move): wholly within 6″ of a
@@ -37,8 +38,8 @@ export function reserveProblem(s: GameState, u: UnitState): string | null {
   const all = [...s.units, ...(s.reserves ?? [])].filter((x) => x.owner === u.owner)
   const { reserved, limit } = reserveBudget(s, u.owner)
   const cost = unitPoints(u.datasheetId, u.startingModels, copyIndex(all, u)).points
-  if (reserved + cost > limit) return `В резерве не больше половины очков армии: ${reserved} + ${cost} > ${limit}.`
-  if (unitsOf(s, u.owner).length <= 1) return 'Хотя бы один отряд должен начать битву на поле.'
+  if (reserved + cost > limit) return tr('Reserves hold at most half of the army’s points: {reserved} + {cost} > {limit}.', { reserved, cost, limit })
+  if (unitsOf(s, u.owner).length <= 1) return tr('At least one unit must start the battle on the battlefield.')
   return null
 }
 
@@ -60,15 +61,15 @@ const zoneOf = (s: GameState, p: PlayerId): Vec[] => s.deployment?.[sidesOf(s)[0
 
 /** Can `p` make an Ingress Move now: its own Movement phase, or Rapid Ingress at the end of the opponent's? */
 export function ingressWindow(s: GameState, p: PlayerId, rapid: boolean): string | null {
-  if (s.round < RESERVE_FROM_ROUND) return `Резервы выходят со ${RESERVE_FROM_ROUND}-го раунда.`
+  if (s.round < RESERVE_FROM_ROUND) return tr('Reserves arrive from round {round}.', { round: RESERVE_FROM_ROUND })
   if (!rapid) {
-    if (s.reaction) return 'Сейчас окно реакции.'
-    if (s.activePlayer !== p || s.phase !== 'movement') return 'Резервы выходят в своей фазе движения (или «Быстрым выходом» в конце фазы движения противника).'
+    if (s.reaction) return tr('A reaction window is open right now.')
+    if (s.activePlayer !== p || s.phase !== 'movement') return tr('Reserves arrive in your own Movement phase (or with Rapid Ingress at the end of the opponent’s Movement phase).')
     return null
   }
-  if (s.reaction?.window !== 'beforeShooting' || s.reaction.player !== p) return '«Быстрый выход» (Rapid Ingress) — в конце фазы движения противника.'
-  if (s.players[p].rapidIngressUsed) return '«Быстрый выход» уже применён в этой фазе.'
-  if (s.players[p].cp < RAPID_INGRESS_CP) return `Нужно ${RAPID_INGRESS_CP} CP.`
+  if (s.reaction?.window !== 'beforeShooting' || s.reaction.player !== p) return tr('Rapid Ingress is used at the end of the opponent’s Movement phase.')
+  if (s.players[p].rapidIngressUsed) return tr('Rapid Ingress has already been used in this phase.')
+  if (s.players[p].cp < RAPID_INGRESS_CP) return tr('You need {cost} CP.', { cost: RAPID_INGRESS_CP })
   return null
 }
 
@@ -83,19 +84,19 @@ export function arrivalProblem(s: GameState, u: UnitState, positions: Record<str
   const final = alive(u).map((m) => ({ m, pos: positions[m.id] }))
   for (const { m, pos } of final) {
     const name = profileOf(m).name
-    if (!pos) return `${name}: нет позиции.`
+    if (!pos) return tr('{name}: no position.', { name })
     const r = radiusOf(m)
-    if (pos.x - r < -EPS || pos.y - r < -EPS || pos.x + r > s.board.width + EPS || pos.y + r > s.board.height + EPS) return `${name}: подставка выходит за край поля.`
+    if (pos.x - r < -EPS || pos.y - r < -EPS || pos.x + r > s.board.width + EPS || pos.y + r > s.board.height + EPS) return tr('{name}: the base goes beyond the edge of the board.', { name })
     if (!deep) {
       const edge = Math.min(pos.x + r, pos.y + r, s.board.width - pos.x + r, s.board.height - pos.y + r)
-      if (edge > INGRESS_EDGE + EPS) return `${name}: из резерва отряд ставится целиком в ${INGRESS_EDGE}″ от края поля (глубокого удара у него нет).`
-      if (s.round < RESERVE_DEADLINE && pointInPolygon(pos, foeZone)) return `${name}: до ${RESERVE_DEADLINE}-го раунда — не в зоне расстановки противника.`
+      if (edge > INGRESS_EDGE + EPS) return tr('{name}: from Reserves the unit is set up wholly within {edge}″ of a board edge (it has no Deep Strike).', { name, edge: INGRESS_EDGE })
+      if (s.round < RESERVE_DEADLINE && pointInPolygon(pos, foeZone)) return tr('{name}: before round {round} — not in the enemy deployment zone.', { name, round: RESERVE_DEADLINE })
     }
-    if (foes.some((f) => edgeDistance(pos, r, f.pos, radiusOf(f)) <= INGRESS_ENEMY + EPS)) return `${name}: дальше ${INGRESS_ENEMY}″ от всех моделей противника.`
-    if (others.some((o) => basesOverlap(pos, r, o.pos, radiusOf(o)))) return `${name}: подставка пересекается с другой моделью.`
+    if (foes.some((f) => edgeDistance(pos, r, f.pos, radiusOf(f)) <= INGRESS_ENEMY + EPS)) return tr('{name}: more than {range}″ from all enemy models.', { name, range: INGRESS_ENEMY })
+    if (others.some((o) => basesOverlap(pos, r, o.pos, radiusOf(o)))) return tr('{name}: the base overlaps another model.', { name })
     const tb = terrainBlock(s, u, r, pos, pos, true)
-    if (tb) return `${name}: ${tb}`
-    for (const f of final) if (f.m !== m && f.pos && basesOverlap(pos, r, f.pos, radiusOf(f.m))) return `${name}: подставки моделей отряда пересекаются.`
+    if (tb) return tr('{name}: {problem}', { name, problem: tb })
+    for (const f of final) if (f.m !== m && f.pos && basesOverlap(pos, r, f.pos, radiusOf(f.m))) return tr('{name}: the unit’s model bases overlap each other.', { name })
   }
   return checkCoherency(final.map((f) => ({ m: f.m, pos: f.pos! })))
 }
@@ -112,8 +113,8 @@ export function arrive(s: GameState, unitId: string, positions: Record<string, V
     s.players[u.owner].cp -= RAPID_INGRESS_CP
     s.players[u.owner].rapidIngressUsed = true
   }
-  const how = rapid ? `«Быстрый выход» (Rapid Ingress, ${RAPID_INGRESS_CP} CP)` : canDeepStrike(u) ? 'глубокий удар (Deep Strike)' : 'выход из резерва'
-  addLog(s, `${FACTION_NAME[u.owner]}: «${u.name}» — ${how}. До конца хода отряд больше не двигается.`, 'minimal')
+  const p = { faction: FACTION_NAME[u.owner], name: quote(u.name), cost: RAPID_INGRESS_CP }
+  addLog(s, rapid ? tr('{faction}: {name} — Rapid Ingress ({cost} CP). The unit moves no more this turn.', p) : canDeepStrike(u) ? tr('{faction}: {name} — Deep Strike. The unit moves no more this turn.', p) : tr('{faction}: {name} — arrives from Reserves. The unit moves no more this turn.', p), 'minimal')
 }
 
 /** End of round 3: units still in reserve are destroyed (they join the board's list as destroyed units). */
@@ -122,7 +123,7 @@ export function expireReserves(s: GameState) {
   for (const u of s.reserves) {
     for (const m of u.models) m.destroyed = true
     s.units.push(u)
-    addLog(s, `${FACTION_NAME[u.owner]}: «${u.name}» так и не вышел из резерва к концу ${RESERVE_DEADLINE}-го раунда — отряд уничтожен.`, 'minimal')
+    addLog(s, tr('{faction}: {name} never came out of Reserves by the end of round {round} — the unit is destroyed.', { faction: FACTION_NAME[u.owner], name: quote(u.name), round: RESERVE_DEADLINE }), 'minimal')
   }
   s.reserves = []
 }
@@ -168,7 +169,7 @@ export function arrivalChoices(s: GameState, u: UnitState, rapid = false): { lab
     if (!pos) return
     const c = Object.values(pos)[0]
     if (out.some((x) => dist(Object.values(x.positions)[0], c) < 2)) return
-    out.push({ label: `у цели Ц${i + 1}`, positions: pos })
+    out.push({ label: tr('at objective {obj}', { obj: tr('O{value}', { value: i + 1 }) }), positions: pos })
   })
   return out
 }

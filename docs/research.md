@@ -48,7 +48,7 @@ A search snippet gave the Lieutenant **T4**, but the datasheet page itself says 
 
 | Mechanic | Status |
 |---|---|
-| Deployment: the human sets up each unit with every base wholly within their deployment zone, on the board, no overlapping bases, unit in coherency (`src/game/rules/deployment.ts`) | **Simplified.** No alternating deployment: the AI army stands at the scenario's default positions before the human deploys. No terrain or objective restrictions are applied. The default Ork positions in «Учебная стычка у аванпоста» were shifted 0.5″ right (`ox` 26 → 26.5) so every base is wholly within the zone. «Быстрый старт» skips the step and uses the default positions for both sides. |
+| Deployment: the human sets up each unit with every base wholly within their deployment zone, on the board, no overlapping bases, unit in coherency (`src/game/rules/deployment.ts`) | **Simplified.** No alternating deployment: the AI army stands at the scenario's default positions before the human deploys. No terrain or objective restrictions are applied. The default Ork positions in “Training skirmish at the outpost” were shifted 0.5″ right (`ox` 26 → 26.5) so every base is wholly within the zone. “Quick start” skips the step and uses the default positions for both sides. |
 | Turn structure: 5 rounds, Command → Movement → Shooting → Charge → Fight, roll-off for first turn | Implemented |
 | Command phase: +1 CP each player; battle-shock test (2D6 ≥ Ld) for units at or below half strength or already shocked; shock persists until passed (11th change); OC becomes 0 | Implemented. CP accrue but no stratagems exist to spend them on (extension point). |
 | Half-strength | **Approximation.** The exact rule (01.02.01) wasn't readable. Used: models ≤ half of starting strength, or for single models, wounds ≤ half of W. |
@@ -74,7 +74,7 @@ A search snippet gave the Lieutenant **T4**, but the datasheet page itself says 
 | Objective markers: 40 mm, range 3″; control = higher total OC, tie means uncontrolled | Implemented. The "secured" (sticky) rule exists in the rules but no unit here grants it. |
 | Abilities: Bolter Discipline, Tactical Precision, Ammo Runts, Tide of Muscle; Waaagh! army rule (advance re-roll; once-per-battle War Cry: riled up until end of next turn: 5+ invuln, ranged gain Assault, charge after advance) | Implemented |
 | Combat Doctrines (Space Marine army rule) | **Not implemented.** The doctrines' text wasn't available. Extension point. |
-| Stratagems (Insane Bravery, Heroic Intervention, Fire Overwatch, Crushing Impact…), Hidden, attached units, vertical terrain, reserves/Ingress | Not implemented (extension points) |
+| Hidden, attached units, vertical terrain, reserves/Ingress, and the Stratagems and Combat Doctrines listed as missing in [stratagems.md](stratagems.md) | Not implemented (extension points). The Stratagems implemented since this table was written are described in stratagems.md |
 | Random characteristics (D3/D6 attacks and damage) | **Approximation.** Rule 02.02.03 wasn't readable. Random attacks are rolled once per model per weapon; random damage once per unsaved attack. D3 = D6 halved, rounding up (01.05). |
 | MONSTER/VEHICLE: Lethal Hits "non-M/V" (also Tactical Precision) don't apply against them; benefit of cover from standing in terrain is INFANTRY-only (13.08); move through non-M/V models in normal/advance moves (17.01); close-quarters shooting with any non-Blast ranged weapon at −1 to hit vs the engaged unit (10.06) | Implemented |
 | Duty Eternal (−1 to wound if S > T), Dread 'Ard (−1 damage, min 1), Deadly Demise X (D6 = 6: X mortal wounds to every unit within 6″), Targeted Intercession (+1 S/AP in melee after charging) | Implemented. Deadly Demise doesn't chain. |
@@ -92,11 +92,11 @@ Standard AI vs standard AI, 40 seeds per scenario (2026-10-18):
 
 | Scenario | Space Marines win | Orks win | Average end round |
 |---|---|---|---|
-| Учебная стычка у аванпоста | 40 | 0 | 1.7 |
-| Переулок в руинах | 35 | 5 | 1.6 |
-| Боевой патруль (8 seeds, 2026-10-29) | 8 | 0 | 4.75 |
+| Training skirmish at the outpost | 40 | 0 | 1.7 |
+| Alley in the ruins | 35 | 5 | 1.6 |
+| Combat Patrol (8 seeds, 2026-10-29) | 8 | 0 | 4.75 |
 
-«Боевой патруль» (44″×30″; Lieutenant, 2× Intercessors, Assault Intercessors, Redemptor vs 3× Boyz (10), Deff Dread) makes games last 4–5 rounds instead of 1–2, but the Space Marines still win AI-vs-AI. Army sizes are a training choice, not a points-matched list. The slowest AI decision on this board took ~0.8 s.
+“Combat Patrol” (44″×30″; Lieutenant, 2× Intercessors, Assault Intercessors, Redemptor vs 3× Boyz (10), Deff Dread) makes games last 4–5 rounds instead of 1–2, but the Space Marines still win AI-vs-AI. Army sizes are a training choice, not a points-matched list. The slowest AI decision on this board took ~0.8 s.
 
 Varying the Ork AI's `damageTaken` weight (0.2 → 3) changes its behaviour: charges across the 40 games ranged from 41 down to 0 in the ruins scenario. It does not change the overall result. So the imbalance comes mainly from the profiles and board size, not from the AI ignoring cover. Each attack step is unit-tested. A fairer training mode would need the handbook's own scenarios.
 

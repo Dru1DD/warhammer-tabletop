@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest an improvement or a new feature
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or goal
+      description: What are you trying to do that the app does not support well?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you like to see? Alternatives you considered are welcome too.
+    validations:
+      required: true
+  - type: textarea
+    id: rules
+    attributes:
+      label: Rules source (new rules or units only)
+      description: Where the rule or datasheet is published. Please do not paste Games Workshop text or images.
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Contribution
+      options:
+        - label: I would like to work on this myself

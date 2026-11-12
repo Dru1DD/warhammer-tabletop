@@ -12,6 +12,7 @@ import { armyOf } from '../game/scenarios/scenarios'
 import { ArmyStratagems } from './ArmyStratagems'
 import { DETACHMENT } from '../game/rules/stratagems'
 import { ArmyCodes } from './ArmyCodes'
+import { tr } from '../i18n/index'
 
 const samePreset = (faction: PlayerId, list: ArmyList, limit: PointsLimit) =>
   list.limit === limit && JSON.stringify(list.units) === JSON.stringify(presetList(faction, limit).units)
@@ -38,31 +39,31 @@ export function ArmyBuilder({ faction, role }: { faction: PlayerId; role: string
   const mode = !list ? 'default' : POINTS_LIMITS.find((l) => samePreset(faction, list, l)) ?? 'custom'
 
   return (
-    <section className="rounded border border-stone-600 bg-stone-900 p-3 text-sm" aria-label={`Состав армии: ${FACTION_NAME[faction]}`}>
+    <section className="rounded border border-stone-600 bg-stone-900 p-3 text-sm" aria-label={tr('Army roster: {item}', { item: FACTION_NAME[faction] })}>
       <h3 className="font-semibold">{role}: {FACTION_NAME[faction]}</h3>
-      <div className="mt-2 flex flex-wrap gap-1" role="group" aria-label="Готовый состав">
+      <div className="mt-2 flex flex-wrap gap-1" role="group" aria-label={tr('Ready-made roster')}>
         <button className={`btn text-xs ${mode === 'default' ? 'btn-primary' : ''}`} aria-pressed={mode === 'default'} onClick={() => setList(null)}>
-          Учебный состав
+          {tr('Training roster')}
         </button>
         {POINTS_LIMITS.map((l) => (
           <button key={l} className={`btn text-xs ${mode === l ? 'btn-primary' : ''}`} aria-pressed={mode === l} onClick={() => setList(presetList(faction, l))}>
-            Пресет {l}
+            {tr('Preset {l}', { l })}
           </button>
         ))}
-        {mode === 'custom' && <span className="self-center rounded bg-stone-700 px-2 py-1 text-xs">Свой список</span>}
+        {mode === 'custom' && <span className="self-center rounded bg-stone-700 px-2 py-1 text-xs">{tr('Own list')}</span>}
       </div>
 
-      {!list && <p className="mt-2 text-xs text-stone-400">Состав сценария без лимита очков. Выберите пресет, чтобы собрать армию под 500 или 1000 очков.</p>}
+      {!list && <p className="mt-2 text-xs text-stone-400">{tr('The scenario roster without a points limit. Pick a preset to build an army for 500 or 1000 points.')}</p>}
 
       <ArmyCodes faction={faction} list={list} setList={(l) => { setOpen(null); setList(l) }} />
 
       {list && (
-        <label className="mt-2 flex items-start gap-2 text-xs" title="Без детачмента: нет его правила и его стратагем, остаются общие стратагемы и правила армии">
+        <label className="mt-2 flex items-start gap-2 text-xs" title={tr('Without the detachment: no its rule and no its Stratagems, the common Stratagems and army rules remain')}>
           <input type="checkbox" checked={!list.noDetachment} onChange={(e) => {
             const { noDetachment: _off, ...rest } = list
             setList(e.target.checked ? rest : { ...rest, noDetachment: true })
           }} />
-          <span>Правила детачмента «{DETACHMENT[faction]}» (правило и стратагемы детачмента). Снимите, чтобы играть чистым кастомом: только общие стратагемы и правила армии.</span>
+          <span>{tr('Rules of the “{item}” detachment (the detachment rule and Stratagems). Untick to play a pure custom: only the common Stratagems and army rules.', { item: DETACHMENT[faction] })}</span>
         </label>
       )}
 
@@ -71,31 +72,31 @@ export function ArmyBuilder({ faction, role }: { faction: PlayerId; role: string
       {list && (
         <>
           <div className="mt-3 flex items-center gap-2">
-            <label className="text-xs">Лимит{' '}
+            <label className="text-xs">{tr('Limit ')}
               <select className="input inline-block w-auto py-0.5 text-xs" value={list.limit} onChange={(e) => setList({ ...list, limit: Number(e.target.value) as PointsLimit })}>
-                {POINTS_LIMITS.map((l) => <option key={l} value={l}>{l} очков</option>)}
+                {POINTS_LIMITS.map((l) => <option key={l} value={l}>{tr('{l} points', { l })}</option>)}
               </select>
             </label>
-            <span className={`ml-auto font-semibold ${pts > list.limit ? 'text-rose-300' : 'text-amber-200'}`} aria-label="Очки армии">{pts} / {list.limit}</span>
+            <span className={`ml-auto font-semibold ${pts > list.limit ? 'text-rose-300' : 'text-amber-200'}`} aria-label={tr('Army points')}>{pts} / {list.limit}</span>
           </div>
           <div className="mt-1 h-1.5 w-full overflow-hidden rounded bg-stone-700" aria-hidden>
             <div className={`h-full ${pts > list.limit ? 'bg-rose-500' : 'bg-amber-400'}`} style={{ width: `${Math.min(100, (pts / list.limit) * 100)}%` }} />
           </div>
 
-          <ul className="mt-2 space-y-1" aria-label="Отряды армии">
+          <ul className="mt-2 space-y-1" aria-label={tr('Army units')}>
             {list.units.map((e, i) => (
               <li key={i} className="text-xs">
               <div className="flex items-center gap-2">
                 <span className="min-w-0 flex-1 truncate" title={shortName(e.datasheetId)}>{shortName(e.datasheetId)}{e.loadout ? ' ⚙' : ''}</span>
                 {WARGEAR[e.datasheetId] && (
-                  <button type="button" className={`btn px-1.5 py-0 text-xs ${open === i ? 'btn-primary' : ''}`} aria-expanded={open === i} title="Снаряжение отряда" aria-label={`Снаряжение «${shortName(e.datasheetId)}»`} onClick={() => setOpen(open === i ? null : i)}>
+                  <button type="button" className={`btn px-1.5 py-0 text-xs ${open === i ? 'btn-primary' : ''}`} aria-expanded={open === i} title={tr('Unit wargear')} aria-label={tr('Wargear of “{shortName}”', { shortName: shortName(e.datasheetId) })} onClick={() => setOpen(open === i ? null : i)}>
                     ⚙
                   </button>
                 )}
                 {legalSizes(e.datasheetId).length > 1 ? (
                   <select
                     className="input w-auto py-0.5 text-xs"
-                    aria-label={`Размер отряда «${shortName(e.datasheetId)}»`}
+                    aria-label={tr('Size of unit “{shortName}”', { shortName: shortName(e.datasheetId) })}
                     value={e.size}
                     onChange={(ev) => edit(list.units.map((x, j) => (j === i ? { ...x, size: Number(ev.target.value) } : x)))}
                   >
@@ -104,8 +105,8 @@ export function ArmyBuilder({ faction, role }: { faction: PlayerId; role: string
                 ) : (
                   <span className="text-stone-400">× {e.size}</span>
                 )}
-                <span className="w-14 text-right text-stone-300">{costs[i]} очк.</span>
-                <button className="text-stone-400 hover:text-rose-300" aria-label={`Убрать «${shortName(e.datasheetId)}»`} onClick={() => { setOpen(null); edit(list.units.filter((_, j) => j !== i)) }}>✕</button>
+                <span className="w-14 text-right text-stone-300">{tr('{item} pts', { item: costs[i] })}</span>
+                <button className="text-stone-400 hover:text-rose-300" aria-label={tr('Remove “{shortName}”', { shortName: shortName(e.datasheetId) })} onClick={() => { setOpen(null); edit(list.units.filter((_, j) => j !== i)) }}>✕</button>
               </div>
               {open === i && (
                 <LoadoutEditor
@@ -119,27 +120,27 @@ export function ArmyBuilder({ faction, role }: { faction: PlayerId; role: string
 
           <select
             className="input mt-2 text-xs"
-            aria-label="Добавить отряд"
+            aria-label={tr('Add a unit')}
             value=""
             onChange={(e) => {
               const id = e.target.value
               if (id) edit([...list.units, { datasheetId: id, size: legalSizes(id)[0] }])
             }}
           >
-            <option value="">+ Добавить отряд…</option>
+            <option value="">{tr('+ Add a unit…')}</option>
             {datasheetsOf(faction).map((d) => {
               const n = legalSizes(d.id)[0]
               const full = copies(d.id) >= maxCopies(d.id)
               return (
                 <option key={d.id} value={d.id} disabled={full}>
-                  {shortName(d.id)} × {n} — {listedCost(d.id, n, copies(d.id) + 1)} очк.{full ? ` (уже ${maxCopies(d.id)})` : ''}
+                  {tr('{shortName} × {n} — {listedCost} pts', { shortName: shortName(d.id), n, listedCost: listedCost(d.id, n, copies(d.id) + 1) })}{full ? tr(' (already {maxCopies})', { maxCopies: maxCopies(d.id) }) : ''}
                 </option>
               )
             })}
           </select>
 
           {problems.length > 0 && (
-            <ul className="mt-2 list-disc pl-4 text-xs text-rose-300" aria-label="Ошибки состава">
+            <ul className="mt-2 list-disc pl-4 text-xs text-rose-300" aria-label={tr('Roster errors')}>
               {problems.map((p) => <li key={p}>{p}</li>)}
             </ul>
           )}
