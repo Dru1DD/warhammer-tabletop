@@ -22,6 +22,11 @@ General rules:
   - The buttons come from `stratagemActions` in the engine, the same list the unit's own action panel shows.
   - Extinction Order is offered only for objectives with an enemy unit on them; on an empty one it would do nothing.
 - **The board's action bar** offers «🎲 Перебросить атаку (1 CP)» right after a charge roll, because that window closes with the next command.
+- **A CP reminder.** With 3 CP or more (`CP_HOARD`), a Stratagem usable now and none used this phase:
+  - the card shows «💡 Накопилось N CP»;
+  - ending the phase asks once, naming the usable Stratagems, the same way as the Imperative reminder.
+
+  It comes from `cpReminder` in `src/ui/guidance.ts`. Unspent CP piled up to 5–10 by the end of the player's games.
 
 ## The AI
 

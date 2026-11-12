@@ -42,7 +42,7 @@ import { chargeForecast, forecastLine } from '../game/chargeAdvice'
 import { DeployPresetCards } from './DeployPresets'
 import { scoreText } from './score'
 import { explainStep, LESSONS, PHASE_GOAL, PHASE_HELP, PHASE_NEXT, showAt, STAT_HELP, UNIT_ROLE } from './help'
-import { canActNow, draftDistance, lastRoundWarning, nextPhaseLabel, PHASE_SHORT, phaseStatus } from './guidance'
+import { canActNow, cpReminder, draftDistance, lastRoundWarning, nextPhaseLabel, PHASE_SHORT, phaseStatus } from './guidance'
 import { fileToTokenDataUrl } from './imageUpload'
 import { UnitRoleTips } from './UnitRoleTips'
 import { leaveRoom } from '../multiplayer/session'
@@ -363,6 +363,9 @@ function StratagemsPanel() {
         <b className="text-violet-200">📜 Стратагемы</b>
         <span className="rounded bg-violet-800 px-1.5 text-violet-50" title="Очки командования (Command points): +1 каждому игроку в каждой фазе командования">CP: {cp}</span>
       </div>
+      {cpReminder(game, human) && (
+        <p className="mt-1 rounded border border-amber-600 bg-amber-950/50 p-1 text-[11px] text-amber-100">💡 Накопилось {cp} CP — неистраченные очки ничего не дают. Посмотрите, что можно применить ниже.</p>
+      )}
       {now.length > 0 ? (
         <div className="mt-1 flex flex-col gap-1.5">
           {now.map(([id, list]) => (
