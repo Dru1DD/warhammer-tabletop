@@ -131,7 +131,8 @@ function SightPanel({ sight }: { sight: Sight }) {
     <details open className="absolute left-2 top-[5.5rem] z-[1] w-[min(19rem,calc(100%-4rem))] rounded-lg border border-sky-700 bg-stone-950/90 px-2 py-1.5 text-[11px] leading-snug text-stone-200 shadow-lg" data-testid="sight-panel">
       <summary className="cursor-pointer font-semibold text-sky-300">👁 {sight.planned ? tr('If you stand here') : tr('From the current position')}</summary>
       <ul className="mt-1 flex flex-col gap-1">
-        <li><span className="text-emerald-300">{tr('🎯 You will be able to shoot:')}</span> {list(sight.canShoot.map((r) => ({ name: r.name, extra: tr('~{fmt} wounds', { fmt: fmt(r.dmg) }) })))}</li>
+        <li><span className="text-emerald-300">{tr('🎯 You will be able to shoot:')}</span> {list(sight.canShoot.map((r) => ({ name: r.name, extra: r.firing !== undefined && r.models !== undefined && r.firing < r.models ? tr('~{fmt} wounds, {firing} of {models} fire', { fmt: fmt(r.dmg), firing: r.firing, models: r.models }) : tr('~{fmt} wounds', { fmt: fmt(r.dmg) }) })))}</li>
+        {sight.partial && <li className="rounded border border-amber-600 px-1 py-0.5 text-amber-200">{tr('⚠ Only {firing} of {models} models will fire at “{name}”: cover blocks the rest or they lack range. Move the unit so that it all sees the target.', { name: sight.partial.name, firing: sight.partial.firing, models: sight.partial.models })}</li>}
         {sight.seenOutOfRange.length > 0 && <li><span className="text-amber-300">{tr('👁 Visible but out of reach:')}</span> {list(sight.seenOutOfRange)}</li>}
         <li><span className="text-rose-300">{tr('⚠ They will be able to shoot you:')}</span> {list(sight.shotBy.map((r) => ({ name: r.name, extra: tr('~{fmt} wounds', { fmt: fmt(r.dmg) }) })))}</li>
         <li><span className="text-orange-300">{tr('⚔ They can charge:')}</span> {list(sight.chargedBy.map((r) => ({ name: r.name, extra: pct(r.p) })))}</li>
