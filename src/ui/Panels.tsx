@@ -47,6 +47,7 @@ import { canActNow, cpReminder, draftDistance, lastRoundWarning, nextPhaseLabel,
 import { fileToTokenDataUrl } from './imageUpload'
 import { UnitRoleTips } from './UnitRoleTips'
 import { leaveRoom } from '../multiplayer/session'
+import { turnPlan, type PlanKind } from '../game/missionAdvice'
 import { quote, tr } from '../i18n/index'
 import { MISSION_ACTION, PRIMARY, PRIMARY_CAP, primaryTotal, ROUND_CAP } from '../game/rules/missions'
 import { aiArrivalTarget, arrivalSpot, canDeepStrike, ingressWindow, INGRESS_EDGE, INGRESS_ENEMY, RAPID_INGRESS_CP, RESERVE_DEADLINE, RESERVE_FROM_ROUND, reserveBudget, reservesOf } from '../game/rules/reserves'
@@ -326,6 +327,7 @@ export function ActionPanel() {
       ) : (
         <PhaseTrack game={game} myTurn={myTurn} />
       )}
+      {(game.mission || game.secondary || (game.reserves?.length ?? 0) > 0) && !game.winner && <TurnPlan game={game} me={human} />}
       {game.mission && <MissionCard game={game} />}
       {game.secondary && <SecondaryPanel game={game} me={human} />}
       {(game.reserves?.length ?? 0) > 0 && <ReservePanel game={game} me={human} />}
@@ -1145,5 +1147,33 @@ function ReservePanel({ game, me }: { game: GameState; me: PlayerId }) {
       {st.arriving && <button className="btn mt-1 w-full text-xs" onClick={() => st.startArrival(null)}>{tr('✕ Cancel the spot choice')}</button>}
       {theirs.length > 0 && <p className="mt-1 text-stone-400">{tr('Opponent in Reserves: {list}.', { list: theirs.map((u) => u.name).join(', ') })}</p>}
     </div>
+  )
+}
+
+const PLAN_STYLE: Record<PlanKind, string> = {
+  score: 'text-emerald-200',
+  chance: 'text-sky-200',
+  keep: 'text-amber-200',
+  action: 'text-violet-200',
+  secondary: 'text-stone-200',
+  reserve: 'text-violet-200',
+  warn: 'text-rose-300',
+}
+const PLAN_ICON: Record<PlanKind, string> = { score: '🎯', chance: '➕', keep: '🛡', action: '🛰', secondary: '', reserve: '⏬', warn: '⚠' }
+
+/** «План хода»: what the mission and the cards would score now, which objectives to take or keep, actions, reserves. */
+function TurnPlan({ game, me }: { game: GameState; me: PlayerId }) {
+  const lines = turnPlan(game, me)
+  if (!lines.length) return null
+  return (
+    <details className="rounded border border-sky-600 bg-sky-950/30 p-2 text-xs" open>
+      <summary className="cursor-pointer font-semibold text-sky-200">{game.activePlayer !== me ? tr('🧭 Turn plan (the opponent is moving now)') : tr('🧭 Turn plan')}</summary>
+      <ul className="mt-1 space-y-1">
+        {lines.map((l) => (
+          <li key={l.text} className={PLAN_STYLE[l.kind]}>{PLAN_ICON[l.kind] && <span className="mr-1">{PLAN_ICON[l.kind]}</span>}{l.text}</li>
+        ))}
+      </ul>
+      <p className="mt-1 text-[11px] text-stone-400">{tr('Points are counted for the current board, with the limits of {round} per round and {battle} per battle. On the board by the objectives: “+N” is what taking the objective gives, “−N” is what you lose if you give it up.', { round: ROUND_CAP, battle: PRIMARY_CAP })}</p>
+    </details>
   )
 }
