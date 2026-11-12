@@ -1,5 +1,5 @@
 import { woundTarget } from './combat/attack'
-import type { RandomDie, WeaponProfile } from './types'
+import type { RandomDie, Weapon, WeaponProfile } from './types'
 
 // What a weapon profile is good at, for beginners: its expected result per firing model against three reference
 // targets, turned into ratings and a short hint. Pure; uses the same dice maths as the engine (hit, wound, save, damage
@@ -106,4 +106,11 @@ export function weaponAdvice(p: WeaponProfile): WeaponAdvice {
     lines.push(`🎯 Против ${keyword} ранит на ${roll}+ (Anti-${keyword})${roll <= 4 && who[keyword] ? ` — хорошо бьёт ${who[keyword]}` : ''}`)
   }
   return { value, best, cracksArmour, uselessVsArmour, lines }
+}
+
+/** How far a weapon reaches: «30″», «24″ / 12″» for two profiles, «ближний бой» for a melee weapon. */
+export function weaponReach(w: Weapon): string {
+  if (w.profiles.some((p) => p.range === 'melee')) return 'ближний бой'
+  const ranges = [...new Set(w.profiles.map((p) => p.range as number))].sort((a, b) => b - a)
+  return ranges.map((r) => `${r}″`).join(' / ')
 }
