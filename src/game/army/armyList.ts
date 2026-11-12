@@ -1,3 +1,4 @@
+import { composeLoadout, loadoutProblems, WARGEAR, type Loadout } from './wargear'
 import { DATASHEETS, PROFILES } from '../data/datasheets'
 import { legalSizes, listedCost } from '../data/points'
 import { FACTIONS, type PlayerId } from '../types'
@@ -12,6 +13,8 @@ export type PointsLimit = (typeof POINTS_LIMITS)[number]
 export interface ListEntry {
   datasheetId: string
   size: number
+  /** chosen wargear (see army/wargear.ts); absent = the default equipment */
+  loadout?: Loadout
 }
 
 export interface ArmyList {
@@ -85,8 +88,10 @@ export const COMPOSITION: Record<string, { leader?: string; pattern: string[] }>
   kastelans: { pattern: ['kastelanGun', 'kastelan'] },
 }
 
-/** Model profile ids of a unit of `size` models. */
-export function composeUnit(datasheetId: string, size: number): string[] {
+/** Model profile ids of a unit of `size` models, with the chosen wargear if any. */
+export function composeUnit(datasheetId: string, size: number, loadout?: Loadout): string[] {
+  const spec = WARGEAR[datasheetId]
+  if (spec && loadout) return composeLoadout(spec, size, loadout)
   const c = COMPOSITION[datasheetId]
   if (!c) throw new Error(`Нет состава для «${datasheetId}».`)
   const out = c.leader ? [c.leader] : []
@@ -117,6 +122,7 @@ export function listProblems(faction: PlayerId, list: ArmyList): string[] {
       continue
     }
     if (!legalSizes(e.datasheetId).includes(e.size)) out.push(`${shortName(e.datasheetId)}: размер ${e.size} не из справочника (можно ${legalSizes(e.datasheetId).join(' или ')}).`)
+    if (e.loadout) for (const p of loadoutProblems(e.datasheetId, e.size, e.loadout)) out.push(`${shortName(e.datasheetId)}: ${p}`)
     counts[e.datasheetId] = (counts[e.datasheetId] ?? 0) + 1
   }
   for (const [id, n] of Object.entries(counts))
@@ -166,11 +172,26 @@ export function parseArmyList(raw: unknown): ArmyList | null {
   const units: ListEntry[] = []
   for (const e of r.units) {
     if (!e || typeof e !== 'object') return null
-    const { datasheetId, size } = e as { datasheetId?: unknown; size?: unknown }
+    const { datasheetId, size, loadout } = e as { datasheetId?: unknown; size?: unknown; loadout?: unknown }
     if (typeof datasheetId !== 'string' || !DATASHEETS[datasheetId] || typeof size !== 'number') return null
-    units.push({ datasheetId, size })
+    const lo = parseLoadout(loadout)
+    units.push(lo && WARGEAR[datasheetId] ? { datasheetId, size, loadout: lo } : { datasheetId, size })
   }
   return { limit: r.limit as PointsLimit, units }
+}
+
+/** A stored loadout, or null when absent or malformed (the unit then keeps its default equipment). */
+function parseLoadout(raw: unknown): Loadout | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as { leader?: unknown; counts?: unknown }
+  if (r.leader !== undefined && typeof r.leader !== 'string') return null
+  if (!r.counts || typeof r.counts !== 'object') return null
+  const counts: Record<string, number> = {}
+  for (const [k, v] of Object.entries(r.counts as Record<string, unknown>)) {
+    if (typeof v !== 'number' || !Number.isInteger(v) || v < 0) return null
+    counts[k] = v
+  }
+  return { ...(typeof r.leader === 'string' ? { leader: r.leader } : {}), counts }
 }
 
 /** Per-faction lists from storage; a list whose datasheets belong to another faction is dropped. */

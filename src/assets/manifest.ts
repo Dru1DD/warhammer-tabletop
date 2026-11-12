@@ -111,6 +111,23 @@ export const TOKENS: Record<string, TokenStyle> = {
   sicarianTaser: { fill: '#6e1b1b', stroke: '#e8b04a', text: '#ffffff', label: 'Тз' },
   kastelan: { fill: '#7d1d1d', stroke: '#e8b04a', text: '#ffffff', label: 'Кс' },
   kastelanGun: { fill: '#7d1d1d', stroke: '#f1d9a6', text: '#ffffff', label: 'КБ' },
+  // wargear variants (army builder loadouts)
+  techDominusSerpenta: { fill: '#7d1d1d', stroke: '#e8b04a', text: '#ffffff', label: 'Дм' },
+  techDominusRay: { fill: '#7d1d1d', stroke: '#e8b04a', text: '#ffffff', label: 'Дм' },
+  techDominusSerpentaRay: { fill: '#7d1d1d', stroke: '#e8b04a', text: '#ffffff', label: 'Дм' },
+  techManipulusCannon: { fill: '#7d1d1d', stroke: '#e8b04a', text: '#ffffff', label: 'Мн' },
+  rangerAlphaPistol: { fill: '#8a1f1f', stroke: '#e8b04a', text: '#ffffff', label: 'АРн' },
+  rangerArquebus: { fill: '#9a2a2a', stroke: '#f1d9a6', text: '#ffffff', label: 'РА' },
+  vanguardAlphaCarbine: { fill: '#8a1f1f', stroke: '#e8b04a', text: '#ffffff', label: 'АА' },
+  vanguardArquebus: { fill: '#9a2a2a', stroke: '#f1d9a6', text: '#ffffff', label: 'АА' },
+  vanguardOmnispex: { fill: '#9a2a2a', stroke: '#e8b04a', text: '#ffffff', label: 'Ао' },
+  breacherTorsionHydraulic: { fill: '#7d1d1d', stroke: '#e8b04a', text: '#ffffff', label: 'ПТГ' },
+  destroyerFlamer: { fill: '#8a1f1f', stroke: '#f1d9a6', text: '#ffffff', label: 'РО' },
+  destroyerCulverinPhosphor: { fill: '#8a1f1f', stroke: '#e8b04a', text: '#ffffff', label: 'КФ' },
+  kastelanHeavyFists: { fill: '#7d1d1d', stroke: '#f1d9a6', text: '#ffffff', label: 'КТ' },
+  kastelanCombustorBlaster: { fill: '#7d1d1d', stroke: '#e8b04a', text: '#ffffff', label: 'КсБ' },
+  kastelanCombustorTwin: { fill: '#7d1d1d', stroke: '#e8b04a', text: '#ffffff', label: 'КсС' },
+  kastelanHeavyTwin: { fill: '#7d1d1d', stroke: '#f1d9a6', text: '#ffffff', label: 'КБС' },
 }
 
 // Blueprint look: dark drafting paper, light line work.

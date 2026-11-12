@@ -57,6 +57,10 @@ export const MECHANICUS_WEAPONS: Record<string, Weapon> = {
     id: 'arcRifle', name: 'Дуговая винтовка (Arc Rifle)',
     profiles: [{ name: '', range: 30, attacks: 1, skill: 4, s: 8, ap: -1, d: 0, randomD: 'D3', keywords: { anti: anti('VEHICLE', 4), devastatingWounds: true, rapidFire: 1 } }],
   },
+  transuranicArquebus: {
+    id: 'transuranicArquebus', name: 'Трансурановая аркебуза (Transuranic Arquebus)',
+    profiles: [{ name: '', range: 36, attacks: 1, skill: 4, s: 7, ap: -2, d: 0, randomD: 'D3', keywords: { heavy: true, precision: true } }],
+  },
   plasmaCaliver: {
     id: 'plasmaCaliver', name: 'Плазменный калибр (Plasma Caliver)',
     profiles: [
@@ -169,33 +173,48 @@ const skitarii = { m: 6, t: 3, sv: 4, w: 1, ld: 7, oc: 2, invuln: 5, baseMm: 25 
 const kataphron = { m: 5, sv: 3, w: 3, ld: 7, oc: 1, invuln: 6, baseMm: 60 }
 const sicarian = { m: 8, t: 4, sv: 4, w: 2, ld: 7, oc: 1, invuln: 5, baseMm: 40 }
 const kastelan = { m: 6, t: 9, sv: 2, w: 7, ld: 7, oc: 2, invuln: 5, baseMm: 60 }
+/** Tech-Priest Dominus and Manipulus share their characteristics */
+const dominus = { m: 6, t: 4, sv: 2, w: 4, ld: 7, oc: 1, invuln: 5, baseMm: 50, character: true }
 
 export const MECHANICUS_PROFILES: Record<string, ModelProfile> = {
   techDominus: {
     id: 'techDominus', name: 'Техножрец-Доминус', m: 6, t: 4, sv: 2, w: 4, ld: 7, oc: 1, invuln: 5, baseMm: 50, character: true,
     weapons: ['macrostubber', 'volkiteBlaster', 'omnissianAxe'],
   },
+  techDominusSerpenta: { id: 'techDominusSerpenta', name: 'Техножрец-Доминус с фосфорной серпентой', ...dominus, weapons: ['phosphorSerpenta', 'volkiteBlaster', 'omnissianAxe'] },
+  techDominusRay: { id: 'techDominusRay', name: 'Техножрец-Доминус с лучом искоренения', ...dominus, weapons: ['macrostubber', 'eradicationRay', 'omnissianAxe'] },
+  techDominusSerpentaRay: { id: 'techDominusSerpentaRay', name: 'Техножрец-Доминус с серпентой и лучом', ...dominus, weapons: ['phosphorSerpenta', 'eradicationRay', 'omnissianAxe'] },
   techManipulus: {
     id: 'techManipulus', name: 'Техножрец-Манипулус', m: 6, t: 4, sv: 2, w: 4, ld: 7, oc: 1, invuln: 5, baseMm: 50, character: true,
     weapons: ['magnarailLance', 'omnissianStaff'],
   },
+  techManipulusCannon: { id: 'techManipulusCannon', name: 'Техножрец-Манипулус с трансзвуковой пушкой', ...dominus, weapons: ['transonicCannon', 'omnissianStaff'] },
   // Rangers: precision rifles. Alpha has the optional Alpha combat weapon, one Ranger carries an Omnispex.
   rangerAlpha: { id: 'rangerAlpha', name: 'Альфа Рейнджеров', ...skitarii, weapons: ['galvanicRifle', 'alphaCombatWeapon', 'skitariiCCW'] },
   ranger: { id: 'ranger', name: 'Скитарий-рейнджер', ...skitarii, weapons: ['galvanicRifle', 'skitariiCCW'] },
   rangerOmnispex: { id: 'rangerOmnispex', name: 'Рейнджер с омниспексом', ...skitarii, wargear: ['omnispex'], weapons: ['galvanicRifle', 'skitariiCCW'] },
   rangerArc: { id: 'rangerArc', name: 'Рейнджер с дуговой винтовкой', ...skitarii, weapons: ['arcRifle', 'skitariiCCW'] },
   rangerCaliver: { id: 'rangerCaliver', name: 'Рейнджер с плазменным калибром', ...skitarii, weapons: ['plasmaCaliver', 'skitariiCCW'] },
+  // wargear options (11th edition): the Alpha may swap the rifle for a pistol; 1 Ranger may take a transuranic arquebus
+  rangerAlphaPistol: { id: 'rangerAlphaPistol', name: 'Альфа Рейнджеров с пистолетом', ...skitarii, weapons: ['mechanicusPistol', 'alphaCombatWeapon', 'skitariiCCW'] },
+  rangerArquebus: { id: 'rangerArquebus', name: 'Рейнджер с трансурановой аркебузой', ...skitarii, weapons: ['transuranicArquebus', 'skitariiCCW'] },
   // Vanguard: radium carbines at close range.
   vanguardAlpha: { id: 'vanguardAlpha', name: 'Альфа Авангарда', ...skitarii, weapons: ['mechanicusPistol', 'alphaCombatWeapon', 'skitariiCCW'] },
   vanguard: { id: 'vanguard', name: 'Скитарий-авангардист', ...skitarii, weapons: ['radiumCarbine', 'skitariiCCW'] },
   vanguardArc: { id: 'vanguardArc', name: 'Авангардист с дуговой винтовкой', ...skitarii, weapons: ['arcRifle', 'skitariiCCW'] },
   vanguardCaliver: { id: 'vanguardCaliver', name: 'Авангардист с плазменным калибром', ...skitarii, weapons: ['plasmaCaliver', 'skitariiCCW'] },
+  vanguardAlphaCarbine: { id: 'vanguardAlphaCarbine', name: 'Альфа Авангарда с карабином', ...skitarii, weapons: ['radiumCarbine', 'alphaCombatWeapon', 'skitariiCCW'] },
+  vanguardArquebus: { id: 'vanguardArquebus', name: 'Авангардист с трансурановой аркебузой', ...skitarii, weapons: ['transuranicArquebus', 'skitariiCCW'] },
+  vanguardOmnispex: { id: 'vanguardOmnispex', name: 'Авангардист с омниспексом', ...skitarii, wargear: ['omnispex'], weapons: ['radiumCarbine', 'skitariiCCW'] },
   // Kataphron: heavy cyborg platforms.
   breacher: { id: 'breacher', name: 'Катафрон-пробойщик', ...kataphron, t: 7, weapons: ['heavyArcRifle', 'arcClaw'] },
   breacherTorsion: { id: 'breacherTorsion', name: 'Катафрон-пробойщик с торсионной пушкой', ...kataphron, t: 7, weapons: ['torsionCannon', 'arcClaw'] },
   breacherHydraulic: { id: 'breacherHydraulic', name: 'Катафрон-пробойщик с гидрокогтем', ...kataphron, t: 7, weapons: ['heavyArcRifle', 'hydraulicClaw'] },
+  breacherTorsionHydraulic: { id: 'breacherTorsionHydraulic', name: 'Катафрон-пробойщик с торсионной пушкой и гидрокогтем', ...kataphron, t: 7, weapons: ['torsionCannon', 'hydraulicClaw'] },
   destroyer: { id: 'destroyer', name: 'Катафрон-разрушитель', ...kataphron, t: 6, weapons: ['heavyGravCannon', 'phosphorBlaster', 'kataphronCCW'] },
   destroyerCulverin: { id: 'destroyerCulverin', name: 'Катафрон-разрушитель с кулевриной', ...kataphron, t: 6, weapons: ['plasmaCulverin', 'cognisFlamer', 'kataphronCCW'] },
+  destroyerFlamer: { id: 'destroyerFlamer', name: 'Катафрон-разрушитель с гравипушкой и огнемётом', ...kataphron, t: 6, weapons: ['heavyGravCannon', 'cognisFlamer', 'kataphronCCW'] },
+  destroyerCulverinPhosphor: { id: 'destroyerCulverinPhosphor', name: 'Катафрон-разрушитель с кулевриной и фосфорным бластером', ...kataphron, t: 6, weapons: ['plasmaCulverin', 'phosphorBlaster', 'kataphronCCW'] },
   // Sicarian Infiltrators (the datasheet gives one profile for Princeps and troopers).
   sicarianPrinceps: { id: 'sicarianPrinceps', name: 'Принцепс сикариев', ...sicarian, weapons: ['stubcarbine', 'sicarianPowerWeapon'] },
   sicarian: { id: 'sicarian', name: 'Сикарий-диверсант', ...sicarian, weapons: ['stubcarbine', 'sicarianPowerWeapon'] },
@@ -203,6 +222,11 @@ export const MECHANICUS_PROFILES: Record<string, ModelProfile> = {
   // Kastelan Robots
   kastelan: { id: 'kastelan', name: 'Кастелан с комбустором', ...kastelan, weapons: ['incendineCombustor', 'twinKastelanFist'] },
   kastelanGun: { id: 'kastelanGun', name: 'Кастелан с фосфорными бластерами', ...kastelan, weapons: ['heavyPhosphorBlaster', 'kastelanPhosphorBlaster', 'kastelanFist'] },
+  // the other combinations of the two weapon options (combustor / heavy phosphor blaster x twin fist / blaster + fist / twin blaster + CCW)
+  kastelanHeavyFists: { id: 'kastelanHeavyFists', name: 'Кастелан с тяжёлым бластером и сдвоенным кулаком', ...kastelan, weapons: ['heavyPhosphorBlaster', 'twinKastelanFist'] },
+  kastelanCombustorBlaster: { id: 'kastelanCombustorBlaster', name: 'Кастелан с комбустором и бластером', ...kastelan, weapons: ['incendineCombustor', 'kastelanPhosphorBlaster', 'kastelanFist'] },
+  kastelanCombustorTwin: { id: 'kastelanCombustorTwin', name: 'Кастелан с комбустором и сдвоенным бластером', ...kastelan, weapons: ['incendineCombustor', 'twinKastelanPhosphorBlaster', 'kastelanCCW'] },
+  kastelanHeavyTwin: { id: 'kastelanHeavyTwin', name: 'Кастелан с тяжёлым и сдвоенным бластерами', ...kastelan, weapons: ['heavyPhosphorBlaster', 'twinKastelanPhosphorBlaster', 'kastelanCCW'] },
 }
 
 const AM = 'ADEPTUS MECHANICUS'
