@@ -12,7 +12,7 @@ const PREFIX = 'WH40K1.'
 /** The list as a code: `WH40K1.` + base64url of {f: faction, l: limit, u: [[datasheetId, size, loadout?]…]}. */
 export function encodeArmy(faction: PlayerId, list: ArmyList): string {
   const u = list.units.map((e) => (e.loadout ? [e.datasheetId, e.size, e.loadout] : [e.datasheetId, e.size]))
-  const json = JSON.stringify({ f: faction, l: list.limit, u })
+  const json = JSON.stringify({ f: faction, l: list.limit, u, ...(list.noDetachment ? { d: 0 } : {}) })
   return PREFIX + btoa(json).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
@@ -29,11 +29,11 @@ export function decodeArmy(code: string): Decoded {
   } catch {
     return { ok: false, error: tr('The code is damaged: copy it in full.') }
   }
-  const r = raw as { f?: unknown; l?: unknown; u?: unknown }
+  const r = raw as { f?: unknown; l?: unknown; u?: unknown; d?: unknown }
   if (!FACTIONS.includes(r.f as PlayerId) || !Array.isArray(r.u)) return { ok: false, error: tr('The code is damaged: no faction or units.') }
   const faction = r.f as PlayerId
   const units = r.u.map((x) => (Array.isArray(x) ? { datasheetId: x[0], size: x[1], ...(x[2] ? { loadout: x[2] } : {}) } : null))
-  const list = parseArmyList({ limit: r.l, units })
+  const list = parseArmyList({ limit: r.l, units, ...(r.d === 0 ? { noDetachment: true } : {}) })
   if (!list) return { ok: false, error: tr('The code has units that are not in this version of the game, or an invalid points limit.') }
   if (list.units.some((e) => DATASHEETS[e.datasheetId].faction !== faction)) return { ok: false, error: tr('The “{item}” army code has units of another faction.', { item: FACTION_NAME[faction] }) }
   return { ok: true, faction, list }

@@ -63,14 +63,14 @@ Each army plays the generic detachment of its 11th edition faction page on Wahap
 
 | Army | Detachment | Playable now (own turn) | Listed as «later» |
 |---|---|---|---|
-| Space Marines | Gladius Task Force | Storm of Devastation; reactions: Armour of Contempt, A Worthy Death | Responsive Tactics (a move in the opponent's turn); Might of Angels (needs Lance); Adaptive Strategy (needs combat doctrines) |
+| Space Marines | Gladius Task Force | Storm of Devastation; reactions: Armour of Contempt, A Worthy Death | Responsive Tactics (a move in the opponent's turn); Might of Angels (needs Lance); Adaptive Strategy (later) |
 | Orks | War Horde | Close-Range Dakka, Fungus-Fuel Injection, Hit 'Em Harder; reaction: Orks Is Never Beaten | Breakin' Heads; Mow 'Em Down (no non-WALKER vehicles here) |
 | Tyranids | Invasion Fleet | Adrenal Surge (one unit at a time); reactions: Rapid Regeneration, Death Frenzy | Overrun, Predatory Imperative, Endless Swarm |
 | Necrons | Awakened Dynasty | Sudden Storm, Conquering Tyrant, Hungry Void; reaction: Undying Legions | Eternal Revenant, Vengeful Stars |
 | Aeldari | Warhost | Blitzing Firepower, Feigned Retreat; reaction: Lightning-Fast Reactions | Skyborne Sanctuary, Fire and Fade, Webway Tunnel |
 | Adeptus Mechanicus | Rad-Zone Corps | Lethal Dosage, Aggressor Imperative, Extinction Order; reactions: Baleful Halo, Bulwark Imperative | Pre-Calibrated Purge Solution |
 
-The detachment rules themselves (Get Stuck In, Hyper-adaptations, Rad-bombardment, Command Protocols and so on) are not part of this change. They would change every battle and are worth a separate discussion.
+The detachment rules themselves (Get Stuck In, Hyper-adaptations, Rad-bombardment, Command Protocols, Martial Grace, Codex Discipline with the Combat Doctrines) are described in `docs/detachments.md`.
 
 ## Which Stratagems an army can use
 

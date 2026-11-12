@@ -2,7 +2,7 @@ import { meleePotential, p2d6AtLeast } from './ai/ai'
 import { unitProfile } from './army/roles'
 import { alive, CHARGE_RANGE, enemiesOf, fmt, unitDistance } from './gameState'
 import type { GameState, UnitState } from './types'
-import { tr } from '../i18n/index'
+import { quote, tr } from '../i18n/index'
 
 // Charge forecast for beginners, before declaring a charge: for every enemy unit in reach, the chance that 2D6 covers
 // the distance, the expected wounds and models killed by this unit (fighting first after the charge) and by the enemy
@@ -19,8 +19,10 @@ export interface ChargeForecast {
   dealt: number
   killsDealt: number
   enemyModels: number
-  /** expected wounds the enemy deals back with what survives */
+  /** expected wounds the enemy deals back: the target's survivors plus the units next to it that join the fight */
   taken: number
+  /** enemy units next to the target (within JOIN_RANGE) that will be in the fight too, with what each deals */
+  joiners: { name: string; taken: number }[]
   killsTaken: number
   myModels: number
   verdict: 'good' | 'risky' | 'bad'
@@ -29,10 +31,16 @@ export interface ChargeForecast {
 
 const woundsLeft = (u: UnitState) => alive(u).reduce((a, m) => a + m.wounds, 0)
 
+/** An enemy unit this close to the target ends up in engagement range of the chargers and fights them too
+ * (only engaged units pile in, so farther ones usually stay out). */
+export const JOIN_RANGE = 3
+
 export function chargeForecast(s: GameState, unit: UnitState): ChargeForecast[] {
   const myModels = alive(unit).length
   const myWounds = woundsLeft(unit)
   const shooter = unitProfile(unit).role === 'shooter'
+  // a CHARACTER: valuable alive (its abilities help the whole army), so a fight it barely wins or loses badly is flagged
+  const character = unitProfile(unit).role === 'character'
   return enemiesOf(s, unit)
     .filter((e) => alive(e).length && unitDistance(unit, e) <= CHARGE_RANGE + 1e-9)
     .map((e): ChargeForecast => {
@@ -44,16 +52,30 @@ export function chargeForecast(s: GameState, unit: UnitState): ChargeForecast[] 
       const killsDealt = Math.min(eModels, dealt / (eWounds / eModels))
       // the enemy strikes back with the models it has left
       const survivors = Math.max(0, 1 - killsDealt / eModels)
-      const taken = Math.min(myWounds, meleePotential(s, e, unit, false) * survivors)
+      // the enemy units standing next to the target join the fight at full strength
+      const joiners = enemiesOf(s, unit)
+        .filter((x) => x.id !== e.id && alive(x).length && unitDistance(x, e) <= JOIN_RANGE + 1e-9)
+        .map((x) => ({ name: x.name, taken: meleePotential(s, x, unit, false) }))
+        .filter((x) => x.taken >= 0.5)
+      const taken = Math.min(myWounds, meleePotential(s, e, unit, false) * survivors + joiners.reduce((a, x) => a + x.taken, 0))
       const killsTaken = Math.min(myModels, taken / (myWounds / myModels))
       const warnings: string[] = []
+      if (joiners.length) {
+        const names = joiners.map((x) => quote(x.name)).join(', ')
+        const extra = fmt(joiners.reduce((a, x) => a + x.taken, 0))
+        warnings.push(joiners.length > 1
+          ? tr('Near the target {names}: they will end up in engagement range and strike too — another ~{extra} wounds to you.', { names, extra })
+          : tr('Near the target {names}: it will end up in engagement range and strike too — another ~{extra} wounds to you.', { names, extra }))
+      }
+      if (character && (dealt < 2 || taken >= myWounds / 2))
+        warnings.push(tr('{name} is a character: in this fight it will deal ~{dealt} wounds and take ~{taken} of {myWounds}. Its abilities for the army die with it — keep it close to your units.', { name: quote(unit.name), dealt: fmt(dealt), taken: fmt(taken), myWounds }))
       if (p < 0.3) warnings.push(tr('Little chance to make it: needs {ceil}″ on 2D6 — {round}%.', { ceil: Math.ceil(distance), round: Math.round(p * 100) }))
       if (taken > dealt && taken >= myWounds / 3)
         warnings.push(tr('Bad trade: you will deal ~{fmt} wounds and take ~{fmt2} in return (losing ~{round} of {myModels} models).', { fmt: fmt(dealt), fmt2: fmt(taken), round: Math.round(killsTaken), myModels }))
       if (shooter) warnings.push(tr('These are shooters: a unit locked in combat will barely shoot next turn (pistols only), and it is weaker in melee.'))
       const bad = taken > dealt * 1.5 && taken >= myWounds / 3
       const verdict: ChargeForecast['verdict'] = bad || p < 0.15 ? 'bad' : warnings.length ? 'risky' : 'good'
-      return { targetId: e.id, name: e.name, distance, p, dealt, killsDealt, enemyModels: eModels, taken, killsTaken, myModels, verdict, warnings }
+      return { targetId: e.id, name: e.name, distance, p, dealt, killsDealt, enemyModels: eModels, taken, joiners, killsTaken, myModels, verdict, warnings }
     })
     .sort((a, b) => b.p * (b.dealt - b.taken) - a.p * (a.dealt - a.taken))
 }

@@ -50,4 +50,4 @@ export function startProblem(l: LobbyState): string | null {
 
 /** "Training roster" or "Own roster: 495 / 500 pts, 6 units" for the lobby. */
 export const armyLine = (list: ArmyList | null | undefined, points: (l: ArmyList) => number) =>
-  list ? tr('Own roster: {points} / {limit} pts, {length} units', { points: points(list), limit: list.limit, length: list.units.length }) : tr('Training roster')
+  list ? tr('Own roster: {points} / {limit} pts, {length} units{noDetachment}', { points: points(list), limit: list.limit, length: list.units.length, noDetachment: list.noDetachment ? tr(', no detachment') : '' }) : tr('Training roster')

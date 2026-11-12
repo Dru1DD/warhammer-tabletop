@@ -5,6 +5,21 @@ import type { GameState, PlayerId, PlayerState, Terrain, UnitState, Vec } from '
 import type { ArmyList } from '../army/armyList'
 import { musterArmy } from '../army/placement'
 import { tr } from '../../i18n/index'
+import { presetList } from '../army/armyList'
+import { newMission, pickPrimary } from '../rules/missions'
+import { newSecondary } from '../rules/secondaries'
+import type { SecondaryId } from '../types'
+import { LAYOUT_NAME, layoutFor, MAPS, PATROL_LAYOUT_NAME, patrolLayout, pickLayout, pickMap, type LayoutId, type MapId } from './strikeForce'
+
+/** Options of a board with several maps and missions (44″×60″); 'random' or absent picks one. */
+export interface BuildOptions {
+  mapId?: string
+  layoutId?: string
+  /** a primary mission id, 'random' or 'training' (5 VP per objective) */
+  primary?: string
+  /** secondary missions by side ('tactical' when absent), or 'none' for a battle without them */
+  secondaries?: 'none' | Partial<Record<PlayerId, { mode: 'tactical' | 'fixed'; fixed?: SecondaryId[] }>>
+}
 
 /** Army lists by faction; a faction without one fields its default training roster. */
 export type Armies = Partial<Record<PlayerId, ArmyList>>
@@ -18,8 +33,9 @@ export interface Scenario {
   deployment: { west: Vec[]; east: Vec[] }
   /** factions that have an army for this board */
   factions: PlayerId[]
-  /** `sides` = [west, east] factions; default Space Marines (west) vs Orks (east) */
-  build: (sides?: [PlayerId, PlayerId], armies?: Armies, terrain?: Terrain[]) => GameState
+  /** `sides` = [west, east] factions; default Space Marines (west) vs Orks (east). `opts`: the map and layout of a
+   * board that has several (44″×60″); 'random' or absent picks one. */
+  build: (sides?: [PlayerId, PlayerId], armies?: Armies, terrain?: Terrain[], opts?: BuildOptions) => GameState
   /** true when the board takes army lists from the army builder (`armies` in `build`, set up around `terrain` if given) */
   customArmies?: boolean
 }
@@ -301,12 +317,14 @@ export const SCENARIOS: Scenario[] = [
     deployment: { west: rect(0, 0, 10, 30), east: rect(34, 0, 10, 30) },
     factions: ['marines', 'orks', 'tyranids', 'necrons', 'aeldari', 'adeptus_mechanicus'],
     customArmies: true,
-    build: (sides = DEFAULT_SIDES, armies = {}, layout) => {
+    build: (sides = DEFAULT_SIDES, armies = {}, layout, opts = {}) => {
       assertSides(['marines', 'orks', 'tyranids', 'necrons', 'aeldari', 'adeptus_mechanicus'], sides)
+      // layout A (the original) unless another one is asked for; 'random' picks one of the three
+      const layoutId: LayoutId = opts.layoutId ? pickLayout(opts.layoutId) : 'A'
       const state = baseState(
         'combat-patrol',
         { width: 44, height: 30 },
-        layout ?? [
+        layout ?? patrolLayout(layoutId) ?? [
           ruin('t1', tr('Manufactorum ruins'), rect(15, 2, 5, 4)),
           ruin('t2', tr('Chapel ruins'), rect(24, 24, 5, 4)),
           woods('t3', rect(12, 17, 4, 5)),
@@ -323,10 +341,62 @@ export const SCENARIOS: Scenario[] = [
         sides,
       )
       for (const f of sides) if (armies[f]) musterArmy(state, f, armies[f])
+      // a pure custom list plays without its detachment
+      for (const f of sides) if (armies[f]?.noDetachment) state.players[f].noDetachment = true
+      if (layoutId !== 'A') state.layoutId = layoutId
+      return state
+    },
+  },
+  {
+    id: 'strike-force',
+    name: tr('Battle 44″×60″ (11th edition maps)'),
+    description:
+      tr('A full-size 11th edition board. The deployment map is one of the six cards of the 2026-27 Mission Deck (zones and five objectives: one “home” objective for each side, a central one and two on the flanks), the cover is one of three layouts. The armies are your own rosters; a side without its own roster plays a 1000-point preset. Positions on the maps are reconstructed from the 10th edition maps (on the cards they exist only as pictures).'),
+    victory: VICTORY,
+    deployment: MAPS.hammerAnvil.deployment,
+    factions: ['marines', 'orks', 'tyranids', 'necrons', 'aeldari', 'adeptus_mechanicus'],
+    customArmies: true,
+    build: (sides = DEFAULT_SIDES, armies = {}, layout, opts = {}) => {
+      assertSides(['marines', 'orks', 'tyranids', 'necrons', 'aeldari', 'adeptus_mechanicus'], sides)
+      const m = MAPS[pickMap(opts.mapId) as MapId]
+      const layoutId: LayoutId = pickLayout(opts.layoutId)
+      const state = baseState('strike-force', m.board, layout ?? layoutFor(layoutId, m.board), m.objectives.map((o) => o.pos), [], sides)
+      state.objectives.forEach((o, i) => {
+        const def = m.objectives[i]
+        o.role = def.role
+        if (def.side) o.home = def.side === 'west' ? sides[0] : sides[1]
+      })
+      state.deployment = m.deployment
+      state.territory = m.territory
+      state.mapId = m.id
+      state.layoutId = layoutId
+      // the primary mission (both sides play the same one: Mirrored World); 'training' keeps 5 VP per objective
+      if (opts.primary !== 'training') state.mission = newMission(state, pickPrimary(opts.primary))
+      // secondaries: each side Tactical unless its options say Fixed; 'none' turns them off for both
+      const sec = opts.secondaries
+      if (sec !== 'none')
+        state.secondary = Object.fromEntries(sides.map((f) => {
+          const cfg = sec?.[f]
+          return [f, newSecondary(cfg?.mode ?? 'tactical', cfg?.fixed)]
+        })) as GameState['secondary']
+      for (const f of sides) musterArmy(state, f, armies[f] ?? presetList(f, 1000))
+      // a pure custom list plays without its detachment
+      for (const f of sides) if (armies[f]?.noDetachment) state.players[f].noDetachment = true
       return state
     },
   },
 ]
+
+/** The 44″×60″ map and layout of a battle, for the player: “Hammer and Anvil, layout A (Manufactorum ruins)”. */
+export const mapLine = (s: GameState) => {
+  if (s.mapId && s.mapId in MAPS) {
+    const map = MAPS[s.mapId as MapId]
+    const p = { name: map.name, nameEn: map.nameEn, id: s.layoutId, layout: LAYOUT_NAME[s.layoutId as LayoutId] }
+    // English shows only the official name
+    return map.name === map.nameEn ? tr('{name}, layout {id} — {layout}', p) : tr('{name} ({nameEn}), layout {id} — {layout}', p)
+  }
+  return s.scenarioId === 'combat-patrol' && s.layoutId ? tr('Layout {id} — {layout}', { id: s.layoutId, layout: PATROL_LAYOUT_NAME[s.layoutId as LayoutId] }) : null
+}
 
 /** The army `faction` fields in a scenario (null if the scenario has none): what the selection screen lists. */
 export function armyOf(scenarioId: string, faction: PlayerId): UnitState[] | null {

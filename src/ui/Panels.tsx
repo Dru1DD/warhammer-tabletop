@@ -14,6 +14,7 @@ import { PHASES } from '../game/types'
 import { useStore } from '../store'
 import { weaponAdvice } from '../game/weaponAdvice'
 import { DETACHMENT, LATER_STRATAGEMS, showOfficialName, STRATAGEM_IDS, STRATAGEMS } from '../game/rules/stratagems'
+import { DOCTRINE_NAME, DOCTRINE_TEXT, DOCTRINES } from '../game/rules/detachments'
 import type { PlayerId, StratagemId } from '../game/types'
 
 /** Every Stratagem the player can use right now, grouped by Stratagem, with one button per unit (and target). */
@@ -47,6 +48,9 @@ import { fileToTokenDataUrl } from './imageUpload'
 import { UnitRoleTips } from './UnitRoleTips'
 import { leaveRoom } from '../multiplayer/session'
 import { quote, tr } from '../i18n/index'
+import { MISSION_ACTION, PRIMARY, PRIMARY_CAP, primaryTotal, ROUND_CAP } from '../game/rules/missions'
+import { aiArrivalTarget, arrivalSpot, canDeepStrike, ingressWindow, INGRESS_EDGE, INGRESS_ENEMY, RAPID_INGRESS_CP, RESERVE_DEADLINE, RESERVE_FROM_ROUND, reserveBudget, reservesOf } from '../game/rules/reserves'
+import { FIXED_CARD_CAP, SECONDARY, SECONDARY_CAP, SECONDARY_ROUND_CAP, secondaryTotal } from '../game/rules/secondaries'
 
 
 /** Who plays the other side: the computer in single-player, a person online. */
@@ -322,6 +326,9 @@ export function ActionPanel() {
       ) : (
         <PhaseTrack game={game} myTurn={myTurn} />
       )}
+      {game.mission && <MissionCard game={game} />}
+      {game.secondary && <SecondaryPanel game={game} me={human} />}
+      {(game.reserves?.length ?? 0) > 0 && <ReservePanel game={game} me={human} />}
       {!game.winner && explain !== 'minimal' && (
         <details className="text-xs text-stone-300">
           <summary className="cursor-pointer text-sky-300">{tr('Phase rules')}</summary>
@@ -336,6 +343,7 @@ export function ActionPanel() {
         <ActionButton cmd={{ type: 'callShadow' }} label={tr('Shadow in the Warp (once per battle)')} />
       )}
       {!game.winner && myTurn && game.phase === 'command' && game.players[human].imperative !== undefined && <ImperativePicker />}
+      {!game.winner && myTurn && game.phase === 'command' && human === 'marines' && <DoctrinePicker />}
       {!game.winner && myTurn && lastRoundWarning(game, human) && (
         <p className="rounded border border-rose-500 bg-rose-950/60 p-2 text-xs text-rose-100" role="alert">{lastRoundWarning(game, human)}</p>
       )}
@@ -532,6 +540,8 @@ function DeploymentPanel() {
         <p className="text-[11px] text-stone-500">{tr('Stats and weapons are in the unit card on the left (the “»” button if the panel is collapsed).')}</p>
       </div>
 
+      {game.deployment && !st.shared && <ReserveSetup />}
+
       <div>
         <h3 className="mb-1 text-xs font-semibold uppercase text-stone-400">{tr('2. Where to place')}</h3>
         <ul className="list-disc pl-4 text-xs text-stone-300">
@@ -556,6 +566,25 @@ function DeploymentPanel() {
         {issues.length > 0 && <button className="btn mt-1 w-full" onClick={() => st.autoDeploy()} title={tr('Put the unplaced units at the suggested places')}>{tr('Keep the rest at the suggested places')}</button>}
       </div>
     </section>
+  )
+}
+
+/** Combat Doctrines (Space Marines army rule): at most one per Command phase, each once per battle, one of them twice
+ * (Codex Discipline). Optional, so the phase can end without one. */
+function DoctrinePicker() {
+  const game = useStore((s) => s.game!)
+  const p = game.players.marines
+  const used = p.doctrinesUsed ?? []
+  if (p.doctrine)
+    return <p className="rounded border border-sky-700 bg-sky-950/40 p-2 text-xs text-sky-200">{tr('Combat Doctrine:')} <b>{DOCTRINE_NAME[p.doctrine]}</b> — {DOCTRINE_TEXT[p.doctrine]}{tr(', until your next Command phase.')}</p>
+  return (
+    <div className="flex flex-col gap-1 rounded border border-sky-700 bg-sky-950/40 p-2" aria-label={tr('Combat Doctrines')}>
+      <b className="text-xs text-sky-200">{tr('Combat Doctrines: you can pick one — or hold back')}</b>
+      {DOCTRINES.map((d) => (
+        <ActionButton key={d} cmd={{ type: 'doctrine', doctrine: d }} label={`${DOCTRINE_NAME[d]}: ${DOCTRINE_TEXT[d]}${used.includes(d) ? tr(' (already used — a repeat by Codex Discipline)') : ''}`} />
+      ))}
+      <span className="text-[11px] text-stone-400">{tr('Each once per battle, and one of them once more. Chosen: {list}.', { list: used.length ? used.map((d) => DOCTRINE_NAME[d]).join(', ') : tr('none yet|chosen') })}</span>
+    </div>
   )
 }
 
@@ -975,6 +1004,146 @@ export function BottomPanel() {
         {restartBtn}
         <p className="text-[11px] text-stone-500">{scenarioById(game.scenarioId).name}</p>
       </div>
+    </div>
+  )
+}
+
+/** The primary mission of a 44″×60″ battle: the card, the VP so far (by round, within the caps) and the actions going on. */
+function MissionCard({ game }: { game: GameState }) {
+  const m = game.mission!
+  const card = PRIMARY[m.primary]
+  const act = card.action ? MISSION_ACTION[card.action] : null
+  const busy = game.units.filter((u) => u.action && !isDestroyed(u))
+  const objName = (id: string) => tr('O{value}', { value: game.objectives.findIndex((o) => o.id === id) + 1 })
+  return (
+    <details className="rounded border border-emerald-700 bg-emerald-950/40 p-2 text-xs" open>
+      <summary className="cursor-pointer font-semibold text-emerald-200">{tr('🎯 Mission: {name}', { name: card.name })} <span className="font-normal text-stone-400">({card.nameEn})</span></summary>
+      <ul className="mt-1 list-disc space-y-0.5 pl-4 text-stone-200">
+        {card.lines.map((l) => <li key={l}>{l}</li>)}
+      </ul>
+      {act && <p className="mt-1 text-stone-300"><b>{tr('Action “{name}”', { name: act.name })}</b> ({act.nameEn}): {act.text} {tr('The button is among the unit’s actions in the Shooting phase.')}</p>}
+      <table className="mt-2 w-full text-center">
+        <thead><tr className="text-stone-400"><th className="text-left">{tr('Primary')}</th>{[1, 2, 3, 4, 5].map((r) => <th key={r} className={r === game.round ? 'text-emerald-300' : ''}>{tr('R{value}', { value: r })}</th>)}<th>{tr('End')}</th><th>{tr('Total')}</th></tr></thead>
+        <tbody>
+          {sidesOf(game).map((p) => (
+            <tr key={p}>
+              <td className="text-left">{FACTION_NAME[p]}</td>
+              {[1, 2, 3, 4, 5].map((r) => <td key={r}>{m.byRound[p][r] || '·'}</td>)}
+              <td>{m.endVp?.[p] || '·'}</td>
+              <td className="font-semibold">{primaryTotal(m, p)}/{PRIMARY_CAP}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="mt-1 text-stone-400">{tr('Limit: {round} VP per round, {battle} per battle (end-of-battle points are outside the round limit).', { round: ROUND_CAP, battle: PRIMARY_CAP })}</p>
+      {busy.length > 0 && <p className="mt-1 text-amber-200">{tr('Performing an action: {list}.', { list: busy.map((u) => `${u.name} (${objName(u.action!.objectiveId)})`).join(', ') })}</p>}
+      {m.markers.length > 0 && <p className="mt-1 text-stone-300">{tr('Operation markers: {list}.', { list: sidesOf(game).map((p) => `${FACTION_NAME[p]} — ${m.markers.filter((x) => x.owner === p).map((x) => objName(x.objectiveId)).join(', ') || tr('none|m')}`).join('; ') })}</p>}
+    </details>
+  )
+}
+
+/** Secondary missions: the player's active cards (with the swap / discard buttons), and both sides' VP. */
+function SecondaryPanel({ game, me }: { game: GameState; me: PlayerId }) {
+  const st = useStore()
+  const sec = game.secondary!
+  const mine = sec[me]
+  const foe = other(game, me)
+  const run = (cmd: Command) => st.dispatch(cmd)
+  if (!mine) return null
+  return (
+    <details className="rounded border border-sky-700 bg-sky-950/40 p-2 text-xs" open>
+      <summary className="cursor-pointer font-semibold text-sky-200">{tr('🃏 Secondaries: {mode} — {total}/{cap} VP', { mode: mine.mode === 'tactical' ? tr('tactical|mode') : tr('fixed|mode'), total: secondaryTotal(mine), cap: SECONDARY_CAP })}</summary>
+      {mine.active.length === 0 && <p className="mt-1 text-stone-400">{mine.mode === 'tactical' ? tr('Cards are drawn at the start of your Command phase.') : tr('No cards.')}</p>}
+      {mine.active.map((c) => {
+        const card = SECONDARY[c]
+        const swap: Command = { type: 'secondary', op: 'swap', card: c }
+        const marked = mine.toDiscard.includes(c)
+        return (
+          <div key={c} className="mt-1 rounded bg-stone-900/60 p-1.5">
+            <div className="font-semibold">{card.name} <span className="font-normal text-stone-400">({card.nameEn})</span>{mine.mode === 'fixed' && <span className="text-stone-400"> · {mine.cardVp[c] ?? 0}/{FIXED_CARD_CAP}</span>}</div>
+            <div className="text-stone-300">{mine.mode === 'fixed' && card.fixedText ? card.fixedText : card.text}</div>
+            {c === 'beacon' && mine.beacon && <div className="text-amber-200">{tr('Beacon: {name}', { name: game.units.find((u) => u.id === mine.beacon)?.name })}</div>}
+            {c === 'temptingTarget' && mine.tempting && <div className="text-amber-200">{tr('Target: {obj}', { obj: tr('O{value}', { value: game.objectives.findIndex((o) => o.id === mine.tempting) + 1 }) })}</div>}
+            {mine.mode === 'tactical' && game.activePlayer === me && !game.winner && (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {validate(game, swap).ok && <button className="btn text-xs" onClick={() => run(swap)} title={tr('Once per battle, in your Command phase')}>{tr('🔄 Swap for 1 CP')}</button>}
+                <button className={`btn text-xs ${marked ? 'btn-primary' : ''}`} onClick={() => run({ type: 'secondary', op: 'discard', card: c })} title={tr('The card leaves at the end of the turn, after scoring, if not achieved')}>{marked ? tr('✓ Discard at end of turn (+1 CP)') : tr('🗑 Discard at end of turn for +1 CP')}</button>
+              </div>
+            )}
+          </div>
+        )
+      })}
+      {mine.achieved.length > 0 && <p className="mt-1 text-emerald-300">{tr('Achieved: {list}.', { list: mine.achieved.map((a) => tr('{name} (+{vp}, R{round})', { name: SECONDARY[a.card].name, vp: a.vp, round: a.round })).join(', ') })}</p>}
+      <table className="mt-2 w-full text-center">
+        <thead><tr className="text-stone-400"><th className="text-left">{tr('Secondary')}</th>{[1, 2, 3, 4, 5].map((r) => <th key={r} className={r === game.round ? 'text-sky-300' : ''}>{tr('R{value}', { value: r })}</th>)}<th>{tr('Total')}</th></tr></thead>
+        <tbody>
+          {sidesOf(game).filter((p) => sec[p]).map((p) => (
+            <tr key={p}>
+              <td className="text-left">{FACTION_NAME[p]}</td>
+              {[1, 2, 3, 4, 5].map((r) => <td key={r}>{sec[p].byRound[r] || '·'}</td>)}
+              <td className="font-semibold">{secondaryTotal(sec[p])}/{SECONDARY_CAP}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {sec[foe] && <p className="mt-1 text-stone-400">{tr('Opponent has ({mode}): {list}.', { mode: sec[foe].mode === 'tactical' ? tr('tactical|mode') : tr('fixed|mode'), list: sec[foe].active.map((c) => SECONDARY[c].name).join(', ') || tr('no active cards') })}</p>}
+      <p className="mt-1 text-stone-400">{tr('Limit: {round} VP per round, {battle} per battle{perCard}. The “when drawn” choices (beacon, target, replacing an impossible card) are made by the game.', { round: SECONDARY_ROUND_CAP, battle: SECONDARY_CAP, perCard: mine.mode === 'fixed' ? tr(', {cap} per card', { cap: FIXED_CARD_CAP }) : '' })}</p>
+    </details>
+  )
+}
+
+/** Deployment: Strategic Reserves (44″×60″) — up to half the army's points wait off the board. */
+function ReserveSetup() {
+  const st = useStore()
+  const game = st.game!
+  const human = st.settings.human
+  const sel = game.units.find((u) => u.id === st.selectedUnitId && u.owner === human)
+  const mine = reservesOf(game, human)
+  const { reserved, limit } = reserveBudget(game, human)
+  return (
+    <div className="rounded border border-violet-700 bg-violet-950/30 p-2 text-xs">
+      <h3 className="mb-1 font-semibold uppercase text-violet-200">{tr('Strategic Reserves — {reserved}/{limit} pts', { reserved, limit })}</h3>
+      <p className="text-stone-300">{tr('A unit in Reserves is not set up now: from round {from}, in your Movement phase, it arrives whole within {edge}″ of any board edge and more than {enemy}″ from enemies (until round {deadline} — not in the enemy deployment zone; with Deep Strike — anywhere). A unit that has not arrived by the end of round {deadline} is destroyed. At most half the army’s points can go into Reserves.', { from: RESERVE_FROM_ROUND, edge: INGRESS_EDGE, enemy: INGRESS_ENEMY, deadline: RESERVE_DEADLINE })}</p>
+      {sel && <button className="btn mt-1 w-full" onClick={() => st.toggleReserve(sel.id)}>{canDeepStrike(sel) ? tr('⏬ {name} — into Reserves (Deep Strike)', { name: sel.name }) : tr('⏬ {name} — into Reserves', { name: sel.name })}</button>}
+      {mine.map((u) => (
+        <div key={u.id} className="mt-1 flex items-center justify-between gap-2 rounded bg-stone-900/60 px-2 py-1">
+          <span>{u.name}{canDeepStrike(u) ? tr(' · Deep Strike') : ''}</span>
+          <button className="btn text-xs" onClick={() => st.toggleReserve(u.id)}>{tr('⏫ Onto the board')}</button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** In battle: the units still in reserve, and for the player's own ones the way onto the board. */
+function ReservePanel({ game, me }: { game: GameState; me: PlayerId }) {
+  const st = useStore()
+  const mine = reservesOf(game, me)
+  const theirs = reservesOf(game, other(game, me))
+  const closed = ingressWindow(game, me, false)
+  const auto = (id: string) => {
+    const u = game.reserves!.find((x) => x.id === id)!
+    const positions = arrivalSpot(game, u, aiArrivalTarget(game, me))
+    if (positions) st.dispatch({ type: 'arrive', unitId: id, positions })
+    else st.setMessage(tr('No place to arrive found: at the edge (within 6″) everywhere is closer than 8″ to enemies.'), 'error')
+  }
+  return (
+    <div className="rounded border border-violet-700 bg-violet-950/30 p-2 text-xs">
+      <div className="font-semibold text-violet-200">{game.round <= RESERVE_DEADLINE ? tr('⏬ Reserves — arrive by the end of round {n}', { n: RESERVE_DEADLINE }) : tr('⏬ Reserves')}</div>
+      {mine.map((u) => (
+        <div key={u.id} className="mt-1 rounded bg-stone-900/60 p-1.5">
+          <div>{u.name}{canDeepStrike(u) ? tr(' · Deep Strike') : ''} · {tr('{count} models|short', { count: alive(u).length })}</div>
+          {!closed && !game.winner && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              <button className={`btn text-xs ${st.arriving?.unitId === u.id ? 'btn-primary' : ''}`} onClick={() => st.startArrival(st.arriving?.unitId === u.id ? null : u.id)}>{tr('📍 Choose a spot on the board')}</button>
+              <button className="btn text-xs" onClick={() => auto(u.id)}>{tr('🎯 Place at the objective')}</button>
+            </div>
+          )}
+        </div>
+      ))}
+      {mine.length > 0 && closed && <p className="mt-1 text-stone-400">{tr('{reason} Rapid Ingress ({cp} CP) will be offered at the end of the opponent’s Movement phase.', { reason: closed, cp: RAPID_INGRESS_CP })}</p>}
+      {st.arriving && <button className="btn mt-1 w-full text-xs" onClick={() => st.startArrival(null)}>{tr('✕ Cancel the spot choice')}</button>}
+      {theirs.length > 0 && <p className="mt-1 text-stone-400">{tr('Opponent in Reserves: {list}.', { list: theirs.map((u) => u.name).join(', ') })}</p>}
     </div>
   )
 }

@@ -20,6 +20,16 @@ The same line appears in the tooltip of an enemy model on the board.
 
 `src/game/chargeAdvice.ts` is pure. It uses the AI's own `meleePotential` (now exported) and `p2d6AtLeast`, and `unitProfile` from `army/roles.ts` for the shooter check. All numbers are averages, not predictions of a roll.
 
+### Who else fights back
+
+Enemy units within 3″ of the target (`JOIN_RANGE`) end up in engagement range of the chargers. Only engaged units pile in, so farther ones usually stay out. These units fight at full strength, and their expected wounds are added to «in return». The forecast names them: «Near the target “Lieutenant”, “Assault Intercessors”: they will end up in engagement range and strike too — another ~10 wounds to you».
+
+This comes from a played game, where Sicarians charged two Intercessors and were wiped out by the Captain and Bladeguard Veterans standing next to them.
+
+### A character in a bad fight
+
+A CHARACTER that would deal under 2 wounds, or lose half its wounds, gets its own warning: «“Tech-Priest Dominus” is a character: in this fight it will deal ~2.4 wounds and take ~4 of 4. Its abilities for the army die with it». This also comes from played games: a Tech-Priest Dominus declared charges in four of five.
+
 ## Reminders
 
 `endPhaseWarning` in `ui/guidance.ts` asks you to press «next phase» twice in two new cases:

@@ -112,7 +112,7 @@ The full list, with what is exact and what is approximated, is in [docs/research
 - **Unofficial training mission.** Scoring is 5 VP per objective held from round 2. The handbook's missions were not available.
 - **Training-size Ork unit.** The 6-model Boyz unit is below the datasheet minimum of 10, and the box's special weapons exceed the datasheet allowance. The UI flags this.
 - **The Lieutenant is a separate unit** rather than attached to the Intercessors.
-- **Only some Stratagems are implemented**: the core Stratagems used in your own turn, reactions, and one detachment per army (see [docs/stratagems.md](docs/stratagems.md) for what is missing). Combat Doctrines, Hidden, vertical terrain, Overrun and reserves are not implemented.
+- **Only some Stratagems are implemented**: the core Stratagems used in your own turn, reactions, and one detachment per army (see [docs/stratagems.md](docs/stratagems.md) for what is missing). Hidden, vertical terrain and Overrun are not implemented.
 - **Online play** is host-authoritative, so it gives no anti-cheat against a malicious host. There is no matchmaking, chat or spectator mode ([docs/multiplayer.md](docs/multiplayer.md)).
 - **Approximations** (see research.md):
   - Line of sight is sampled.
@@ -132,6 +132,11 @@ The full list, with what is exact and what is approximated, is in [docs/research
 - [docs/tyranids.md](docs/tyranids.md): the extra Tyranid units for army lists (Winged Prime, Zoanthropes, Carnifexes, Barbgaunts): sources, points, rules and what is not implemented.
 - [docs/necrons.md](docs/necrons.md): the extra Necron units for army lists (Royal Warden, Immortals, Lychguard, Canoptek Wraiths): sources, points, rules and what is not implemented.
 - [docs/aeldari.md](docs/aeldari.md): the extra Aeldari units for army lists (Autarch, Rangers, Wraithguard, Swooping Hawks): sources, points, rules and what is not implemented.
+- [docs/detachments.md](docs/detachments.md): detachment rules of every army, Combat Doctrines, Hyper-adaptations, Rad-bombardment, playing without a detachment.
+- [docs/strike-force.md](docs/strike-force.md): the 44″×60″ battle: six deployment maps, terrain layouts, objectives.
+- [docs/missions.md](docs/missions.md): primary missions and objective actions on the 44″×60″ board.
+- [docs/secondaries.md](docs/secondaries.md): Tactical and Fixed secondary missions.
+- [docs/reserves.md](docs/reserves.md): Strategic Reserves, Deep Strike and Rapid Ingress.
 - [docs/research.md](docs/research.md): edition, sources, box contents, datasheets, exact vs approximated rules.
 - [docs/assets.md](docs/assets.md): asset inventory and licensing.
 - [docs/i18n.md](docs/i18n.md): languages, how strings are written and how to add one.

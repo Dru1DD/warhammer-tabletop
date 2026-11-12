@@ -6,12 +6,11 @@ import { boxOf, fitBox, withBox, type Box } from '../game/terrainLayout'
 import { actor, moveAllowance, moveCommand, moveModeFor, shootPlan, validate } from '../game/engine'
 import { baseRadius, dist, edgeDistance, withinRange } from '../game/geometry/geometry'
 import { alive, CHARGE_RANGE, findUnit, fmt, hasAbility, isFlyer, modelDistance, OBJECTIVE_MARKER_MM, OBJECTIVE_RANGE, profileOf, radiusOf, sidesOf, weaponsOf } from '../game/gameState'
-import { scenarioById } from '../game/scenarios/scenarios'
 import type { Command, GameState, ModelState, Terrain, UnitState, Vec } from '../game/types'
 import { useStore } from '../store'
 import { clampToRadius, fitBoard, screenToWorld, worldToScreen, zoomAt, type Viewport } from '../view/transform'
 import { actedThisPhase, canActNow, deploymentHint, endPhaseWarning, nextPhaseLabel, nextStepHint, targetCommand } from './guidance'
-import { deploymentProblem } from '../game/rules/deployment'
+import { deploymentProblem, deploymentZone } from '../game/rules/deployment'
 import { movePreview, type MovePreview } from '../game/movePreview'
 import { adviceLine, adviceWarnings, shotAdvice } from '../game/shotAdvice'
 import { chargeForecast, forecastLine } from '../game/chargeAdvice'
@@ -517,7 +516,6 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
   const mine = sel && sel.owner === human ? sel : null
   const deploying = st.deploying
   const myTurn = !deploying && actor(game) === human && !game.winner
-  const scenario = scenarioById(game.scenarioId)
   const profileIds = [...new Set(game.units.flatMap((u) => u.models.map((m) => m.profileId)))]
   const imageUrls = profileIds.map((id) => tokenImageFor(id, st.customTokens)).filter((x): x is string => !!x)
   const images = useImages(imageUrls)
@@ -554,6 +552,11 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
   }
 
   const onBackgroundClick = () => {
+    if (st.arriving) {
+      const p = pointerWorld()
+      if (p) st.arriveAt(p)
+      return
+    }
     if (!st.measuring) return
     const p = pointerWorld()
     if (p) st.setMeasurePoint({ p, r: 0 })
@@ -746,7 +749,7 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
         <Rect x={-0.3} y={-0.3} width={game.board.width + 0.6} height={game.board.height + 0.6} fill={BOARD_STYLE.edge} cornerRadius={0.2} />
         <Rect x={0} y={0} width={game.board.width} height={game.board.height} fill={BOARD_STYLE.mat} stroke={BOARD_STYLE.ink} strokeWidth={0.06} onClick={() => { onBackgroundClick(); if (deploying) st.selectTerrain(null) }} onTap={onBackgroundClick} />
         {sidesOf(game).map((p, i) => {
-          const zone = scenario.deployment[i === 0 ? 'west' : 'east']
+          const zone = deploymentZone(game, sidesOf(game)[i])
           const own = p === human
           return (
             <Group key={`dz-${p}`} listening={false}>
@@ -781,7 +784,11 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
               <Circle radius={r * 0.45} stroke={col} strokeWidth={0.05} />
               <Line points={[-r - 0.35, 0, r + 0.35, 0]} stroke={col} strokeWidth={0.04} />
               <Line points={[0, -r - 0.35, 0, r + 0.35]} stroke={col} strokeWidth={0.04} />
-              <Text x={r * 0.55} y={-r - 0.55} text={tr('O{value}', { value: i + 1 })} fontSize={0.4} fontStyle="bold" fill={col} />
+              <Text x={r * 0.55} y={-r - 0.55} text={o.role === 'home' ? tr('O{value} home', { value: i + 1 }) : o.role === 'central' ? tr('O{value} center', { value: i + 1 }) : o.role === 'expansion' ? tr('O{value} flank', { value: i + 1 }) : tr('O{value}', { value: i + 1 })} fontSize={0.4} fontStyle="bold" fill={col} />
+              {/* Gather Intel: operation markers placed at this objective, one small diamond per player */}
+              {(game.mission?.markers ?? []).filter((x) => x.objectiveId === o.id).map((x, k) => (
+                <Rect key={x.owner} x={-r - 0.9 + k * 0.7} y={r + 0.3} width={0.45} height={0.45} rotation={45} fill={FACTION_LINE[x.owner]} stroke="#000" strokeWidth={0.03} />
+              ))}
             </Group>
           )
         })}

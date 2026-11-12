@@ -4,12 +4,17 @@
 import { FACTION_NAME } from '../data/datasheets'
 import { dist, withinRange } from '../geometry/geometry'
 import {
-  alive, CHARGE_RANGE, datasheetOf, ledUnitOf, engagedUnits, enemiesOf, hasAbility, inSynapseRange, isFlyer, isMV, modelInTerrain, objectiveLevels, other, profileOf,
+  alive, CHARGE_RANGE, OBJECTIVE_RANGE, datasheetOf, ledUnitOf, engagedUnits, enemiesOf, hasAbility, hasKeyword, inSynapseRange, isEngaged, isFlyer, isMV, modelInTerrain, objectiveLevels, other, profileOf,
   sidesOf, unitDistance, unitNearObjective, unitsOf, unitsWithin, weaponsOf, fmt,
 } from '../gameState'
-import { actor, FLY_PENALTY, maxMove, meleePlan, meleeSetup, meleeWeaponsOf, shootPlan, SWIFT_BONUS, validate, moveModeFor } from '../engine'
+import { actor, FLY_PENALTY, hyperPending, maxMove, meleePlan, meleeSetup, meleeWeaponsOf, shootPlan, swiftBonusOf, validate, moveModeFor } from '../engine'
+import { unitProfile } from '../army/roles'
+import { DOCTRINE_NAME, HYPER_NAME } from '../rules/detachments'
 import { moveProblem, planMove } from '../rules/movement'
 import { EXPLOSIVES_DICE, STRATAGEMS } from '../rules/stratagems'
+import { aiArrivalTarget, arrivalSpot, canDeepStrike, reservesOf } from '../rules/reserves'
+import { aiDiscards, SECONDARY, secondaryGoals } from '../rules/secondaries'
+import { inTerritory, MISSION_ACTION, objectiveWorth, PRIMARY, SABOTAGE_TERRITORY_BONUS } from '../rules/missions'
 import { reactionAdvice } from '../reactionAdvice'
 
 /** Army Stratagems the AI spends on a good volley / a good fight. */
@@ -18,9 +23,9 @@ const FIGHT_BUFFS: StratagemId[] = ['hitEmHarder', 'hungryVoid', 'adrenalSurge']
 import type { AttackContext, AttackGroup } from '../combat/attack'
 import { woundTarget } from '../combat/attack'
 import { avgDie } from '../dice/dice'
-import type { Command, GameState, PlayerId, StratagemId, UnitState, Vec } from '../types'
+import type { CombatDoctrine, Command, GameState, HyperAdaptation, PlayerId, StratagemId, UnitState, Vec } from '../types'
 import { WEAPONS } from '../data/datasheets'
-import { tr } from '../../i18n/index'
+import { quote, tr } from '../../i18n/index'
 
 export type AiLevel = 'beginner' | 'standard'
 
@@ -243,9 +248,11 @@ function scorePosition(s: GameState, u: UnitState, level: AiLevel, mode: 'normal
   for (const o of s.objectives) {
     const lv = objectiveLevels(hs, o)
     const mine = lv[u.owner], theirs = lv[other(s, u.owner)]
-    if (unitNearObjective(hypo, o)) obj += mine > theirs ? 1 : 0.5
+    if (unitNearObjective(hypo, o)) obj += (mine > theirs ? 1 : 0.5) * objectiveWorth(s, u.owner, o)
     nearestObj = Math.min(nearestObj, Math.min(...alive(hypo).map((m) => dist(m.pos, o.pos))))
   }
+  // secondary missions: places worth standing on (centre, enemy zone, a chosen objective)
+  for (const g of secondaryGoals(s, u.owner)) if (alive(hypo).some((m) => dist(m.pos, g.pos) <= OBJECTIVE_RANGE)) obj += g.weight
   const nearestEnemy = Math.min(...enemies.map((e) => dTo.get(e)!))
   const cover = alive(hypo).every((m) => modelInTerrain(s, m)) ? 1 : 0
 
@@ -287,6 +294,7 @@ function candidateGoals(s: GameState, u: UnitState, level: AiLevel): { pos: Vec;
   if (nearestEnemy) goals.push({ pos: alive(nearestEnemy)[0].pos, label: tr('toward the enemy') })
   const objs = [...s.objectives].sort((a, b) => dist(alive(u)[0].pos, a.pos) - dist(alive(u)[0].pos, b.pos))
   for (const o of level === 'beginner' ? objs.slice(0, 1) : objs) goals.push({ pos: o.pos, label: tr('toward the target') })
+  if (level !== 'beginner') for (const g of secondaryGoals(s, u.owner)) goals.push({ pos: g.pos, label: g.label })
   if (level === 'standard')
     for (const t of s.terrain) {
       const c = t.poly.reduce((a, p) => ({ x: a.x + p.x / t.poly.length, y: a.y + p.y / t.poly.length }), { x: 0, y: 0 })
@@ -373,12 +381,41 @@ function chooseImperative(s: GameState, me: PlayerId, level: AiLevel): { imperat
 
 // ------------------------------------------------------------ decisions
 
+/** Hyper-adaptations: Hyper-aggression when monsters and vehicles hold a good share of the enemy's wounds, else Swarming
+ * Instincts (most armies are infantry). Hive Predators only pays against an army of characters. */
+export function chooseHyper(s: GameState, me: PlayerId): { choice: HyperAdaptation; why: string } {
+  const w = (u: UnitState) => alive(u).reduce((a, m) => a + m.wounds, 0)
+  const foes = s.units.filter((u) => u.owner !== me && alive(u).length)
+  const heavy = foes.filter((u) => hasKeyword(u, 'MONSTER', 'VEHICLE')).reduce((a, u) => a + w(u), 0)
+  const all = foes.reduce((a, u) => a + w(u), 0)
+  return heavy >= all * 0.35
+    ? { choice: 'aggression', why: tr('the enemy has many monsters and vehicles ({percent}% of wounds)', { percent: Math.round((heavy / Math.max(1, all)) * 100) }) }
+    : { choice: 'swarming', why: tr('the enemy is mostly infantry') }
+}
+
+/** Combat Doctrines: Tactical when a unit is locked in combat, Assault when an assault unit is an advance and a charge
+ * away, Devastator early on while the guns walk forward; nothing when none of them helps (each one is once per battle). */
+function chooseDoctrine(s: GameState, me: PlayerId): { doctrine: CombatDoctrine; why: string } | null {
+  const mine = unitsOf(s, me).filter((u) => alive(u).length)
+  const options: { doctrine: CombatDoctrine; why: string }[] = []
+  if (mine.some((u) => isEngaged(s, u))) options.push({ doctrine: 'tactical', why: tr('the unit is locked in combat: it will fall back and still shoot') })
+  const far = mine.some((u) => unitProfile(u).role === 'assault' && enemiesOf(s, u).some((e) => alive(e).length && unitDistance(u, e) > 8 && unitDistance(u, e) <= 14))
+  if (far) options.push({ doctrine: 'assault', why: tr('the assault unit will reach with an advance and a charge') })
+  if (s.round <= 2) options.push({ doctrine: 'devastator', why: tr('the army advances and shoots on the move') })
+  return options.find((o) => validate(s, { type: 'doctrine', doctrine: o.doctrine }).ok) ?? null
+}
+
 export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | null {
   if (s.winner) return null
   const me = actor(s)
   const fac = FACTION_NAME[me]
   const mine = unitsOf(s, me)
   const end = (why: string): AiDecision => ({ cmd: { type: 'endPhase' }, explanation: why })
+
+  if (hyperPending(s)) {
+    const h = chooseHyper(s, me)
+    return { cmd: { type: 'hyperAdaptation', choice: h.choice }, explanation: tr('{fac}: hyper-adaptation “{name}” — {why}.', { fac, name: HYPER_NAME[h.choice], why: h.why }) }
+  }
 
   if (s.pendingCharge) {
     const u = s.units.find((x) => x.id === s.pendingCharge!.unitId)!
@@ -421,6 +458,10 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
           .sort((a, b) => Number(s.objectives.some((o) => unitNearObjective(b, o))) - Number(s.objectives.some((o) => unitNearObjective(a, o))) || alive(b).length - alive(a).length)[0]
         if (freed) return { cmd: { type: 'engrammatic', unitId: u.id, targetId: freed.id }, explanation: tr('{fac}: “{name}” removes Battle-shock from “{name2}” (Engrammatic Logic).', { fac, name: u.name, name2: freed.name }) }
       }
+      if (me === 'marines' && level !== 'beginner') {
+        const d = chooseDoctrine(s, me)
+        if (d) return { cmd: { type: 'doctrine', doctrine: d.doctrine }, explanation: tr('{fac}: Combat Doctrine “{name}” — {why}.', { fac, name: DOCTRINE_NAME[d.doctrine], why: d.why }) }
+      }
       if (validate(s, { type: 'imperative', imperative: 'protector' }).ok) {
         const imp = chooseImperative(s, me, level)
         return { cmd: { type: 'imperative', imperative: imp.imperative }, explanation: tr('{fac}: Imperative “{value}” — {why}.', { fac, value: imp.imperative === 'protector' ? tr('Protector') : tr('Conqueror'), why: imp.why }) }
@@ -453,7 +494,7 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
           continue
         }
         const stay = scorePosition(s, u, level, 'stay')
-        const swiftBonus = swiftAvailable(s, u) ? SWIFT_BONUS : 0
+        const swiftBonus = swiftAvailable(s, u) ? swiftBonusOf(s, u.owner) : 0
         if (u.advanceRoll !== null) {
           const adv = bestMove(s, u, level, 'advance', maxMove(u) + swiftBonus)
           if (adv && adv.score > stay.score) {
@@ -526,6 +567,11 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
           .sort((a, b) => b.v - a.v)[0]
         if (best) return { cmd: best.cmd, explanation: tr('{fac}: “{name}” launches a bomb squig at “{name2}” (3+: D3 mortal wounds).', { fac, name: u.name, name2: best.e.name }) }
       }
+      // reinforcements: units in Strategic Reserves arrive towards the objective nearest the enemy
+      for (const u of reservesOf(s, me)) {
+        const pos = arrivalSpot(s, u, aiArrivalTarget(s, me))
+        if (pos) return { cmd: { type: 'arrive', unitId: u.id, positions: pos }, explanation: canDeepStrike(u) ? tr('{fac}: {name} arrives from Reserves with a Deep Strike.', { fac, name: quote(u.name) }) : tr('{fac}: {name} arrives from Reserves.', { fac, name: quote(u.name) }) }
+      }
       return end(tr('{fac}: movement finished.', { fac }))
     }
     case 'shooting': {
@@ -554,6 +600,12 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
             if (!best || dmg > best.dmg) best = { cmd, dmg, target: e.name }
           }
         }
+        // a mission action (Sabotage, Extract Intelligence) instead of a volley, when its VP are worth more
+        const action = missionActionFor(s, u)
+        if (action && (!best || action.vp >= best.dmg * 0.8))
+          return { cmd: action.cmd, explanation: best
+            ? tr('{fac}: “{name}” starts the mission action “{action}” at objective {obj} (≈ {vp} VP at the end of the turn, shooting would have dealt ≈ {dmg} damage).', { fac, name: u.name, action: action.name, obj: tr('O{value}', { value: action.n }), vp: action.vp, dmg: fmt(best.dmg) })
+            : tr('{fac}: “{name}” starts the mission action “{action}” at objective {obj} (≈ {vp} VP at the end of the turn).', { fac, name: u.name, action: action.name, obj: tr('O{value}', { value: action.n }), vp: action.vp }) }
         // an army's shooting Stratagem on a volley worth it, keeping 1 CP in reserve
         if (best && level !== 'beginner' && best.dmg >= 2.5 && s.players[me].cp >= 2) {
           for (const id of SHOOTING_BUFFS) {
@@ -596,6 +648,9 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
       return end(tr('{fac}: no charges declared.', { fac }))
     }
     case 'fight': {
+      // stale Tactical secondaries go at the end of the turn, for 1 CP each
+      const stale = !s.fight && me === s.activePlayer ? aiDiscards(s, me)[0] : undefined
+      if (stale) return { cmd: { type: 'secondary', op: 'discard', card: stale }, explanation: tr('{fac}: the secondary {name} is not coming — discard it at the end of the turn for 1 CP.', { fac, name: quote(SECONDARY[stale].name) }) }
       if (!s.fight) return end(tr('{fac}: fights finished.', { fac }))
       for (const u of mine) {
         for (const e of engagedUnits(s, u).sort((a, b) => expectedMelee(s, u, b) - expectedMelee(s, u, a))) {
@@ -639,3 +694,19 @@ function shootOptions(u: UnitState, level: AiLevel) {
 /** Unused-model guard for tests: every AI command must be legal. */
 export const aiCommandIsLegal = (s: GameState, d: AiDecision | null) => !d || validate(s, d.cmd).ok
 
+
+/** The best mission action this unit can start now, at an objective its side controls (the action completes only then). */
+function missionActionFor(s: GameState, u: UnitState): { cmd: Command; vp: number; name: string; n: number } | null {
+  const id = s.mission && PRIMARY[s.mission.primary].action
+  if (!id) return null
+  let best: { cmd: Command; vp: number; name: string; n: number } | null = null
+  s.objectives.forEach((o, i) => {
+    const cmd: Command = { type: 'startAction', unitId: u.id, objectiveId: o.id }
+    if (!validate(s, cmd).ok) return
+    const lv = objectiveLevels(s, o)
+    if (!(lv[u.owner] > lv[other(s, u.owner)])) return
+    const vp = MISSION_ACTION[id].vp + (id === 'sabotage' && inTerritory(s, other(s, u.owner), o) ? SABOTAGE_TERRITORY_BONUS : 0)
+    if (!best || vp > best.vp) best = { cmd, vp, name: MISSION_ACTION[id].name, n: i + 1 }
+  })
+  return best
+}

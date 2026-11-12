@@ -92,7 +92,8 @@ describe('app as host', () => {
     expect(localStorage.getItem(MP_SAVE_KEY)).toBeTruthy()
     expect(localStorage.getItem(AUTOSAVE_KEY)).toBeNull()
 
-    // host plays through the normal dispatch; the guest mirrors it
+    // host plays through the normal dispatch; the guest mirrors it (the Tyranids first choose their Hyper-adaptation)
+    expect(st().dispatch({ type: 'hyperAdaptation', choice: 'swarming' })).toBe(true)
     for (let i = 0; i < 10 && decider() === HOST_ID; i++) expect(st().dispatch(END)).toBe(true)
     expect(gp.port.get()!.version).toBe(st().match!.version)
     expect(JSON.stringify(gp.port.get()!.state)).toBe(JSON.stringify(st().game))
