@@ -1,6 +1,7 @@
 // Wire protocol. Messages are JSON strings; everything received is untrusted and goes through `parseMessage`.
 // Pure data: no PeerJS, no React.
 
+import { parseArmyList, type ArmyList } from '../game/army/armyList'
 import type { ActionRecord, CommandEnvelope, RejectCode } from '../game/match/types'
 import { FACTIONS, type PlayerId } from '../game/types'
 
@@ -17,6 +18,9 @@ export interface LobbyState {
   guestSide: PlayerId
   guestConnected: boolean
   guestReady: boolean
+  /** each player's own army list (from their army builder); null or absent = the scenario's training roster */
+  hostArmy?: ArmyList | null
+  guestArmy?: ArmyList | null
 }
 
 export type JoinRefusal = 'room-full' | 'game-started' | 'bad-token' | 'version'
@@ -24,7 +28,7 @@ export type JoinRefusal = 'room-full' | 'game-started' | 'bad-token' | 'version'
 export type NetMessage =
   // guest -> host
   | { type: 'hello'; v: number; token?: string }
-  | { type: 'prefs'; side?: PlayerId; ready?: boolean }
+  | { type: 'prefs'; side?: PlayerId; ready?: boolean; army?: ArmyList | null }
   | { type: 'command'; envelope: CommandEnvelope }
   | { type: 'syncRequest'; haveVersion: number }
   | { type: 'ping'; n: number }
@@ -57,7 +61,8 @@ function lobbyOf(v: unknown): LobbyState | null {
   const { scenarioId, hostSide, guestSide, guestConnected, guestReady } = v
   if (!isStr(scenarioId, 64) || !isSide(hostSide) || !isSide(guestSide)) return null
   if (typeof guestConnected !== 'boolean' || typeof guestReady !== 'boolean') return null
-  return { scenarioId, hostSide, guestSide, guestConnected, guestReady }
+  const army = (a: unknown) => (a == null ? null : parseArmyList(a))
+  return { scenarioId, hostSide, guestSide, guestConnected, guestReady, hostArmy: army(v.hostArmy), guestArmy: army(v.guestArmy) }
 }
 
 function envelopeOf(v: unknown): CommandEnvelope | null {
@@ -92,9 +97,13 @@ export function parseMessage(raw: unknown, fromGuest: boolean): NetMessage | nul
     case 'hello':
       if (!fromGuest || !isInt(m.v) || (m.token !== undefined && !isStr(m.token, 128))) return null
       return { type: 'hello', v: m.v, ...(m.token !== undefined ? { token: m.token as string } : {}) }
-    case 'prefs':
+    case 'prefs': {
       if (!fromGuest || (m.side !== undefined && !isSide(m.side)) || (m.ready !== undefined && typeof m.ready !== 'boolean')) return null
-      return { type: 'prefs', side: m.side as PlayerId | undefined, ready: m.ready as boolean | undefined }
+      // an army list: null = the training roster; a malformed one makes the whole message invalid
+      const army = m.army === undefined || m.army === null ? m.army : parseArmyList(m.army)
+      if (army === null && m.army !== null && m.army !== undefined) return null
+      return { type: 'prefs', side: m.side as PlayerId | undefined, ready: m.ready as boolean | undefined, ...(army !== undefined ? { army } : {}) }
+    }
     case 'command': {
       const envelope = fromGuest ? envelopeOf(m.envelope) : null
       return envelope && { type: 'command', envelope }

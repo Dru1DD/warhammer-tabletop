@@ -131,7 +131,7 @@ interface Store {
   /** Publish a match the pipeline already accepted (host: after `submit`; guest: after verifying the host's action). */
   commitAccepted: (prev: MatchState, r: { match: MatchState; action: ActionRecord }) => void
   /** Host: build a fresh battle for an online match (host seed, default positions) and publish it. */
-  startSharedHost: (c: { scenarioId: string; hostSide: PlayerId; guestSide: PlayerId; assignments: PlayerAssignments }) => MatchState
+  startSharedHost: (c: { scenarioId: string; hostSide: PlayerId; guestSide: PlayerId; hostArmy?: ArmyList | null; guestArmy?: ArmyList | null; assignments: PlayerAssignments }) => MatchState
   /** Publish an online match (host start / restore, guest start / snapshot). The viewer's side comes from the local controller. */
   installShared: (match: MatchState, role: 'host' | 'guest', send?: SharedInfo['send']) => void
   /** Local player's command: wraps it in an envelope and goes through `submit`. */
@@ -468,9 +468,12 @@ export const useStore = create<Store>((set, get) => {
     } else saveMatch(AUTOSAVE_KEY, r.match, settings.human)
   },
 
-  startSharedHost: ({ scenarioId, hostSide, guestSide, assignments }) => {
-    // online battles use the training rosters: army lists are not part of the lobby yet
-    const settings = normalizeSettings({ ...get().settings, human: hostSide, opponent: guestSide, scenarioId, armies: {} })
+  startSharedHost: ({ scenarioId, hostSide, guestSide, hostArmy, guestArmy, assignments }) => {
+    // each player's own list from the lobby (none = the training roster); own lists play on the Combat Patrol board
+    const armies: Partial<Record<PlayerId, ArmyList>> = {}
+    if (hostArmy) armies[hostSide] = hostArmy
+    if (guestArmy) armies[guestSide] = guestArmy
+    const settings = normalizeSettings({ ...get().settings, human: hostSide, opponent: guestSide, scenarioId, armies })
     const seed = (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0
     const game = startGame(buildScenario(settings), seededRoller(seed))
     const match = createMatch(game, assignments, { gameId: newGameId(seed), mode: 'shared' })

@@ -7,7 +7,8 @@ import { actor } from '../game/engine'
 import { SCENARIOS } from '../game/scenarios/scenarios'
 import { FACTIONS, type PlayerId } from '../game/types'
 import { useStore } from '../store'
-import { guestChoices, startProblem } from './lobby'
+import { listPoints } from '../game/army/armyList'
+import { armyLine, guestChoices, startProblem } from './lobby'
 import {
   closeOnlineMenu, configureRoom, createRoom, inviteLink, joinRoom, leaveRoom, retryReconnect, savedGuestRoom, savedHostGame, setGuestPrefs,
   startRoomMatch, STATUS_TEXT, useMp,
@@ -106,11 +107,13 @@ function Room() {
             <li className="flex items-center gap-2 rounded bg-stone-900 p-2">
               <span className="w-24 text-stone-400">Хозяин</span>
               <FactionBadge side={lobby.hostSide} />
+              <span className="text-xs text-stone-400">{armyLine(lobby.hostArmy, listPoints)}</span>
               <span className="ml-auto text-emerald-300">● готов</span>
             </li>
             <li className="flex items-center gap-2 rounded bg-stone-900 p-2">
               <span className="w-24 text-stone-400">Гость</span>
               {guestOnline ? <FactionBadge side={lobby.guestSide} /> : <span className="text-stone-400">Ожидание второго игрока…</span>}
+              {guestOnline && <span className="text-xs text-stone-400">{armyLine(lobby.guestArmy, listPoints)}</span>}
               {guestOnline && <span className={`ml-auto ${lobby.guestReady ? 'text-emerald-300' : 'text-amber-300'}`}>{lobby.guestReady ? '● готов' : '○ не готов'}</span>}
             </li>
           </ul>
@@ -146,7 +149,7 @@ function Room() {
             )}
           </div>
           <p className="mt-2 text-xs text-stone-400">
-            Армии стоят на стандартных позициях сценария (расстановка вручную в онлайн-партии пока недоступна). Объяснения и подсказки работают как обычно.
+            Свой состав каждый собирает заранее в редакторе армии на главном экране (там же можно вставить код армии). Он уходит в комнату при выборе фракции и по кнопке «Я готов»; свои составы играют на «Боевом патруле». На «Боевом патруле» армии встают по рекомендованной расстановке, на остальных картах — на позиции сценария (вручную в онлайн-партии пока нельзя). Объяснения и подсказки работают как обычно.
           </p>
 
           <div className="mt-4 flex flex-wrap gap-2">

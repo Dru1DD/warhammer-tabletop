@@ -26,7 +26,13 @@ Host-authoritative. The host's browser owns the match and runs the **one** rules
 2. **Guest**: code or link → PeerJS data channel to the host → `hello` (+ stored token when returning). Host answers `welcome`
    (host-issued secret token) and `lobby`. Guest picks a faction (`prefs`) and presses «Я готов».
    Host controls scenario and own faction; changing them resets readiness. Start needs: guest connected + ready, distinct factions, scenario with both armies.
-3. **Start**: host builds the battle (`startSharedHost`: host seed, `startGame`, default positions, `mode: 'shared'`) and sends a full snapshot
+   **Own army lists.** Each player builds a list beforehand in the army builder on the start screen, or pastes an army code there.
+   - The host's list for its faction goes into the lobby when the room is created and whenever the host changes faction (`configureRoom`).
+   - The guest's list goes with a faction pick and with «Я готов» (`prefs.army`; `null` = the training roster).
+   - The host checks it: `parseMessage` rejects a malformed list; `normalizeLobby` drops a list of the wrong faction and moves the room to «Боевой патруль», the board that takes own lists. A new list needs a new «Я готов».
+   - `startProblem` names a list that breaks the rules (`listProblems`).
+   - The lobby shows «Учебный состав» or «Свой состав: 495 / 500 очк., 6 отр.» for each side.
+3. **Start**: host builds the battle (`startSharedHost`: host seed, both lists, `startGame`, the recommended deployment preset on «Боевой патруль» or the scenario's positions elsewhere, `mode: 'shared'`) and sends a full snapshot
    (`start`) in the normal save format.
 4. **Command**: guest `command` envelope → host checks (a) the sender id equals the id bound to the connection (`guest`), (b) game id,
    then `submit`: shape, duplicate, sequence, state version, ownership (`decidingSide`), `validate`, `apply` with the host's seeded RNG.
@@ -68,7 +74,7 @@ Host-authoritative. The host's browser owns the match and runs the **one** rules
 - The self-join guard works per tab (a hosting tab refuses its own code); a second tab of the same browser can join, which is handy for testing.
 - If the browser storage quota is full, the host save falls back to a version without the match block and «Восстановить партию» disappears.
 - Not implemented (out of scope): host migration, spectators, chat, matchmaking, manual deployment in online matches
-  (armies start on the scenario's default positions), recovery after a permanently gone host without its save.
+  (armies start in the recommended preset or on the scenario's positions), recovery after a permanently gone host without its save.
 
 ## Manual two-browser test
 
