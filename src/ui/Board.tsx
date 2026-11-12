@@ -8,6 +8,7 @@ import { baseRadius, dist, edgeDistance, withinRange } from '../game/geometry/ge
 import { alive, CHARGE_RANGE, findUnit, fmt, hasAbility, isFlyer, modelDistance, OBJECTIVE_MARKER_MM, OBJECTIVE_RANGE, profileOf, radiusOf, sidesOf, weaponsOf } from '../game/gameState'
 import type { Command, GameState, ModelState, Terrain, UnitState, Vec } from '../game/types'
 import { useStore } from '../store'
+import { objectiveStakes } from '../game/missionAdvice'
 import { clampToRadius, fitBoard, screenToWorld, worldToScreen, zoomAt, type Viewport } from '../view/transform'
 import { actedThisPhase, canActNow, deploymentHint, endPhaseWarning, nextPhaseLabel, nextStepHint, targetCommand } from './guidance'
 import { deploymentProblem, deploymentZone } from '../game/rules/deployment'
@@ -130,7 +131,8 @@ function SightPanel({ sight }: { sight: Sight }) {
     <details open className="absolute left-2 top-[5.5rem] z-[1] w-[min(19rem,calc(100%-4rem))] rounded-lg border border-sky-700 bg-stone-950/90 px-2 py-1.5 text-[11px] leading-snug text-stone-200 shadow-lg" data-testid="sight-panel">
       <summary className="cursor-pointer font-semibold text-sky-300">👁 {sight.planned ? tr('If you stand here') : tr('From the current position')}</summary>
       <ul className="mt-1 flex flex-col gap-1">
-        <li><span className="text-emerald-300">{tr('🎯 You will be able to shoot:')}</span> {list(sight.canShoot.map((r) => ({ name: r.name, extra: tr('~{fmt} wounds', { fmt: fmt(r.dmg) }) })))}</li>
+        <li><span className="text-emerald-300">{tr('🎯 You will be able to shoot:')}</span> {list(sight.canShoot.map((r) => ({ name: r.name, extra: r.firing !== undefined && r.models !== undefined && r.firing < r.models ? tr('~{fmt} wounds, {firing} of {models} fire', { fmt: fmt(r.dmg), firing: r.firing, models: r.models }) : tr('~{fmt} wounds', { fmt: fmt(r.dmg) }) })))}</li>
+        {sight.partial && <li className="rounded border border-amber-600 px-1 py-0.5 text-amber-200">{tr('⚠ Only {firing} of {models} models will fire at “{name}”: cover blocks the rest or they lack range. Move the unit so that it all sees the target.', { name: sight.partial.name, firing: sight.partial.firing, models: sight.partial.models })}</li>}
         {sight.seenOutOfRange.length > 0 && <li><span className="text-amber-300">{tr('👁 Visible but out of reach:')}</span> {list(sight.seenOutOfRange)}</li>}
         <li><span className="text-rose-300">{tr('⚠ They will be able to shoot you:')}</span> {list(sight.shotBy.map((r) => ({ name: r.name, extra: tr('~{fmt} wounds', { fmt: fmt(r.dmg) }) })))}</li>
         <li><span className="text-orange-300">{tr('⚔ They can charge:')}</span> {list(sight.chargedBy.map((r) => ({ name: r.name, extra: pct(r.p) })))}</li>
@@ -501,6 +503,8 @@ function ModelTooltip({ hover, view, width }: { hover: Hover; view: Viewport; wi
 
 function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameState; view: Viewport; stageRef: React.RefObject<Konva.Stage | null>; setHover: (h: Hover | null) => void; sight: Sight | null }) {
   const st = useStore()
+  // turn plan: primary VP at stake on each objective, for the human
+  const stakes = useMemo(() => (game.mission && !st.deploying && !game.winner ? objectiveStakes(game, st.settings.human) : {}), [game, st.deploying, st.settings.human])
   const sightOf = useMemo(() => {
     const m = new Map<string, { shoot: boolean; far: boolean; threat: boolean }>()
     if (!sight) return m
@@ -775,6 +779,7 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
         ))}
         {game.objectives.map((o, i) => {
           const r = baseRadius(OBJECTIVE_MARKER_MM)
+          const stake = stakes[o.id]
           const col = o.controller ? FACTION_LINE[o.controller] : BOARD_STYLE.objective
           return (
             <Group key={o.id} x={o.pos.x} y={o.pos.y} listening={false}>
@@ -785,6 +790,9 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
               <Line points={[-r - 0.35, 0, r + 0.35, 0]} stroke={col} strokeWidth={0.04} />
               <Line points={[0, -r - 0.35, 0, r + 0.35]} stroke={col} strokeWidth={0.04} />
               <Text x={r * 0.55} y={-r - 0.55} text={o.role === 'home' ? tr('O{value} home', { value: i + 1 }) : o.role === 'central' ? tr('O{value} center', { value: i + 1 }) : o.role === 'expansion' ? tr('O{value} flank', { value: i + 1 }) : tr('O{value}', { value: i + 1 })} fontSize={0.4} fontStyle="bold" fill={col} />
+              {/* turn plan: primary VP for taking (+N) or losing (−N) this objective */}
+              {stake?.gain ? <Text x={-r - 1.2} y={r + 0.15} text={`+${stake.gain}`} fontSize={0.55} fontStyle="bold" fill="#7dd3fc" />
+                : stake?.loss ? <Text x={-r - 1.2} y={r + 0.15} text={`−${stake.loss}`} fontSize={0.55} fontStyle="bold" fill="#fcd34d" /> : null}
               {/* Gather Intel: operation markers placed at this objective, one small diamond per player */}
               {(game.mission?.markers ?? []).filter((x) => x.objectiveId === o.id).map((x, k) => (
                 <Rect key={x.owner} x={-r - 0.9 + k * 0.7} y={r + 0.3} width={0.45} height={0.45} rotation={45} fill={FACTION_LINE[x.owner]} stroke="#000" strokeWidth={0.03} />

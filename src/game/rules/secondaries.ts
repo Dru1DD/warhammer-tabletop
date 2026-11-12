@@ -1,7 +1,7 @@
 import { FACTION_NAME } from '../data/datasheets'
 import { dist, pointInPolygon } from '../geometry/geometry'
 import { addLog, alive, isDestroyed, other, profileOf, radiusOf, sidesOf, unitNearObjective, unitsOf } from '../gameState'
-import { tr } from '../../i18n/index'
+import { quote, tr } from '../../i18n/index'
 import type { GameState, Objective, PlayerId, SecondaryId, SecondaryState, UnitState, Vec } from '../types'
 
 // Secondary missions of the 44″×60″ battle (Mission Deck 2026-27, Wahapedia): the 16 cards without actions (Plunder and
@@ -443,4 +443,103 @@ export function aiDiscards(s: GameState, p: PlayerId): SecondaryId[] {
   const st = s.secondary?.[p]
   if (!st || st.mode !== 'tactical') return []
   return st.active.filter((c) => !st.toDiscard.includes(c) && cardValue(s, p, c, false, true).vp === 0 && (st.age?.[c] ?? 0) >= 2)
+}
+
+// ---------------------------------------------------------------- for the turn plan (missionAdvice.ts)
+
+const WHEN_TEXT: Record<When, string> = {
+  any: tr('at the end of any turn'),
+  yours: tr('at the end of your turn'),
+  theirs: tr('at the end of the opponent’s turn'),
+  both: tr('at the end of your turn (2 VP) or the opponent’s turn (5 VP)'),
+}
+
+const objName = (s: GameState, o: Objective) => tr('O{value}', { value: s.objectives.indexOf(o) + 1 })
+const names = (us: UnitState[]) => us.map((u) => quote(u.name)).join(', ')
+
+/** What a card asks for right now, in words, with the targets named. */
+function cardNeed(s: GameState, p: PlayerId, card: SecondaryId): string {
+  const foe = other(s, p)
+  const st = s.secondary![p]
+  const enemies = unitsOf(s, foe)
+  switch (card) {
+    case 'noPrisoners': return tr('destroy an enemy unit — 2 VP for each (up to 5)')
+    case 'overwhelmingForce': {
+      const on = enemies.filter((u) => (s.turnStart?.onObjective ?? []).includes(u.id))
+      return on.length ? tr('destroy a unit that started the turn at an objective: {names}', { names: names(on) }) : tr('destroy an enemy unit that started the turn at an objective')
+    }
+    case 'displayOfMight': {
+      const a = eligible(s, p).filter((u) => inNoMansLand(s, u)).length, b = eligible(s, foe).filter((u) => inNoMansLand(s, u)).length
+      return tr('keep more units in no man’s land than the enemy (now {a} vs {b})', { a, b })
+    }
+    case 'outflank': return tr('put a unit within 6″ of a board edge outside your half; two units at opposite edges — 5 VP')
+    case 'beacon': {
+      const u = s.units.find((x) => x.id === st.beacon)
+      return u && !isDestroyed(u) ? tr('take the beacon “{name}” out of your zone (3 VP) or off your half of the board (5 VP) and keep it alive until the end of the opponent’s turn', { name: u.name }) : tr('the beacon is dead — the card cannot be completed, discard it for 1 CP')
+    }
+    case 'grievousBlow': {
+      const big = enemies.filter((u) => u.startingModels >= 13)
+      return big.length ? tr('destroy a unit of 13+ models: {names}', { names: names(big) }) : tr('the enemy has no units of 13+ models left — discard the card')
+    }
+    case 'defendStronghold': {
+      const home = s.objectives.find((o) => isHomeOf(o, p))
+      return s.round < 2
+        ? tr('hold your home objective{obj} and keep enemies out of your deployment zone (from round 2)', { obj: home ? ` ${objName(s, home)}` : '' })
+        : tr('hold your home objective{obj} and keep enemies out of your deployment zone', { obj: home ? ` ${objName(s, home)}` : '' })
+    }
+    case 'engageAllFronts': {
+      const qs = new Set(eligible(s, p).map((u) => quarterOf(s, u)).filter((q) => q !== null)).size
+      return tr('units wholly in three or four quarters of the board, more than 6″ from the centre (quarters now: {qs})', { qs })
+    }
+    case 'secureNoMansLand': {
+      const nml = s.objectives.filter((o) => o.role !== 'home' && objInNoMansLand(s, o))
+      return tr('hold two objectives in no man’s land: {list} (yours now: {mine})', { list: nml.map((o) => objName(s, o)).join(', '), mine: nml.filter((o) => o.controller === p).length })
+    }
+    case 'forwardPosition': {
+      const home = s.objectives.find((o) => isHomeOf(o, foe))
+      const exp = s.objectives.filter((o) => o.role === 'expansion')
+      return tr('take the enemy’s home objective{obj} or both flank objectives: {list}', { obj: home ? ` ${objName(s, home)}` : '', list: exp.map((o) => objName(s, o)).join(', ') })
+    }
+    case 'centreGround': return tr('a unit within 3″ of the board centre with no enemies there (none within 6″ — 5 VP)')
+    case 'assassination': {
+      const chars = enemies.filter((u) => alive(u).some((m) => profileOf(m).character))
+      return chars.length ? tr('kill an enemy character: {names}', { names: names(chars) }) : tr('all the enemy characters are dead')
+    }
+    case 'temptingTarget': {
+      const o = s.objectives.find((x) => x.id === st.tempting)
+      return o ? tr('hold objective {obj}', { obj: objName(s, o) }) : tr('there is no objective')
+    }
+    case 'behindEnemyLines': return tr('a unit wholly in the enemy deployment zone — 3 VP (up to 5)')
+    case 'bringItDown': {
+      const giants = enemies.filter((u) => alive(u).some((m) => profileOf(m).w >= 10))
+      return giants.length ? tr('destroy a model with 10+ wounds: {names}', { names: names(giants) }) : tr('the enemy has no models with 10+ wounds left — discard the card')
+    }
+    case 'burdenOfTrust': {
+      const g = Object.keys(st.guarded ?? {}).map((id) => s.objectives.find((o) => o.id === id)).filter((o): o is Objective => !!o)
+      return g.length ? tr('hold the guarded objectives until the end of the opponent’s turn: {list}', { list: g.map((o) => objName(s, o)).join(', ') }) : tr('take objectives: at the start of your turn the units at your objectives become guards')
+    }
+  }
+}
+
+export interface CardOutlook {
+  card: SecondaryId
+  /** VP the card would give at its scoring moment if the board stayed as it is (0 = not met) */
+  vp: number
+  why: string
+  when: string
+  need: string
+}
+
+/** Each active card of `p`: would it score with the board as it is, when, and what it asks for. */
+export function cardOutlooks(s: GameState, p: PlayerId): CardOutlook[] {
+  const st = s.secondary?.[p]
+  if (!st) return []
+  const fixed = st.mode === 'fixed'
+  return st.active.map((card) => {
+    const when = SECONDARY[card].when
+    // the moment it is checked: your own turn for 'yours' (and the 2 VP side of Display of Might), the opponent's otherwise
+    const mine = when === 'yours' || when === 'both' || (when === 'any' && s.activePlayer === p)
+    const { vp, why } = cardValue(s, p, card, fixed, mine)
+    return { card, vp, why, when: WHEN_TEXT[when], need: cardNeed(s, p, card) }
+  })
 }

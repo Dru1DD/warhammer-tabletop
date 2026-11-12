@@ -85,3 +85,28 @@ export function forecastLine(f: ChargeForecast): string {
   const n = (x: number) => (x >= 1 ? String(Math.round(x)) : fmt(x))
   return tr('needs {ceil}″ — {round}% · you: ~{fmt} wounds (~{n} of {enemyModels}) · in return: ~{fmt2} (~{n2} of {myModels})', { ceil: Math.ceil(f.distance), round: Math.round(f.p * 100), fmt: fmt(f.dealt), n: n(f.killsDealt), enemyModels: f.enemyModels, fmt2: fmt(f.taken), n2: n(f.killsTaken), myModels: f.myModels })
 }
+
+/** Below this chance to get there, a charge is worth a second thought. */
+export const LOW_CHARGE_CHANCE = 0.3
+
+/**
+ * Why to think twice before declaring this charge, or null when it looks fine. Asked when the player presses
+ * “Declare a charge”: the forecast is on screen, but the battles showed it is easy to charge without reading it (from 11″
+ * at 3%, a support Tech-Priest into a Captain, shooters into melee). Flags: every target out of reasonable reach, every
+ * fight a bad trade, or a shooter or a character heading into a fight that is not a good one.
+ */
+export function chargeWarning(s: GameState, unit: UnitState): { why: string[]; best: ChargeForecast } | null {
+  const list = chargeForecast(s, unit)
+  if (!list.length) return null
+  const top = list[0]
+  const likeliest = list.reduce((a, b) => (b.p > a.p ? b : a))
+  const role = unitProfile(unit).role
+  const why: string[] = []
+  if (likeliest.p < LOW_CHARGE_CHANCE)
+    why.push(tr('Little chance to make it: even the nearest target {name} needs {ceil}″ on 2D6 — {round}%. If it falls short, the unit just stays where it is.', { name: quote(likeliest.name), ceil: Math.ceil(likeliest.distance), round: Math.round(likeliest.p * 100) }))
+  const reasons = list.every((f) => f.verdict === 'bad') || ((role === 'shooter' || role === 'character') && top.verdict !== 'good')
+  // the forecast's own "little chance" warning repeats the first reason, so it is left out
+  const little = tr('Little chance to make it: needs {ceil}″ on 2D6 — {round}%.', { ceil: Math.ceil(top.distance), round: Math.round(top.p * 100) })
+  if (reasons) for (const w of top.warnings) if (w !== little) why.push(tr('{name}: {warning}', { name: quote(top.name), warning: w }))
+  return why.length ? { why, best: top } : null
+}

@@ -35,6 +35,24 @@ describe('move preview', () => {
     expect(p.note).toBeNull()
   })
 
+  it('in the open the whole unit fires: no warning', () => {
+    const s = duel(11)
+    const p = movePreview(s, 'int', shifted(s, 1), 'normal')!
+    expect(p.canShoot[0].firing).toBe(p.canShoot[0].models)
+    expect(p.partial).toBeNull()
+  })
+
+  it('when a wall hides most of the unit from the target, it says how many models fire and warns', () => {
+    const s = bare('movement', 'marines')
+    for (const u of s.units) if (u.id !== 'int' && u.id !== 'boyz') place(s, u.id, [])
+    place(s, 'int', [{ x: 3, y: 2 }, { x: 3, y: 3.5 }, { x: 3, y: 5 }, { x: 3, y: 20 }, { x: 3, y: 21.5 }])
+    place(s, 'boyz', column(3 + 2 * r32 + 11, 18, 10, 1.1))
+    s.terrain = [{ id: 'w', name: 'wall', kind: 'ruin', obscuring: true, poly: rect(4.5, 0, 0.5, 10) }]
+    const p = movePreview(s, 'int', {}, 'normal')!
+    expect(p.canShoot[0]).toMatchObject({ unitId: 'boyz', firing: 2, models: 5 })
+    expect(p.partial?.unitId).toBe('boyz')
+  })
+
   it('behind an obscuring wall nobody sees anybody, but a charge is still possible', () => {
     const s = duel(11)
     s.terrain = [{ id: 'w', name: 'wall', kind: 'ruin', obscuring: true, poly: rect(8, 0, 1, s.board.height) }]

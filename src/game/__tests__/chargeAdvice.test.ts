@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { p2d6AtLeast } from '../ai/ai'
-import { chargeForecast } from '../chargeAdvice'
+import { chargeForecast, chargeWarning } from '../chargeAdvice'
 import { endPhaseWarning, lastRoundWarning } from '../../ui/guidance'
 import type { GameState } from '../types'
 import { battle, column, place } from './helpers'
@@ -34,6 +34,15 @@ describe('charge forecast', () => {
     expect(f.p).toBeCloseTo(p2d6AtLeast(Math.ceil(f.distance)), 6)
     const far = rangersVsTyrant(20)
     expect(chargeForecast(far.s, far.rangers)).toEqual([])
+  })
+
+  it('asks before a bad charge, not before a good one', () => {
+    const { s, rangers, tyrant } = rangersVsTyrant(4)
+    const w = chargeWarning(s, rangers)!
+    expect(w.why.join(' ')).toMatch(/Невыгодный размен/)
+    expect(w.why.join(' ')).toMatch(/стрелки/)
+    // the Hive Tyrant 4″ from the Rangers: likely to get there and a winning fight
+    expect(chargeWarning(s, tyrant)).toBeNull()
   })
 
   it('the enemy strikes back only with its survivors', () => {

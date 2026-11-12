@@ -137,37 +137,93 @@ export function inTerritory(s: GameState, p: PlayerId, o: Objective): boolean {
   return pointInPolygon(o.pos, mine) && !pointInPolygon(o.pos, theirs)
 }
 
-/** The "end of your Command phase" scoring: rounds 2–4 (round 5 scores it at the end of the turn instead). */
-function commandScoring(s: GameState, p: PlayerId) {
-  const m = s.mission!
-  if (s.round < 2) return
+/** VP a card line would give, with the reason for the log (and for the turn plan). */
+export interface VpEntry { vp: number; why: string }
+
+/** The "end of your Command phase" lines for `p` in battle round `round`, with the board as it is now. Rounds 2–4 (round
+ * 5 scores them at the end of the turn instead). */
+export function commandEntries(s: GameState, p: PlayerId, round = s.round): VpEntry[] {
+  const m = s.mission
+  if (!m || round < 2) return []
+  const out: VpEntry[] = []
   switch (m.primary) {
     case 'dominance': {
       const mine = held(s, p)
-      if (mine.length) scorePrimary(s, p, mine.length * 3, tr('{n} obj. × 3', { n: mine.length }))
+      if (mine.length) out.push({ vp: mine.length * 3, why: tr('{n} obj. × 3', { n: mine.length }) })
       const home = mine.some((o) => isHomeOf(o, p))
       const extra = mine.filter((o) => !isHomeOf(o, p)).length
-      if (home && extra) scorePrimary(s, p, extra * 2, tr('home objective held: {extra} more × 2', { extra }))
+      if (home && extra) out.push({ vp: extra * 2, why: tr('home objective held: {extra} more × 2', { extra }) })
       break
     }
     case 'meatgrinder':
     case 'gatherIntel':
     case 'sabotage':
-      if (heldNotHome(s, p).length) scorePrimary(s, p, 4, tr('held an objective outside your own zone'))
+      if (heldNotHome(s, p).length) out.push({ vp: 4, why: tr('held an objective outside your own zone') })
       break
     case 'outmanoeuvre':
-      if (s.round <= 3) {
+      if (round <= 3) {
         const n = heldNotHome(s, p).length
-        if (n) scorePrimary(s, p, n * 5, tr('{n} obj. (other than home) × {k}', { n, k: 5 }))
+        if (n) out.push({ vp: n * 5, why: tr('{n} obj. (other than home) × {k}', { n, k: 5 }) })
       }
       break
   }
+  return out
+}
+
+/** The "end of your turn" lines for the active player `p`: `completed` actions, `lost` units this turn (by owner). */
+export function turnEndEntries(s: GameState, p: PlayerId, completed: UnitState[], lost: Record<PlayerId, number>, round = s.round): VpEntry[] {
+  const m = s.mission
+  if (!m) return []
+  const foe = other(s, p)
+  const out: VpEntry[] = []
+  switch (m.primary) {
+    case 'dominance':
+      if (round <= 2 && held(s, p).length > held(s, foe).length) out.push({ vp: 2, why: tr('more objectives than the opponent') })
+      break
+    case 'meatgrinder':
+      if (lost[foe] > 0) out.push({ vp: 3, why: tr('enemy units destroyed this turn: {n}', { n: lost[foe] }) })
+      if (round >= 2 && lost[foe] > m.lostLastTurn[p]) out.push({ vp: 5, why: tr('destroyed {kills}, lost last turn {lost}', { kills: lost[foe], lost: m.lostLastTurn[p] }) })
+      break
+    case 'outmanoeuvre': {
+      if (holdsEnemyHome(s, p)) out.push({ vp: 10, why: tr('held the enemy’s home objective') })
+      const n = heldNotHome(s, p).length
+      if (n && round === 1) out.push({ vp: n * 4, why: tr('{n} obj. (other than home) × {k}', { n, k: 4 }) })
+      if (n && round >= 4) out.push({ vp: n * 6, why: tr('{n} obj. (other than home) × {k}', { n, k: 6 }) })
+      break
+    }
+    case 'gatherIntel': {
+      if (round === 1 && held(s, p).some((o) => o.role === 'central')) out.push({ vp: 6, why: tr('held the central objective') })
+      const n = completed.filter((u) => u.action!.id === 'extractIntel').length
+      if (round >= 2 && n) out.push({ vp: n * 7, why: tr('intelligence extracted: {n} unit(s) × 7', { n }) })
+      break
+    }
+    case 'sabotage': {
+      const done = completed.filter((u) => u.action!.id === 'sabotage')
+      if (done.length) out.push({ vp: done.length * 3, why: tr('sabotage: {n} unit(s) × 3', { n: done.length }) })
+      const deep = done.filter((u) => s.objectives.some((o) => inTerritory(s, foe, o) && unitNearObjective(u, o))).length
+      if (deep) out.push({ vp: deep * SABOTAGE_TERRITORY_BONUS, why: tr('{n} of them in the enemy’s territory × {k}', { n: deep, k: SABOTAGE_TERRITORY_BONUS }) })
+      break
+    }
+  }
+  // round 5: the Command-phase lines are scored at the end of the turn
+  if (round >= 5) out.push(...commandEntries(s, p, round))
+  return out
+}
+
+/** The sum of `entries` that the caps would let `p` score in battle round `round` (endOfBattle: outside the round cap). */
+export function cappedSum(s: GameState, p: PlayerId, entries: VpEntry[], round: number, endOfBattle = false): number {
+  const m = s.mission
+  if (!m) return 0
+  const raw = entries.reduce((a, e) => a + e.vp, 0)
+  let room = PRIMARY_CAP - primaryTotal(m, p)
+  if (!endOfBattle) room = Math.min(room, ROUND_CAP - (m.byRound[p][round] ?? 0))
+  return Math.max(0, Math.min(raw, room))
 }
 
 /** Mission scoring at the end of the active player's Command phase. */
 export function missionCommandEnd(s: GameState) {
   if (!s.mission || s.round >= 5) return
-  commandScoring(s, s.activePlayer)
+  for (const e of commandEntries(s, s.activePlayer)) scorePrimary(s, s.activePlayer, e.vp, e.why)
 }
 
 /** A new turn starts: remember who is already dead and who stands on objectives, to count this turn's kills at its end. */
@@ -187,7 +243,7 @@ export const unitsLostThisTurn = (s: GameState, p: PlayerId) => {
 }
 
 /** Does this unit's action complete: alive, near its objective, and its owner controls the objective? */
-const actionCompletes = (s: GameState, u: UnitState) => {
+export const actionCompletes = (s: GameState, u: UnitState) => {
   const o = s.objectives.find((x) => x.id === u.action!.objectiveId)
   return !!o && !isDestroyed(u) && unitNearObjective(u, o) && o.controller === u.owner
 }
@@ -196,7 +252,7 @@ const actionCompletes = (s: GameState, u: UnitState) => {
 export function missionTurnEnd(s: GameState) {
   const m = s.mission
   if (!m) return
-  const p = s.activePlayer, foe = other(s, p)
+  const p = s.activePlayer
   const lost = Object.fromEntries(sidesOf(s).map((x) => [x, unitsLostThisTurn(s, x).length])) as Record<PlayerId, number>
 
   // objective actions complete (or fail) at the end of the turn
@@ -213,37 +269,7 @@ export function missionTurnEnd(s: GameState) {
     } else if (!isDestroyed(u)) addLog(s, tr('{name}: action “{action}” failed — the unit does not hold the objective.', { name: u.name, action: info.name }), 'standard')
   }
 
-  switch (m.primary) {
-    case 'dominance':
-      if (s.round <= 2 && held(s, p).length > held(s, foe).length) scorePrimary(s, p, 2, tr('more objectives than the opponent'))
-      break
-    case 'meatgrinder':
-      if (lost[foe] > 0) scorePrimary(s, p, 3, tr('enemy units destroyed this turn: {n}', { n: lost[foe] }))
-      if (s.round >= 2 && lost[foe] > m.lostLastTurn[p]) scorePrimary(s, p, 5, tr('destroyed {kills}, lost last turn {lost}', { kills: lost[foe], lost: m.lostLastTurn[p] }))
-      break
-    case 'outmanoeuvre': {
-      if (holdsEnemyHome(s, p)) scorePrimary(s, p, 10, tr('held the enemy’s home objective'))
-      const n = heldNotHome(s, p).length
-      if (n && s.round === 1) scorePrimary(s, p, n * 4, tr('{n} obj. (other than home) × {k}', { n, k: 4 }))
-      if (n && s.round >= 4) scorePrimary(s, p, n * 6, tr('{n} obj. (other than home) × {k}', { n, k: 6 }))
-      break
-    }
-    case 'gatherIntel': {
-      if (s.round === 1 && held(s, p).some((o) => o.role === 'central')) scorePrimary(s, p, 6, tr('held the central objective'))
-      const n = completed.filter((u) => u.action!.id === 'extractIntel').length
-      if (s.round >= 2 && n) scorePrimary(s, p, n * 7, tr('intelligence extracted: {n} unit(s) × 7', { n }))
-      break
-    }
-    case 'sabotage': {
-      const done = completed.filter((u) => u.action!.id === 'sabotage')
-      if (done.length) scorePrimary(s, p, done.length * 3, tr('sabotage: {n} unit(s) × 3', { n: done.length }))
-      const deep = done.filter((u) => s.objectives.some((o) => inTerritory(s, foe, o) && unitNearObjective(u, o))).length
-      if (deep) scorePrimary(s, p, deep * SABOTAGE_TERRITORY_BONUS, tr('{n} of them in the enemy’s territory × {k}', { n: deep, k: SABOTAGE_TERRITORY_BONUS }))
-      break
-    }
-  }
-  // round 5: the Command-phase scoring happens now, at the end of the turn
-  if (s.round >= 5) commandScoring(s, p)
+  for (const e of turnEndEntries(s, p, completed, lost)) scorePrimary(s, p, e.vp, e.why)
 
   for (const u of s.units) if (u.owner === p) delete u.action
   // the losses of this turn are "the previous turn" for the next player
