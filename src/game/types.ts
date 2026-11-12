@@ -1,3 +1,4 @@
+import type { RerollKind } from './combat/attack'
 // All positions and distances are in inches (world units). Origin = top-left
 // corner of the battlefield, +x to the right, +y downwards.
 
@@ -295,8 +296,28 @@ export interface PlayerState {
 
 export type Imperative = 'protector' | 'conqueror'
 
+/** An attack paused right after a die a Command Re-roll could change (the dice after it are not rolled yet). */
+export interface PendingReroll {
+  /** the attack being resolved (shoot or fight); replayed on resume */
+  cmd: Extract<Command, { type: 'shoot' } | { type: 'fight' }>
+  /** dice rolled so far, the die in question last */
+  dice: number[]
+  /** earlier answers in this attack, by die index: true = re-rolled */
+  decided: Record<number, boolean>
+  /** who decides, and the unit the Stratagem would be used on (the attacker, or the target for a saving throw) */
+  player: PlayerId
+  unitId: string
+  attackerId: string
+  targetId: string
+  kind: RerollKind
+  value: number
+  /** expected damage the re-roll adds or prevents */
+  gain: number
+  weapon: string
+}
+
 /** When the opponent may react: at the end of the Movement phase (before shooting), at the end of the Charge phase (before fights). */
-export type ReactionWindow = 'beforeShooting' | 'afterCharges'
+export type ReactionWindow = 'beforeShooting' | 'afterCharges' | 'beforeShockTests'
 
 export type StratagemId =
   | 'commandReroll' | 'insaneBravery' | 'explosives' | 'crushingImpact'
@@ -374,6 +395,10 @@ export interface GameState {
   /** A reaction window: the game waits for `player` (the side whose turn it is NOT) to use a reaction Stratagem or
    * pass, then enters `next`. Opened only when that player has a reaction it can use. */
   reaction?: { player: PlayerId; window: ReactionWindow; next: Phase } | null
+  /** Units still to take their Battle-shock test this Command phase (the tests wait while Insane Bravery is offered) */
+  shockPending?: string[] | null
+  /** An attack paused right after a die worth a Command Re-roll; resumed by `rerollChoice` */
+  pendingReroll?: PendingReroll | null
   /** The charge roll just made (kept until the next command) so a Command Re-roll can re-roll it, even a failed one */
   lastCharge?: { unitId: string; dice: number[] } | null
   fight: FightState | null
@@ -425,6 +450,8 @@ export type Command =
   | { type: 'stratagem'; id: StratagemId; unitId: string; targetId?: string }
   /** The reacting player declines (or is done with) the reactions offered in the current window */
   | { type: 'passReaction' }
+  /** The player asked about a Command Re-roll mid-attack answers: re-roll the die (1 CP) or keep it */
+  | { type: 'rerollChoice'; reroll: boolean }
   | { type: 'endPhase' }
 
 export type Validation = { ok: true } | { ok: false; reason: string }

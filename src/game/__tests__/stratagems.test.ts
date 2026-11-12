@@ -4,6 +4,7 @@ import { scriptedRoller } from '../dice/dice'
 import { apply, maxMove, meleeSetup, meleeWeaponsOf, shootPlan, validate } from '../engine'
 import { rect } from '../geometry/geometry'
 import { stratagemAvailability } from '../rules/stratagems'
+import { reactionAdvice } from '../reactionAdvice'
 import { alive } from '../gameState'
 import type { Command, GameState } from '../types'
 import { battle, column, place, unit } from './helpers'
@@ -95,34 +96,51 @@ describe('Command Re-roll of a charge', () => {
 })
 
 describe('Insane Bravery', () => {
+  /** The Orks end their turn; the Marines' Command phase starts with the battle-shocked Intercessors on an objective. */
   const setup = () => {
-    const s = table('command', 'marines', ['int', 'boyz'])
-    s.round = 2
+    const s = table('fight', 'orks', ['int', 'boyz'])
+    s.fight = null
     place(s, 'int', column(10, 10, 5))
     place(s, 'boyz', column(40, 10, 10, 1.1))
     s.objectives = [{ id: 'o1', pos: { x: 11, y: 13 }, controller: null }]
-    Object.assign(unit(s, 'int'), { battleShocked: true, shockedThisPhase: true })
+    unit(s, 'int').battleShocked = true
     return s
   }
   const cmd: Command = { type: 'stratagem', id: 'insaneBravery', unitId: 'int' }
 
-  it('turns the failed test into a pass, and the objective the unit holds is scored', () => {
-    const s = setup()
+  it('is offered before the test: the test is passed without a roll, and the objective is scored', () => {
+    const s = apply(setup(), { type: 'endPhase' }, scriptedRoller([]))
+    expect(s.phase).toBe('command')
+    expect(s.round).toBe(2)
+    expect(s.reaction).toMatchObject({ player: 'marines', window: 'beforeShockTests' })
+    expect(s.shockPending).toEqual(['int'])
     expect(validate(s, cmd).ok).toBe(true)
-    const after = apply(s, cmd, scriptedRoller([]))
+    const after = apply(s, cmd, scriptedRoller([])) // no dice: the test is not rolled
     expect(unit(after, 'int').battleShocked).toBe(false)
+    expect(after.reaction).toBeNull()
+    expect(after.shockPending).toBeNull()
     expect(after.objectives[0].controller).toBe('marines')
-    expect(after.players.marines.vp).toBe(s.players.marines.vp + 5)
+    expect(after.players.marines.vp).toBe(5)
     expect(after.players.marines.braveryUsed).toBe(true)
   })
 
-  it('once per battle, and only for a test failed in this Command phase', () => {
+  it('passing rolls the test; once per battle; not offered after the test', () => {
+    const s = apply(setup(), { type: 'endPhase' }, scriptedRoller([]))
+    const failed = apply(s, { type: 'passReaction' }, scriptedRoller([1, 1]))
+    expect(unit(failed, 'int').battleShocked).toBe(true)
+    expect(validate(failed, cmd).ok).toBe(false)
     const used = setup()
     used.players.marines.braveryUsed = true
-    expect(validate(used, cmd).ok).toBe(false)
-    const old = setup()
-    unit(old, 'int').shockedThisPhase = false
-    expect(validate(old, cmd).ok).toBe(false)
+    const rolled = apply(used, { type: 'endPhase' }, scriptedRoller([6, 6]))
+    expect(rolled.reaction).toBeNull() // nothing to offer: the test is rolled at once
+    expect(unit(rolled, 'int').battleShocked).toBe(false)
+  })
+
+  it('advice: worth it for a unit on an objective with a real chance to fail', () => {
+    const s = apply(setup(), { type: 'endPhase' }, scriptedRoller([]))
+    const o = reactionAdvice(s).find((x) => x.cmd.id === 'insaneBravery')!
+    expect(o.worth).toBe(true) // Ld 6+: fails on 2D6 ≤ 5, 28%
+    expect(decide(s, 'standard')!.cmd).toEqual(cmd)
   })
 })
 

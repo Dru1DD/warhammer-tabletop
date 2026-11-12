@@ -21,7 +21,7 @@ export function targetCommand(s: GameState, unit: UnitState, target: UnitState):
 
 /** Can this unit still do something useful in the current phase? */
 export function canActNow(s: GameState, u: UnitState): boolean {
-  if (isDestroyed(u) || u.owner !== actor(s) || s.winner || s.reaction) return false
+  if (isDestroyed(u) || u.owner !== actor(s) || s.winner || s.reaction || s.pendingReroll) return false
   switch (s.phase) {
     case 'movement':
       return u.move === 'none'
@@ -124,6 +124,14 @@ export function nextStepHint(
   ui: { selectedUnitId: string | null; draft: Record<string, Vec>; measuring: boolean; aimTargetId?: string | null; groupDrag?: boolean; aimFirst?: boolean; moveOptions?: MoveOptions; shared?: object | null },
 ): Hint {
   if (s.winner) return { text: s.winner === 'draw' ? 'Битва окончена: ничья.' : `Битва окончена: победа — ${FACTION_NAME[s.winner]}.`, tone: 'info' }
+  if (s.pendingReroll)
+    return s.pendingReroll.player === human
+      ? { text: 'Командный переброс: решите, перебрасывать ли кубик.', tone: 'action' }
+      : { text: `${ui.shared ? 'Соперник' : 'ИИ'} (${FACTION_NAME[s.pendingReroll.player]}) решает, перебросить ли кубик…`, tone: 'wait' }
+  if (s.reaction?.window === 'beforeShockTests')
+    return s.reaction.player === human
+      ? { text: 'Перед проверкой боевого шока: можно применить «Безумную храбрость».', tone: 'action' }
+      : { text: `${ui.shared ? 'Соперник' : 'ИИ'} (${FACTION_NAME[s.reaction.player]}) решает, применить ли «Безумную храбрость»…`, tone: 'wait' }
   if (s.reaction)
     return s.reaction.player === human
       ? { text: 'Ход противника: можно ответить стратагемой-реакцией или пропустить.', tone: 'action' }

@@ -5,7 +5,7 @@ import { alive, inSynapseRange, modelInObjectiveRange, objectiveLevels, unitDist
 import { basesOverlap } from '../geometry/geometry'
 import { checkCoherency, profileOf, radiusOf } from '../gameState'
 import type { Command, GameState } from '../types'
-import { battle, moveUnitTo, shift, unit } from './helpers'
+import { battle, endPhase, moveUnitTo, shift, unit } from './helpers'
 
 // Army rules and datasheet abilities of the Tyranids, Necrons and Aeldari, each against scripted dice.
 
@@ -42,7 +42,7 @@ describe('Tyranids: Synapse', () => {
   })
 
   // Command phase of the Tyranid player, entered by the opponent ending their turn.
-  const toTyranidCommand = (s: GameState, rolls: number[]) => apply(s, { type: 'endPhase' }, scriptedRoller(rolls))
+  const toTyranidCommand = (s: GameState, rolls: number[]) => endPhase(s, scriptedRoller(rolls))
   it('battle-shock rolls use 3D6 in Synapse Range and 2D6 outside it', () => {
     const s = battle('marines', 'tyranids', 'fight', 'marines')
     s.fight = null

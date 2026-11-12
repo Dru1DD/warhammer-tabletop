@@ -387,6 +387,13 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
     return { cmd: { type: 'skipCharge', unitId: u.id }, explanation: `${fac}: перемещение атаки невозможно — отряд остаётся на месте.` }
   }
 
+  if (s.pendingReroll) {
+    // the game stops only for a re-roll worth it; the beginner keeps its dice
+    const pr = s.pendingReroll
+    const reroll = level !== 'beginner'
+    return { cmd: { type: 'rerollChoice', reroll }, explanation: reroll ? `${fac}: «Командный переброс» — в среднем +${fmt(pr.gain)} урона (${pr.weapon}).` : `${fac}: кубик оставлен.` }
+  }
+
   if (s.reaction) {
     // a reaction in the opponent's turn: only when it is worth the CP (the beginner never reacts)
     const best = level === 'beginner' ? undefined : reactionAdvice(s).find((o) => o.worth)
@@ -396,14 +403,6 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
 
   switch (s.phase) {
     case 'command': {
-      // Insane Bravery (once per battle): the failed test of a unit holding or contesting an objective, or a big unit
-      for (const u of mine) {
-        const cmd: Command = { type: 'stratagem', id: 'insaneBravery', unitId: u.id }
-        if (!validate(s, cmd).ok) continue
-        const onObjective = s.objectives.some((o) => unitNearObjective(u, o))
-        if (onObjective || (level !== 'beginner' && alive(u).length >= 5 && s.round >= 3))
-          return { cmd, explanation: `${fac}: стратагема «Безумная храбрость» — «${u.name}» не поддаётся панике${onObjective ? ' и держит цель' : ''}.` }
-      }
       // Extinction Order (Tech-Priest): an objective with enemy units on it
       if (level !== 'beginner' && s.players[me].cp >= 2)
         for (const u of mine)

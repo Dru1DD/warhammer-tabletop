@@ -1,4 +1,4 @@
-import { fmtRandom, rollDie, type Roller } from '../dice/dice'
+import { avgDie, fmtRandom, rollDie, type Roller } from '../dice/dice'
 import { addLog, alive, datasheetOf, isDestroyed, profileOf } from '../gameState'
 import type { AttackStep, DieRoll, GameState, ModelState, UnitState, WeaponProfile } from '../types'
 
@@ -101,6 +101,23 @@ export interface ResolveResult {
   repulsed: number
 }
 
+/** A die a Command Re-roll could change, offered right after it was rolled (one die, never one already re-rolled). */
+export type RerollKind = 'attacks' | 'hit' | 'wound' | 'save' | 'damage'
+export interface RerollPoint {
+  kind: RerollKind
+  value: number
+  /** who would re-roll it: the attacking side, or the target's side (a saving throw) */
+  side: 'attacker' | 'defender'
+  /** expected damage the re-roll adds (attacker) or prevents (defender) */
+  gain: number
+  weapon: string
+}
+/** Asked after each such die; true → re-roll it now. */
+export type RerollHook = (pt: RerollPoint) => boolean
+
+const chance = (ok: (x: number) => boolean) => [1, 2, 3, 4, 5, 6].filter(ok).length / 6
+const REROLL_LABEL = 'Командный переброс'
+
 /**
  * Full attack sequence for one weapon group: hit → wound → save → damage.
  * Mutates `target` (wounds / destroyed). Every die is recorded.
@@ -111,18 +128,54 @@ export function resolveGroup(
   group: AttackGroup,
   target: UnitState,
   ctx: AttackContext,
+  reroll?: RerollHook,
 ): ResolveResult {
   const p = group.profile
   const steps: AttackStep[] = []
   let hits = 0
   let autoWounds = 0
+  const weapon = `${group.weaponName}${p.name ? ` (${p.name})` : ''}`
+  const commandRerolls: string[] = []
+
+  // the hit and wound tests, known up front so a re-roll can be priced (Psychic ignores the penalties, keeps bonuses)
+  const psy = !!p.keywords.psychic
+  const hr = hitRoll(p, ctx)
+  const skill = psy ? Math.min(6, Math.max(2, p.skill ?? 2)) : (hr.skill as number)
+  const mod = psy ? Math.max(0, hr.mod) : hr.mod
+  const critOn = ctx.critHitOn ?? 6
+  const passes = (x: number) => x !== 1 && (x >= critOn || x + mod >= skill)
+  const t = toughness(target)
+  const wt = woundTarget(p.s, t)
+  const wmod = ctx.woundMod ?? 0
+  const anti = p.keywords.anti && datasheetOf(target).keywords.includes(p.keywords.anti.keyword) ? p.keywords.anti.roll : 7
+  const wins = (x: number) => x !== 1 && (x === 6 || x >= anti || x + wmod >= wt)
+  /** expected damage of one more wound, one more hit, one more attack (against the model that would take it now) */
+  const avgDmg = Math.max(1, p.d + avgDie(p.randomD) + (ctx.damageMod ?? 0))
+  const saveChance = (m: ModelState) => chance((x) => x !== 1 && x >= saveTarget(m, p.ap, ctx.invulnOverride).need)
+  const perWound = () => {
+    const m = isDestroyed(target) ? undefined : pickModelForDamage(target, ctx.precision)
+    return m ? (1 - saveChance(m)) * Math.min(avgDmg, m.wounds) : 0
+  }
+  const perHit = () => chance(wins) * perWound()
+  const perAttack = () => (p.skill === null ? 1 : chance(passes)) * perHit()
+  /** offer the die to the hook; returns the re-rolled value, or null when kept */
+  const offer = (kind: RerollKind, value: number, side: RerollPoint['side'], gain: number, again: () => number): number | null => {
+    if (!reroll || gain <= 0 || !reroll({ kind, value, side, gain, weapon })) return null
+    const v = again()
+    commandRerolls.push(`${REROLL_LABEL}: ${value} → ${v}`)
+    return v
+  }
 
   // 0. Random number of attacks (e.g. D3+3): one roll per model with that weapon
   let attacks = group.attacks
   if (p.randomA && group.randomAttacks) {
-    const rolls = Array.from({ length: group.randomAttacks }, () => rollDie(roller, p.randomA!))
-    attacks += rolls.reduce((a, b) => a + b, 0)
-    steps.push({ label: 'Атаки', target: fmtRandom(p.attacks, p.randomA), dice: rolls.map((v) => ({ value: v, success: true })), note: `Случайное число атак (${fmtRandom(p.attacks, p.randomA)}): итого ${attacks}.` })
+    const rolls: DieRoll[] = Array.from({ length: group.randomAttacks }, () => {
+      const v = rollDie(roller, p.randomA!)
+      const again = offer('attacks', v, 'attacker', (avgDie(p.randomA) - v) * perAttack(), () => rollDie(roller, p.randomA!))
+      return again === null ? { value: v, success: true } : { value: again, success: true, rerolledFrom: v }
+    })
+    attacks += rolls.reduce((a, b) => a + b.value, 0)
+    steps.push({ label: 'Атаки', target: fmtRandom(p.attacks, p.randomA), dice: rolls, note: `Случайное число атак (${fmtRandom(p.attacks, p.randomA)}): итого ${attacks}.${commandRerolls.length ? ` ${commandRerolls.join('; ')}.` : ''}` })
   }
 
   // 1. Hit roll
@@ -133,14 +186,8 @@ export function resolveGroup(
     hits = attacks
     steps.push({ label: 'Попадание', target: 'авто', dice: [], note: `Torrent: все ${attacks} атак попадают автоматически.` })
   } else {
-    // Psychic: modifiers to BS/WS and to the hit roll may be ignored (we ignore the penalties, keep bonuses)
-    const psy = !!p.keywords.psychic
-    const hr = hitRoll(p, ctx)
-    const skill = psy ? Math.min(6, Math.max(2, p.skill)) : (hr.skill as number)
-    const mod = psy ? Math.max(0, hr.mod) : hr.mod
-    const critOn = ctx.critHitOn ?? 6
-    const passes = (x: number) => x !== 1 && (x >= critOn || x + mod >= skill)
     const dice: DieRoll[] = []
+    const before = commandRerolls.length
     for (let i = 0; i < attacks; i++) {
       let v = roller.d6()
       let from: number | undefined
@@ -148,6 +195,10 @@ export function resolveGroup(
         from = v
         v = roller.d6()
         rerolls++
+      }
+      if (from === undefined && !passes(v)) {
+        const again = offer('hit', v, 'attacker', chance(passes) * perHit(), () => roller.d6())
+        if (again !== null) { from = v; v = again }
       }
       const crit = v >= critOn
       const success = passes(v)
@@ -162,6 +213,7 @@ export function resolveGroup(
       psy && ctx.skillWorsen > 0 ? 'Psychic: укрытие и штрафы к попаданию игнорируются' : '',
       mod ? `модификатор ${mod > 0 ? '+' : ''}${mod} (${ctx.hitModNotes.join(', ')})` : '',
       rerolls ? `переброс (${ctx.rerollHits === 'all' ? 'все промахи' : 'единицы'}): ${rerolls}` : '',
+      ...commandRerolls.slice(before),
       ctx.lethalHits && autoWounds ? `Lethal Hits: ${autoWounds} крит. попадания ранят автоматически` : '',
       sustainedHitsGained ? `Sustained Hits: +${sustainedHitsGained} доп. попаданий` : '',
       'натуральная 1 — всегда промах, 6 — критическое попадание',
@@ -170,15 +222,11 @@ export function resolveGroup(
   }
 
   // 2. Wound roll (Twin-linked re-rolls failures; Anti-X makes high unmodified rolls critical wounds)
-  const t = toughness(target)
-  const wt = woundTarget(p.s, t)
-  const wmod = ctx.woundMod ?? 0
-  const anti = p.keywords.anti && datasheetOf(target).keywords.includes(p.keywords.anti.keyword) ? p.keywords.anti.roll : 7
+  const woundRerollsBefore = commandRerolls.length
   let wounds = autoWounds
   let devWounds = 0
   let woundRerolls = 0
   const wdice: DieRoll[] = []
-  const wins = (x: number) => x !== 1 && (x === 6 || x >= anti || x + wmod >= wt)
   for (let i = 0; i < hits; i++) {
     let v = roller.d6()
     let from: number | undefined
@@ -186,6 +234,10 @@ export function resolveGroup(
       from = v
       v = roller.d6()
       woundRerolls++
+    }
+    if (from === undefined && !wins(v)) {
+      const again = offer('wound', v, 'attacker', chance(wins) * perWound(), () => roller.d6())
+      if (again !== null) { from = v; v = again }
     }
     const crit = v === 6 || v >= anti
     const success = wins(v)
@@ -199,7 +251,7 @@ export function resolveGroup(
     label: 'Ранение',
     target: `${wt}+`,
     dice: wdice,
-    note: `Сила ${p.s} против Стойкости ${t}${wmod ? `; модификатор ${wmod} (${ctx.woundModNote})` : ''}${autoWounds ? `; +${autoWounds} авто-ран.` : ''}${woundRerolls ? `; Twin-linked: перебросов ${woundRerolls}` : ''}${anti < 7 ? `; Anti-${p.keywords.anti!.keyword} ${anti}+` : ''}${devWounds ? `; Devastating Wounds: ${devWounds} крит. ран = смертельные раны без спасброска` : ''}`,
+    note: `Сила ${p.s} против Стойкости ${t}${wmod ? `; модификатор ${wmod} (${ctx.woundModNote})` : ''}${autoWounds ? `; +${autoWounds} авто-ран.` : ''}${woundRerolls ? `; Twin-linked: перебросов ${woundRerolls}` : ''}${anti < 7 ? `; Anti-${p.keywords.anti!.keyword} ${anti}+` : ''}${devWounds ? `; Devastating Wounds: ${devWounds} крит. ран = смертельные раны без спасброска` : ''}${commandRerolls.length > woundRerollsBefore ? `; ${commandRerolls.slice(woundRerollsBefore).join('; ')}` : ''}`,
   })
 
   // 3. Saves & 4. damage, one at a time (allocation can change between saves)
@@ -209,6 +261,7 @@ export function resolveGroup(
   const ddice: DieRoll[] = []
   const fdice: DieRoll[] = []
   let saveNote = ''
+  let saveRerolled = false
   let repulsed = 0
   const grid = p.range !== 'melee' && datasheetOf(target).abilities.includes('repulsorGrid')
   /** Feel No Pain: roll for every point of damage, returns the damage that goes through */
@@ -227,16 +280,27 @@ export function resolveGroup(
     const m = pickModelForDamage(target, ctx.precision)!
     const st = saveTarget(m, p.ap, ctx.invulnOverride)
     saveNote = `Спасбросок ${st.kind}: Sv ${profileOf(m).sv}+${p.ap ? `, AP ${p.ap}` : ''} → ${st.need}+`
-    const v = roller.d6()
+    let v = roller.d6()
+    let from: number | undefined
+    if (v === 1 || v < st.need) {
+      const again = offer('save', v, 'defender', saveChance(m) * Math.min(avgDmg, m.wounds), () => roller.d6())
+      if (again !== null) { from = v; v = again; saveRerolled = true }
+    }
     const saved = v !== 1 && v >= st.need
-    sdice.push({ value: v, success: saved })
+    sdice.push({ value: v, success: saved, ...(from !== undefined ? { rerolledFrom: from } : {}) })
     if (grid && v === 6) repulsed++
     if (!saved) {
       const before = m.wounds
       let dmg = p.d
       if (p.randomD) {
-        const v = rollDie(roller, p.randomD)
-        ddice.push({ value: v, success: true })
+        let v = rollDie(roller, p.randomD)
+        const flat = p.d + (ctx.damageMod ?? 0)
+        const dealt = (x: number) => Math.min(m.wounds, Math.max(1, flat + x))
+        const faces = p.randomD === 'D3' ? [1, 1, 2, 2, 3, 3] : [1, 2, 3, 4, 5, 6]
+        const gain = faces.reduce((a, x) => a + dealt(x), 0) / 6 - dealt(v)
+        const again = offer('damage', v, 'attacker', gain, () => rollDie(roller, p.randomD!))
+        ddice.push(again === null ? { value: v, success: true } : { value: again, success: true, rerolledFrom: v })
+        if (again !== null) v = again
         dmg += v
       }
       dmg = throughFnp(Math.max(1, dmg + (ctx.damageMod ?? 0)))
@@ -244,7 +308,7 @@ export function resolveGroup(
       damage += before - m.wounds
     }
   }
-  steps.push({ label: 'Спасбросок', target: saveNote.split('→ ')[1] ?? '—', dice: sdice, note: saveNote || 'Нет ран — спасброски не нужны.' })
+  steps.push({ label: 'Спасбросок', target: saveNote.split('→ ')[1] ?? '—', dice: sdice, note: (saveNote || 'Нет ран — спасброски не нужны.') + (saveRerolled ? `; ${REROLL_LABEL} защитника` : '') })
 
   // Devastating Wounds: each critical wound is a number of mortal wounds equal to D, after normal damage
   for (let i = 0; i < devWounds && !isDestroyed(target); i++) {

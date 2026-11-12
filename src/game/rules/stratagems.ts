@@ -67,7 +67,7 @@ export const STRATAGEMS = {
     nameEn: 'Command Re-roll',
     cost: 1,
     phases: ['movement', 'charge'],
-    text: 'Перебросить только что сделанный бросок продвижения (Advance) или бросок атаки (charge, оба кубика) этого отряда.',
+    text: 'Перебросить только что сделанный бросок продвижения (Advance) или бросок атаки (charge, оба кубика) этого отряда. Посреди атаки — один кубик: попадание, ранение, урон, число атак или спасбросок (игра сама спросит, когда это выгодно).',
     when: 'Когда атака сорвалась на 1–3″ или продвижение выпало слишком коротким, а от этого зависит важная цель.',
   },
   insaneBravery: {
@@ -75,9 +75,9 @@ export const STRATAGEMS = {
     name: 'Безумная храбрость',
     nameEn: 'Insane Bravery',
     cost: 1,
-    phases: ['command'],
-    text: 'Проверка боевого шока этого отряда в этой фазе командования считается пройденной. Раз за битву.',
-    when: 'Когда в шоке оказался отряд на цели или рядом с ней: в шоке его OC = 0, и он не удержит цель.',
+    phases: ['command'], window: 'beforeShockTests',
+    text: 'Перед проверкой боевого шока этого отряда в вашей фазе командования: проверка автоматически пройдена (бросать не нужно). Раз за битву.',
+    when: 'Когда проверку предстоит пройти отряду на цели и шанс провала велик: в шоке его OC = 0, и он не удержит цель.',
   },
   explosives: {
     id: 'explosives',
@@ -261,7 +261,7 @@ for (const x of REACTION_STRATAGEMS) STRATAGEMS[x.id] = x
 export const STRATAGEM_IDS = Object.keys(STRATAGEMS) as StratagemId[]
 
 /** Reactions offered in this window. */
-export const reactionsIn = (window: ReactionWindow) => REACTION_STRATAGEMS.filter((x) => x.window === window).map((x) => x.id)
+export const reactionsIn = (window: ReactionWindow) => Object.values(STRATAGEMS).filter((x) => x.window === window).map((x) => x.id)
 
 /** The unit carries this Stratagem's lasting effect (see `buff`). */
 export const hasBuff = (u: UnitState, id: StratagemId) => !!u.phaseBuffs?.includes(id) || !!u.turnBuffs?.includes(id)
