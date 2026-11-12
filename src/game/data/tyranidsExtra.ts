@@ -74,7 +74,7 @@ export const TYRANID_EXTRA_DATASHEETS: Record<string, Datasheet> = {
   wingedPrime: {
     id: 'wingedPrime', name: 'Крылатый Прайм тиранидов (Winged Tyranid Prime)', faction: 'tyranids',
     keywords: ['INFANTRY', 'CHARACTER', 'FLY', 'GREAT DEVOURER', 'SYNAPSE', 'VANGUARD INVADER', 'WINGED TYRANID PRIME', 'TYRANIDS'],
-    abilities: ['synapse', 'shadowInTheWarp', 'alphaWarrior', 'deathBlow'],
+    abilities: ['synapse', 'shadowInTheWarp', 'alphaWarrior', 'deathBlow', 'deepStrike'],
     description: 'Крылатый командир-синапс: M12″, летает; рядом с Воинами тиранидов их атаки получают Sustained Hits 1.',
   },
   zoanthropes: {

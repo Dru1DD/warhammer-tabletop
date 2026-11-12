@@ -48,6 +48,7 @@ import { fileToTokenDataUrl } from './imageUpload'
 import { UnitRoleTips } from './UnitRoleTips'
 import { leaveRoom } from '../multiplayer/session'
 import { MISSION_ACTION, PRIMARY, PRIMARY_CAP, primaryTotal, ROUND_CAP } from '../game/rules/missions'
+import { aiArrivalTarget, arrivalSpot, canDeepStrike, ingressWindow, INGRESS_EDGE, INGRESS_ENEMY, RAPID_INGRESS_CP, RESERVE_DEADLINE, RESERVE_FROM_ROUND, reserveBudget, reservesOf } from '../game/rules/reserves'
 import { FIXED_CARD_CAP, SECONDARY, SECONDARY_CAP, SECONDARY_ROUND_CAP, secondaryTotal } from '../game/rules/secondaries'
 
 
@@ -326,6 +327,7 @@ export function ActionPanel() {
       )}
       {game.mission && <MissionCard game={game} />}
       {game.secondary && <SecondaryPanel game={game} me={human} />}
+      {(game.reserves?.length ?? 0) > 0 && <ReservePanel game={game} me={human} />}
       {!game.winner && explain !== 'minimal' && (
         <details className="text-xs text-stone-300">
           <summary className="cursor-pointer text-sky-300">Правила фазы</summary>
@@ -536,6 +538,8 @@ function DeploymentPanel() {
         })}
         <p className="text-[11px] text-stone-500">Характеристики и оружие — в карточке отряда слева (кнопка «»», если панель свёрнута).</p>
       </div>
+
+      {game.deployment && !st.shared && <ReserveSetup />}
 
       <div>
         <h3 className="mb-1 text-xs font-semibold uppercase text-stone-400">2. Где ставить</h3>
@@ -1084,5 +1088,61 @@ function SecondaryPanel({ game, me }: { game: GameState; me: PlayerId }) {
       {sec[foe] && <p className="mt-1 text-stone-400">У противника ({sec[foe].mode === 'tactical' ? 'тактические' : 'фиксированные'}): {sec[foe].active.map((c) => SECONDARY[c].name).join(', ') || 'нет активных карт'}.</p>}
       <p className="mt-1 text-stone-400">Лимит: {SECONDARY_ROUND_CAP} ПО за раунд, {SECONDARY_CAP} за битву{mine.mode === 'fixed' ? `, ${FIXED_CARD_CAP} на карту` : ''}. Выбор «когда взята» (маяк, цель, замена невыполнимой карты) делает игра.</p>
     </details>
+  )
+}
+
+/** Deployment: Strategic Reserves (44″×60″) — up to half the army's points wait off the board. */
+function ReserveSetup() {
+  const st = useStore()
+  const game = st.game!
+  const human = st.settings.human
+  const sel = game.units.find((u) => u.id === st.selectedUnitId && u.owner === human)
+  const mine = reservesOf(game, human)
+  const { reserved, limit } = reserveBudget(game, human)
+  return (
+    <div className="rounded border border-violet-700 bg-violet-950/30 p-2 text-xs">
+      <h3 className="mb-1 font-semibold uppercase text-violet-200">Стратегический резерв — {reserved}/{limit} очк.</h3>
+      <p className="text-stone-300">Отряд в резерве не ставится сейчас: со {RESERVE_FROM_ROUND}-го раунда, в вашей фазе движения, он выходит целиком в {INGRESS_EDGE}″ от любого края поля и дальше {INGRESS_ENEMY}″ от врагов (до {RESERVE_DEADLINE}-го раунда — не в зоне противника; с глубоким ударом — где угодно). Кто не вышел к концу {RESERVE_DEADLINE}-го раунда — уничтожен. В резерв — не больше половины очков армии.</p>
+      {sel && <button className="btn mt-1 w-full" onClick={() => st.toggleReserve(sel.id)}>⏬ «{sel.name}» — в резерв{canDeepStrike(sel) ? ' (глубокий удар)' : ''}</button>}
+      {mine.map((u) => (
+        <div key={u.id} className="mt-1 flex items-center justify-between gap-2 rounded bg-stone-900/60 px-2 py-1">
+          <span>{u.name}{canDeepStrike(u) ? ' · глубокий удар' : ''}</span>
+          <button className="btn text-xs" onClick={() => st.toggleReserve(u.id)}>⏫ На поле</button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** In battle: the units still in reserve, and for the player's own ones the way onto the board. */
+function ReservePanel({ game, me }: { game: GameState; me: PlayerId }) {
+  const st = useStore()
+  const mine = reservesOf(game, me)
+  const theirs = reservesOf(game, other(game, me))
+  const closed = ingressWindow(game, me, false)
+  const auto = (id: string) => {
+    const u = game.reserves!.find((x) => x.id === id)!
+    const positions = arrivalSpot(game, u, aiArrivalTarget(game, me))
+    if (positions) st.dispatch({ type: 'arrive', unitId: id, positions })
+    else st.setMessage('Не нашлось места для выхода: у края (в 6″) везде ближе 8″ к врагам.', 'error')
+  }
+  return (
+    <div className="rounded border border-violet-700 bg-violet-950/30 p-2 text-xs">
+      <div className="font-semibold text-violet-200">⏬ Резерв{game.round <= RESERVE_DEADLINE ? ` — выйти до конца ${RESERVE_DEADLINE}-го раунда` : ''}</div>
+      {mine.map((u) => (
+        <div key={u.id} className="mt-1 rounded bg-stone-900/60 p-1.5">
+          <div>{u.name}{canDeepStrike(u) ? ' · глубокий удар' : ''} · {alive(u).length} мод.</div>
+          {!closed && !game.winner && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              <button className={`btn text-xs ${st.arriving?.unitId === u.id ? 'btn-primary' : ''}`} onClick={() => st.startArrival(st.arriving?.unitId === u.id ? null : u.id)}>📍 Указать место на поле</button>
+              <button className="btn text-xs" onClick={() => auto(u.id)}>🎯 Поставить к цели</button>
+            </div>
+          )}
+        </div>
+      ))}
+      {mine.length > 0 && closed && <p className="mt-1 text-stone-400">{closed} «Быстрый выход» (Rapid Ingress, {RAPID_INGRESS_CP} CP) предложат в конце фазы движения противника.</p>}
+      {st.arriving && <button className="btn mt-1 w-full text-xs" onClick={() => st.startArrival(null)}>✕ Отменить выбор места</button>}
+      {theirs.length > 0 && <p className="mt-1 text-stone-400">У противника в резерве: {theirs.map((u) => u.name).join(', ')}.</p>}
+    </div>
   )
 }

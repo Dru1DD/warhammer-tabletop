@@ -551,6 +551,11 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
   }
 
   const onBackgroundClick = () => {
+    if (st.arriving) {
+      const p = pointerWorld()
+      if (p) st.arriveAt(p)
+      return
+    }
     if (!st.measuring) return
     const p = pointerWorld()
     if (p) st.setMeasurePoint({ p, r: 0 })

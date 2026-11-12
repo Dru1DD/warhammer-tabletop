@@ -136,6 +136,7 @@ export type AbilityId =
   | 'radSaturation'
   | 'breachingCommand'
   | 'infiltrators'
+  | 'deepStrike'
   | 'stealth'
   | 'voicesInTheCode'
   | 'neurostaticInterference'
@@ -354,6 +355,8 @@ export interface PlayerState {
   hyperAdaptation?: HyperAdaptation | null
   /** a pure custom army: no detachment rule and no detachment Stratagems (army rules still apply) */
   noDetachment?: boolean
+  /** Rapid Ingress already used in the current phase (reset when a phase starts) */
+  rapidIngressUsed?: boolean
 }
 
 export type Imperative = 'protector' | 'conqueror'
@@ -461,6 +464,8 @@ export interface GameState {
   /** 44″×60″: the deployment map and terrain layout of this battle */
   mapId?: string
   layoutId?: string
+  /** units in Strategic Reserves, off the battlefield (rules/reserves.ts); absent = none */
+  reserves?: UnitState[]
   /** the primary mission (44″×60″); absent = the training score */
   mission?: MissionState
   /** secondary missions of each player (44″×60″); absent = none */
@@ -541,6 +546,8 @@ export type Command =
   | { type: 'grenadePack'; unitId: string; targetId: string }
   /** secondary missions: swap a Tactical card for 1 CP (once per battle, own Command phase), or mark/unmark one to discard for 1 CP at the end of the turn */
   | { type: 'secondary'; op: 'swap' | 'discard'; card: SecondaryId }
+  /** a unit arrives from Strategic Reserves (Ingress Move); `rapid`: Rapid Ingress at the end of the opponent's Movement phase */
+  | { type: 'arrive'; unitId: string; positions: Record<string, Vec>; rapid?: boolean }
   /** a mission action at an objective, started in the Shooting phase (rules/missions.ts) */
   | { type: 'startAction'; unitId: string; objectiveId: string }
   /** Core Stratagem in the player's own turn (see rules/stratagems.ts) */

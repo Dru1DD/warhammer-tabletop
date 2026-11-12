@@ -102,7 +102,7 @@ export const AELDARI_EXTRA_DATASHEETS: Record<string, Datasheet> = {
   swoopingHawks: {
     id: 'swoopingHawks', name: 'Пикирующие ястребы (Swooping Hawks)', faction: 'aeldari',
     keywords: ['INFANTRY', 'AELDARI', 'JUMP PACK', 'FLY', 'GRENADES', 'ASPECT WARRIORS', 'SWOOPING HAWKS', 'ASURYANI', 'YNNARI'],
-    abilities: ['battleFocus', 'grenadePack'],
+    abilities: ['battleFocus', 'grenadePack', 'deepStrike'],
     description: 'Крылатые налётчики: M14″, лазбластеры с Lethal Hits; пролетая над врагом, засыпают его гранатами.',
   },
 }

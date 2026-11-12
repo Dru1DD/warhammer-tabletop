@@ -12,6 +12,7 @@ import { unitProfile } from '../army/roles'
 import { DOCTRINE_NAME, HYPER_NAME } from '../rules/detachments'
 import { moveProblem, planMove } from '../rules/movement'
 import { EXPLOSIVES_DICE, STRATAGEMS } from '../rules/stratagems'
+import { aiArrivalTarget, arrivalSpot, canDeepStrike, reservesOf } from '../rules/reserves'
 import { aiDiscards, SECONDARY, secondaryGoals } from '../rules/secondaries'
 import { inTerritory, MISSION_ACTION, objectiveWorth, PRIMARY, SABOTAGE_TERRITORY_BONUS } from '../rules/missions'
 import { reactionAdvice } from '../reactionAdvice'
@@ -564,6 +565,11 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
           .filter((x) => validate(s, x.cmd).ok)
           .sort((a, b) => b.v - a.v)[0]
         if (best) return { cmd: best.cmd, explanation: `${fac}: «${u.name}» выпускает бомбосквига в «${best.e.name}» (3+: D3 смертельные раны).` }
+      }
+      // reinforcements: units in Strategic Reserves arrive towards the objective nearest the enemy
+      for (const u of reservesOf(s, me)) {
+        const pos = arrivalSpot(s, u, aiArrivalTarget(s, me))
+        if (pos) return { cmd: { type: 'arrive', unitId: u.id, positions: pos }, explanation: `${fac}: «${u.name}» выходит из резерва${canDeepStrike(u) ? ' глубоким ударом' : ''}.` }
       }
       return end(`${fac}: движение завершено.`)
     }
