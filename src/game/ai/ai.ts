@@ -4,7 +4,7 @@
 import { FACTION_NAME } from '../data/datasheets'
 import { dist, withinRange } from '../geometry/geometry'
 import {
-  alive, CHARGE_RANGE, OBJECTIVE_RANGE, datasheetOf, ledUnitOf, engagedUnits, enemiesOf, hasAbility, hasKeyword, inSynapseRange, isEngaged, isFlyer, isMV, modelInTerrain, objectiveLevels, other, profileOf,
+  alive, CHARGE_RANGE, ENGAGEMENT_RANGE, OBJECTIVE_RANGE, datasheetOf, ledUnitOf, engagedUnits, enemiesOf, hasAbility, hasKeyword, inSynapseRange, isEngaged, isFlyer, isMV, modelInTerrain, objectiveLevels, other, profileOf,
   sidesOf, unitDistance, unitNearObjective, unitsOf, unitsWithin, weaponsOf, fmt,
 } from '../gameState'
 import { actor, FLY_PENALTY, hyperPending, maxMove, meleePlan, meleeSetup, meleeWeaponsOf, shootPlan, swiftBonusOf, validate, moveModeFor } from '../engine'
@@ -56,6 +56,9 @@ export const AI_WEIGHTS: Record<PlayerId, AiWeights> = {
 }
 
 /** Faction temperament: `aggressive` closes the distance to the enemy (original Orks behaviour), `retreats` falls back from a lost melee. */
+/** How much a charge possible next turn is worth against one possible now (it is a turn later and the enemy reacts). */
+export const NEXT_TURN_CHARGE = 0.5
+
 export const AI_STYLE: Record<PlayerId, { aggressive: boolean; retreats: boolean }> = {
   marines: { aggressive: false, retreats: true },
   orks: { aggressive: true, retreats: false },
@@ -241,6 +244,20 @@ function scorePosition(s: GameState, u: UnitState, level: AiLevel, mode: 'normal
       const d = dTo.get(e)!
       if (d <= CHARGE_RANGE) taken += p2d6AtLeast(Math.ceil(d)) * meleePotential(s, e, hypo, true) * 0.5
     }
+  // a unit cannot lose more than it has: summed over every enemy gun, the risk of a big swarm ran past its own wounds
+  // and froze it in place (battle of 12.11.2026: Hormagaunts, 17 wounds, «risk 28»)
+  taken = Math.min(taken, alive(hypo).reduce((a, m) => a + m.wounds, 0))
+
+  // aggressive armies value a charge NEXT turn too: after its own normal move, how likely 2D6 covers the rest. Without
+  // it a melee swarm far from the enemy sees only the risk of walking into the guns and stays in cover.
+  let approach = 0
+  if (aggressive(u) && mode !== 'fallBack') {
+    const m = Math.min(...alive(hypo).map((x) => profileOf(x).m))
+    for (const e of enemies) {
+      const need = Math.max(dTo.get(e)! - m, ENGAGEMENT_RANGE)
+      if (need <= CHARGE_RANGE) approach = Math.max(approach, p2d6AtLeast(Math.ceil(need)) * meleePotential(s, hypo, e, true))
+    }
+  }
 
   let obj = 0
   let nearestObj = Infinity
@@ -264,7 +281,8 @@ function scorePosition(s: GameState, u: UnitState, level: AiLevel, mode: 'normal
     synapse +
     support +
     w.damageDealt * dealt +
-    w.attackOpportunity * charge -
+    w.attackOpportunity * charge +
+    w.attackOpportunity * NEXT_TURN_CHARGE * approach -
     w.damageTaken * w.survival * unitValue(u) * taken +
     w.objective * obj -
     w.distance * distTerm +
@@ -272,6 +290,7 @@ function scorePosition(s: GameState, u: UnitState, level: AiLevel, mode: 'normal
   const parts = [
     dealt > 0.3 ? `ожидаемый урон стрельбой ${fmt(dealt)}` : '',
     charge > 0.3 ? `шанс атаки (charge) с уроном ${fmt(charge)}` : '',
+    charge <= 0.3 && approach > 0.3 ? `атака в следующий ход с уроном ${fmt(approach)}` : '',
     obj ? 'контроль цели' : '',
     synapse ? 'остаётся в зоне Synapse' : '',
     support ? 'рядом с ведомым отрядом' : '',

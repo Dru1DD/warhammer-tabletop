@@ -97,7 +97,7 @@ const key = (scenarioId: string, level: AiLevel, seed: number) => `${scenarioId}
 const GOLDEN: Record<string, Golden> = {
   'training-outpost|beginner|1': {winner:'marines',round:2,marinesVp:5,orksVp:0,actions:25,stateHash:'583d04b0',diceHash:'ba4fe03b'},
   'training-outpost|beginner|2': {winner:'marines',round:2,marinesVp:5,orksVp:0,actions:28,stateHash:'b0c2f2d6',diceHash:'9cbc612e'},
-  'training-outpost|beginner|5': {winner:'marines',round:1,marinesVp:0,orksVp:0,actions:16,stateHash:'3cb94bf4',diceHash:'c27b0faa'},
+  'training-outpost|beginner|5': {winner:'marines',round:2,marinesVp:0,orksVp:0,actions:33,stateHash:'1ac2ce25',diceHash:'7117d2e2'},
   'training-outpost|standard|1': {winner:'marines',round:1,marinesVp:0,orksVp:0,actions:10,stateHash:'b4378576',diceHash:'a834428e'},
   'training-outpost|standard|2': {winner:'marines',round:1,marinesVp:0,orksVp:0,actions:9,stateHash:'e09eabdc',diceHash:'3d395dfb'},
   'training-outpost|standard|5': {winner:'marines',round:1,marinesVp:0,orksVp:0,actions:18,stateHash:'b36b4726',diceHash:'1ced9735'},
@@ -106,13 +106,13 @@ const GOLDEN: Record<string, Golden> = {
   'ruined-alley|beginner|5': {winner:'marines',round:1,marinesVp:0,orksVp:0,actions:23,stateHash:'b35b9b8a',diceHash:'d5822297'},
   'ruined-alley|standard|1': {winner:'marines',round:1,marinesVp:0,orksVp:0,actions:10,stateHash:'6606228f',diceHash:'a834428e'},
   'ruined-alley|standard|2': {winner:'marines',round:1,marinesVp:0,orksVp:0,actions:30,stateHash:'5bb0b9c3',diceHash:'2e42e9a7'},
-  'ruined-alley|standard|5': {winner:'marines',round:2,marinesVp:0,orksVp:5,actions:37,stateHash:'407f6dad',diceHash:'21169fb7'},
-  'combat-patrol|beginner|1': {winner:'marines',round:4,marinesVp:20,orksVp:5,actions:122,stateHash:'89c8bd3d',diceHash:'7a1ddf67'},
-  'combat-patrol|beginner|2': {winner:'marines',round:4,marinesVp:20,orksVp:10,actions:143,stateHash:'fcff1f54',diceHash:'b8cc9506'},
+  'ruined-alley|standard|5': {winner:'marines',round:2,marinesVp:5,orksVp:5,actions:46,stateHash:'929aa957',diceHash:'3fff9c36'},
+  'combat-patrol|beginner|1': {winner:'marines',round:4,marinesVp:15,orksVp:0,actions:132,stateHash:'ed4ac151',diceHash:'432079f9'},
+  'combat-patrol|beginner|2': {winner:'marines',round:4,marinesVp:20,orksVp:5,actions:127,stateHash:'e32e1f8f',diceHash:'0b8f2963'},
   'combat-patrol|beginner|5': {winner:'marines',round:4,marinesVp:10,orksVp:15,actions:127,stateHash:'669d52d8',diceHash:'f02c8ab1'},
-  'combat-patrol|standard|1': {winner:'marines',round:5,marinesVp:35,orksVp:10,actions:149,stateHash:'34efe107',diceHash:'55618a47'},
-  'combat-patrol|standard|2': {winner:'marines',round:4,marinesVp:10,orksVp:10,actions:141,stateHash:'74c549da',diceHash:'238c130c'},
-  'combat-patrol|standard|5': {winner:'marines',round:4,marinesVp:20,orksVp:15,actions:131,stateHash:'862b1455',diceHash:'d19004a9'},
+  'combat-patrol|standard|1': {winner:'marines',round:3,marinesVp:15,orksVp:5,actions:97,stateHash:'7e4dfe7a',diceHash:'86de316c'},
+  'combat-patrol|standard|2': {winner:'marines',round:3,marinesVp:15,orksVp:5,actions:104,stateHash:'b2cd7ad2',diceHash:'6d95540e'},
+  'combat-patrol|standard|5': {winner:'orks',round:4,marinesVp:0,orksVp:20,actions:133,stateHash:'c2d62412',diceHash:'0e816d09'},
 }
 
 describe('golden master: engine + AI', () => {
