@@ -4,10 +4,10 @@ In the army builder, a unit with wargear options gets a «⚙» button. It opens
 
 - **Leader (or a single-model character):** its weapons, chosen from a list.
 - **Options:** for each group, how many models take each option, with a −/+ counter. The datasheet limit is in the group's title.
-- **Weapon hints:** the weapons of every variant, with its first hint, for example «🔨 Пробивает технику и монстров».
-- **The rest:** «Остальные N» shows how many models keep the default equipment.
+- **Weapon hints:** the weapons of every variant, with its first hint, for example “🔨 Pierces vehicles and monsters”.
+- **The rest:** “The other N” shows how many models keep the default equipment.
 - **Errors:** anything that breaks a limit is listed in red, and the list cannot be played until it is fixed.
-- **Reset:** «Как в датащите по умолчанию» goes back to the default.
+- **Reset:** “As in the datasheet by default” goes back to the default.
 
 A unit edited this way is marked ⚙ in the list. The loadout is saved with the army list, and the units are built with it.
 

@@ -3,6 +3,7 @@ import { createMatch, soloAssignments } from './match/match'
 import type { MatchMeta, MatchState } from './match/types'
 import type { GameState, PlayerId } from './types'
 import { FACTIONS, PHASES } from './types'
+import { tr } from '../i18n/index'
 
 export const SAVE_KEY = 'wh40k-training-save'
 
@@ -93,21 +94,21 @@ function migrateMatch(state: GameState, saved?: PlayerId): MatchMeta {
 
 /** Parse and sanity-check a save; never throws. */
 export function deserialize(raw: string | null): LoadResult {
-  if (!raw) return { ok: false, reason: 'Сохранение не найдено.' }
+  if (!raw) return { ok: false, reason: tr('Save not found.') }
   let data: unknown
   try {
     data = JSON.parse(raw)
   } catch {
-    return { ok: false, reason: 'Файл сохранения повреждён (неверный JSON).' }
+    return { ok: false, reason: tr('The save file is damaged (invalid JSON).') }
   }
   const f = data as Partial<SaveFile>
   if (typeof f !== 'object' || f === null || typeof f.schemaVersion !== 'number')
-    return { ok: false, reason: 'Неизвестный формат сохранения.' }
+    return { ok: false, reason: tr('Unknown save format.') }
   if (f.schemaVersion !== SCHEMA_VERSION)
-    return { ok: false, reason: `Сохранение от другой версии (схема ${f.schemaVersion}, нужна ${SCHEMA_VERSION}). Начните новую битву.` }
+    return { ok: false, reason: tr('The save is from a different version (schema {schemaVersion}, needs {SCHEMA_VERSION}). Start a new battle.', { schemaVersion: f.schemaVersion, SCHEMA_VERSION }) }
   if (typeof f.format === 'number' && f.format > SAVE_FORMAT)
-    return { ok: false, reason: `Сохранение создано более новой версией игры (формат ${f.format}, поддерживается ${SAVE_FORMAT}).` }
-  if (!validState(f.state)) return { ok: false, reason: 'Сохранение повреждено: не хватает данных о состоянии игры.' }
+    return { ok: false, reason: tr('The save was created by a newer version of the game (format {format}, supported {SAVE_FORMAT}).', { format: f.format, SAVE_FORMAT }) }
+  if (!validState(f.state)) return { ok: false, reason: tr('The save is damaged: game state data is missing.') }
   const state = f.state as GameState
   const match = f.format === SAVE_FORMAT && validMatch(f.match) ? f.match : migrateMatch(state, f.human)
   return { ok: true, file: { ...(f as SaveFile), format: SAVE_FORMAT, match } }

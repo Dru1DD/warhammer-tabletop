@@ -17,13 +17,13 @@ The start screen sets the human player's mode:
   - Bring It Down;
   - A Grievous Blow;
   - Engage on All Fronts.
-- **Без вторичных** turns secondaries off for both sides.
+- **No secondaries** turns secondaries off for both sides.
 
 The AI always plays Tactical.
 
 ## Your choices with Tactical cards
 
-These are buttons in the «🃏 Вторичные» panel.
+These are buttons in the “🃏 Secondaries” panel.
 
 - **🔄 Swap for 1 CP.** Once per battle, in your Command phase: discard a card and draw a new one.
 - **🗑 Discard at the end of the turn for +1 CP.** Marks a card. At the end of your turn, after scoring, a marked card that was not achieved is discarded for 1 CP. An achieved card scores instead. Press again to unmark.

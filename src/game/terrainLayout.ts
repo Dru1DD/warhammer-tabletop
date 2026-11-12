@@ -1,17 +1,18 @@
 import { rect } from './geometry/geometry'
 import { TERRAIN_CATEGORY } from './gameState'
 import type { GameState, Terrain, TerrainKind } from './types'
+import { tr } from '../i18n/index'
 
 // Terrain editing before the battle. Pieces are axis-aligned rectangles (as in
 // the scenarios); rules only care about `kind` and `obscuring`.
 
 export const TERRAIN_PRESETS = {
-  ruin: { name: 'Руины', kind: 'ruin', w: 4, h: 3 },
-  wall: { name: 'Обломки стены', kind: 'ruin', w: 3, h: 0.8 },
-  crater: { name: 'Воронка', kind: 'crater', w: 3, h: 3 },
-  woods: { name: 'Лес', kind: 'woods', w: 4, h: 4 },
-  barricade: { name: 'Баррикада', kind: 'barricade', w: 4, h: 0.6 },
-  container: { name: 'Контейнер', kind: 'container', w: 3, h: 1.5 },
+  ruin: { name: tr('Ruins'), kind: 'ruin', w: 4, h: 3 },
+  wall: { name: tr('Wall debris'), kind: 'ruin', w: 3, h: 0.8 },
+  crater: { name: tr('Crater'), kind: 'crater', w: 3, h: 3 },
+  woods: { name: tr('Woods'), kind: 'woods', w: 4, h: 4 },
+  barricade: { name: tr('Barricade'), kind: 'barricade', w: 4, h: 0.6 },
+  container: { name: tr('Container'), kind: 'container', w: 3, h: 1.5 },
 } as const satisfies Record<string, { name: string; kind: TerrainKind; w: number; h: number }>
 
 export type TerrainPreset = keyof typeof TERRAIN_PRESETS
