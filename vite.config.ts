@@ -15,5 +15,8 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test-setup.ts'],
+    // the UI tests that play whole turns through the store take 0.3–0.9 s alone, but under a full parallel run on a
+    // laptop some went over the default 5 s; 20 s keeps them stable without hiding a real hang
+    testTimeout: 20_000,
   },
 })

@@ -76,3 +76,37 @@ describe('reminders', () => {
     expect(endPhaseWarning(s, 'adeptus_mechanicus') ?? '').not.toContain('Империатив')
   })
 })
+
+describe('who else fights back, and support characters', () => {
+  /** Sicarians 6″ from two Intercessors; the Assault Intercessors and the Lieutenant stand right next to them (or far away). */
+  function sicarians(neighboursNear: boolean) {
+    const s = battle('adeptus_mechanicus', 'marines', 'charge', 'adeptus_mechanicus')
+    const keep = ['sicarians', 'int', 'aint', 'lt']
+    for (const u of s.units) if (!keep.includes(u.id)) place(s, u.id, [])
+    place(s, 'sicarians', column(10, 10, 5, 1.3))
+    place(s, 'int', column(17, 11, 2, 1.3))
+    const off = neighboursNear ? 0 : 20
+    place(s, 'aint', column(19.5 + off, 9, 5, 1.3))
+    place(s, 'lt', [{ x: 19 + off, y: 13.8 }])
+    return s
+  }
+
+  it('enemy units standing next to the target are named, and their blows count in the trade', () => {
+    const near = chargeForecast(sicarians(true), byDatasheet(sicarians(true), 'sicarians')).find((x) => x.targetId === 'int')!
+    const alone = chargeForecast(sicarians(false), byDatasheet(sicarians(false), 'sicarians')).find((x) => x.targetId === 'int')!
+    expect(near.joiners.map((x) => x.name)).toEqual(expect.arrayContaining(['Штурмовые интерсессоры', 'Лейтенант']))
+    expect(near.warnings.join(' ')).toContain('Рядом с целью')
+    expect(near.taken).toBeGreaterThan(alone.taken)
+    expect(alone.joiners).toEqual([])
+  })
+
+  it('a character in a fight it barely wins or loses badly is warned about; an ordinary unit is not', () => {
+    const s = battle('adeptus_mechanicus', 'orks', 'charge', 'adeptus_mechanicus')
+    for (const u of s.units) if (!['dominus', 'kastelans', 'boyz'].includes(u.id)) place(s, u.id, [])
+    place(s, 'dominus', [{ x: 10, y: 10 }])
+    place(s, 'kastelans', [{ x: 10, y: 4 }, { x: 10, y: 6.5 }])
+    place(s, 'boyz', column(16, 3, 10, 1.2))
+    expect(chargeForecast(s, byDatasheet(s, 'techDominus'))[0].warnings.join(' ')).toContain('персонаж')
+    expect(chargeForecast(s, byDatasheet(s, 'kastelans'))[0].warnings.join(' ')).not.toContain('персонаж')
+  })
+})
