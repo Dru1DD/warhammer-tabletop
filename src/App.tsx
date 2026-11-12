@@ -7,6 +7,7 @@ import { armyPoints, copyIndex, fmtPoints, POINTS_SOURCE, unitPoints } from './g
 import { actor } from './game/engine'
 import { deserialize, readStorage } from './game/persistence'
 import { mapLine, SCENARIOS } from './game/scenarios/scenarios'
+import { missionName, PRIMARY, PRIMARY_IDS } from './game/rules/missions'
 import { FACTIONS, type ExplainLevel, type PlayerId, type UnitState } from './game/types'
 import { AI_STEP_MS, AUTOSAVE_KEY, MANUAL_KEY, useStore, type Settings } from './store'
 import { ArmyBuilder } from './ui/ArmyBuilder'
@@ -196,6 +197,13 @@ function StartScreen() {
                   {LAYOUT_IDS.map((id) => <option key={id} value={id}>{id} — {LAYOUT_NAME[id]}</option>)}
                 </select>
               </label>
+              <label className="text-sm">Основная миссия (одна на обоих)
+                <select className="input" value={st.settings.primary ?? 'random'} onChange={(e) => st.setSettings({ primary: e.target.value })}>
+                  <option value="random">Случайная (бросок D6, как в Mirrored World)</option>
+                  {PRIMARY_IDS.map((id) => <option key={id} value={id}>{PRIMARY[id].name} ({PRIMARY[id].nameEn})</option>)}
+                  <option value="training">Учебный счёт — 5 ПО за цель со 2-го раунда</option>
+                </select>
+              </label>
             </>
           )}
           <label className="text-sm">Уровень ИИ
@@ -268,6 +276,7 @@ function GameScreen() {
         ) : (
           <>
             <span className="rounded bg-stone-800 px-2 py-0.5 text-sm">Раунд {game.round}/{game.maxRounds}</span>
+            {missionName(game) && <span className="rounded bg-emerald-900 px-2 py-0.5 text-xs" title={`Основная миссия обеих сторон: ${missionName(game)}`}>🎯 {missionName(game)!.split(' (')[0]}</span>}
             {mapLine(game) && <span className="hidden rounded bg-stone-800 px-2 py-0.5 text-xs xl:inline" title={mapLine(game)!}>🗺 {mapLine(game)!.split(' (')[0]}</span>}
             <span className="rounded px-2 py-0.5 text-sm" style={{ background: FACTION_STYLE[game.activePlayer].primary }}>
               Ход: {FACTION_NAME[game.activePlayer]}

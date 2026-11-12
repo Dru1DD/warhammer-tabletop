@@ -5,6 +5,7 @@ import type { GameState, PlayerId, PlayerState, Terrain, UnitState, Vec } from '
 import type { ArmyList } from '../army/armyList'
 import { musterArmy } from '../army/placement'
 import { presetList } from '../army/armyList'
+import { newMission, pickPrimary } from '../rules/missions'
 import { LAYOUT_NAME, layoutFor, MAPS, PATROL_LAYOUT_NAME, patrolLayout, pickLayout, pickMap, type LayoutId, type MapId } from './strikeForce'
 
 /** Army lists by faction; a faction without one fields its default training roster. */
@@ -21,7 +22,7 @@ export interface Scenario {
   factions: PlayerId[]
   /** `sides` = [west, east] factions; default Space Marines (west) vs Orks (east). `opts`: the map and layout of a
    * board that has several (44″×60″); 'random' or absent picks one. */
-  build: (sides?: [PlayerId, PlayerId], armies?: Armies, terrain?: Terrain[], opts?: { mapId?: string; layoutId?: string }) => GameState
+  build: (sides?: [PlayerId, PlayerId], armies?: Armies, terrain?: Terrain[], opts?: { mapId?: string; layoutId?: string; primary?: string }) => GameState
   /** true when the board takes army lists from the army builder (`armies` in `build`, set up around `terrain` if given) */
   customArmies?: boolean
 }
@@ -356,6 +357,8 @@ export const SCENARIOS: Scenario[] = [
       state.territory = m.territory
       state.mapId = m.id
       state.layoutId = layoutId
+      // the primary mission (both sides play the same one: Mirrored World); 'training' keeps 5 VP per objective
+      if (opts.primary !== 'training') state.mission = newMission(state, pickPrimary(opts.primary))
       for (const f of sides) musterArmy(state, f, armies[f] ?? presetList(f, 1000))
       // a pure custom list plays without its detachment
       for (const f of sides) if (armies[f]?.noDetachment) state.players[f].noDetachment = true

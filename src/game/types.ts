@@ -246,6 +246,27 @@ export interface UnitState {
   wraithTargets?: string[]
   /** Grenade Pack Flyover already used this turn (absent otherwise) */
   grenadePackUsed?: boolean
+  /** a mission action started this turn (rules/missions.ts): no shooting or charging; completes at the end of the turn */
+  action?: { id: MissionActionId; objectiveId: string }
+}
+
+/** The primary missions of the Mirrored World twist (rules/missions.ts) */
+export type PrimaryId = 'dominance' | 'meatgrinder' | 'outmanoeuvre' | 'gatherIntel' | 'sabotage'
+export type MissionActionId = 'extractIntel' | 'sabotage'
+
+/** The primary mission of a battle and what it has scored (absent: the training score, 5 VP per objective). */
+export interface MissionState {
+  primary: PrimaryId
+  /** primary VP by player and battle round (index = round) */
+  byRound: Record<PlayerId, number[]>
+  /** primary VP scored at the end of the battle (outside the round cap) */
+  endVp?: Record<PlayerId, number>
+  /** Gather Intel: operation markers, each at an objective */
+  markers: { owner: PlayerId; objectiveId: string }[]
+  /** units already destroyed when the current turn began (to count this turn's losses) */
+  deadAtTurnStart: string[]
+  /** units each player lost in the previous turn (Meatgrinder) */
+  lostLastTurn: Record<PlayerId, number>
 }
 
 /** crater = exposed; barricade = light; ruin / woods / container = dense (container is also solid) */
@@ -410,6 +431,8 @@ export interface GameState {
   /** 44″×60″: the deployment map and terrain layout of this battle */
   mapId?: string
   layoutId?: string
+  /** the primary mission (44″×60″); absent = the training score */
+  mission?: MissionState
   terrain: Terrain[]
   objectives: Objective[]
   players: Record<PlayerId, PlayerState>
@@ -482,6 +505,8 @@ export type Command =
   | { type: 'engrammatic'; unitId: string; targetId: string }
   | { type: 'wraithForm'; unitId: string; targetId: string }
   | { type: 'grenadePack'; unitId: string; targetId: string }
+  /** a mission action at an objective, started in the Shooting phase (rules/missions.ts) */
+  | { type: 'startAction'; unitId: string; objectiveId: string }
   /** Core Stratagem in the player's own turn (see rules/stratagems.ts) */
   | { type: 'stratagem'; id: StratagemId; unitId: string; targetId?: string }
   /** The reacting player declines (or is done with) the reactions offered in the current window */

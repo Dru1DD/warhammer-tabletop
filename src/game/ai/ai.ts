@@ -12,6 +12,7 @@ import { unitProfile } from '../army/roles'
 import { DOCTRINE_NAME, HYPER_NAME } from '../rules/detachments'
 import { moveProblem, planMove } from '../rules/movement'
 import { EXPLOSIVES_DICE, STRATAGEMS } from '../rules/stratagems'
+import { inTerritory, MISSION_ACTION, objectiveWorth, PRIMARY, SABOTAGE_TERRITORY_BONUS } from '../rules/missions'
 import { reactionAdvice } from '../reactionAdvice'
 
 /** Army Stratagems the AI spends on a good volley / a good fight. */
@@ -244,7 +245,7 @@ function scorePosition(s: GameState, u: UnitState, level: AiLevel, mode: 'normal
   for (const o of s.objectives) {
     const lv = objectiveLevels(hs, o)
     const mine = lv[u.owner], theirs = lv[other(s, u.owner)]
-    if (unitNearObjective(hypo, o)) obj += mine > theirs ? 1 : 0.5
+    if (unitNearObjective(hypo, o)) obj += (mine > theirs ? 1 : 0.5) * objectiveWorth(s, u.owner, o)
     nearestObj = Math.min(nearestObj, Math.min(...alive(hypo).map((m) => dist(m.pos, o.pos))))
   }
   const nearestEnemy = Math.min(...enemies.map((e) => dTo.get(e)!))
@@ -588,6 +589,10 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
             if (!best || dmg > best.dmg) best = { cmd, dmg, target: e.name }
           }
         }
+        // a mission action (Sabotage, Extract Intelligence) instead of a volley, when its VP are worth more
+        const action = missionActionFor(s, u)
+        if (action && (!best || action.vp >= best.dmg * 0.8))
+          return { cmd: action.cmd, explanation: `${fac}: «${u.name}» начинает действие миссии «${action.name}» у цели Ц${action.n} (≈ ${action.vp} ПО в конце хода${best ? `, стрельба дала бы ≈ ${fmt(best.dmg)} урона` : ''}).` }
         // an army's shooting Stratagem on a volley worth it, keeping 1 CP in reserve
         if (best && level !== 'beginner' && best.dmg >= 2.5 && s.players[me].cp >= 2) {
           for (const id of SHOOTING_BUFFS) {
@@ -673,3 +678,19 @@ function shootOptions(u: UnitState, level: AiLevel) {
 /** Unused-model guard for tests: every AI command must be legal. */
 export const aiCommandIsLegal = (s: GameState, d: AiDecision | null) => !d || validate(s, d.cmd).ok
 
+
+/** The best mission action this unit can start now, at an objective its side controls (the action completes only then). */
+function missionActionFor(s: GameState, u: UnitState): { cmd: Command; vp: number; name: string; n: number } | null {
+  const id = s.mission && PRIMARY[s.mission.primary].action
+  if (!id) return null
+  let best: { cmd: Command; vp: number; name: string; n: number } | null = null
+  s.objectives.forEach((o, i) => {
+    const cmd: Command = { type: 'startAction', unitId: u.id, objectiveId: o.id }
+    if (!validate(s, cmd).ok) return
+    const lv = objectiveLevels(s, o)
+    if (!(lv[u.owner] > lv[other(s, u.owner)])) return
+    const vp = MISSION_ACTION[id].vp + (id === 'sabotage' && inTerritory(s, other(s, u.owner), o) ? SABOTAGE_TERRITORY_BONUS : 0)
+    if (!best || vp > best.vp) best = { cmd, vp, name: MISSION_ACTION[id].name, n: i + 1 }
+  })
+  return best
+}

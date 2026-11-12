@@ -47,6 +47,7 @@ import { canActNow, cpReminder, draftDistance, lastRoundWarning, nextPhaseLabel,
 import { fileToTokenDataUrl } from './imageUpload'
 import { UnitRoleTips } from './UnitRoleTips'
 import { leaveRoom } from '../multiplayer/session'
+import { MISSION_ACTION, PRIMARY, PRIMARY_CAP, primaryTotal, ROUND_CAP } from '../game/rules/missions'
 
 
 /** Who plays the other side: the computer in single-player, a person online. */
@@ -322,6 +323,7 @@ export function ActionPanel() {
       ) : (
         <PhaseTrack game={game} myTurn={myTurn} />
       )}
+      {game.mission && <MissionCard game={game} />}
       {!game.winner && explain !== 'minimal' && (
         <details className="text-xs text-stone-300">
           <summary className="cursor-pointer text-sky-300">Правила фазы</summary>
@@ -996,5 +998,39 @@ export function BottomPanel() {
         <p className="text-[11px] text-stone-500">{scenarioById(game.scenarioId).name}</p>
       </div>
     </div>
+  )
+}
+
+/** The primary mission of a 44″×60″ battle: the card, the VP so far (by round, within the caps) and the actions going on. */
+function MissionCard({ game }: { game: GameState }) {
+  const m = game.mission!
+  const card = PRIMARY[m.primary]
+  const act = card.action ? MISSION_ACTION[card.action] : null
+  const busy = game.units.filter((u) => u.action && !isDestroyed(u))
+  const objName = (id: string) => `Ц${game.objectives.findIndex((o) => o.id === id) + 1}`
+  return (
+    <details className="rounded border border-emerald-700 bg-emerald-950/40 p-2 text-xs" open>
+      <summary className="cursor-pointer font-semibold text-emerald-200">🎯 Миссия: {card.name} <span className="font-normal text-stone-400">({card.nameEn})</span></summary>
+      <ul className="mt-1 list-disc space-y-0.5 pl-4 text-stone-200">
+        {card.lines.map((l) => <li key={l}>{l}</li>)}
+      </ul>
+      {act && <p className="mt-1 text-stone-300"><b>Действие «{act.name}»</b> ({act.nameEn}): {act.text} Кнопка — в действиях отряда в фазе стрельбы.</p>}
+      <table className="mt-2 w-full text-center">
+        <thead><tr className="text-stone-400"><th className="text-left">Основная</th>{[1, 2, 3, 4, 5].map((r) => <th key={r} className={r === game.round ? 'text-emerald-300' : ''}>Р{r}</th>)}<th>Конец</th><th>Всего</th></tr></thead>
+        <tbody>
+          {sidesOf(game).map((p) => (
+            <tr key={p}>
+              <td className="text-left">{FACTION_NAME[p]}</td>
+              {[1, 2, 3, 4, 5].map((r) => <td key={r}>{m.byRound[p][r] || '·'}</td>)}
+              <td>{m.endVp?.[p] || '·'}</td>
+              <td className="font-semibold">{primaryTotal(m, p)}/{PRIMARY_CAP}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="mt-1 text-stone-400">Лимит: {ROUND_CAP} ПО за раунд, {PRIMARY_CAP} за битву (очки конца битвы — вне лимита раунда).</p>
+      {busy.length > 0 && <p className="mt-1 text-amber-200">Выполняют действие: {busy.map((u) => `${u.name} (${objName(u.action!.objectiveId)})`).join(', ')}.</p>}
+      {m.markers.length > 0 && <p className="mt-1 text-stone-300">Маркеры операции: {sidesOf(game).map((p) => `${FACTION_NAME[p]} — ${m.markers.filter((x) => x.owner === p).map((x) => objName(x.objectiveId)).join(', ') || 'нет'}`).join('; ')}.</p>}
+    </details>
   )
 }

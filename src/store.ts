@@ -59,6 +59,8 @@ export interface Settings {
   /** 44″×60″ board: the deployment map and the terrain layout ('random' or absent = a random one each battle) */
   mapId?: string
   layoutId?: string
+  /** 44″×60″ board: the primary mission ('random' or absent = a random one; 'training' = 5 VP per objective) */
+  primary?: string
 }
 
 /** A measuring endpoint: a point, or a model base (r > 0) for edge-to-edge distance. */
@@ -247,7 +249,7 @@ function buildScenario(s: Settings): GameState {
   // the 44″×60″ boards change with the map, so a saved layout of the editor is not used there
   // nor on Combat Patrol when another layout than the original (A) is chosen
   const custom = sc.id === 'strike-force' || (sc.id === 'combat-patrol' && s.layoutId && s.layoutId !== 'A') ? null : parseLayout(savedLayouts()[sc.id])
-  const g = sc.build(sidesFor(s.human, s.opponent), battleArmies(s), custom ?? undefined, { mapId: s.mapId, layoutId: s.layoutId })
+  const g = sc.build(sidesFor(s.human, s.opponent), battleArmies(s), custom ?? undefined, { mapId: s.mapId, layoutId: s.layoutId, primary: s.primary })
   if (custom) g.terrain = custom
   if (sc.customArmies) {
     // open battle: both armies start in the deployment preset that suits them (the AI first, unaware of the player)

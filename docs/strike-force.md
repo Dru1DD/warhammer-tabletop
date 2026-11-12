@@ -51,7 +51,7 @@ Own lists from the army builder. A side without a list plays its 1000-point pres
 
 ## Scoring
 
-Scoring is still the training rule, 5 VP per objective. 11th edition missions are the next step.
+A primary mission of the 11th edition, both sides playing the same one (see [missions.md](missions.md)). The «Учебный счёт» option keeps the training rule, 5 VP per objective.
 
 ## Tests
 
