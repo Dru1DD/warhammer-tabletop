@@ -1,6 +1,7 @@
 import { DATASHEETS, PROFILES, WEAPONS } from './data/datasheets'
 import { baseRadius, edgeDistance, EPS, withinRange, circlePolygonDistance } from './geometry/geometry'
 import type { GameState, ModelProfile, ModelState, Objective, PlayerId, TerrainKind, UnitState, Vec } from './types'
+import { DECIMAL_MARK, tr } from '../i18n/index'
 
 export const SCHEMA_VERSION = 1
 export const ENGAGEMENT_RANGE = 2
@@ -293,7 +294,7 @@ export function holdScoutedObjectives(s: GameState, p: PlayerId, ability: 'objec
   for (const o of s.objectives)
     if (o.held !== p && o.controller === p && s.units.some((u) => u.owner === p && !isDestroyed(u) && hasAbility(u, ability) && !u.battleShocked && unitNearObjective(u, o))) {
       o.held = p
-      addLog(s, `Цель ${o.id} закреплена за вами (${HOLD_RULE[ability]}): контроль сохраняется, пока уровень врага не станет выше вашего.`, 'standard')
+      addLog(s, tr('Objective {id} is secured for you ({item}): control stays until the enemy’s level becomes higher than yours.', { id: o.id, item: HOLD_RULE[ability] }), 'standard')
     }
 }
 
@@ -314,11 +315,11 @@ export function checkCoherency(models: { m: ModelState; pos: Vec }[]): string | 
       const d = modelDistance(a.m, b.m, a.pos, b.pos)
       if (withinRange(d, COHERENCY_NEAR)) near = true
       if (!withinRange(d, COHERENCY_ALL))
-        return `${profileOf(a.m).name} дальше ${COHERENCY_ALL}" от другой модели отряда — нарушена связность (coherency).`
+        return tr('{name} is farther than {COHERENCY_ALL}" from another model of the unit — coherency is broken.', { name: profileOf(a.m).name, COHERENCY_ALL })
     }
-    if (!near) return `${profileOf(a.m).name} не в пределах ${COHERENCY_NEAR}" ни от одной модели отряда — нарушена связность (coherency).`
+    if (!near) return tr('{name} is not within {COHERENCY_NEAR}" of any model of the unit — coherency is broken.', { name: profileOf(a.m).name, COHERENCY_NEAR })
   }
   return null
 }
 
-export const fmt = (n: number) => (Math.round(n * 10) / 10).toString().replace('.', ',')
+export const fmt = (n: number) => (Math.round(n * 10) / 10).toString().replace('.', DECIMAL_MARK)

@@ -2,6 +2,7 @@ import { composeLoadout, loadoutProblems, WARGEAR, type Loadout } from './wargea
 import { DATASHEETS, PROFILES } from '../data/datasheets'
 import { legalSizes, listedCost } from '../data/points'
 import { FACTIONS, type PlayerId } from '../types'
+import { tr } from '../../i18n/index'
 
 // Army lists built in the army builder. A list is a points limit plus units, each a datasheet
 // at a unit size the Munitorum Field Manual lists. Models and their loadouts come from
@@ -99,7 +100,7 @@ export function composeUnit(datasheetId: string, size: number, loadout?: Loadout
   const spec = WARGEAR[datasheetId]
   if (spec && loadout) return composeLoadout(spec, size, loadout)
   const c = COMPOSITION[datasheetId]
-  if (!c) throw new Error(`Нет состава для «${datasheetId}».`)
+  if (!c) throw new Error(tr('No datasheet for “{datasheetId}”.', { datasheetId }))
   const out = c.leader ? [c.leader] : []
   for (let i = 0; out.length < size; i++) out.push(c.pattern[i % c.pattern.length])
   return out
@@ -119,22 +120,22 @@ export const listPoints = (list: ArmyList) => entryCosts(list).reduce((a, b) => 
 /** Everything that makes the list unplayable, in Russian; empty when it is fine. */
 export function listProblems(faction: PlayerId, list: ArmyList): string[] {
   const out: string[] = []
-  if (!list.units.length) out.push('В армии нет ни одного отряда.')
+  if (!list.units.length) out.push(tr('The army has no units.'))
   const counts: Record<string, number> = {}
   for (const e of list.units) {
     const ds = DATASHEETS[e.datasheetId]
     if (!ds || ds.faction !== faction) {
-      out.push(`Отряд «${e.datasheetId}» не из этой фракции.`)
+      out.push(tr('Unit “{datasheetId}” is not from this faction.', { datasheetId: e.datasheetId }))
       continue
     }
-    if (!legalSizes(e.datasheetId).includes(e.size)) out.push(`${shortName(e.datasheetId)}: размер ${e.size} не из справочника (можно ${legalSizes(e.datasheetId).join(' или ')}).`)
+    if (!legalSizes(e.datasheetId).includes(e.size)) out.push(tr('{shortName}: size {size} is not from the handbook (allowed: {list}).', { shortName: shortName(e.datasheetId), size: e.size, list: legalSizes(e.datasheetId).join(tr(' or ')) }))
     if (e.loadout) for (const p of loadoutProblems(e.datasheetId, e.size, e.loadout)) out.push(`${shortName(e.datasheetId)}: ${p}`)
     counts[e.datasheetId] = (counts[e.datasheetId] ?? 0) + 1
   }
   for (const [id, n] of Object.entries(counts))
-    if (n > maxCopies(id)) out.push(`${shortName(id)}: не больше ${maxCopies(id)} отрядов (сейчас ${n}).`)
+    if (n > maxCopies(id)) out.push(tr('{shortName}: no more than {maxCopies} units (currently {n}).', { shortName: shortName(id), maxCopies: maxCopies(id), n }))
   const pts = listPoints(list)
-  if (pts > list.limit) out.push(`Перебор очков: ${pts} из ${list.limit}.`)
+  if (pts > list.limit) out.push(tr('Over the points limit: {pts} of {limit}.', { pts, limit: list.limit }))
   return out
 }
 

@@ -7,6 +7,7 @@ import type { PlayerId } from '../game/types'
 import type { Link } from './link'
 import { encode, GUEST_ID, parseMessage, PROTOCOL_VERSION, type JoinRefusal, type LobbyState, type NetMessage } from './protocol'
 import { applyAccepted, matchFromSave, sideOfParticipant } from './sync'
+import { tr } from '../i18n/index'
 
 /** The guest's view of its match. The app backs it with the store; tests with a plain object. */
 export interface GuestPort {
@@ -115,7 +116,7 @@ export class GuestSession {
   private install(save: string) {
     const r = matchFromSave(save, GUEST_ID)
     const side = r.ok && sideOfParticipant(r.match, GUEST_ID)
-    if (!r.ok || !side) return this.o.port.notify(r.ok ? 'Снимок партии повреждён.' : r.reason)
+    if (!r.ok || !side) return this.o.port.notify(r.ok ? tr('The game snapshot is damaged.') : r.reason)
     this.o.port.install(r.match, side)
     this.set({ playing: true, pending: null })
   }
@@ -160,11 +161,11 @@ export class GuestSession {
   /** Send a command to the host. One at a time; false means it was not sent (reason shown to the player). */
   sendCommand(env: CommandEnvelope): boolean {
     if (this.state.link !== 'connected') {
-      this.o.port.notify('Нет соединения с хозяином комнаты.')
+      this.o.port.notify(tr('No connection to the room host.'))
       return false
     }
     if (this.state.pending) {
-      this.o.port.notify('Дождитесь ответа на предыдущее действие.')
+      this.o.port.notify(tr('Wait for the answer to the previous action.'))
       return false
     }
     this.set({ pending: env.commandId })

@@ -1,4 +1,5 @@
 import type { UnitState } from '../types'
+import { tr } from '../../i18n/index'
 
 /** One row of the Munitorum Field Manual: a unit of exactly `models` models costs `points`. */
 export interface PointsBracket {
@@ -144,5 +145,5 @@ export function armyPoints(units: UnitState[]): UnitCost {
   )
 }
 
-/** "475 очк." or "≈ 45 очк." when the cost is pro-rated. */
-export const fmtPoints = (c: UnitCost) => `${c.exact ? '' : '≈ '}${c.points} очк.`
+/** "475 pts" or "≈ 45 pts" when the cost is pro-rated. */
+export const fmtPoints = (c: UnitCost) => tr('{value}{points} pts', { value: c.exact ? '' : '≈ ', points: c.points })

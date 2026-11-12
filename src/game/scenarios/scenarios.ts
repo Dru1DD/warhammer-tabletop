@@ -4,10 +4,12 @@ import { DEFAULT_SIDES, newUnit, SCHEMA_VERSION, seats } from '../gameState'
 import type { GameState, PlayerId, PlayerState, Terrain, UnitState, Vec } from '../types'
 import type { ArmyList } from '../army/armyList'
 import { musterArmy } from '../army/placement'
+import { tr } from '../../i18n/index'
 import { presetList } from '../army/armyList'
 import { newMission, pickPrimary } from '../rules/missions'
 import { newSecondary } from '../rules/secondaries'
 import type { SecondaryId } from '../types'
+import { LAYOUT_NAME, layoutFor, MAPS, PATROL_LAYOUT_NAME, patrolLayout, pickLayout, pickMap, type LayoutId, type MapId } from './strikeForce'
 
 /** Options of a board with several maps and missions (44″×60″); 'random' or absent picks one. */
 export interface BuildOptions {
@@ -18,7 +20,6 @@ export interface BuildOptions {
   /** secondary missions by side ('tactical' when absent), or 'none' for a battle without them */
   secondaries?: 'none' | Partial<Record<PlayerId, { mode: 'tactical' | 'fixed'; fixed?: SecondaryId[] }>>
 }
-import { LAYOUT_NAME, layoutFor, MAPS, PATROL_LAYOUT_NAME, patrolLayout, pickLayout, pickMap, type LayoutId, type MapId } from './strikeForce'
 
 /** Army lists by faction; a faction without one fields its default training roster. */
 export type Armies = Partial<Record<PlayerId, ArmyList>>
@@ -103,8 +104,8 @@ const column5 = (at: At, profiles: string[], depth: number, y: number): [string,
 
 /** Introductory-Set armies for the small 30″×22″ boards. `depth` = distance of the main line from the own edge. */
 const marinesDuel = (depth: number): Roster => (at) => [
-  unit('lt', 'lieutenant', 'marines', 'Лейтенант', [['lieutenant', at(depth - 1.5, 11)]]),
-  unit('int', 'intercessors', 'marines', 'Интерсессоры', [
+  unit('lt', 'lieutenant', 'marines', tr('Lieutenant'), [['lieutenant', at(depth - 1.5, 11)]]),
+  unit('int', 'intercessors', 'marines', tr('Intercessors'), [
     ['intercessorSergeant', at(depth, 11)],
     ['intercessor', at(depth, 9)],
     ['intercessor', at(depth, 13)],
@@ -113,7 +114,7 @@ const marinesDuel = (depth: number): Roster => (at) => [
   ]),
 ]
 const orksDuel = (depth: number): Roster => (at) => [
-  unit('boyz', 'boyz', 'orks', 'Бойз', [
+  unit('boyz', 'boyz', 'orks', tr('Boyz|group'), [
     ['nob', at(depth, 11)],
     ['boy', at(depth, 9)],
     ['boy', at(depth, 13)],
@@ -125,17 +126,17 @@ const orksDuel = (depth: number): Roster => (at) => [
 
 /** Combat Patrol armies for the 44″×30″ board. */
 const marinesPatrol: Roster = (at) => [
-  unit('lt', 'lieutenant', 'marines', 'Лейтенант', [['lieutenant', at(3, 16)]]),
-  unit('int', 'intercessors', 'marines', 'Интерсессоры I', column5(at, ['intercessorSergeant', 'intercessor', 'intercessorGL', 'intercessor', 'intercessor'], 7, 5)),
-  unit('int2', 'intercessors', 'marines', 'Интерсессоры II', column5(at, ['intercessorSergeant', 'intercessor', 'intercessorGL', 'intercessor', 'intercessor'], 7, 17)),
-  unit('aint', 'assaultIntercessors', 'marines', 'Штурмовые интерсессоры', column5(at, ['assaultSergeant', 'assaultIntercessor', 'assaultIntercessor', 'assaultIntercessor', 'assaultIntercessor'], 3, 4)),
-  unit('red', 'redemptor', 'marines', 'Дредноут «Редемптор»', [['redemptor', at(4, 23)]]),
+  unit('lt', 'lieutenant', 'marines', tr('Lieutenant'), [['lieutenant', at(3, 16)]]),
+  unit('int', 'intercessors', 'marines', tr('Intercessors I'), column5(at, ['intercessorSergeant', 'intercessor', 'intercessorGL', 'intercessor', 'intercessor'], 7, 5)),
+  unit('int2', 'intercessors', 'marines', tr('Intercessors II'), column5(at, ['intercessorSergeant', 'intercessor', 'intercessorGL', 'intercessor', 'intercessor'], 7, 17)),
+  unit('aint', 'assaultIntercessors', 'marines', tr('Assault Intercessors'), column5(at, ['assaultSergeant', 'assaultIntercessor', 'assaultIntercessor', 'assaultIntercessor', 'assaultIntercessor'], 3, 4)),
+  unit('red', 'redemptor', 'marines', tr('Redemptor Dreadnought|short'), [['redemptor', at(4, 23)]]),
 ]
 const orksPatrol: Roster = (at) => [
-  boyzMob(at, 'boyz', 'Бойз I', 7.5, 4, 'boyBigShoota'),
-  boyzMob(at, 'boyz2', 'Бойз II', 7.5, 18, 'boyRokkit'),
-  boyzMob(at, 'boyz3', 'Бойз III', 3.5, 3, 'boyBigShoota'),
-  unit('dread', 'deffDread', 'orks', 'Дэфф-дред', [['deffDread', at(3.5, 15)]]),
+  boyzMob(at, 'boyz', tr('Boyz I'), 7.5, 4, 'boyBigShoota'),
+  boyzMob(at, 'boyz2', tr('Boyz II'), 7.5, 18, 'boyRokkit'),
+  boyzMob(at, 'boyz3', tr('Boyz III'), 3.5, 3, 'boyBigShoota'),
+  unit('dread', 'deffDread', 'orks', tr('Deff Dread|short'), [['deffDread', at(3.5, 15)]]),
 ]
 
 /** Two-file formation of `n` models: `pick(i)` chooses the profile, files at `depth` and `depth - gap`. */
@@ -144,10 +145,10 @@ const formation = (at: At, n: number, pick: (i: number) => string, depth: number
 
 /** Tyranids: 1 Hive Tyrant, 10 Termagants, 10 Hormagaunts, 3 Tyranid Warriors (docs/armies.md). */
 const tyranidsPatrol: Roster = (at) => [
-  unit('tyrant', 'hiveTyrant', 'tyranids', 'Тиран Улья', [['hiveTyrant', at(2.5, 15)]]),
-  unit('termagants', 'termagants', 'tyranids', 'Термаганты', formation(at, 10, (i) => (i === 2 ? 'termagantShard' : i === 5 ? 'termagantSpike' : i === 8 ? 'termagantWeb' : 'termagant'), 8.6, 4, 1.6)),
-  unit('hormagaunts', 'hormagaunts', 'tyranids', 'Гормагауны', formation(at, 10, () => 'hormagaunt', 8.6, 19, 1.6)),
-  unit('warriors', 'tyranidWarriors', 'tyranids', 'Воины тиранидов', [
+  unit('tyrant', 'hiveTyrant', 'tyranids', tr('Hive Tyrant'), [['hiveTyrant', at(2.5, 15)]]),
+  unit('termagants', 'termagants', 'tyranids', tr('Termagants|group'), formation(at, 10, (i) => (i === 2 ? 'termagantShard' : i === 5 ? 'termagantSpike' : i === 8 ? 'termagantWeb' : 'termagant'), 8.6, 4, 1.6)),
+  unit('hormagaunts', 'hormagaunts', 'tyranids', tr('Hormagaunts|group'), formation(at, 10, () => 'hormagaunt', 8.6, 19, 1.6)),
+  unit('warriors', 'tyranidWarriors', 'tyranids', tr('Tyranid Warriors'), [
     ['tyranidPrime', at(5.5, 15)],
     ['tyranidWarriorVenom', at(5.5, 12.8)],
     ['tyranidWarriorStrangler', at(5.5, 17.2)],
@@ -156,14 +157,14 @@ const tyranidsPatrol: Roster = (at) => [
 
 /** Necrons: 1 Overlord, 10 Necron Warriors, 3 Skorpekh Destroyers, 3 Canoptek Scarab Swarms. */
 const necronsPatrol: Roster = (at) => [
-  unit('overlord', 'overlord', 'necrons', 'Оверлорд', [['overlord', at(3, 15)]]),
-  unit('nwar', 'necronWarriors', 'necrons', 'Воины некронов', formation(at, 10, () => 'necronWarrior', 8.6, 3.5, 1.7, 1.5)),
-  unit('skorp', 'skorpekhDestroyers', 'necrons', 'Скорпекх-разрушители', [
+  unit('overlord', 'overlord', 'necrons', tr('Overlord'), [['overlord', at(3, 15)]]),
+  unit('nwar', 'necronWarriors', 'necrons', tr('Necron Warriors|group'), formation(at, 10, () => 'necronWarrior', 8.6, 3.5, 1.7, 1.5)),
+  unit('skorp', 'skorpekhDestroyers', 'necrons', tr('Skorpekh Destroyers|group'), [
     ['skorpekh', at(5.5, 12.8)],
     ['skorpekh', at(5.5, 15.2)],
     ['skorpekh', at(5.5, 17.6)],
   ]),
-  unit('scarabs', 'scarabSwarms', 'necrons', 'Рои скарабеев', [
+  unit('scarabs', 'scarabSwarms', 'necrons', tr('Scarab Swarms'), [
     ['scarab', at(7.5, 21)],
     ['scarab', at(7.5, 22.8)],
     ['scarab', at(7.5, 24.6)],
@@ -172,19 +173,19 @@ const necronsPatrol: Roster = (at) => [
 
 /** Aeldari: 1 Farseer, 10 Guardian Defenders (+ the datasheet's Heavy Weapon Platform), 5 Dire Avengers, 3 Windriders. */
 const aeldariPatrol: Roster = (at) => [
-  unit('farseer', 'farseer', 'aeldari', 'Фарсир', [['farseer', at(2.5, 15)]]),
-  unit('guardians', 'guardianDefenders', 'aeldari', 'Стражи-защитники', [
+  unit('farseer', 'farseer', 'aeldari', tr('Farseer'), [['farseer', at(2.5, 15)]]),
+  unit('guardians', 'guardianDefenders', 'aeldari', tr('Guardian Defenders|group'), [
     ...formation(at, 10, () => 'guardian', 8.6, 3.5, 1.5),
     ['heavyPlatform', at(5.6, 6.5)],
   ]),
-  unit('avengers', 'direAvengers', 'aeldari', 'Грозные мстители', [
+  unit('avengers', 'direAvengers', 'aeldari', tr('Dire Avengers|group'), [
     ['exarch', at(6, 12.5)],
     ['direAvenger', at(6, 14)],
     ['direAvenger', at(6, 15.5)],
     ['direAvenger', at(6, 17)],
     ['direAvenger', at(6, 18.5)],
   ]),
-  unit('riders', 'windriders', 'aeldari', 'Райдеры ветра', [
+  unit('riders', 'windriders', 'aeldari', tr('Windriders|group'), [
     ['windrider', at(8.5, 21)],
     ['windriderLaser', at(8.5, 23)],
     ['windriderCannon', at(8.5, 25)],
@@ -197,28 +198,28 @@ const aeldariPatrol: Roster = (at) => [
  * The Tech-Priests stand within 3″ of the Rangers / Vanguard they escort.
  */
 const mechanicusPatrol: Roster = (at) => [
-  unit('dominus', 'techDominus', 'adeptus_mechanicus', 'Техножрец-Доминус', [['techDominus', at(5.2, 8)]]),
-  unit('manipulus', 'techManipulus', 'adeptus_mechanicus', 'Техножрец-Манипулус', [['techManipulus', at(5.2, 22.5)]]),
-  unit('rangers', 'rangers', 'adeptus_mechanicus', 'Скитарии-рейнджеры', formation(at, 10, (i) => (i === 0 ? 'rangerAlpha' : i === 3 ? 'rangerArc' : i === 6 ? 'rangerCaliver' : i === 8 ? 'rangerOmnispex' : 'ranger'), 8.6, 3.5, 1.4, 1.2)),
-  unit('vanguard', 'vanguard', 'adeptus_mechanicus', 'Скитарии-авангард', formation(at, 10, (i) => (i === 0 ? 'vanguardAlpha' : i === 3 ? 'vanguardArc' : i === 6 ? 'vanguardCaliver' : 'vanguard'), 8.6, 19.5, 1.4, 1.2)),
-  unit('breachers', 'breachers', 'adeptus_mechanicus', 'Катафроны-пробойщики', [
+  unit('dominus', 'techDominus', 'adeptus_mechanicus', tr('Tech-Priest Dominus'), [['techDominus', at(5.2, 8)]]),
+  unit('manipulus', 'techManipulus', 'adeptus_mechanicus', tr('Tech-Priest Manipulus'), [['techManipulus', at(5.2, 22.5)]]),
+  unit('rangers', 'rangers', 'adeptus_mechanicus', tr('Skitarii Rangers|group'), formation(at, 10, (i) => (i === 0 ? 'rangerAlpha' : i === 3 ? 'rangerArc' : i === 6 ? 'rangerCaliver' : i === 8 ? 'rangerOmnispex' : 'ranger'), 8.6, 3.5, 1.4, 1.2)),
+  unit('vanguard', 'vanguard', 'adeptus_mechanicus', tr('Skitarii Vanguard|group'), formation(at, 10, (i) => (i === 0 ? 'vanguardAlpha' : i === 3 ? 'vanguardArc' : i === 6 ? 'vanguardCaliver' : 'vanguard'), 8.6, 19.5, 1.4, 1.2)),
+  unit('breachers', 'breachers', 'adeptus_mechanicus', tr('Kataphron Breachers|group'), [
     ['breacher', at(5.5, 11.5)],
     ['breacherTorsion', at(5.5, 14.1)],
     ['breacherHydraulic', at(5.5, 16.7)],
   ]),
-  unit('destroyers', 'destroyers', 'adeptus_mechanicus', 'Катафроны-разрушители', [
+  unit('destroyers', 'destroyers', 'adeptus_mechanicus', tr('Kataphron Destroyers|group'), [
     ['destroyer', at(2.6, 11.5)],
     ['destroyer', at(2.6, 14.1)],
     ['destroyerCulverin', at(2.6, 16.7)],
   ]),
-  unit('sicarians', 'sicarians', 'adeptus_mechanicus', 'Сикарии-диверсанты', [
+  unit('sicarians', 'sicarians', 'adeptus_mechanicus', tr('Sicarian Infiltrators|group'), [
     ['sicarianPrinceps', at(3.2, 20.5)],
     ['sicarian', at(3.2, 22.3)],
     ['sicarianTaser', at(3.2, 24.1)],
     ['sicarian', at(3.2, 25.9)],
     ['sicarianTaser', at(3.2, 27.7)],
   ]),
-  unit('kastelans', 'kastelans', 'adeptus_mechanicus', 'Роботы Кастелан', [
+  unit('kastelans', 'kastelans', 'adeptus_mechanicus', tr('Kastelan Robots|group'), [
     ['kastelanGun', at(8.4, 12.2)],
     ['kastelan', at(8.4, 15)],
     ['kastelanGun', at(8.4, 17.8)],
@@ -245,25 +246,25 @@ function makeState(id: string, terrain: Terrain[], objectives: Vec[], sides: [Pl
 }
 
 function assertSides(factions: PlayerId[], sides: [PlayerId, PlayerId]) {
-  if (sides[0] === sides[1]) throw new Error('Стороны должны быть разными фракциями.')
-  for (const f of sides) if (!factions.includes(f)) throw new Error(`В этом сценарии нет армии «${f}».`)
+  if (sides[0] === sides[1]) throw new Error(tr('The sides must be different factions.'))
+  for (const f of sides) if (!factions.includes(f)) throw new Error(tr('This scenario has no “{f}” army.', { f }))
 }
 
 const ruin = (id: string, name: string, poly: Vec[]): Terrain => ({ id, name, kind: 'ruin', poly, obscuring: true })
-const crater = (id: string, poly: Vec[]): Terrain => ({ id, name: 'Воронка', kind: 'crater', poly, obscuring: false })
-const woods = (id: string, poly: Vec[]): Terrain => ({ id, name: 'Лес', kind: 'woods', poly, obscuring: true })
-const barricade = (id: string, poly: Vec[]): Terrain => ({ id, name: 'Баррикада', kind: 'barricade', poly, obscuring: true })
-const container = (id: string, poly: Vec[]): Terrain => ({ id, name: 'Контейнер', kind: 'container', poly, obscuring: true })
+const crater = (id: string, poly: Vec[]): Terrain => ({ id, name: tr('Crater'), kind: 'crater', poly, obscuring: false })
+const woods = (id: string, poly: Vec[]): Terrain => ({ id, name: tr('Woods'), kind: 'woods', poly, obscuring: true })
+const barricade = (id: string, poly: Vec[]): Terrain => ({ id, name: tr('Barricade'), kind: 'barricade', poly, obscuring: true })
+const container = (id: string, poly: Vec[]): Terrain => ({ id, name: tr('Container'), kind: 'container', poly, obscuring: true })
 
 const VICTORY =
-  'Учебное (неофициальное) правило: 5 раундов. С 2-го раунда в своей фазе командования игрок получает 5 ПО за каждую контролируемую цель. Побеждает тот, у кого больше ПО после 5-го раунда, или тот, кто уничтожил всю армию противника.'
+  tr('Training (unofficial) rule: 5 rounds. From round 2, in their Command phase a player gets 5 VP for each controlled objective. The winner is whoever has more VP after round 5, or whoever destroyed the whole enemy army.')
 
 export const SCENARIOS: Scenario[] = [
   {
     id: 'training-outpost',
-    name: 'Учебная стычка у аванпоста',
+    name: tr('Training skirmish at the outpost'),
     description:
-      'Поле 30″×22″ (как коврик Introductory Set). Космодесант развёртывается у левого края, Орки — у правого. Три маркера целей, хижины-руины блокируют обзор, воронки дают укрытие. Открытое поле — преимущество у стрелков.',
+      tr('A 30″×22″ field (like the Introductory Set mat). The Space Marines deploy at the left edge, the Orks at the right. Three objective markers, hut-ruins block line of sight, craters give cover. The open field favours shooters.'),
     victory: VICTORY,
     deployment: { west: rect(0, 0, 6, 22), east: rect(24, 0, 6, 22) },
     factions: ['marines', 'orks'],
@@ -271,11 +272,11 @@ export const SCENARIOS: Scenario[] = [
       makeState(
         'training-outpost',
         [
-          ruin('t1', 'Хижина-руина', rect(11, 3.5, 4, 3)),
-          ruin('t2', 'Хижина-руина', rect(15, 15.5, 4, 3)),
+          ruin('t1', tr('Hut ruin'), rect(11, 3.5, 4, 3)),
+          ruin('t2', tr('Hut ruin'), rect(15, 15.5, 4, 3)),
           crater('t3', rect(5.5, 12, 3, 3)),
           crater('t4', rect(21.5, 7, 3, 3)),
-          ruin('t5', 'Обломки стены', rect(14, 9.5, 2, 0.8)),
+          ruin('t5', tr('Wall debris'), rect(14, 9.5, 2, 0.8)),
         ],
         [{ x: 15, y: 11 }, { x: 8, y: 6 }, { x: 22, y: 16 }],
         sides,
@@ -283,9 +284,9 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     id: 'ruined-alley',
-    name: 'Переулок в руинах',
+    name: tr('Alley in the ruins'),
     description:
-      'То же поле, но центр плотно застроен: руины перекрывают линии огня, и Оркам проще подойти вплотную. Зоны развёртывания ближе (9″ от краёв).',
+      tr('The same field, but the centre is densely built up: ruins block lines of fire, and it is easier for the Orks to close in. Deployment zones are closer (9″ from the edges).'),
     victory: VICTORY,
     deployment: { west: rect(0, 0, 9, 22), east: rect(21, 0, 9, 22) },
     factions: ['marines', 'orks'],
@@ -293,11 +294,11 @@ export const SCENARIOS: Scenario[] = [
       makeState(
         'ruined-alley',
         [
-          ruin('t1', 'Руины', rect(10, 2, 2.5, 6)),
-          ruin('t2', 'Руины', rect(10, 14, 2.5, 6)),
-          ruin('t3', 'Руины', rect(17.5, 2, 2.5, 6)),
-          ruin('t4', 'Руины', rect(17.5, 14, 2.5, 6)),
-          ruin('t5', 'Хижина-руина', rect(13.5, 8.5, 3, 5)),
+          ruin('t1', tr('Ruins'), rect(10, 2, 2.5, 6)),
+          ruin('t2', tr('Ruins'), rect(10, 14, 2.5, 6)),
+          ruin('t3', tr('Ruins'), rect(17.5, 2, 2.5, 6)),
+          ruin('t4', tr('Ruins'), rect(17.5, 14, 2.5, 6)),
+          ruin('t5', tr('Hut ruin'), rect(13.5, 8.5, 3, 5)),
           crater('t6', rect(6, 9.5, 2.5, 3)),
           crater('t7', rect(21.5, 9.5, 2.5, 3)),
         ],
@@ -309,9 +310,9 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     id: 'combat-patrol',
-    name: 'Боевой патруль (большая битва)',
+    name: tr('Combat Patrol (big battle)'),
     description:
-      'Поле 44″×30″ и армии крупнее; здесь доступны все шесть армий (Космодесант, Орки, Тираниды, Некроны, Аэльдари, Адептус Механикус) в любых парах — состав смотрите на экране выбора армии. Разнообразный тиррейн: руины и лес (техника не проходит), контейнеры (внутри нельзя стоять), баррикады, воронки. Игра длиннее и тактически богаче.',
+      tr('A 44″×30″ field and bigger armies; all six armies (Space Marines, Orks, Tyranids, Necrons, Aeldari, Adeptus Mechanicus) are available in any pair — see the army selection screen for the roster. Varied terrain: ruins and woods (vehicles cannot pass), containers (you cannot stand inside), barricades, craters. A longer and tactically richer game.'),
     victory: VICTORY,
     deployment: { west: rect(0, 0, 10, 30), east: rect(34, 0, 10, 30) },
     factions: ['marines', 'orks', 'tyranids', 'necrons', 'aeldari', 'adeptus_mechanicus'],
@@ -324,8 +325,8 @@ export const SCENARIOS: Scenario[] = [
         'combat-patrol',
         { width: 44, height: 30 },
         layout ?? patrolLayout(layoutId) ?? [
-          ruin('t1', 'Руины мануфактории', rect(15, 2, 5, 4)),
-          ruin('t2', 'Руины часовни', rect(24, 24, 5, 4)),
+          ruin('t1', tr('Manufactorum ruins'), rect(15, 2, 5, 4)),
+          ruin('t2', tr('Chapel ruins'), rect(24, 24, 5, 4)),
           woods('t3', rect(12, 17, 4, 5)),
           woods('t4', rect(28, 8, 4, 5)),
           container('t5', rect(20.5, 9, 3, 1.5)),
@@ -348,9 +349,9 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     id: 'strike-force',
-    name: 'Битва 44″×60″ (карты 11-й редакции)',
+    name: tr('Battle 44″×60″ (11th edition maps)'),
     description:
-      'Полноразмерное поле 11-й редакции. Карта расстановки — одна из шести карточек колоды миссий 2026-27 (зоны и пять целей: по одной «домашней» у каждого, центральная и две на флангах), укрытия — одна из трёх раскладок. Армии — свои составы; без своего состава сторона играет пресетом на 1000 очков. Позиции на картах восстановлены по картам 10-й редакции (на карточках они только на картинках).',
+      tr('A full-size 11th edition board. The deployment map is one of the six cards of the 2026-27 Mission Deck (zones and five objectives: one “home” objective for each side, a central one and two on the flanks), the cover is one of three layouts. The armies are your own rosters; a side without its own roster plays a 1000-point preset. Positions on the maps are reconstructed from the 10th edition maps (on the cards they exist only as pictures).'),
     victory: VICTORY,
     deployment: MAPS.hammerAnvil.deployment,
     factions: ['marines', 'orks', 'tyranids', 'necrons', 'aeldari', 'adeptus_mechanicus'],
@@ -386,11 +387,16 @@ export const SCENARIOS: Scenario[] = [
   },
 ]
 
-/** The 44″×60″ map and layout of a battle, for the player: «Молот и наковальня, раскладка A (Руины мануфактории)». */
-export const mapLine = (s: GameState) =>
-  s.mapId && s.mapId in MAPS
-    ? `${MAPS[s.mapId as MapId].name} (${MAPS[s.mapId as MapId].nameEn}), раскладка ${s.layoutId} — ${LAYOUT_NAME[s.layoutId as LayoutId]}`
-    : s.scenarioId === 'combat-patrol' && s.layoutId ? `Раскладка ${s.layoutId} — ${PATROL_LAYOUT_NAME[s.layoutId as LayoutId]}` : null
+/** The 44″×60″ map and layout of a battle, for the player: “Hammer and Anvil, layout A (Manufactorum ruins)”. */
+export const mapLine = (s: GameState) => {
+  if (s.mapId && s.mapId in MAPS) {
+    const map = MAPS[s.mapId as MapId]
+    const p = { name: map.name, nameEn: map.nameEn, id: s.layoutId, layout: LAYOUT_NAME[s.layoutId as LayoutId] }
+    // English shows only the official name
+    return map.name === map.nameEn ? tr('{name}, layout {id} — {layout}', p) : tr('{name} ({nameEn}), layout {id} — {layout}', p)
+  }
+  return s.scenarioId === 'combat-patrol' && s.layoutId ? tr('Layout {id} — {layout}', { id: s.layoutId, layout: PATROL_LAYOUT_NAME[s.layoutId as LayoutId] }) : null
+}
 
 /** The army `faction` fields in a scenario (null if the scenario has none): what the selection screen lists. */
 export function armyOf(scenarioId: string, faction: PlayerId): UnitState[] | null {

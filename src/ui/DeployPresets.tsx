@@ -5,6 +5,7 @@ import { alive, other, radiusOf, sidesOf, unitsOf } from '../game/gameState'
 import { deploymentZone } from '../game/rules/deployment'
 import type { GameState, PlayerId } from '../game/types'
 import { useStore } from '../store'
+import { tr } from '../i18n/index'
 
 // Deployment presets as cards: each shows where this army would stand in that doctrine on this board,
 // against the enemy already set up, and how well the doctrine suits the army. A click sets everyone up.
@@ -94,9 +95,9 @@ export function DeployPresetCards() {
   const roles = Object.values(byId)[0]?.roles
 
   return (
-    <div aria-label="Быстрая расстановка">
-      <h3 className="mb-1 text-xs font-semibold uppercase text-stone-400">⚡ Быстрая расстановка</h3>
-      <p className="mb-1 text-[11px] text-stone-400">Выберите построение — вся армия встанет по нему. Потом любой отряд можно передвинуть.</p>
+    <div aria-label={tr('Quick deployment')}>
+      <h3 className="mb-1 text-xs font-semibold uppercase text-stone-400">{tr('⚡ Quick deployment')}</h3>
+      <p className="mb-1 text-[11px] text-stone-400">{tr('Choose a formation — the whole army will line up in it. Afterwards any unit can be moved.')}</p>
       <div className="grid grid-cols-2 gap-1.5">
         {DEPLOY_PRESETS.map((p) => {
           const res = byId[p.id] ?? null
@@ -116,14 +117,14 @@ export function DeployPresetCards() {
                 <span className="text-xs font-semibold">
                   {p.icon} {p.name}
                 </span>
-                {p.id === best && <span className="rounded bg-emerald-700 px-1 text-[10px] text-emerald-50">реком.</span>}
+                {p.id === best && <span className="rounded bg-emerald-700 px-1 text-[10px] text-emerald-50">{tr('rec.')}</span>}
               </div>
               {res ? <MiniBoard game={game} human={human} res={res} /> : <div className="aspect-[3/2] w-full animate-pulse rounded bg-slate-900" />}
               <div className="h-1 w-full rounded bg-stone-700">
                 <div className="h-1 rounded bg-emerald-400" style={{ width: `${Math.round(fit.fit * 100)}%` }} />
               </div>
               <div className="text-[10px] leading-tight text-stone-400">{fit.why}</div>
-              {res && <div className="text-[10px] leading-tight text-stone-300">Впереди: {frontLine(game, human, res)}</div>}
+              {res && <div className="text-[10px] leading-tight text-stone-300">{tr('In front: {frontLine}', { frontLine: frontLine(game, human, res) })}</div>}
             </button>
           )
         })}
@@ -138,7 +139,7 @@ export function DeployPresetCards() {
               </span>
             ))}
           <span>
-            <span style={{ color: '#78716c' }}>●</span> противник
+            <span style={{ color: '#78716c' }}>●</span> {tr('opponent')}
           </span>
         </div>
       )}

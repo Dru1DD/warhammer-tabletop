@@ -18,6 +18,7 @@ import { parseLayout } from './game/terrainLayout'
 import { FACTIONS, type Command, type ExplainLevel, type GameState, type PlayerId, type SecondaryId, type Terrain, type Vec } from './game/types'
 import type { TutorialStart } from './ui/help'
 import { actionableUnits, canActNow } from './ui/guidance'
+import { tr } from './i18n/index'
 
 export const AUTOSAVE_KEY = 'wh40k-training-autosave'
 export const MANUAL_KEY = 'wh40k-training-save'
@@ -121,7 +122,7 @@ interface Store {
   startArrival: (unitId: string | null, rapid?: boolean) => void
   /** set up the picked reserve unit as close to this point as the rules allow */
   arriveAt: (p: Vec) => void
-  /** shooting target picked on the board, waiting for «Огонь» */
+  /** shooting target picked on the board, waiting for the "Fire" button */
   aimTargetId: string | null
   /** step-by-step replay of attacks with dice id > afterId; pauses the AI while open */
   review: { afterId: number } | null
@@ -421,7 +422,7 @@ export const useStore = create<Store>((set, get) => {
       deploying: { placed },
       deployHistory: [...deployHistory, { game, placed: deploying.placed }],
       draft: {},
-      message: res.followed ? null : { text: 'Армия слишком плотная для этого построения: отряды стоят как можно теснее.', kind: 'info' },
+      message: res.followed ? null : { text: tr('The army is too dense for this formation: the units stand as close together as possible.'), kind: 'info' },
     })
   },
 
@@ -445,10 +446,10 @@ export const useStore = create<Store>((set, get) => {
 
   submit: (env, opts) => {
     const { game, settings } = get()
-    if (!game) return { ok: false, code: 'illegal', reason: 'Игра не начата.' }
-    if (get().shared?.role === 'guest') return { ok: false, code: 'unauthorized', reason: 'Команды выполняет только хозяин комнаты.' }
+    if (!game) return { ok: false, code: 'illegal', reason: tr('The game has not started.') }
+    if (get().shared?.role === 'guest') return { ok: false, code: 'unauthorized', reason: tr('Only the room host executes commands.') }
     if (get().deploying) {
-      const reason = 'Сначала завершите расстановку армии.'
+      const reason = tr('First finish placing the army.')
       set({ message: { text: reason, kind: 'error' } })
       return { ok: false, code: 'illegal', reason }
     }
@@ -469,7 +470,7 @@ export const useStore = create<Store>((set, get) => {
     const undoable = isLocallyUndoable(r.action, r.match)
     const turnChanged = next.activePlayer !== prev.state.activePlayer
     const lastId = prev.state.diceLog.at(-1)?.id ?? 0
-    const attacked = next.diceLog.some((d) => d.id > lastId && d.steps.some((x) => x.label === 'Попадание'))
+    const attacked = next.diceLog.some((d) => d.id > lastId && d.steps.some((x) => x.meta?.kind === 'hit'))
     const review = attacked && settings.explain !== 'minimal' ? { afterId: lastId } : get().review
     const selectedUnitId = autoSelect(next, prev.state, settings.human, get().selectedUnitId)
     set({
@@ -526,7 +527,7 @@ export const useStore = create<Store>((set, get) => {
     const inReserve = next.reserves?.some((u) => u.id === unitId)
     if (inReserve) {
       fromReserve(next, unitId)
-      set({ game: next, deploying: { placed: deploying.placed.filter((id) => id !== unitId) }, deployHistory: [...deployHistory, { game, placed: deploying.placed }], selectedUnitId: unitId, message: { text: 'Отряд вернулся на поле — расставьте его.', kind: 'info' } })
+      set({ game: next, deploying: { placed: deploying.placed.filter((id) => id !== unitId) }, deployHistory: [...deployHistory, { game, placed: deploying.placed }], selectedUnitId: unitId, message: { text: tr('The unit is back on the field — place it.'), kind: 'info' } })
       return
     }
     const u = next.units.find((x) => x.id === unitId)
@@ -535,10 +536,10 @@ export const useStore = create<Store>((set, get) => {
     if (why) return set({ message: { text: why, kind: 'error' } })
     toReserve(next, unitId)
     const nextUnit = next.units.find((x) => x.owner === settings.human && !deploying.placed.includes(x.id))?.id ?? next.units.find((x) => x.owner === settings.human)?.id ?? null
-    set({ game: next, deploying: { placed: deploying.placed.filter((id) => id !== unitId) }, deployHistory: [...deployHistory, { game, placed: deploying.placed }], draft: {}, selectedUnitId: nextUnit, message: { text: `«${u.name}» — в стратегическом резерве: выйдет на поле со 2-го раунда.`, kind: 'info' } })
+    set({ game: next, deploying: { placed: deploying.placed.filter((id) => id !== unitId) }, deployHistory: [...deployHistory, { game, placed: deploying.placed }], draft: {}, selectedUnitId: nextUnit, message: { text: tr('“{name}” is in Strategic Reserves: it arrives on the battlefield from round 2.', { name: u.name }), kind: 'info' } })
   },
 
-  startArrival: (unitId, rapid = false) => set({ arriving: unitId ? { unitId, rapid } : null, measuring: false, message: unitId ? { text: rapid ? 'Щёлкните по полю, куда поставить отряд: «Быстрый выход» ставит его у края (в 6″), дальше 8″ от врагов.' : 'Щёлкните по полю, куда поставить отряд: у края (в 6″) или, с глубоким ударом, где угодно — дальше 8″ от врагов.', kind: 'info' } : null }),
+  startArrival: (unitId, rapid = false) => set({ arriving: unitId ? { unitId, rapid } : null, measuring: false, message: unitId ? { text: rapid ? tr('Click the board where to set up the unit: Rapid Ingress places it at the edge (within 6″), more than 8″ from enemies.') : tr('Click the board where to set up the unit: at the edge (within 6″) or, with Deep Strike, anywhere — more than 8″ from enemies.'), kind: 'info' } : null }),
 
   arriveAt: (p) => {
     const { game, arriving } = get()
@@ -546,7 +547,7 @@ export const useStore = create<Store>((set, get) => {
     const u = game.reserves?.find((x) => x.id === arriving.unitId)
     if (!u) return set({ arriving: null })
     const positions = arrivalSpot(game, u, p, arriving.rapid)
-    if (!positions) return set({ message: { text: 'Рядом с этой точкой отряд поставить нельзя: нужно у края поля (в 6″) и дальше 8″ от врагов.', kind: 'error' } })
+    if (!positions) return set({ message: { text: tr('The unit cannot be set up near this point: it must be at the board edge (within 6″) and more than 8″ from enemies.'), kind: 'error' } })
     set({ arriving: null, message: null })
     get().dispatch({ type: 'arrive', unitId: u.id, positions, rapid: arriving.rapid || undefined })
   },
@@ -603,7 +604,7 @@ export const useStore = create<Store>((set, get) => {
     if (!game || !deploying) return
     const next = { ...game, terrain }
     const ok = saveLayout(game.scenarioId, terrain)
-    set({ game: next, deployHistory: [...deployHistory, { game, placed: deploying.placed }], message: ok ? null : { text: 'Не удалось запомнить раскладку: хранилище недоступно.', kind: 'error' } })
+    set({ game: next, deployHistory: [...deployHistory, { game, placed: deploying.placed }], message: ok ? null : { text: tr('Could not remember the layout: storage is unavailable.'), kind: 'error' } })
   },
   resetTerrain: () => {
     const g = get().game
@@ -632,7 +633,7 @@ export const useStore = create<Store>((set, get) => {
       if (!dh.length) return
       const prev = dh[dh.length - 1]
       if (prev.game.terrain !== get().game?.terrain) saveLayout(prev.game.scenarioId, prev.game.terrain)
-      set({ game: prev.game, deploying: { placed: prev.placed }, deployHistory: dh.slice(0, -1), draft: {}, message: { text: 'Расстановка отменена.', kind: 'info' } })
+      set({ game: prev.game, deploying: { placed: prev.placed }, deployHistory: dh.slice(0, -1), draft: {}, message: { text: tr('Placement cancelled.'), kind: 'info' } })
       return
     }
     const h = get().history
@@ -640,10 +641,10 @@ export const useStore = create<Store>((set, get) => {
     const prev = h[h.length - 1]
     const cur = get().match
     if (cur && !undoTo(cur, prev)) {
-      set({ message: { text: 'В общей партии принятые действия не отменяются.', kind: 'error' } })
+      set({ message: { text: tr('Accepted actions cannot be undone in a shared game.'), kind: 'error' } })
       return
     }
-    set({ game: prev.state, match: prev, history: h.slice(0, -1), draft: {}, message: { text: 'Действие отменено.', kind: 'info' } })
+    set({ game: prev.state, match: prev, history: h.slice(0, -1), draft: {}, message: { text: tr('Action undone.'), kind: 'info' } })
     saveMatch(AUTOSAVE_KEY, prev, get().settings.human)
   },
 
@@ -651,21 +652,21 @@ export const useStore = create<Store>((set, get) => {
     const g = get().game
     if (!g) return
     if (get().deploying) {
-      set({ message: { text: 'Сохранение доступно после начала битвы.', kind: 'error' } })
+      set({ message: { text: tr('Saving is available after the battle starts.'), kind: 'error' } })
       return
     }
     const shared = get().shared
     if (shared) {
-      set({ message: shared.role === 'host' ? { text: 'Онлайн-партия сохраняется автоматически после каждого действия.', kind: 'info' } : { text: 'Партию сохраняет хозяин комнаты.', kind: 'info' } })
+      set({ message: shared.role === 'host' ? { text: tr('An online game is saved automatically after every action.'), kind: 'info' } : { text: tr('The game is saved by the room host.'), kind: 'info' } })
       return
     }
     const ok = saveMatch(MANUAL_KEY, matchOf(g, get().match, get().settings.human), get().settings.human)
-    set({ message: ok ? { text: 'Игра сохранена.', kind: 'info' } : { text: 'Не удалось сохранить (хранилище недоступно).', kind: 'error' } })
+    set({ message: ok ? { text: tr('Game saved.'), kind: 'info' } : { text: tr('Could not save (storage is unavailable).'), kind: 'error' } })
   },
 
   load: (key = MANUAL_KEY) => {
     if (get().shared) {
-      set({ message: { text: 'В онлайн-партии загрузка недоступна.', kind: 'error' } })
+      set({ message: { text: tr('Loading is unavailable in an online game.'), kind: 'error' } })
       return false
     }
     const r = deserialize(readStorage(key))
@@ -676,7 +677,7 @@ export const useStore = create<Store>((set, get) => {
     const s = r.file.state
     const human = r.file.human && sidesOf(s).includes(r.file.human) ? r.file.human : get().settings.human
     const settings = sidesOf(s).includes(human) ? { ...get().settings, human, opponent: other(s, human) } : { ...get().settings, human: sidesOf(s)[0], opponent: sidesOf(s)[1] }
-    set({ game: s, match: { ...r.file.match, state: s }, settings, selectedUnitId: autoSelect(s, null, settings.human, null), draft: {}, history: [], deploying: null, deployHistory: [], review: null, aimTargetId: null, aiActionsThisTurn: 0, message: { text: 'Игра загружена.', kind: 'info' } })
+    set({ game: s, match: { ...r.file.match, state: s }, settings, selectedUnitId: autoSelect(s, null, settings.human, null), draft: {}, history: [], deploying: null, deployHistory: [], review: null, aimTargetId: null, aiActionsThisTurn: 0, message: { text: tr('Game loaded.'), kind: 'info' } })
     return true
   },
 
@@ -713,7 +714,7 @@ export const useStore = create<Store>((set, get) => {
     if (dataUrl) next[profileId] = dataUrl
     else delete next[profileId]
     const ok = saveToStorage(TOKENS_KEY, JSON.stringify(next))
-    set({ customTokens: next, message: ok ? null : { text: 'Не удалось сохранить фото: хранилище браузера заполнено.', kind: 'error' } })
+    set({ customTokens: next, message: ok ? null : { text: tr('Could not save the photo: the browser storage is full.'), kind: 'error' } })
     return ok
   },
 }

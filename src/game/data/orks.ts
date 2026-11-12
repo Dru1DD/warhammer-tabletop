@@ -1,4 +1,5 @@
 import type { Datasheet, ModelProfile, Weapon } from '../types'
+import { tr } from '../../i18n/index'
 
 // Orks beyond the Introductory Set, 11th-edition datasheets as transcribed by Wahapedia (Orks app v1.2,
 // checked 2026-11-10): Warboss, Nobz, Gretchin, Kommandos. Default loadouts only (wargear options are not
@@ -10,30 +11,30 @@ const nonMV = 'nonMV' as const
 export const ORK_WEAPONS: Record<string, Weapon> = {
   kustomShoota: {
     id: 'kustomShoota',
-    name: 'Кастом-шута (Kustom Shoota)',
+    name: tr('Kustom Shoota'),
     profiles: [{ name: '', range: 18, attacks: 4, skill: 5, s: 4, ap: 0, d: 1, keywords: { lethalHits: nonMV, rapidFire: 2 } }],
   },
   // ---- Warboss
   bossKustomChoppa: {
     id: 'bossKustomChoppa',
-    name: 'Кастом-тесак босса (Kustom Choppa)',
+    name: tr('Boss’s Kustom Choppa'),
     profiles: [{ name: '', range: 'melee', attacks: 6, skill: 2, s: 7, ap: -2, d: 2, keywords: { cleave: 2 } }],
   },
   // ---- Nobz
   kustomKrumpa: {
     id: 'kustomKrumpa',
-    name: 'Кастом-крумпа (Kustom Krumpa)',
+    name: tr('Kustom Krumpa'),
     profiles: [{ name: '', range: 'melee', attacks: 3, skill: 3, s: 10, ap: -2, d: 2, keywords: {} }],
   },
   // ---- Gretchin
   grotBlasta: {
     id: 'grotBlasta',
-    name: 'Грот-бласта (Grot Blasta)',
+    name: tr('Grot Blasta'),
     profiles: [{ name: '', range: 12, attacks: 1, skill: 4, s: 3, ap: 0, d: 1, keywords: { closeQuarters: true } }],
   },
   scavengedShivs: {
     id: 'scavengedShivs',
-    name: 'Трофейные заточки (Scavenged Shivs)',
+    name: tr('Scavenged Shivs'),
     profiles: [{ name: '', range: 'melee', attacks: 1, skill: 5, s: 2, ap: 0, d: 1, keywords: {} }],
   },
   // Kommandos use the core Slugga and Choppa (same profiles as the Boyz').
@@ -41,62 +42,62 @@ export const ORK_WEAPONS: Record<string, Weapon> = {
 
 export const ORK_PROFILES: Record<string, ModelProfile> = {
   warboss: {
-    id: 'warboss', name: 'Варбосс', m: 6, t: 6, sv: 4, w: 6, ld: 6, oc: 1, invuln: 5, baseMm: 50, character: true,
+    id: 'warboss', name: tr('Warboss'), m: 6, t: 6, sv: 4, w: 6, ld: 6, oc: 1, invuln: 5, baseMm: 50, character: true,
     weapons: ['kustomShoota', 'bossKustomChoppa'],
   },
   nobzNob: {
-    id: 'nobzNob', name: 'Ноб с крумпой', m: 6, t: 5, sv: 4, w: 3, ld: 7, oc: 1, baseMm: 40,
+    id: 'nobzNob', name: tr('Nob with krumpa'), m: 6, t: 5, sv: 4, w: 3, ld: 7, oc: 1, baseMm: 40,
     weapons: ['kustomShoota', 'kustomKrumpa'],
   },
   gretchin: {
-    id: 'gretchin', name: 'Гретчин', m: 6, t: 2, sv: 6, w: 1, ld: 8, oc: 1, baseMm: 25,
+    id: 'gretchin', name: tr('Gretchin|unit'), m: 6, t: 2, sv: 6, w: 1, ld: 8, oc: 1, baseMm: 25,
     weapons: ['grotBlasta', 'scavengedShivs'],
   },
   kommandoNob: {
-    id: 'kommandoNob', name: 'Ноб коммандос', m: 6, t: 5, sv: 5, w: 3, ld: 7, oc: 1, baseMm: 32,
+    id: 'kommandoNob', name: tr('Kommando Nob'), m: 6, t: 5, sv: 5, w: 3, ld: 7, oc: 1, baseMm: 32,
     weapons: ['slugga', 'choppa'],
   },
   kommando: {
-    id: 'kommando', name: 'Коммандо', m: 6, t: 5, sv: 5, w: 1, ld: 7, oc: 1, baseMm: 32,
+    id: 'kommando', name: tr('Kommando'), m: 6, t: 5, sv: 5, w: 1, ld: 7, oc: 1, baseMm: 32,
     weapons: ['slugga', 'choppa'],
   },
 }
 
 export const ORK_DATASHEETS: Record<string, Datasheet> = {
   warboss: {
-    id: 'warboss', name: 'Варбосс (Warboss)', faction: 'orks',
+    id: 'warboss', name: tr('Warboss|army'), faction: 'orks',
     keywords: ['INFANTRY', 'CHARACTER', 'EXPLOSIVES', 'WARBOSS', 'ORKS'],
     abilities: ['ammoRunts', 'mightIsRight', 'intimidatingMotivation', 'waaagh'],
-    description: 'Главарь армии: T6, W6, 5+ непробиваемый спас; после атаки (charge) его тесак бьёт ещё сильнее.',
+    description: tr('Army leader: T6, W6, 5+ invulnerable save; after a charge his choppa hits even harder.'),
   },
   nobz: {
-    id: 'nobz', name: 'Нобы (Nobz)', faction: 'orks',
+    id: 'nobz', name: tr('Nobz'), faction: 'orks',
     keywords: ['INFANTRY', 'EXPLOSIVES', 'ORKS'],
     abilities: ['ammoRunts', 'getOutDaWay', 'waaagh'],
-    description: 'Самые здоровые орки: 4+ спас и W3, крумпы S10 ломают технику и тяжёлую пехоту.',
+    description: tr('The biggest Orks: 4+ save and W3, S10 krumpas break vehicles and heavy infantry.'),
   },
   gretchin: {
-    id: 'gretchin', name: 'Гретчины (Gretchin)', faction: 'orks',
+    id: 'gretchin', name: tr('Gretchin'), faction: 'orks',
     keywords: ['INFANTRY', 'GROTS', 'ORKS'],
     abilities: ['thievinScavengers', 'waaagh'],
-    description: 'Дешёвые и хрупкие: занимают цели и закрепляют их за армией, пока орки дерутся.',
+    description: tr('Cheap and fragile: they take objectives and hold them for the army while the Orks fight.'),
   },
   kommandos: {
-    id: 'kommandos', name: 'Коммандос (Kommandos)', faction: 'orks',
+    id: 'kommandos', name: tr('Kommandos'), faction: 'orks',
     keywords: ['INFANTRY', 'EXPLOSIVES', 'SMOKE', 'ORKS'],
     abilities: ['infiltrators', 'stealth', 'bombSquig', 'waaagh'],
-    description: 'Диверсанты: ставятся вне зоны развёртывания, по ним всегда укрытие; раз за битву взрывают врага бомбосквигом.',
+    description: tr('Saboteurs: set up outside the deployment zone, always have cover against ranged attacks; once per battle blow up the enemy with a bomb squig.'),
   },
 }
 
 export const ORK_ABILITY_TEXT: Record<string, string> = {
-  mightIsRight: 'Кто сильнее, тот и прав (Might Is Right): если отряд совершил атаку (charge) в этот ход, его рукопашные атаки получают +3 к атакам и +2 к Силе.',
+  mightIsRight: tr('Might Is Right: if the unit charged this turn, its melee attacks get +3 Attacks and +2 Strength.'),
   intimidatingMotivation:
-    'Устрашающая мотивация (Intimidating Motivation): раз за раунд в фазе движения выберите союзный отряд Орков в 6″ — он перестаёт быть в боевом шоке и «разъяряется». [Не реализовано: «разъярение» в игре общее для армии (Waaagh!), отдельного для отряда нет.]',
+    tr('Intimidating Motivation: once per round in the Movement phase pick a friendly Ork unit within 6″ — it is no longer Battle-shocked and becomes “enraged”. [Not implemented: “enraged” is army-wide in the game (Waaagh!), there is no per-unit version.]'),
   getOutDaWay:
-    'С дороги! (Get Out da Way!): при перемещении атаки отряд может проходить сквозь модели, кроме MONSTER и VEHICLE. [Не реализовано: атака строится в обход чужих подставок.]',
+    tr('Get Out da Way!: during a charge move the unit can pass through models, except MONSTER and VEHICLE. [Not implemented: the charge is built around other models’ bases.]'),
   thievinScavengers:
-    'Вороватые падальщики (Thievin’ Scavengers): в конце вашей фазы движения, если отряд рядом с целью, которую вы контролируете, цель закрепляется за вами, пока уровень контроля врага не станет выше вашего.',
+    tr('Thievin’ Scavengers: at the end of your Movement phase, if the unit is near an objective you control, it stays yours until the enemy’s control level becomes higher than yours.'),
   bombSquig:
-    'Бомбосквиг (Bomb Squig): раз за битву, после обычного движения отряда, выберите видимый вражеский отряд в 12″ и бросьте D6: на 3+ он получает D3 смертельные раны. [Found ’Em!, Nowhere to Hide и деление отряда надвое (Taktikal Know-wotz) не реализованы: в игре нет правил обнаружения.]',
+    tr('Bomb Squig: once per battle, after the unit’s normal move, pick a visible enemy unit within 12″ and roll a D6: on a 3+ it takes D3 mortal wounds. [Found ’Em!, Nowhere to Hide and splitting the unit in two (Taktikal Know-wotz) are not implemented: the game has no detection rules.]'),
 }

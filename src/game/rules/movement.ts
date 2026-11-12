@@ -3,6 +3,7 @@ import {
   alive, checkCoherency, enemiesOf, ENGAGEMENT_RANGE, fmt, isInfantry, isMV, modelDistance, profileOf, radiusOf, TERRAIN_CATEGORY,
 } from '../gameState'
 import type { GameState, ModelState, Terrain, UnitState, Vec } from '../types'
+import { tr } from '../../i18n/index'
 
 export type MoveMode = 'normal' | 'advance' | 'fallBack' | 'charge' | 'pileIn' | 'consolidate'
 
@@ -48,9 +49,9 @@ export function terrainBlock(s: GameState, unit: UnitState, r: number, from: Vec
   for (const t of s.terrain) {
     if (clearOf(t, r, from, to)) continue
     const cat = TERRAIN_CATEGORY[t.kind] ?? { category: 'exposed' }
-    if (cat.solid && circlePolygonDistance(to, r, t.poly) === 0) return `нельзя заканчивать движение внутри «${t.name}» (сплошной тиррейн).`
+    if (cat.solid && circlePolygonDistance(to, r, t.poly) === 0) return tr('you cannot end a move inside “{name}” (solid terrain).', { name: t.name })
     if (cat.category === 'dense' && !infantry && !fly && sweptCircleHitsPolygon(from, to, r, t.poly))
-      return `«${t.name}» — плотный тиррейн: сквозь него проходит только пехота. Обойдите его.`
+      return tr('“{name}” is dense terrain: only infantry pass through it. Go around.', { name: t.name })
   }
   return null
 }
@@ -80,32 +81,32 @@ export function moveProblem(
     const r = radiusOf(m)
     const d = dist(m.pos, pos)
     if (d > maxDist + EPS)
-      return `${name(m)}: перемещение ${fmt(d)}" больше допустимых ${fmt(maxDist)}".`
+      return tr('{name}: the move of {fmt}" is more than the allowed {fmt2}".', { name: name(m), fmt: fmt(d), fmt2: fmt(maxDist) })
     if (pos.x - r < -EPS || pos.y - r < -EPS || pos.x + r > s.board.width + EPS || pos.y + r > s.board.height + EPS)
-      return `${name(m)}: подставка выходит за край поля.`
+      return tr('{name}: the base goes beyond the edge of the field.', { name: name(m) })
     // MONSTER/VEHICLE may move through non-M/V models in normal and advance moves (17.01)
     const overModels = isMV(unit) && (mode === 'normal' || mode === 'advance')
     const nearEnemies = nearby(enemyModels, (e) => e.m, m.pos, r, d)
     if (d > EPS) {
       for (const e of nearEnemies)
         if (!fly && !(overModels && !isMV(e.unit)) && sweptCircleHits(m.pos, pos, r, e.m.pos, radiusOf(e.m)))
-          return `${name(m)}: нельзя проходить сквозь вражеские модели.`
+          return tr('{name}: you cannot move through enemy models.', { name: name(m) })
     }
     const tb = terrainBlock(s, unit, r, m.pos, pos, false, fly)
     if (tb) return `${name(m)}: ${tb}`
     for (const o of nearby(others, (x) => x, m.pos, r, d))
-      if (basesOverlap(pos, r, o.pos, radiusOf(o))) return `${name(m)}: подставка пересекается с другой моделью.`
+      if (basesOverlap(pos, r, o.pos, radiusOf(o))) return tr('{name}: the base overlaps another model.', { name: name(m) })
     for (const f of final)
-      if (f.m !== m && basesOverlap(pos, r, f.pos, radiusOf(f.m))) return `${name(m)}: подставки моделей отряда пересекаются.`
+      if (f.m !== m && basesOverlap(pos, r, f.pos, radiusOf(f.m))) return tr('{name}: the unit’s model bases overlap.', { name: name(m) })
 
     if (mode === 'normal' || mode === 'advance' || mode === 'fallBack') {
       for (const e of nearEnemies)
         if (withinRange(modelDistance(m, e.m, pos), ENGAGEMENT_RANGE))
-          return `${name(m)}: нельзя заканчивать движение в зоне контакта (engagement range, ${ENGAGEMENT_RANGE}") с врагом.`
+          return tr('{name}: you cannot end a move in engagement range ({ENGAGEMENT_RANGE}") of the enemy.', { name: name(m), ENGAGEMENT_RANGE })
     } else {
       for (const e of nearEnemies)
         if (!allowedEngage.includes(e.unit.id) && withinRange(modelDistance(m, e.m, pos), ENGAGEMENT_RANGE))
-          return `${name(m)}: нельзя входить в контакт с отрядом, который не является целью.`
+          return tr('{name}: you cannot enter engagement range of a unit that is not the target.', { name: name(m) })
     }
   }
   return checkCoherency(final)

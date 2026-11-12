@@ -4,10 +4,10 @@ Core Rules 20 of the 11th edition (Wahapedia). Code: `src/game/rules/reserves.ts
 
 ## Before the battle
 
-On the 44″×60″ board the deployment panel has a «Стратегический резерв» block:
+On the 44″×60″ board the deployment panel has a «Strategic Reserves» block:
 
-- the selected unit goes into reserve («⏬ в резерв»);
-- a unit in reserve comes back to the board («⏫ На поле») and has to be set up again.
+- the selected unit goes into reserve («⏬ to Reserves»);
+- a unit in reserve comes back to the board («⏫ To the field») and has to be set up again.
 
 **Limit.** At most half of the army's points (`reserveBudget`). At least one unit must start on the board.
 
@@ -26,15 +26,15 @@ Reserve units live in `GameState.reserves`, off the board. The rest of the engin
 - **Deep Strike.** Anywhere on the board more than 8″ from the enemy, the enemy zone included. Units with Deep Strike: Swooping Hawks and the Winged Tyranid Prime.
 - **After arriving.** The unit counts as having made a Normal move: no further move or Advance, and no Heavy bonus. It can shoot and charge.
 
-**In the game.** The «⏬ Резерв» card in the action panel offers:
+**In the game.** The «⏬ Reserves» card in the action panel offers:
 
-- **📍 Указать место на поле**: click on the board, and the game sets the unit up legally as close to the click as it can (`arrivalSpot`: a formation tried at up to 600 nearest points, in 8 orientations);
-- **🎯 Поставить к цели**: the nearest legal spot to the objective it does not hold that is closest to the enemy.
+- **📍 Pick a spot on the field**: click on the board, and the game sets the unit up legally as close to the click as it can (`arrivalSpot`: a formation tried at up to 600 nearest points, in 8 orientations);
+- **🎯 Set up at the objective**: the nearest legal spot to the objective it does not hold that is closest to the enemy.
 
 ## Rapid Ingress (1 CP)
 
 - **When.** At the end of the opponent's Movement phase, from round 2, once per phase. It uses the existing reaction window `beforeShooting`.
-- **Prompt.** When you have reserve units and CP, the reaction prompt shows «Быстрый выход» with two choices: to the nearest objective, or «📍 Указать место».
+- **Prompt.** When you have reserve units and CP, the reaction prompt shows «Rapid Ingress» with two choices: to the nearest objective, or «📍 Pick a spot».
 - **Placement.** The same rules as a normal arrival.
 - **AI.** The AI does not use Rapid Ingress. It brings its reserves in during its own Movement phase, from round 2.
 

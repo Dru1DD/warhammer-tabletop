@@ -1,5 +1,6 @@
 import { alive, datasheetOf, hasAbility, hasKeyword, isMV, isFlyer, profileOf, weaponsOf } from '../gameState'
 import type { RandomDie, UnitState, WeaponProfile } from '../types'
+import { tr } from '../../i18n/index'
 
 // Battlefield role of a unit, read off its datasheet: what it is good at decides where a deployment preset
 // (army/deployPresets.ts) puts it. Nothing is tagged by hand, so new datasheets get a role automatically.
@@ -7,11 +8,11 @@ import type { RandomDie, UnitState, WeaponProfile } from '../types'
 export type UnitRole = 'assault' | 'shooter' | 'screen' | 'character' | 'infiltrator'
 
 export const ROLE_NAME: Record<UnitRole, string> = {
-  assault: 'штурм',
-  shooter: 'стрелки',
-  screen: 'заслон',
-  character: 'персонаж',
-  infiltrator: 'диверсанты',
+  assault: tr('assault'),
+  shooter: tr('shooters'),
+  screen: tr('screen'),
+  character: tr('character'),
+  infiltrator: tr('saboteurs'),
 }
 
 export const ROLE_ICON: Record<UnitRole, string> = { assault: '⚔', shooter: '🎯', screen: '🪖', character: '👑', infiltrator: '🥷' }

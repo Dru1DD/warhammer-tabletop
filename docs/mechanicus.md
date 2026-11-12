@@ -1,6 +1,6 @@
-# Adeptus Mechanicus («Адептус Механикус», `adeptus_mechanicus`)
+# Adeptus Mechanicus (“Adeptus Mechanicus”, `adeptus_mechanicus`)
 
-The sixth army of the trainer. It plays on the 44″×30″ «Боевой патруль» board against any other army (15 pairings, either seating). Like the Tyranids, Necrons and Aeldari it has no army for the two small Introductory Set boards.
+The sixth army of the trainer. It plays on the 44″×30″ “Combat Patrol” board against any other army (15 pairings, either seating). Like the Tyranids, Necrons and Aeldari it has no army for the two small Introductory Set boards.
 
 ## Edition and sources
 
@@ -113,7 +113,7 @@ Each is a reusable rule keyed on a datasheet ability, not a faction special case
 | **Infiltrators** in deployment: anywhere more than 8″ from the enemy zone and enemy models | Sicarians | `deploymentProblem` |
 | **Deadly Demise 1** | Kastelans | existing |
 
-### Approximations (all labelled «[Приближение: …]» in the unit card)
+### Approximations (all labelled “[Approximation: …]” in the unit card)
 
 1. **Doctrina Imperatives timing.** The rule chooses an Imperative at the **start of each battle round** for the whole round. The engine only lets the active player decide, so the Imperative is chosen **in your own Command phase** and lasts **until your next Command phase**. For the player who goes first this is exactly one battle round; the second player gets it from their own turn through the enemy's next turn. If it is not chosen, no Imperative applies. The AI always chooses; a human has two buttons in the Command phase (the action panel and the board toolbar).
 2. **Leader approximation.** Attached units are not implemented. A Tech-Priest *leads* the **nearest friendly Skitarii or Kataphron unit within 3″** (edge to edge; ties broken by unit id), exactly one unit, recomputed every time. Only the "while leading" abilities use it: Feel No Pain 5+ (Dominus), Lethal Hits (Manipulus), the unit protected by Defend the Divine Work. Data-spike uses the Dominus's own engagement, not the led unit's.
@@ -135,18 +135,18 @@ Each is a reusable rule keyed on a datasheet ability, not a faction special case
 | Transuranic arquebus, Precision on real targets | See "Choices". |
 | Vertical movement, Hidden, reserves, stratagems | Not modelled anywhere in the engine. |
 
-Each is marked «[Не реализовано …]» in the unit card.
+Each is marked “[Not implemented …]” in the unit card.
 
 ## AI behaviour
 
-The same utility AI (`ai/ai.ts`) with faction weights, both levels (**«Новичок»** and **«Стандарт»**). Every command goes through `validate()` / `apply()`; every explanation is in Russian.
+The same utility AI (`ai/ai.ts`) with faction weights, both levels (**“Beginner”** and **“Standard”**). Every command goes through `validate()` / `apply()`; every explanation is in the interface language.
 
 - **Weights** `adeptus_mechanicus`: damageDealt 1.0, damageTaken 0.85, objective 1.1, distance 0.1, attackOpportunity 0.5, survival 1.0, positioning 0.6, **support 0.8**. Style: not aggressive, falls back from a lost melee. Efficient ranged engagements: it values expected shooting damage, cover and objectives, and avoids a charge unless the exchange favours it.
-- **Doctrina Imperative.** «Стандарт» compares the expected shooting + melee result of both Imperatives over the whole army (an army with no target within 24″ is assumed to move, so Heavy does not count) and says why. «Новичок» takes Conqueror when an enemy is within 12″ and Protector otherwise.
+- **Doctrina Imperative.** “Standard” compares the expected shooting + melee result of both Imperatives over the whole army (an army with no target within 24″ is assumed to move, so Heavy does not count) and says why. “Beginner” takes Conqueror when an enemy is within 12″ and Protector otherwise.
 - **Tech-Priests** get a goal toward the unit they could lead and a **support** bonus for staying within 3″ of it; their value (character, ×1.5) keeps them out of danger.
 - **Valuable platforms.** Kataphron Breachers, Destroyers and Kastelans have a ×1.3 loss weight (the AI protects them).
 - **Sicarians hunt** (they behave like the Skorpekh Destroyers: they move toward the enemy rather than the nearest objective).
-- **Defend the Divine Work** is used once, at the end of the Movement phase, when the Manipulus's group is engaged or the expected incoming damage is at least 60 % of its remaining wounds («Стандарт»), or when engaged («Новичок»).
+- **Defend the Divine Work** is used once, at the end of the Movement phase, when the Manipulus's group is engaged or the expected incoming damage is at least 60 % of its remaining wounds (“Standard”), or when engaged (“Beginner”).
 - Feel No Pain is included in the AI's expected damage, so enemies understand that the led unit is tougher.
 
 ## Balance
@@ -155,10 +155,10 @@ See [armies.md](armies.md#adeptus-mechanicus-balance) for the numbers. Measured 
 
 ## UI and artwork
 
-- The faction is selectable on the start screen (six cards) and as an opponent; the card shows the original **faction emblem** (a brass cog around a mechanical skull, `mechanicusEmblem()` in `tokenArt.ts`), four unit portraits and the real composition («Всего моделей: 36»).
+- The faction is selectable on the start screen (six cards) and as an opponent; the card shows the original **faction emblem** (a brass cog around a mechanical skull, `mechanicusEmblem()` in `tokenArt.ts`), four unit portraits and the real composition (“Total models: 36”).
 - **Original SVG portraits** for all 21 model profiles in `src/assets/tokenArt.ts` (blueprint style, brass lines on deep-red robes): cog-haloed Tech-Priests with servo-arms (axe / magnarail lance), hooded Skitarii with mechanical skull faces (long rifles for Rangers, short carbines and a radiation ring for Vanguard, an Alpha crest), hulking tracked Kataphron (arc rifle and claw / torsion cannon / hydraulic claw / grav-cannons / culverin and flamer), lean Sicarians (blade or taser goad), boxy Kastelans with cog chest plates. Resolution order is unchanged: photo → manifest → SVG. No Games Workshop images or traced artwork; see [assets.md](assets.md).
-- Each datasheet has a short Russian **role description** shown on the unit card (optional `Datasheet.description`, rendered for every faction that has one), the weapon table with keywords, and the ability texts, including the approximation and «не реализовано» notes.
-- A human Mechanicus player picks the Imperative with two buttons in the Command phase (action panel «Доктрины Империатива» and the board toolbar «🛡 Протектор» / «⚔ Завоеватель») and uses Defend the Divine Work from the Manipulus's action list or the toolbar. The header shows the active Imperative; the guidance line and the Command-phase help mention it.
+- Each datasheet has a short **role description** shown on the unit card (optional `Datasheet.description`, rendered for every faction that has one), the weapon table with keywords, and the ability texts, including the approximation and “not implemented” notes.
+- A human Mechanicus player picks the Imperative with two buttons in the Command phase (action panel “Doctrina Imperatives” and the board toolbar “🛡 Protector” / “⚔ Conqueror”) and uses Defend the Divine Work from the Manipulus's action list or the toolbar. The header shows the active Imperative; the guidance line and the Command-phase help mention it.
 
 ## Compatibility
 

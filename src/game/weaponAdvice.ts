@@ -1,5 +1,6 @@
 import { woundTarget } from './combat/attack'
 import type { RandomDie, Weapon, WeaponProfile } from './types'
+import { tr } from '../i18n/index'
 
 // What a weapon profile is good at, for beginners: its expected result per firing model against three reference
 // targets, turned into ratings and a short hint. Pure; uses the same dice maths as the engine (hit, wound, save, damage
@@ -20,9 +21,9 @@ export interface Reference {
 
 /** Typical targets: a cheap horde (Termagants, Gretchin), elite infantry (Intercessors), a big monster or vehicle. */
 export const REFERENCE: Record<TargetKind, Reference> = {
-  horde: { label: 'толпы пехоты', t: 3, sv: 5, w: 1, models: 10, keywords: ['INFANTRY'] },
-  elite: { label: 'бронированная пехота', t: 4, sv: 3, w: 2, models: 5, keywords: ['INFANTRY'] },
-  heavy: { label: 'техника и монстры', t: 10, sv: 2, w: 12, models: 1, keywords: ['VEHICLE', 'MONSTER'] },
+  horde: { label: tr('infantry hordes|lower'), t: 3, sv: 5, w: 1, models: 10, keywords: ['INFANTRY'] },
+  elite: { label: tr('armoured infantry|lower'), t: 4, sv: 3, w: 2, models: 5, keywords: ['INFANTRY'] },
+  heavy: { label: tr('vehicles and monsters|lower'), t: 10, sv: 2, w: 12, models: 1, keywords: ['VEHICLE', 'MONSTER'] },
 }
 
 const AVG: Record<RandomDie, number> = { D3: 2, D6: 3.5, '3D3': 6 }
@@ -60,11 +61,11 @@ export function profileVs(p: WeaponProfile, ref: Reference): number {
 
 /** A typical result per firing model against each kind of target, used to see what a weapon leans towards. */
 const TYPICAL: Record<TargetKind, number> = { horde: 0.8, elite: 0.3, heavy: 0.8 }
-/** Wounds per firing model against a big vehicle or monster: at or above it «пробивает», below it «почти бесполезно». */
+/** Wounds per firing model against a big vehicle or monster: at or above it "pierces", below it "almost useless". */
 const CRACKS_ARMOUR = 0.5
 const USELESS_VS_ARMOUR = 0.1
 
-const AGAINST: Record<TargetKind, string> = { horde: 'против толп пехоты', elite: 'против бронированной пехоты', heavy: 'против техники и монстров' }
+const AGAINST: Record<TargetKind, string> = { horde: tr('against infantry hordes'), elite: tr('against armoured infantry'), heavy: tr('against vehicles and monsters') }
 
 export interface WeaponAdvice {
   /** per firing model: models killed (horde, elite) or wounds (heavy) */
@@ -75,7 +76,7 @@ export interface WeaponAdvice {
   cracksArmour: boolean
   /** it barely scratches big vehicles and monsters */
   uselessVsArmour: boolean
-  /** short lines for the player, e.g. «👥 Лучше всего против толп пехоты», «⚠ По технике и монстрам почти бесполезно» */
+  /** short lines for the player, e.g. "👥 Best against infantry hordes", "⚠ Almost useless against vehicles and monsters" */
   lines: string[]
 }
 
@@ -96,21 +97,21 @@ export function weaponAdvice(p: WeaponProfile): WeaponAdvice {
   const uselessVsArmour = value.heavy < USELESS_VS_ARMOUR
   const lines: string[] = []
   const icon: Record<TargetKind, string> = { horde: '👥', elite: '🛡', heavy: '🔨' }
-  lines.push(`${icon[best[0]]} Лучше всего ${best.map((t) => AGAINST[t]).join(' и ')}`)
-  if (cracksArmour && !best.includes('heavy')) lines.push('🔨 Пробивает технику и монстров')
-  if (uselessVsArmour) lines.push('⚠ По технике и монстрам почти бесполезно')
-  if (p.keywords.devastatingWounds) lines.push('💥 Шестёрка на ранение проходит сквозь любую броню (Devastating Wounds)')
+  lines.push(tr('{item} Best of all {list}', { item: icon[best[0]], list: best.map((t) => AGAINST[t]).join(tr(' and ')) }))
+  if (cracksArmour && !best.includes('heavy')) lines.push(tr('🔨 Pierces vehicles and monsters'))
+  if (uselessVsArmour) lines.push(tr('⚠ Almost useless against vehicles and monsters'))
+  if (p.keywords.devastatingWounds) lines.push(tr('💥 A six to wound goes through any armour (Devastating Wounds)'))
   if (p.keywords.anti) {
     const { keyword, roll } = p.keywords.anti
-    const who: Record<string, string> = { VEHICLE: 'технику', MONSTER: 'монстров', INFANTRY: 'пехоту', PSYKER: 'псайкеров', CHARACTER: 'персонажей', FLY: 'летающих' }
-    lines.push(`🎯 Против ${keyword} ранит на ${roll}+ (Anti-${keyword})${roll <= 4 && who[keyword] ? ` — хорошо бьёт ${who[keyword]}` : ''}`)
+    const who: Record<string, string> = { VEHICLE: tr('vehicles'), MONSTER: tr('monsters|plural'), INFANTRY: tr('infantry'), PSYKER: tr('psykers'), CHARACTER: tr('characters'), FLY: tr('fliers') }
+    lines.push(tr('🎯 Against {keyword} it wounds on {roll}+ (Anti-{keyword}){value}', { keyword, roll, value: roll <= 4 && who[keyword] ? tr(' — hits {item} well', { item: who[keyword] }) : '' }))
   }
   return { value, best, cracksArmour, uselessVsArmour, lines }
 }
 
-/** How far a weapon reaches: «30″», «24″ / 12″» for two profiles, «ближний бой» for a melee weapon. */
+/** How far a weapon reaches: «30″», «24″ / 12″» for two profiles, “melee” for a melee weapon. */
 export function weaponReach(w: Weapon): string {
-  if (w.profiles.some((p) => p.range === 'melee')) return 'ближний бой'
+  if (w.profiles.some((p) => p.range === 'melee')) return tr('melee|reach')
   const ranges = [...new Set(w.profiles.map((p) => p.range as number))].sort((a, b) => b - a)
   return ranges.map((r) => `${r}″`).join(' / ')
 }

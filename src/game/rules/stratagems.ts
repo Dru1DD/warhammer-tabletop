@@ -1,6 +1,7 @@
 import { DATASHEETS } from '../data/datasheets'
 import { alive, datasheetOf, isDestroyed, unitDistance } from '../gameState'
 import type { GameState, Phase, PlayerId, ReactionWindow, StratagemId, UnitState } from '../types'
+import { locale, tr } from '../../i18n/index'
 
 // Core Stratagems of the 11th edition that a player uses in their own turn (stage 1: no reactions in the opponent's
 // turn yet). Each costs Command points (CP). A battle-shocked unit cannot be targeted by Stratagems (core rules
@@ -33,7 +34,7 @@ export interface StratagemInfo {
 export interface Requirement {
   /** alternatives: [['EXPLOSIVES'], ['GRENADES']] = EXPLOSIVES or GRENADES; [['INFANTRY', 'SKITARII']] = both */
   any: string[][]
-  /** for the player: «отряд с EXPLOSIVES или GRENADES» */
+  /** for the player: "unit with EXPLOSIVES or GRENADES" */
   label: string
 }
 
@@ -45,7 +46,7 @@ export const meetsRequirement = (u: UnitState, info: StratagemInfo) => !info.req
 export interface Availability {
   info: StratagemInfo
   available: boolean
-  /** why not, for the army screen: «нет отряда с EXPLOSIVES или GRENADES» */
+  /** why not, for the army screen: "no unit with EXPLOSIVES or GRENADES" */
   why?: string
 }
 
@@ -55,50 +56,50 @@ export function stratagemAvailability(faction: PlayerId, datasheetIds: string[],
   return Object.values(STRATAGEMS)
     .filter((info) => !info.faction || info.faction === faction)
     .map((info) => {
-      if (info.faction && noDetachment) return { info, available: false, why: 'армия без детачмента: только общие стратагемы' }
+      if (info.faction && noDetachment) return { info, available: false, why: tr('army without a detachment: only shared Stratagems') }
       const ok = !info.requires || keywords.some((k) => matchesKeywords(k, info.requires!))
-      return ok ? { info, available: true } : { info, available: false, why: `нет отряда: нужен ${info.requires!.label}` }
+      return ok ? { info, available: true } : { info, available: false, why: tr('no unit: {label} needed', { label: info.requires!.label }) }
     })
 }
 
 export const STRATAGEMS = {
   commandReroll: {
     id: 'commandReroll',
-    name: 'Командный переброс',
+    name: tr('Command Re-roll'),
     nameEn: 'Command Re-roll',
     cost: 1,
     phases: ['movement', 'charge'],
-    text: 'Перебросить только что сделанный бросок продвижения (Advance) или бросок атаки (charge, оба кубика) этого отряда. Посреди атаки — один кубик: попадание, ранение, урон, число атак или спасбросок (игра сама спросит, когда это выгодно).',
-    when: 'Когда атака сорвалась на 1–3″ или продвижение выпало слишком коротким, а от этого зависит важная цель.',
+    text: tr('Re-roll the unit’s Advance roll or charge roll (both dice) that was just made. In the middle of an attack — one die: hit, wound, damage, number of attacks or save (the game will ask when it is worth it).'),
+    when: tr('When the charge fell short by 1–3″ or the Advance came out too short, and an important objective depends on it.'),
   },
   insaneBravery: {
     id: 'insaneBravery',
-    name: 'Безумная храбрость',
+    name: tr('Insane Bravery'),
     nameEn: 'Insane Bravery',
     cost: 1,
     phases: ['command'], window: 'beforeShockTests',
-    text: 'Перед проверкой боевого шока этого отряда в вашей фазе командования: проверка автоматически пройдена (бросать не нужно). Раз за битву.',
-    when: 'Когда проверку предстоит пройти отряду на цели и шанс провала велик: в шоке его OC = 0, и он не удержит цель.',
+    text: tr('Before this unit’s Battle-shock test in your Command phase: the test is passed automatically (no roll needed). Once per battle.'),
+    when: tr('When a unit on an objective is about to take the test and the chance of failing is high: in shock its OC = 0 and it will not hold the objective.'),
   },
   explosives: {
     id: 'explosives',
-    name: 'Взрывчатка',
+    name: tr('Explosives'),
     nameEn: 'Explosives',
     cost: 1,
     phases: ['shooting'],
-    text: 'Отряд с ключевым словом EXPLOSIVES (или GRENADES) вместо стрельбы бросает 6D6 в видимого врага не дальше 8″, не в контакте: каждая 4+ — смертельная рана.',
-    when: 'Когда обычная стрельба отряда даёт меньше ~3 ран, например по бронированной цели: смертельные раны проходят сквозь любую броню.',
-    requires: { any: [['EXPLOSIVES'], ['GRENADES']], label: 'отряд с EXPLOSIVES или GRENADES' },
+    text: tr('A unit with the EXPLOSIVES (or GRENADES) keyword, instead of shooting, throws 6D6 at a visible enemy no farther than 8″, not in engagement range: each 4+ is a mortal wound.'),
+    when: tr('When the unit’s normal shooting deals fewer than ~3 wounds, for example against an armoured target: mortal wounds go through any armour.'),
+    requires: { any: [['EXPLOSIVES'], ['GRENADES']], label: tr('unit with EXPLOSIVES or GRENADES') },
   },
   crushingImpact: {
     id: 'crushingImpact',
-    name: 'Сокрушительный удар',
+    name: tr('Crushing Blow'),
     nameEn: 'Crushing Impact',
     cost: 1,
     phases: ['charge'],
-    text: 'Монстр или техника после атаки (charge) бросает столько D6, какова её Стойкость: каждая 5+ — смертельная рана врагу в контакте, каждая 1 — своему отряду (не больше 6 каждому).',
-    when: 'Почти всегда, когда ваш монстр или техника врезались во врага и есть CP: в среднем треть кубиков ранит врага.',
-    requires: { any: [['MONSTER'], ['VEHICLE']], label: 'монстр или техника (MONSTER, VEHICLE)' },
+    text: tr('A Monster or Vehicle after a charge rolls as many D6 as its Toughness: each 5+ is a mortal wound to an enemy in engagement range, each 1 — to its own unit (max 6 each).'),
+    when: tr('Almost always when your Monster or Vehicle has slammed into an enemy and you have CP: on average a third of the dice wound the enemy.'),
+    requires: { any: [['MONSTER'], ['VEHICLE']], label: tr('Monster or vehicle (MONSTER, VEHICLE)') },
   },
 } as Record<StratagemId, StratagemInfo>
 
@@ -132,72 +133,72 @@ export const DETACHMENT: Record<PlayerId, string> = {
 
 export const FACTION_STRATAGEMS: StratagemInfo[] = [
   {
-    id: 'stormOfDevastation', faction: 'marines', name: 'Опустошительный шторм', nameEn: 'Storm of Devastation', cost: 1, phases: ['shooting'], buff: 'phase',
-    text: 'Отряд, который ещё не стрелял: до конца фазы его стрелковое оружие игнорирует укрытие (Ignores Cover).',
-    when: 'Когда цель сидит в руинах или воронке: укрытие ухудшает ваш навык стрельбы на 1.',
+    id: 'stormOfDevastation', faction: 'marines', name: tr('Devastating Storm'), nameEn: 'Storm of Devastation', cost: 1, phases: ['shooting'], buff: 'phase',
+    text: tr('A unit that has not shot yet: until the end of the phase its ranged weapons ignore cover (Ignores Cover).'),
+    when: tr('When the target sits in ruins or a crater: cover makes your shooting skill 1 worse.'),
   },
   {
-    id: 'closeRangeDakka', faction: 'orks', name: 'Дакка в упор', nameEn: 'Close-Range Dakka', cost: 1, phases: ['shooting'], buff: 'phase',
-    text: 'Отряд, который ещё не стрелял: до конца фазы его стрелковое оружие получает Rapid Fire 1 (или +1 к имеющемуся) — лишняя атака на половине дальности.',
-    when: 'Когда большой отряд Бойз стоит на половине дальности своих пушек от цели.',
+    id: 'closeRangeDakka', faction: 'orks', name: tr('Close-range Dakka'), nameEn: 'Close-Range Dakka', cost: 1, phases: ['shooting'], buff: 'phase',
+    text: tr('A unit that has not shot yet: until the end of the phase its ranged weapons get Rapid Fire 1 (or +1 to what they have) — an extra attack at half range.'),
+    when: tr('When a big unit of Boyz stands at half range of its guns from the target.'),
   },
   {
-    id: 'fungusFuelInjection', faction: 'orks', name: 'Грибное топливо', nameEn: 'Fungus-Fuel Injection', cost: 1, phases: ['movement'], buff: 'phase',
-    text: 'Техника или наездники (VEHICLE, MOUNTED), ещё не двигавшиеся: +2″ к движению в этой фазе.',
-    when: 'Когда Дэфф-дреду не хватает пары дюймов до цели или до дистанции атаки.',
-    requires: { any: [['VEHICLE'], ['MOUNTED']], label: 'техника или наездники (VEHICLE, MOUNTED)' },
+    id: 'fungusFuelInjection', faction: 'orks', name: tr('Fungus Fuel'), nameEn: 'Fungus-Fuel Injection', cost: 1, phases: ['movement'], buff: 'phase',
+    text: tr('A vehicle or mounted unit (VEHICLE, MOUNTED) that has not moved yet: +2″ to movement in this phase.'),
+    when: tr('When a Deff Dread is a couple of inches short of an objective or charge range.'),
+    requires: { any: [['VEHICLE'], ['MOUNTED']], label: tr('vehicle or mounted unit (VEHICLE, MOUNTED)') },
   },
   {
-    id: 'hitEmHarder', faction: 'orks', name: 'Бей сильнее!', nameEn: "Hit 'Em Harder", cost: 1, phases: ['fight'], turn: 'either', buff: 'phase',
-    text: 'Отряд, который сейчас будет сражаться: его оружие ближнего боя получает Lethal Hits — шестёрка на попадание сразу ранит.',
-    when: 'Против крепких целей (техника, монстры, тяжёлая пехота), где обычные ранения проходят плохо.',
+    id: 'hitEmHarder', faction: 'orks', name: tr('Hit ’Em Harder!'), nameEn: "Hit 'Em Harder", cost: 1, phases: ['fight'], turn: 'either', buff: 'phase',
+    text: tr('A unit that is about to fight: its melee weapons get Lethal Hits — a 6 to hit wounds at once.'),
+    when: tr('Against tough targets (vehicles, monsters, heavy infantry) where ordinary wounds go badly.'),
   },
   {
-    id: 'adrenalSurge', faction: 'tyranids', name: 'Адреналиновый всплеск', nameEn: 'Adrenal Surge', cost: 2, phases: ['fight'], buff: 'phase',
-    text: 'В вашу фазу боя отряд, который ещё не сражался: до конца фазы попадание на 5+ считается критическим (Sustained и Lethal Hits срабатывают чаще). Здесь — один отряд за раз.',
-    when: 'Для отряда с Sustained или Lethal Hits, который сейчас ударит по важной цели.',
+    id: 'adrenalSurge', faction: 'tyranids', name: tr('Adrenal Surge'), nameEn: 'Adrenal Surge', cost: 2, phases: ['fight'], buff: 'phase',
+    text: tr('In your Fight phase a unit that has not fought yet: until the end of the phase a hit on 5+ counts as critical (Sustained and Lethal Hits trigger more often). Here — one unit at a time.'),
+    when: tr('For a unit with Sustained or Lethal Hits that is about to strike an important target.'),
   },
   {
-    id: 'suddenStorm', faction: 'necrons', name: 'Протокол внезапной бури', nameEn: 'Protocol of the Sudden Storm', cost: 1, phases: ['movement'], buff: 'turn',
-    text: 'До конца хода стрелковое оружие отряда получает Assault: после продвижения (Advance) он всё равно стреляет из всего оружия.',
-    when: 'Когда нужно быстро занять цель и при этом не терять стрельбу.',
+    id: 'suddenStorm', faction: 'necrons', name: tr('Sudden Storm Protocol'), nameEn: 'Protocol of the Sudden Storm', cost: 1, phases: ['movement'], buff: 'turn',
+    text: tr('Until the end of the turn the unit’s ranged weapons get Assault: after an Advance it still shoots with all its weapons.'),
+    when: tr('When you need to take an objective quickly without losing your shooting.'),
   },
   {
-    id: 'conqueringTyrant', faction: 'necrons', name: 'Протокол тирана-завоевателя', nameEn: 'Protocol of the Conquering Tyrant', cost: 1, phases: ['shooting'], buff: 'phase',
-    text: 'Отряд, который ещё не стрелял: по целям на половине дальности оружия — переброс единиц на попадание, а если отряд ведёт персонаж — переброс любых промахов.',
-    when: 'Когда отряд с персонажем стреляет по близкой цели.',
+    id: 'conqueringTyrant', faction: 'necrons', name: tr('Conqueror Tyrant Protocol'), nameEn: 'Protocol of the Conquering Tyrant', cost: 1, phases: ['shooting'], buff: 'phase',
+    text: tr('A unit that has not shot yet: against targets at half weapon range — re-roll hit rolls of 1, and if the unit is led by a character — re-roll any misses.'),
+    when: tr('When a unit with a character shoots at a close target.'),
   },
   {
-    id: 'hungryVoid', faction: 'necrons', name: 'Протокол голодной пустоты', nameEn: 'Protocol of the Hungry Void', cost: 1, phases: ['fight'], turn: 'either', buff: 'phase',
-    text: 'Отряд, который ещё не сражался: +1 к Силе оружия ближнего боя, а если отряд ведёт персонаж — ещё +1 к бронебойности (AP).',
-    when: 'Когда Силы не хватает, чтобы ранить цель на 3+ или 2+ (например, против Стойкости 5 и выше).',
+    id: 'hungryVoid', faction: 'necrons', name: tr('Hungry Void Protocol'), nameEn: 'Protocol of the Hungry Void', cost: 1, phases: ['fight'], turn: 'either', buff: 'phase',
+    text: tr('A unit that has not fought yet: +1 to the Strength of its melee weapons, and if the unit is led by a character — another +1 to armour penetration (AP).'),
+    when: tr('When Strength is not enough to wound the target on 3+ or 2+ (for example against Toughness 5 and higher).'),
   },
   {
-    id: 'blitzingFirepower', faction: 'aeldari', name: 'Молниеносный огонь', nameEn: 'Blitzing Firepower', cost: 1, phases: ['shooting'], buff: 'phase',
-    text: 'Отряд, который ещё не стрелял: по целям в пределах 12″ его стрелковое оружие получает Sustained Hits 1 (у кого уже есть — крит на 5+).',
-    when: 'Когда отряд с большим числом выстрелов стоит в 12″ от цели.',
+    id: 'blitzingFirepower', faction: 'aeldari', name: tr('Lightning Fire'), nameEn: 'Blitzing Firepower', cost: 1, phases: ['shooting'], buff: 'phase',
+    text: tr('A unit that has not shot yet: against targets within 12″ its ranged weapons get Sustained Hits 1 (those that already have it — critical on 5+).'),
+    when: tr('When a unit with many shots stands within 12″ of the target.'),
   },
   {
-    id: 'feignedRetreat', faction: 'aeldari', name: 'Ложное отступление', nameEn: 'Feigned Retreat', cost: 1, phases: ['movement'], buff: 'turn',
-    text: 'Сразу после отступления (Fall Back): до конца хода отряд может стрелять и объявлять атаку, как будто не отступал.',
-    when: 'Когда отряд связан рукопашной, но нужен его огонь: отойти и тут же стрелять.',
+    id: 'feignedRetreat', faction: 'aeldari', name: tr('Feigned Retreat'), nameEn: 'Feigned Retreat', cost: 1, phases: ['movement'], buff: 'turn',
+    text: tr('Right after a Fall Back: until the end of the turn the unit can shoot and declare a charge as if it had not fallen back.'),
+    when: tr('When a unit is locked in melee but its fire is needed: step back and shoot at once.'),
   },
   {
-    id: 'lethalDosage', faction: 'adeptus_mechanicus', name: 'Смертельная доза', nameEn: 'Lethal Dosage', cost: 1, phases: ['shooting'], buff: 'phase',
-    text: 'Отряд, который ещё не стрелял: до конца фазы его стрелковое оружие получает Lethal Hits — шестёрка на попадание сразу ранит.',
-    when: 'Против техники и монстров: шестёрки проходят без броска на ранение, где обычно нужны 5+ или 6+.',
+    id: 'lethalDosage', faction: 'adeptus_mechanicus', name: tr('Deadly Dose'), nameEn: 'Lethal Dosage', cost: 1, phases: ['shooting'], buff: 'phase',
+    text: tr('A unit that has not shot yet: until the end of the phase its ranged weapons get Lethal Hits — a 6 to hit wounds at once.'),
+    when: tr('Against vehicles and monsters: sixes go through without a wound roll where 5+ or 6+ is usually needed.'),
   },
   {
-    id: 'aggressorImperative', faction: 'adeptus_mechanicus', name: 'Империатив агрессора', nameEn: 'Aggressor Imperative', cost: 1, phases: ['movement'],
-    text: 'Отряд Скитариев, ещё не двигавшийся: продвижение (Advance) без броска — сразу +6″.',
-    when: 'Когда до цели или укрытия нужно гарантированно дойти, а не надеяться на кубик.',
-    requires: { any: [['SKITARII']], label: 'отряд Скитариев (SKITARII)' },
+    id: 'aggressorImperative', faction: 'adeptus_mechanicus', name: tr('Aggressor Imperative'), nameEn: 'Aggressor Imperative', cost: 1, phases: ['movement'],
+    text: tr('A Skitarii unit that has not moved yet: an Advance without a roll — straight +6″.'),
+    when: tr('When you must reliably reach an objective or cover instead of hoping for the dice.'),
+    requires: { any: [['SKITARII']], label: tr('Skitarii unit (SKITARII)') },
   },
   {
-    id: 'extinctionOrder', faction: 'adeptus_mechanicus', name: 'Приказ об истреблении', nameEn: 'Extinction Order', cost: 1, phases: ['command'],
-    text: 'Техножрец выбирает цель на поле в пределах 24″: каждый вражеский отряд на этой цели бросает D6 — на 4+ получает смертельную рану и проходит проверку боевого шока.',
-    when: 'Когда враг стоит на цели: шок обнуляет его OC, и цель легче забрать.',
-    requires: { any: [['TECH-PRIEST']], label: 'Техножрец (TECH-PRIEST)' },
+    id: 'extinctionOrder', faction: 'adeptus_mechanicus', name: tr('Order of Eradication'), nameEn: 'Extinction Order', cost: 1, phases: ['command'],
+    text: tr('The Tech-Priest picks an objective on the field within 24″: each enemy unit on that objective rolls a D6 — on a 4+ it takes a mortal wound and takes a Battle-shock test.'),
+    when: tr('When an enemy stands on an objective: shock zeroes its OC and the objective is easier to take.'),
+    requires: { any: [['TECH-PRIEST']], label: tr('Tech-Priest (TECH-PRIEST)') },
   },
 ]
 for (const x of FACTION_STRATAGEMS) STRATAGEMS[x.id] = x
@@ -206,46 +207,46 @@ for (const x of FACTION_STRATAGEMS) STRATAGEMS[x.id] = x
  * game does not have. Listed on the army screen so the player knows what the full detachment has. */
 export interface LaterStratagem { faction: PlayerId; name: string; nameEn: string; cost: number; why: string }
 export const LATER_STRATAGEMS: LaterStratagem[] = [
-  { faction: 'marines', name: 'Мощь ангелов', nameEn: 'Might of Angels', cost: 1, why: 'нужно правило Lance' },
-  { faction: 'marines', name: 'Адаптивная стратегия', nameEn: 'Adaptive Strategy', cost: 1, why: 'появится позже' },
-  { faction: 'marines', name: 'Ответная тактика', nameEn: 'Responsive Tactics', cost: 1, why: 'нужно движение в ход противника' },
-  { faction: 'orks', name: 'Вправить мозги', nameEn: "Breakin' Heads", cost: 1, why: 'нужны присоединённые персонажи' },
-  { faction: 'orks', name: 'Косить их!', nameEn: "Mow 'Em Down", cost: 1, why: 'только техника не-WALKER, таких у орков здесь нет' },
-  { faction: 'tyranids', name: 'Захлестнуть', nameEn: 'Overrun', cost: 1, why: 'нужен выбор закрепления после боя' },
-  { faction: 'tyranids', name: 'Хищный императив', nameEn: 'Predatory Imperative', cost: 1, why: 'нужны гиперадаптации' },
-  { faction: 'tyranids', name: 'Бесконечный рой', nameEn: 'Endless Swarm', cost: 1, why: 'нужно возвращение моделей на поле' },
-  { faction: 'necrons', name: 'Протокол вечного возвращения', nameEn: 'Protocol of the Eternal Revenant', cost: 1, why: 'срабатывает в момент гибели' },
-  { faction: 'necrons', name: 'Протокол мстительных звёзд', nameEn: 'Protocol of the Vengeful Stars', cost: 2, why: 'нужна стрельба в ход противника' },
-  { faction: 'aeldari', name: 'Небесное убежище', nameEn: 'Skyborne Sanctuary', cost: 1, why: 'нужен транспорт' },
-  { faction: 'aeldari', name: 'Выстрел и отход', nameEn: 'Fire and Fade', cost: 1, why: 'нужно движение после стрельбы' },
-  { faction: 'aeldari', name: 'Тоннель Паутины', nameEn: 'Webway Tunnel', cost: 1, why: 'в ход противника, нужны резервы' },
-  { faction: 'adeptus_mechanicus', name: 'Предустановленная зачистка', nameEn: 'Pre-Calibrated Purge Solution', cost: 1, why: 'появится позже' },
+  { faction: 'marines', name: tr('Might of the Angels'), nameEn: 'Might of Angels', cost: 1, why: tr('needs the Lance rule') },
+  { faction: 'marines', name: tr('Adaptive Strategy|stratagem'), nameEn: 'Adaptive Strategy', cost: 1, why: tr('will appear later') },
+  { faction: 'marines', name: tr('Counter-tactics'), nameEn: 'Responsive Tactics', cost: 1, why: tr('needs movement in the opponent’s turn') },
+  { faction: 'orks', name: tr('Knock Some Sense'), nameEn: "Breakin' Heads", cost: 1, why: tr('needs attached characters') },
+  { faction: 'orks', name: tr('Mow Them Down!'), nameEn: "Mow 'Em Down", cost: 1, why: tr('only non-WALKER vehicles, the Orks have none here') },
+  { faction: 'tyranids', name: tr('Overwhelm'), nameEn: 'Overrun', cost: 1, why: tr('needs a consolidation choice after combat') },
+  { faction: 'tyranids', name: tr('Predatory Imperative'), nameEn: 'Predatory Imperative', cost: 1, why: tr('needs hyper-adaptations') },
+  { faction: 'tyranids', name: tr('Endless Swarm'), nameEn: 'Endless Swarm', cost: 1, why: tr('needs models returning to the field') },
+  { faction: 'necrons', name: tr('Eternal Return Protocol'), nameEn: 'Protocol of the Eternal Revenant', cost: 1, why: tr('triggers at the moment of death') },
+  { faction: 'necrons', name: tr('Vengeful Stars Protocol'), nameEn: 'Protocol of the Vengeful Stars', cost: 2, why: tr('needs shooting in the opponent’s turn') },
+  { faction: 'aeldari', name: tr('Celestial Refuge'), nameEn: 'Skyborne Sanctuary', cost: 1, why: tr('needs a transport') },
+  { faction: 'aeldari', name: tr('Shoot and Scoot'), nameEn: 'Fire and Fade', cost: 1, why: tr('needs movement after shooting') },
+  { faction: 'aeldari', name: tr('Webway Tunnel'), nameEn: 'Webway Tunnel', cost: 1, why: tr('in the opponent’s turn, needs reserves') },
+  { faction: 'adeptus_mechanicus', name: tr('Pre-set Purge'), nameEn: 'Pre-Calibrated Purge Solution', cost: 1, why: tr('will appear later') },
 ]
 
 // ---------------------------------------------------------------- reactions (core, 11th edition)
 
 export const REACTION_STRATAGEMS: StratagemInfo[] = [
   {
-    id: 'fireOverwatch', name: 'Огонь на опережение', nameEn: 'Fire Overwatch', cost: 1, phases: ['movement'], turn: 'opponent', window: 'beforeShooting',
-    text: 'В конце фазы движения противника ваш отряд не в контакте стреляет по видимому врагу в пределах 24″ — попадает только на «6» (Snap Shooting), без перебросов.',
-    when: 'Когда у отряда много выстрелов или Torrent-оружие (огнемёты попадают автоматически), а враг подошёл близко.',
+    id: 'fireOverwatch', name: tr('Fire Overwatch'), nameEn: 'Fire Overwatch', cost: 1, phases: ['movement'], turn: 'opponent', window: 'beforeShooting',
+    text: tr('At the end of the opponent’s Movement phase your unit that is not in engagement range shoots at a visible enemy within 24″ — hits only on a “6” (Snap Shooting), no re-rolls.'),
+    when: tr('When a unit has many shots or a Torrent weapon (flamers hit automatically), and the enemy has come close.'),
   },
   {
-    id: 'smokescreen', name: 'Дымовая завеса', nameEn: 'Smokescreen', cost: 1, phases: ['movement'], turn: 'opponent', window: 'beforeShooting', buff: 'turn',
-    text: 'В начале фазы стрельбы противника ваш отряд с ключевым словом SMOKE получает укрытие (Benefit of Cover) до конца фазы.',
-    when: 'Когда этот отряд под прицелом сильной стрельбы: укрытие ухудшает врагу навык на 1.',
-    requires: { any: [['SMOKE']], label: 'отряд с ключевым словом SMOKE' },
+    id: 'smokescreen', name: tr('Smokescreen'), nameEn: 'Smokescreen', cost: 1, phases: ['movement'], turn: 'opponent', window: 'beforeShooting', buff: 'turn',
+    text: tr('At the start of the opponent’s Shooting phase your unit with the SMOKE keyword gets the Benefit of Cover until the end of the phase.'),
+    when: tr('When this unit is under heavy fire: cover makes the enemy’s skill 1 worse.'),
+    requires: { any: [['SMOKE']], label: tr('unit with the SMOKE keyword') },
   },
   {
-    id: 'heroicIntervention', name: 'Героический перехват', nameEn: 'Heroic Intervention (Leap to Defend)', cost: 1, phases: ['charge'], turn: 'opponent', window: 'afterCharges',
-    text: 'В конце фазы атаки противника ваш отряд не в контакте в пределах 12″ от врага, который атаковал в эту фазу, бросает 2D6 и врывается к нему в бой (без «Бьёт первым»). Технике можно, только если она персонаж или шагоход.',
-    when: 'Когда рядом сильный в рукопашной отряд, а враг только что влетел в ваших стрелков: помогите им в бою.',
+    id: 'heroicIntervention', name: tr('Heroic Intervention'), nameEn: 'Heroic Intervention (Leap to Defend)', cost: 1, phases: ['charge'], turn: 'opponent', window: 'afterCharges',
+    text: tr('At the end of the opponent’s Charge phase your unit that is not in engagement range, within 12″ of an enemy that charged in this phase, rolls 2D6 and charges into combat with it (without Fights First). A vehicle can only if it is a character or a walker.'),
+    when: tr('When a strong melee unit is nearby and the enemy has just charged into your shooters: help them in combat.'),
   },
   {
-    id: 'epicChallenge', name: 'Эпический вызов', nameEn: 'Epic Challenge', cost: 1, phases: ['fight'], turn: 'either', buff: 'phase',
-    text: 'Отряд-персонаж, который сейчас будет сражаться: до конца фазы его рукопашные атаки получают Precision — раны можно направить в персонажа врага.',
-    when: 'Когда в отряде врага есть персонаж (лидер), которого нужно выбить.',
-    requires: { any: [['CHARACTER']], label: 'персонаж (CHARACTER)' },
+    id: 'epicChallenge', name: tr('Epic Challenge'), nameEn: 'Epic Challenge', cost: 1, phases: ['fight'], turn: 'either', buff: 'phase',
+    text: tr('A character unit that is about to fight: until the end of the phase its melee attacks get Precision — wounds can be allocated to the enemy character.'),
+    when: tr('When the enemy unit has a character (leader) that needs to be picked off.'),
+    requires: { any: [['CHARACTER']], label: tr('character (CHARACTER)') },
   },
 ]
 for (const x of REACTION_STRATAGEMS) STRATAGEMS[x.id] = x
@@ -256,53 +257,60 @@ for (const x of REACTION_STRATAGEMS) STRATAGEMS[x.id] = x
  * or after its attacks destroyed models of your unit (`afterAttacks`). The unit is the one the window is about. */
 export const FACTION_REACTIONS: StratagemInfo[] = [
   {
-    id: 'armourOfContempt', faction: 'marines', name: 'Доспех презрения', nameEn: 'Armour of Contempt', cost: 1, phases: ['shooting', 'fight'], turn: 'either', window: 'onTargeted', buff: 'phase',
-    text: 'Когда вражеский отряд выбрал целью ваш отряд (в стрельбе противника или в бою): бронебойность (AP) его атак по вам хуже на 1, пока он не закончит атаковать.',
-    when: 'Против оружия с AP −1…−2 по пехоте с хорошей бронёй: спасбросок 3+ снова работает.',
+    id: 'armourOfContempt', faction: 'marines', name: tr('Armour of Contempt'), nameEn: 'Armour of Contempt', cost: 1, phases: ['shooting', 'fight'], turn: 'either', window: 'onTargeted', buff: 'phase',
+    text: tr('When an enemy unit has picked your unit as a target (in the opponent’s shooting or in combat): the AP of its attacks against you is 1 worse until it finishes attacking.'),
+    when: tr('Against weapons with AP −1…−2 on well-armoured infantry: the 3+ save works again.'),
   },
   {
-    id: 'aWorthyDeath', faction: 'marines', name: 'Достойная смерть', nameEn: 'A Worthy Death', cost: 1, phases: ['fight'], turn: 'either', window: 'onTargeted', buff: 'phase',
-    text: 'В бою, когда враг выбрал целью ваш отряд, который ещё не сражался: каждая убитая модель на 4+ успевает ударить. Здесь — сразу после атаки врага, по этому врагу (на столе — вместе со своим отрядом позже в фазе).',
-    when: 'Когда по отряду бьёт сильный враг, а у ваших моделей опасное оружие ближнего боя.',
+    id: 'aWorthyDeath', faction: 'marines', name: tr('Honourable Death'), nameEn: 'A Worthy Death', cost: 1, phases: ['fight'], turn: 'either', window: 'onTargeted', buff: 'phase',
+    text: tr('In combat, when the enemy has picked your unit that has not fought yet: each model killed on a 4+ manages to strike. Here — right after the enemy’s attack, against that enemy (on the tabletop — together with its unit later in the phase).'),
+    when: tr('When a strong enemy strikes the unit and your models have dangerous melee weapons.'),
   },
   {
-    id: 'orksNeverBeaten', faction: 'orks', name: 'Орков не победить', nameEn: 'Orks Is Never Beaten', cost: 1, phases: ['fight'], turn: 'either', window: 'onTargeted', buff: 'phase',
-    text: 'В бою, когда враг выбрал целью ваш отряд (кроме TITANIC), который ещё не сражался: каждая убитая модель на 4+ (на 3+, если отряд разъярён WAAAGH!) успевает ударить. Здесь — сразу после атаки врага, по этому врагу.',
-    when: 'Когда большой отряд Бойз вот-вот потеряет много моделей в рукопашной.',
+    id: 'orksNeverBeaten', faction: 'orks', name: tr('Orks Is Never Beaten'), nameEn: 'Orks Is Never Beaten', cost: 1, phases: ['fight'], turn: 'either', window: 'onTargeted', buff: 'phase',
+    text: tr('In combat, when the enemy has picked your unit (except TITANIC) that has not fought yet: each model killed on a 4+ (on a 3+ if the unit is enraged by WAAAGH!) manages to strike. Here — right after the enemy’s attack, against that enemy.'),
+    when: tr('When a big unit of Boyz is about to lose many models in melee.'),
   },
   {
-    id: 'rapidRegeneration', faction: 'tyranids', name: 'Быстрая регенерация', nameEn: 'Rapid Regeneration', cost: 1, phases: ['shooting', 'fight'], turn: 'either', window: 'onTargeted', buff: 'phase',
-    text: 'Когда враг выбрал целью ваш отряд (в стрельбе противника или в бою): до конца фазы у моделей «Не чувствует боли» 6+ (5+ в зоне Синапса) — каждую потерянную рану можно отменить броском.',
-    when: 'Когда по крупному монстру летит много урона: 5+ в Синапсе спасает треть ран.',
+    id: 'rapidRegeneration', faction: 'tyranids', name: tr('Rapid Regeneration'), nameEn: 'Rapid Regeneration', cost: 1, phases: ['shooting', 'fight'], turn: 'either', window: 'onTargeted', buff: 'phase',
+    text: tr('When the enemy has picked your unit (in the opponent’s shooting or in combat): until the end of the phase the models have Feel No Pain 6+ (5+ in Synapse range) — each lost wound can be cancelled by a roll.'),
+    when: tr('When a lot of damage is flying at a big monster: 5+ in Synapse saves a third of the wounds.'),
   },
   {
-    id: 'deathFrenzy', faction: 'tyranids', name: 'Предсмертное неистовство', nameEn: 'Death Frenzy', cost: 1, phases: ['fight'], turn: 'either', window: 'onTargeted', buff: 'phase',
-    text: 'В бою, когда враг выбрал целью ваш отряд, который ещё не сражался: каждая убитая модель на 4+ успевает ударить сразу после атаки врага.',
-    when: 'Когда по отряду гаунтов или воинов бьёт сильный враг, а ответить они уже не успеют.',
+    id: 'deathFrenzy', faction: 'tyranids', name: tr('Death Throes Fury'), nameEn: 'Death Frenzy', cost: 1, phases: ['fight'], turn: 'either', window: 'onTargeted', buff: 'phase',
+    text: tr('In combat, when the enemy has picked your unit that has not fought yet: each model killed on a 4+ manages to strike right after the enemy’s attack.'),
+    when: tr('When a strong enemy strikes a unit of gaunts or warriors, and they will not get another chance to answer.'),
   },
   {
-    id: 'lightningFastReactions', faction: 'aeldari', name: 'Молниеносная реакция', nameEn: 'Lightning-Fast Reactions', cost: 1, phases: ['shooting', 'fight'], turn: 'either', window: 'onTargeted', buff: 'phase',
-    text: 'Когда враг выбрал целью ваш отряд (не WRAITH CONSTRUCT; в стрельбе противника или в бою): до конца фазы −1 к броскам на попадание по этому отряду.',
-    when: 'Против оружия, которое попадает на 3+ или 4+: каждая шестая атака мимо.',
+    id: 'lightningFastReactions', faction: 'aeldari', name: tr('Lightning-fast Reactions'), nameEn: 'Lightning-Fast Reactions', cost: 1, phases: ['shooting', 'fight'], turn: 'either', window: 'onTargeted', buff: 'phase',
+    text: tr('When the enemy has picked your unit (not a WRAITH CONSTRUCT; in the opponent’s shooting or in combat): until the end of the phase −1 to hit rolls against that unit.'),
+    when: tr('Against weapons that hit on 3+ or 4+: every sixth attack misses.'),
   },
   {
-    id: 'balefulHalo', faction: 'adeptus_mechanicus', name: 'Зловещий ореол', nameEn: 'Baleful Halo', cost: 2, phases: ['fight'], turn: 'either', window: 'onTargeted', buff: 'phase',
-    text: 'В бою, когда враг выбрал целью ваш отряд (не VEHICLE): до конца фазы −1 к броскам на ранение по нему.',
-    when: 'Когда по пехоте бьёт сильная рукопашная, которая ранит на 2+ или 3+.',
+    id: 'balefulHalo', faction: 'adeptus_mechanicus', name: tr('Sinister Halo'), nameEn: 'Baleful Halo', cost: 2, phases: ['fight'], turn: 'either', window: 'onTargeted', buff: 'phase',
+    text: tr('In combat, when the enemy has picked your unit (not a VEHICLE): until the end of the phase −1 to wound rolls against it.'),
+    when: tr('When strong melee that wounds on 2+ or 3+ strikes infantry.'),
   },
   {
-    id: 'bulwarkImperative', faction: 'adeptus_mechanicus', name: 'Империатив бастиона', nameEn: 'Bulwark Imperative', cost: 2, phases: ['shooting'], turn: 'either', window: 'onTargeted', buff: 'phase',
-    text: 'В стрельбе противника, когда враг выбрал целью ваш отряд Скитариев: до конца фазы у моделей непробиваемый спасбросок 4+.',
-    when: 'Против бронебойного оружия (AP −2 и лучше): спасбросок 4+ вместо почти никакого.',
-    requires: { any: [['SKITARII']], label: 'отряд Скитариев (SKITARII)' },
+    id: 'bulwarkImperative', faction: 'adeptus_mechanicus', name: tr('Bulwark Imperative'), nameEn: 'Bulwark Imperative', cost: 2, phases: ['shooting'], turn: 'either', window: 'onTargeted', buff: 'phase',
+    text: tr('In the opponent’s shooting, when the enemy has picked your Skitarii unit: until the end of the phase the models have a 4+ invulnerable save.'),
+    when: tr('Against armour-piercing weapons (AP −2 and better): a 4+ save instead of almost none.'),
+    requires: { any: [['SKITARII']], label: tr('Skitarii unit (SKITARII)') },
   },
   {
-    id: 'undyingLegions', faction: 'necrons', name: 'Протокол бессмертных легионов', nameEn: 'Protocol of the Undying Legions', cost: 1, phases: ['shooting', 'fight'], turn: 'either', window: 'afterAttacks',
-    text: 'После атак врага (в стрельбе противника или в бою), убивших модели вашего отряда: отряд сразу запускает протоколы реанимации — лечит D3 ран (D3+1, если его ведёт персонаж) и возвращает модели.',
-    when: 'Когда отряд воинов потерял несколько моделей: в среднем две модели возвращаются в строй.',
+    id: 'undyingLegions', faction: 'necrons', name: tr('Immortal Legions Protocol'), nameEn: 'Protocol of the Undying Legions', cost: 1, phases: ['shooting', 'fight'], turn: 'either', window: 'afterAttacks',
+    text: tr('After enemy attacks (in the opponent’s shooting or in combat) that killed models of your unit: the unit immediately runs reanimation protocols — heals D3 wounds (D3+1 if a character leads it) and returns models.'),
+    when: tr('When a unit of warriors has lost several models: on average two models return to the line.'),
   },
 ]
 for (const x of FACTION_REACTIONS) STRATAGEMS[x.id] = x
+
+/** The other languages show their translated name with the official English one beside it; English shows only the official name. */
+export const showOfficialName = locale !== 'en'
+if (!showOfficialName) {
+  for (const x of Object.values(STRATAGEMS)) x.name = x.nameEn
+  for (const x of LATER_STRATAGEMS) x.name = x.nameEn
+}
 
 /** Reactions whose fallen models strike back right after the enemy's attacks (A Worthy Death and its cousins). */
 export const LAST_STAND: StratagemId[] = ['aWorthyDeath', 'orksNeverBeaten', 'deathFrenzy']

@@ -2,6 +2,7 @@ import { expectedGroupDamage } from './ai/ai'
 import { shootPlan } from './engine'
 import { alive, enemiesOf, fmt } from './gameState'
 import type { GameState, UnitState } from './types'
+import { tr } from '../i18n/index'
 
 // Shooting phase advice for beginners: for every enemy unit, the expected wounds and models killed by this unit's
 // shooting, which target is best, and two common mistakes: overkill on an almost dead unit, and a target that barely
@@ -46,17 +47,17 @@ export function shotAdvice(s: GameState, unit: UnitState, opts: Parameters<typeo
   return rows
 }
 
-/** One line for the player, e.g. «≈ 2,1 раны → ~2 из 10 моделей». */
+/** One line for the player, e.g. "≈ 2.1 wounds → ~2 of 10 models". */
 export function adviceLine(a: TargetAdvice): string {
   const kills = a.kills >= 1 ? String(Math.round(a.kills)) : fmt(a.kills)
-  return `≈ ${fmt(a.dmg)} ран → ~${kills} из ${a.models} мод.`
+  return tr('≈ {fmt} wounds → ~{kills} of {models} models', { fmt: fmt(a.dmg), kills, models: a.models })
 }
 
 /** Warnings for the player, empty when the choice is fine. */
 export function adviceWarnings(a: TargetAdvice, all: TargetAdvice[]): string[] {
   const out: string[] = []
   const top = all.find((r) => r.best)
-  if (a.overkill) out.push(`Перебор: у цели осталось ${a.woundsLeft} ран, а ожидается ~${fmt(a.dmg)}. Часть выстрелов пропадёт — лучше добить её отрядом послабее.`)
-  if (a.poor && top) out.push(`Слабо: по «${top.name}» выйдет ~${fmt(Math.min(top.dmg, top.woundsLeft))} ран.`)
+  if (a.overkill) out.push(tr('Overkill: the target has {woundsLeft} wounds left, and ~{fmt} are expected. Some shots will be wasted — better to finish it with a weaker unit.', { woundsLeft: a.woundsLeft, fmt: fmt(a.dmg) }))
+  if (a.poor && top) out.push(tr('Weak: “{name}” will take ~{fmt} wounds.', { name: top.name, fmt: fmt(Math.min(top.dmg, top.woundsLeft)) }))
   return out
 }

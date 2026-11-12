@@ -1,4 +1,5 @@
 import { rect } from '../geometry/geometry'
+import { tr } from '../../i18n/index'
 import type { Terrain, Vec } from '../types'
 
 // The 44″×60″ battlefield of 11th edition matched play: six deployment maps (the deployment cards of the Mission Deck
@@ -48,18 +49,18 @@ function map(id: MapId, name: string, nameEn: string, w: number, h: number, west
 }
 
 export const MAPS: Record<MapId, DeploymentMap> = {
-  hammerAnvil: map('hammerAnvil', 'Молот и наковальня', 'Hammer and Anvil', 60, 44, rect(0, 0, 18, 44),
+  hammerAnvil: map('hammerAnvil', tr('Hammer and Anvil'), 'Hammer and Anvil', 60, 44, rect(0, 0, 18, 44),
     objectives(60, 44, { x: 9, y: 22 }, { x: 30, y: 22 }, { x: 30, y: 8 })),
-  dawnOfWar: map('dawnOfWar', 'Рассвет войны', 'Dawn of War', 44, 60, rect(0, 0, 12, 60),
+  dawnOfWar: map('dawnOfWar', tr('Dawn of War'), 'Dawn of War', 44, 60, rect(0, 0, 12, 60),
     objectives(44, 60, { x: 6, y: 30 }, { x: 22, y: 30 }, { x: 22, y: 12 })),
-  searchDestroy: map('searchDestroy', 'Найти и уничтожить', 'Search and Destroy', 60, 44, quarterZone(),
+  searchDestroy: map('searchDestroy', tr('Search and Destroy'), 'Search and Destroy', 60, 44, quarterZone(),
     objectives(60, 44, { x: 12, y: 34 }, { x: 30, y: 22 }, { x: 12, y: 10 })),
-  sweeping: map('sweeping', 'Широкий охват', 'Sweeping Engagement', 44, 60,
+  sweeping: map('sweeping', tr('Sweeping Engagement'), 'Sweeping Engagement', 44, 60,
     [{ x: 0, y: 0 }, { x: 8, y: 0 }, { x: 8, y: 30 }, { x: 14, y: 30 }, { x: 14, y: 60 }, { x: 0, y: 60 }],
     objectives(44, 60, { x: 6, y: 45 }, { x: 22, y: 30 }, { x: 22, y: 12 })),
-  crucible: map('crucible', 'Горнило битвы', 'Crucible of Battle', 60, 44, [{ x: 0, y: 8 }, { x: 30, y: 44 }, { x: 0, y: 44 }],
+  crucible: map('crucible', tr('Crucible of Battle'), 'Crucible of Battle', 60, 44, [{ x: 0, y: 8 }, { x: 30, y: 44 }, { x: 0, y: 44 }],
     objectives(60, 44, { x: 8, y: 36 }, { x: 30, y: 22 }, { x: 12, y: 12 })),
-  tippingPoint: map('tippingPoint', 'Переломный момент', 'Tipping Point', 60, 44,
+  tippingPoint: map('tippingPoint', tr('Tipping Point'), 'Tipping Point', 60, 44,
     [{ x: 0, y: 0 }, { x: 12, y: 0 }, { x: 12, y: 22 }, { x: 20, y: 22 }, { x: 20, y: 44 }, { x: 0, y: 44 }],
     objectives(60, 44, { x: 8, y: 33 }, { x: 30, y: 22 }, { x: 22, y: 10 })),
 }
@@ -70,11 +71,11 @@ export const LAYOUT_IDS: LayoutId[] = ['A', 'B', 'C']
 
 type Kind = Terrain['kind']
 const piece = (kind: Kind, name: string, obscuring: boolean) => (id: string, poly: Vec[]): Terrain => ({ id, name, kind, poly, obscuring })
-const ruin = piece('ruin', 'Руины', true)
-const woods = piece('woods', 'Лес', true)
-const crater = piece('crater', 'Воронка', false)
-const container = piece('container', 'Контейнер', true)
-const barricade = piece('barricade', 'Баррикада', true)
+const ruin = piece('ruin', tr('Ruins'), true)
+const woods = piece('woods', tr('Woods'), true)
+const crater = piece('crater', tr('Crater'), false)
+const container = piece('container', tr('Container'), true)
+const barricade = piece('barricade', tr('Barricade'), true)
 
 /** Each piece and its point-mirror, so both halves of the board are the same. */
 function pairs(list: [ReturnType<typeof piece>, number, number, number, number][], centre: Terrain[] = []): Terrain[] {
@@ -88,21 +89,21 @@ function pairs(list: [ReturnType<typeof piece>, number, number, number, number][
 
 const LAYOUTS: Record<LayoutId, { name: string; pieces: Terrain[] }> = {
   A: {
-    name: 'Руины мануфактории',
+    name: tr('Manufactorum ruins'),
     pieces: pairs([
       [ruin, 13, 5, 6, 5], [ruin, 21, 28, 5, 6], [woods, 17, 15, 5, 5], [container, 27, 9, 4, 1.5],
       [crater, 46, 13, 3, 3], [barricade, 24, 19.5, 0.6, 4], [ruin, 35, 36, 5, 4],
     ], [ruin('c0', rect(28, 20.5, 4, 3))]),
   },
   B: {
-    name: 'Лесистые холмы',
+    name: tr('Wooded hills'),
     pieces: pairs([
       [woods, 14, 8, 6, 6], [woods, 22, 30, 6, 5], [crater, 25, 14, 3, 3], [crater, 16, 24, 3, 3],
       [ruin, 36, 4, 5, 4], [barricade, 33, 18, 4, 0.6], [container, 44, 30, 1.5, 4],
     ], [woods('c0', rect(27.5, 19.5, 5, 5))]),
   },
   C: {
-    name: 'Городские развалины',
+    name: tr('City ruins'),
     pieces: pairs([
       [ruin, 13, 4, 5, 6], [ruin, 13, 18, 4, 6], [ruin, 20, 30, 6, 4], [ruin, 23, 9, 5, 4],
       [container, 33, 14, 1.5, 4], [barricade, 20, 25.5, 4, 0.6], [crater, 40, 3, 3, 3],
@@ -135,7 +136,7 @@ function patrolPairs(list: [ReturnType<typeof piece>, number, number, number, nu
 }
 
 /** A is the board's original layout (kept in scenarios.ts); B and C are new. */
-export const PATROL_LAYOUT_NAME: Record<LayoutId, string> = { A: 'Классика (как раньше)', B: 'Лесная опушка', C: 'Развалины улиц' }
+export const PATROL_LAYOUT_NAME: Record<LayoutId, string> = { A: tr('Classic (as before)'), B: tr('Forest edge'), C: tr('Ruined streets') }
 const PATROL_LAYOUTS: Record<'B' | 'C', Terrain[]> = {
   B: patrolPairs([
     [woods, 13, 3, 4, 4], [woods, 18, 18, 4, 4], [crater, 19, 11.5, 2.5, 2.5], [barricade, 16, 12.5, 0.6, 4], [ruin, 24, 2, 4, 3],

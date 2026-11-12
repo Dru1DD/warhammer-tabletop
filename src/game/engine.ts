@@ -21,17 +21,18 @@ import { hasCover, nearestVisibleDistance, seesAny, unitCanSee } from './rules/v
 import { DOCTRINE_NAME, DOCTRINE_TEXT, DOCTRINES, doctrineLeft, HYPER_ADAPTATIONS, HYPER_NAME, HYPER_TEXT, MARTIAL_GRACE_SWIFT, MARTIAL_GRACE_TOKENS, RAD_COVER_WOUNDS } from './rules/detachments'
 import { deploymentZone } from './rules/deployment'
 import { pointInPolygon } from './geometry/geometry'
-import { CRUSHING_MAX, EXPLOSIVES_DICE, EXPLOSIVES_RANGE, explosivesReach, hasBuff, LAST_STAND, meetsRequirement, reactionsIn, STRATAGEMS, targetedThisPhase, usedThisPhase } from './rules/stratagems'
+import { CRUSHING_MAX, EXPLOSIVES_DICE, EXPLOSIVES_RANGE, explosivesReach, hasBuff, LAST_STAND, meetsRequirement, reactionsIn, showOfficialName, STRATAGEMS, targetedThisPhase, usedThisPhase } from './rules/stratagems'
 import { baseRadius } from './geometry/geometry'
 import type { Command, DiceEntry, GameState, ModelState, PendingReroll, Phase, PlayerId, ReactionWindow, StratagemId, UnitState, Validation, Vec, Weapon, WeaponProfile } from './types'
 import { PHASES } from './types'
+import { quote, tr } from '../i18n/index'
 
 export const PHASE_NAME: Record<Phase, string> = {
-  command: 'Фаза командования (Command)',
-  movement: 'Фаза движения (Movement)',
-  shooting: 'Фаза стрельбы (Shooting)',
-  charge: 'Фаза атаки (Charge)',
-  fight: 'Фаза боя (Fight)',
+  command: tr('Command phase'),
+  movement: tr('Movement phase'),
+  shooting: tr('Shooting phase'),
+  charge: tr('Charge phase'),
+  fight: tr('Fight phase'),
 }
 
 export const VP_PER_OBJECTIVE = 5
@@ -103,17 +104,17 @@ function detachmentAttack(s: GameState, unit: UnitState, target: UnitState) {
   if (!detachmentOn(s, unit.owner)) return out
   const faction = datasheetOf(unit).faction
   const hyper = faction === 'tyranids' ? s.players[unit.owner].hyperAdaptation : null
-  if (hyper === 'swarming' && hasKeyword(target, 'INFANTRY', 'SWARM')) { out.sustained = true; out.notes.push('Роевые инстинкты: Sustained Hits 1') }
-  if (hyper === 'aggression' && hasKeyword(target, 'MONSTER', 'VEHICLE')) { out.lethal = true; out.notes.push('Гиперагрессия: Lethal Hits') }
-  if (hyper === 'predators' && hasKeyword(target, 'CHARACTER')) { out.critPrecision = true; out.notes.push('Хищники Улья: криты с Precision') }
-  if (faction === 'necrons' && isLed(s, unit)) { out.hitMod++; out.hitNotes.push('Командные протоколы +1') }
+  if (hyper === 'swarming' && hasKeyword(target, 'INFANTRY', 'SWARM')) { out.sustained = true; out.notes.push(tr('Swarming Instincts: Sustained Hits 1')) }
+  if (hyper === 'aggression' && hasKeyword(target, 'MONSTER', 'VEHICLE')) { out.lethal = true; out.notes.push(tr('Hyper-aggression: Lethal Hits')) }
+  if (hyper === 'predators' && hasKeyword(target, 'CHARACTER')) { out.critPrecision = true; out.notes.push(tr('Hive Predators: crits with Precision')) }
+  if (faction === 'necrons' && isLed(s, unit)) { out.hitMod++; out.hitNotes.push(tr('Command Protocols +1')) }
   return out
 }
 
 // notes that mark Stratagem effects on an attack group (see shootPlan)
-const BLITZ_CRIT = 'Молниеносный огонь: крит на 5+'
-const TYRANT_ALL = 'Тиран-завоеватель: переброс промахов'
-const TYRANT_ONES = 'Тиран-завоеватель: переброс 1'
+const BLITZ_CRIT = tr('Lightning Fire: critical on 5+')
+const TYRANT_ALL = tr('Conqueror Tyrant: re-roll misses')
+const TYRANT_ONES = tr('Conqueror Tyrant: re-roll 1s')
 /** Fire Overwatch: range to the target */
 const OVERWATCH_RANGE = 24
 /** Fungus-Fuel Injection: extra Move */
@@ -149,7 +150,7 @@ function defenceMods(s: GameState, p: WeaponProfile, target: UnitState) {
   const fnp = fnps.length ? Math.min(...fnps) : undefined
   // Baleful Halo: −1 to wound rolls; a roll is never modified by more than −1
   const halo = hasBuff(target, 'balefulHalo')
-  const woundNotes = [duty ? 'Duty Eternal: сила больше стойкости' : guard ? 'Guardian Protocols: сила больше стойкости' : '', halo ? 'Зловещий ореол' : ''].filter(Boolean)
+  const woundNotes = [duty ? tr('Duty Eternal: Strength beats Toughness') : guard ? tr('Guardian Protocols: Strength beats Toughness') : '', halo ? tr('Sinister Halo') : ''].filter(Boolean)
   return {
     woundMod: duty || guard || halo ? -1 : 0,
     woundModNote: woundNotes.length ? woundNotes.join(', ') : undefined,
@@ -174,7 +175,7 @@ function rangedInvuln(s: GameState, target: UnitState): number | undefined {
 function eradication(s: GameState, unit: UnitState, target: UnitState, notes: string[]): { rerollWounds?: 'ones' | 'all' } {
   if (!hasAbility(unit, 'implacableEradication')) return {}
   const all = s.objectives.some((o) => unitNearObjective(target, o))
-  notes.push(all ? 'Implacable Eradication: переброс ранений (цель у объекта)' : 'Implacable Eradication: переброс 1 на ранение')
+  notes.push(all ? tr('Implacable Eradication: re-roll wounds (target on an objective)') : tr('Implacable Eradication: re-roll 1s to wound'))
   return { rerollWounds: all ? 'all' : 'ones' }
 }
 
@@ -238,11 +239,11 @@ export function shootPlan(
   const bonus = attackerBonuses(s, unit)
   const assaultAll = riled(s, unit) || onslaught || bonus.imp === 'conqueror' || hasBuff(unit, 'suddenStorm') || doctrineOf(s, unit) === 'devastator'
   const mv = isMV(unit)
-  if (engaged && advanced) return { ...plan, problem: 'Отряд продвинулся (Advance) и находится в контакте — стрелять нельзя.' }
+  if (engaged && advanced) return { ...plan, problem: tr('The unit Advanced and is in engagement range — it cannot shoot.') }
   if (engaged && !engagedUnits(s, unit).some((e) => e.id === target.id))
     return { ...plan, problem: mv
-      ? 'Техника в контакте с врагом стреляет только по отряду, с которым она в контакте.'
-      : 'Отряд в контакте с врагом: стрелять можно только из оружия ближнего боя (Close-quarters) и только по отряду, с которым он в контакте.' }
+      ? tr('A vehicle in engagement range of an enemy shoots only at the unit it is engaged with.')
+      : tr('The unit is in engagement range of the enemy: it can shoot only with close-quarters weapons (Close-quarters) and only at the unit it is engaged with.') }
 
   const byKey = new Map<string, AttackGroup & { ctx: AttackContext }>()
   let anyVisible = false
@@ -258,7 +259,7 @@ export function shootPlan(
     if (advanced && !engaged && !hasAbility(unit, 'elevatedStrider')) {
       const before = chosen.length
       chosen = chosen.filter((w) => assaultAll || w.profiles[opts.profiles?.[w.id] ?? 0].keywords.assault)
-      if (before > chosen.length) plan.skipped.push(`${profileOf(m).name}: после продвижения (Advance) стреляет только оружие Assault.`)
+      if (before > chosen.length) plan.skipped.push(tr('{name}: after an Advance only Assault weapons shoot.', { name: profileOf(m).name }))
     }
     chosen = chosen.filter((w) => !(w.profiles[0].keywords.oneShot && isSpent(unit, m, w)))
     if (opts.rangeFirst) {
@@ -269,7 +270,7 @@ export function shootPlan(
     }
     const d = nearestVisibleDistance(s, m, target)
     if (d === Infinity) {
-      if (chosen.length) plan.skipped.push(`${profileOf(m).name}: нет линии видимости до цели.`)
+      if (chosen.length) plan.skipped.push(tr('{name}: no line of sight to the target.', { name: profileOf(m).name }))
       continue
     }
     anyVisible = true
@@ -280,7 +281,7 @@ export function shootPlan(
       const p = w.profiles[idx]
       const range = p.range as number
       if (!withinRange(d, range)) {
-        plan.skipped.push(`${profileOf(m).name}: ${w.name} — цель на ${fmt(d)}", дальность ${range}".`)
+        plan.skipped.push(tr('{name}: {name2} — target at {fmt}", range {range}".', { name: profileOf(m).name, name2: w.name, fmt: fmt(d), range }))
         continue
       }
       fired = true
@@ -308,7 +309,7 @@ export function shootPlan(
       const rapid = (p.keywords.rapidFire ?? 0) + (hasBuff(unit, 'closeRangeDakka') ? 1 : 0)
       if (rapid && withinRange(d, range / 2)) {
         a += rapid
-        if (!g.notes.includes('Rapid Fire')) g.notes.push(hasBuff(unit, 'closeRangeDakka') ? 'Rapid Fire (Дакка в упор)' : 'Rapid Fire')
+        if (!g.notes.includes('Rapid Fire')) g.notes.push(hasBuff(unit, 'closeRangeDakka') ? tr('Rapid Fire (Dakka at close range)') : 'Rapid Fire')
       }
       if (p.keywords.blast) {
         const extra = p.keywords.blast * Math.floor(alive(target).length / 5)
@@ -320,9 +321,9 @@ export function shootPlan(
     if (fired) plan.firingModels.push(m)
   }
 
-  if (!anyVisible) return { ...plan, problem: 'Цель не видна: линию видимости (line of sight) перекрывает укрытие.' }
+  if (!anyVisible) return { ...plan, problem: tr('The target is not visible: cover blocks the line of sight.') }
   if (byKey.size === 0)
-    return { ...plan, problem: plan.skipped.length && closest < Infinity ? `Нет оружия, способного стрелять: ближайшая видимая модель цели на ${fmt(closest)}". ${plan.skipped[0]}` : 'Нет подходящего оружия.' }
+    return { ...plan, problem: plan.skipped.length && closest < Infinity ? tr('No weapon can shoot: the nearest visible target model is at {fmt}". {item}', { fmt: fmt(closest), item: plan.skipped[0] }) : tr('No suitable weapon.') }
 
   // Stealth: the target always has the benefit of cover against ranged attacks
   plan.cover = hasCover(s, plan.firingModels, target) || hasAbility(target, 'stealth') || hasBuff(target, 'smokescreen')
@@ -333,13 +334,13 @@ export function shootPlan(
     const notes: string[] = []
     let hitMod = 0
     if ((g.profile.keywords.heavy || bonus.imp === 'protector') && !engaged && unit.movedDistance <= 3 + EPS) { notes.push(g.profile.keywords.heavy ? 'Heavy +1' : 'Protector: Heavy +1'); hitMod++ }
-    if (bolter) { notes.push('Болтерная дисциплина +1'); hitMod++ }
-    if (runts) { notes.push('Гроты-подносчики +1'); hitMod++ }
-    if (engaged && mv && !g.profile.keywords.closeQuarters) { notes.push('техника в контакте −1'); hitMod-- }
-    if (isDamaged(unit)) { notes.push('повреждён −1'); hitMod-- }
+    if (bolter) { notes.push(tr('Bolter Discipline +1')); hitMod++ }
+    if (runts) { notes.push(tr('Ammo Runts +1')); hitMod++ }
+    if (engaged && mv && !g.profile.keywords.closeQuarters) { notes.push(tr('vehicle in engagement range −1')); hitMod-- }
+    if (isDamaged(unit)) { notes.push(tr('damaged −1')); hitMod-- }
     if (guided(s, unit, target)) { notes.push('Guide +1'); hitMod++ }
     if (psychicGuidance(s, unit)) { notes.push('Psychic Guidance +1'); hitMod++ }
-    if (hasBuff(target, 'lightningFastReactions')) { notes.push('Молниеносная реакция −1'); hitMod-- }
+    if (hasBuff(target, 'lightningFastReactions')) { notes.push(tr('Lightning-fast Reactions −1')); hitMod-- }
     const det = detachmentAttack(s, unit, target)
     if (det.hitMod) { notes.push(...det.hitNotes); hitMod += det.hitMod }
     if (det.sustained && !(g.sustainedHits ?? g.profile.keywords.sustainedHits)) g.sustainedHits = 1
@@ -347,7 +348,7 @@ export function shootPlan(
     // Swift Demise (Windriders): re-roll hit rolls of 1; any failed hit if the target is the closest eligible one
     let rerollHits: AttackContext['rerollHits'] = bonus.rerollHits
     if (hasAbility(unit, 'swiftDemise')) rerollHits = isClosestTarget(s, unit, target) ? 'all' : 'ones'
-    if (bonus.rerollHits) g.notes.push(bonus.rerollHits === 'all' ? 'Breaching Command: переброс попаданий' : 'Breaching Command: переброс 1')
+    if (bonus.rerollHits) g.notes.push(bonus.rerollHits === 'all' ? tr('Breaching Command: re-roll hits') : tr('Breaching Command: re-roll 1s'))
     // Ignores Cover (weapon keyword or Omnispex) cancels the cover bonus; Protector improves BS by 1
     if (alphaWarrior(s, unit) && !(g.profile.keywords.sustainedHits ?? 0)) {
       g.profile = { ...g.profile, keywords: { ...g.profile.keywords, sustainedHits: 1 } }
@@ -356,20 +357,20 @@ export function shootPlan(
     const exposed = target.drivenFromCover === unit.owner
     const storm = hasBuff(unit, 'stormOfDevastation')
     const ignores = g.profile.keywords.ignoresCover || omnispex || exposed || storm
-    if (plan.cover && ignores) g.notes.push(exposed && !g.profile.keywords.ignoresCover && !omnispex && !storm ? 'Driven from Cover: без укрытия' : storm && !g.profile.keywords.ignoresCover && !omnispex ? 'Опустошительный шторм: без укрытия' : 'игнорирует укрытие')
+    if (plan.cover && ignores) g.notes.push(exposed && !g.profile.keywords.ignoresCover && !omnispex && !storm ? tr('Driven from Cover: no cover') : storm && !g.profile.keywords.ignoresCover && !omnispex ? tr('Devastating Storm: no cover') : tr('ignores cover'))
     const dosage = hasBuff(unit, 'lethalDosage')
-    if (dosage) g.notes.push('Смертельная доза: Lethal Hits')
+    if (dosage) g.notes.push(tr('Deadly Dose: Lethal Hits'))
     const tyrantReroll: AttackContext['rerollHits'] = g.notes.includes(TYRANT_ALL) ? 'all' : g.notes.includes(TYRANT_ONES) ? 'ones' : undefined
     if (tyrantReroll && rerollHits !== 'all') rerollHits = tyrantReroll
     if (bonus.betterAp) { g.profile = { ...g.profile, ap: g.profile.ap - 1 }; g.notes.push('Conqueror: AP +1') }
-    if (hasBuff(target, 'armourOfContempt') && g.profile.ap < 0) { g.profile = { ...g.profile, ap: g.profile.ap + 1 }; g.notes.push('Доспех презрения: AP хуже на 1') }
+    if (hasBuff(target, 'armourOfContempt') && g.profile.ap < 0) { g.profile = { ...g.profile, ap: g.profile.ap + 1 }; g.notes.push(tr('Armour of Contempt: AP worse by 1')) }
     if (bonus.galvanic) g.notes.push('Galvanic Field: Lethal Hits')
     const protector = bonus.imp === 'protector'
     g.ctx = {
       hitMod,
       hitModNotes: notes,
       skillWorsen: (plan.cover && !ignores ? 1 : 0) - (protector ? 1 : 0),
-      ...(protector ? { skillNote: 'Protector: BS на 1 лучше' } : {}),
+      ...(protector ? { skillNote: tr('Protector: BS 1 better') } : {}),
       lethalHits: lethalVs(g.profile, unit, target) || onslaught || bonus.galvanic || dosage || det.lethal,
       ...(det.critPrecision ? { critPrecision: true } : {}),
       invulnOverride: rangedInvuln(s, target),
@@ -386,7 +387,7 @@ export function shootPlan(
     for (const g of plan.groups) {
       const { rerollHits: _reroll, critHitOn: _crit, ...rest } = g.ctx
       g.ctx = { ...rest, hitMod: 0, hitModNotes: [], skillWorsen: 6, snap: true }
-      g.notes.push('Огонь на опережение: попадание только на «6»')
+      g.notes.push(tr('Overwatch fire: hits only on a “6”'))
     }
   return plan
 }
@@ -421,10 +422,10 @@ export function meleeSetup(s: GameState, unit: UnitState, target: UnitState, p0:
   if (hasBuff(unit, 'hungryVoid')) {
     const led = isLed(s, unit)
     p = { ...p, s: p.s + 1, ap: led ? p.ap - 1 : p.ap }
-    notes.push(led ? 'Голодная пустота +1 S, +1 AP' : 'Голодная пустота +1 S')
+    notes.push(led ? tr('Hungry Void +1 S, +1 AP') : tr('Hungry Void +1 S'))
   }
-  if (hasBuff(unit, 'hitEmHarder')) notes.push('Бей сильнее!: Lethal Hits')
-  if (hasBuff(unit, 'adrenalSurge')) notes.push('Адреналиновый всплеск: крит на 5+')
+  if (hasBuff(unit, 'hitEmHarder')) notes.push(tr('Hit ’Em Harder!: Lethal Hits'))
+  if (hasBuff(unit, 'adrenalSurge')) notes.push(tr('Adrenal Surge: critical on 5+'))
   // Synapse: +1 Strength on melee attacks of a TYRANIDS unit in Synapse Range
   if (inSynapseRange(s, unit)) {
     p = { ...p, s: p.s + 1 }
@@ -436,32 +437,32 @@ export function meleeSetup(s: GameState, unit: UnitState, target: UnitState, p0:
   let skillNote: string | undefined
   if (guided(s, unit, target)) { hitMod++; hitModNotes.push('Guide +1') }
   if (psychicGuidance(s, unit)) { hitMod++; hitModNotes.push('Psychic Guidance +1') }
-  if (isDamaged(unit)) { hitMod--; hitModNotes.push('повреждён −1') }
+  if (isDamaged(unit)) { hitMod--; hitModNotes.push(tr('damaged −1')) }
   // Bladeguard: once per turn, when selected to fight, +1 to melee hit rolls (a unit fights once per turn here)
   if (hasAbility(unit, 'bladeguard')) { hitMod++; hitModNotes.push('Bladeguard +1') }
   // Doctrina Imperatives: Conqueror improves WS and (near BATTLELINE) AP; Protector of the target subtracts 1 from melee hit rolls
   const bonus = attackerBonuses(s, unit)
-  if (bonus.imp === 'conqueror') { skillWorsen--; skillNote = 'Conqueror: WS на 1 лучше'; notes.push('Conqueror: WS +1') }
+  if (bonus.imp === 'conqueror') { skillWorsen--; skillNote = tr('Conqueror: WS 1 better'); notes.push('Conqueror: WS +1') }
   if (bonus.betterAp) { p = { ...p, ap: p.ap - 1 }; notes.push('Conqueror: AP +1') }
-  if (imperativeOf(s, target) === 'protector' && battlelineSupport(s, target)) { hitMod--; hitModNotes.push('Protector цели −1') }
-  if (hasBuff(target, 'lightningFastReactions')) { hitMod--; hitModNotes.push('Молниеносная реакция −1') }
+  if (imperativeOf(s, target) === 'protector' && battlelineSupport(s, target)) { hitMod--; hitModNotes.push(tr('Target’s Protector −1')) }
+  if (hasBuff(target, 'lightningFastReactions')) { hitMod--; hitModNotes.push(tr('Lightning-fast Reactions −1')) }
   const det = detachmentAttack(s, unit, target)
   if (det.hitMod) { hitMod += det.hitMod; hitModNotes.push(...det.hitNotes) }
   // Get Stuck In (War Horde): Orks' melee attacks have Sustained Hits 1; Swarming Instincts gives the same
   const stuckIn = datasheetOf(unit).faction === 'orks' && detachmentOn(s, unit.owner)
   if ((stuckIn || det.sustained) && !(p.keywords.sustainedHits ?? 0)) {
     p = { ...p, keywords: { ...p.keywords, sustainedHits: 1 } }
-    if (stuckIn) notes.push('Ввяжись в драку: Sustained Hits 1')
+    if (stuckIn) notes.push(tr('Get Stuck In: Sustained Hits 1'))
   }
   notes.push(...det.notes)
-  if (hasBuff(target, 'armourOfContempt') && p.ap < 0) { p = { ...p, ap: p.ap + 1 }; notes.push('Доспех презрения: AP хуже на 1') }
+  if (hasBuff(target, 'armourOfContempt') && p.ap < 0) { p = { ...p, ap: p.ap + 1 }; notes.push(tr('Armour of Contempt: AP worse by 1')) }
   // Data-spike: the unit's melee skill is worsened by 1 until the end of the Fight phase
-  if (unit.spiked) { skillWorsen++; notes.push('Data-spike: WS на 1 хуже') }
-  if (bonus.rerollHits) notes.push(bonus.rerollHits === 'all' ? 'Breaching Command: переброс попаданий' : 'Breaching Command: переброс 1')
+  if (unit.spiked) { skillWorsen++; notes.push(tr('Data-spike: WS 1 worse')) }
+  if (bonus.rerollHits) notes.push(bonus.rerollHits === 'all' ? tr('Breaching Command: re-roll hits') : tr('Breaching Command: re-roll 1s'))
   if (bonus.galvanic) notes.push('Galvanic Field: Lethal Hits')
   // Whirling Onslaught (Skorpekh Destroyers): re-roll hit rolls of 1, or any hit roll after a charge
   const rerollHits: AttackContext['rerollHits'] = hasAbility(unit, 'whirlingOnslaught') ? (unit.charged ? 'all' : 'ones') : bonus.rerollHits
-  if (rerollHits) notes.push(rerollHits === 'all' ? 'Whirling Onslaught: переброс попаданий' : 'Whirling Onslaught: переброс 1')
+  if (rerollHits) notes.push(rerollHits === 'all' ? tr('Whirling Onslaught: re-roll hits') : tr('Whirling Onslaught: re-roll 1s'))
   const ctx: AttackContext = {
     hitMod, hitModNotes, skillWorsen,
     ...(skillNote ? { skillNote } : {}),
@@ -536,23 +537,23 @@ function planCharge(s: GameState, unit: UnitState, targets: UnitState[], roll: n
 // ---------------------------------------------------------------- validation
 
 export function validate(s: GameState, cmd: Command): Validation {
-  if (s.winner) return fail('Битва окончена.')
+  if (s.winner) return fail(tr('The battle is over.'))
   const who = actor(s)
   // the Tyranids choose their Hyper-adaptation before the battle starts
   if (hyperPending(s)) {
-    if (cmd.type !== 'hyperAdaptation') return fail('Тираниды выбирают гиперадаптацию на всю битву (правило детачмента): до этого ход не начинается.')
-    return HYPER_ADAPTATIONS.includes(cmd.choice) ? OK : fail('Неизвестная гиперадаптация.')
+    if (cmd.type !== 'hyperAdaptation') return fail(tr('The Tyranids choose a hyper-adaptation for the whole battle (detachment rule): the turn does not start until then.'))
+    return HYPER_ADAPTATIONS.includes(cmd.choice) ? OK : fail(tr('Unknown hyper-adaptation.'))
   }
-  if (cmd.type === 'hyperAdaptation') return fail('Гиперадаптация выбирается один раз, в начале битвы.')
+  if (cmd.type === 'hyperAdaptation') return fail(tr('The hyper-adaptation is chosen once, at the start of the battle.'))
   // an attack paused for a Command Re-roll: only the answer
   if (s.pendingReroll)
-    return cmd.type === 'rerollChoice' ? OK : fail(`Атака ждёт решения стороны «${FACTION_NAME[s.pendingReroll.player]}»: перебросить кубик или нет.`)
-  if (cmd.type === 'rerollChoice') return fail('Сейчас нечего перебрасывать.')
+    return cmd.type === 'rerollChoice' ? OK : fail(tr('The attack is waiting for the decision of side “{item}”: re-roll the die or not.', { item: FACTION_NAME[s.pendingReroll.player] }))
+  if (cmd.type === 'rerollChoice') return fail(tr('There is nothing to re-roll right now.'))
   // a unit arriving from reserves: in its own Movement phase, or Rapid Ingress in the reaction window before shooting
   if (cmd.type === 'arrive') {
     const u = s.reserves?.find((x) => x.id === cmd.unitId)
-    if (!u) return fail('Этого отряда нет в резерве.')
-    if (!cmd.rapid && u.owner !== who) return fail(`Сейчас решение принимает ${FACTION_NAME[who]}.`)
+    if (!u) return fail(tr('This unit is not in Reserves.'))
+    if (!cmd.rapid && u.owner !== who) return fail(tr('{item} is making the decision now.', { item: FACTION_NAME[who] }))
     const p = arrivalProblem(s, u, cmd.positions, !!cmd.rapid)
     return p ? fail(p) : OK
   }
@@ -560,38 +561,40 @@ export function validate(s: GameState, cmd: Command): Validation {
   if (s.reaction) {
     if (cmd.type === 'passReaction') return OK
     if (cmd.type !== 'stratagem' || STRATAGEMS[cmd.id]?.window !== s.reaction.window)
-      return fail(`Ход ждёт ответа стороны «${FACTION_NAME[s.reaction.player]}»: реакция или пропуск.`)
-  } else if (cmd.type === 'passReaction') return fail('Сейчас нет окна реакции.')
+      return fail(tr('The turn is waiting for the answer of side “{item}”: a reaction or a pass.', { item: FACTION_NAME[s.reaction.player] }))
+  } else if (cmd.type === 'passReaction') return fail(tr('There is no reaction window now.'))
   if (s.pendingCharge && cmd.type !== 'chargeMove' && cmd.type !== 'skipCharge' && !(cmd.type === 'stratagem' && cmd.id === 'commandReroll'))
-    return fail('Сначала завершите объявленную атаку (charge): выберите цели или откажитесь от перемещения.')
+    return fail(tr('First finish the declared charge: choose targets or give up the move.'))
 
   if (cmd.type === 'endPhase') {
-    if (s.phase === 'fight' && s.fight) return fail('В фазе боя ещё есть отряды, которые должны сражаться.')
+    if (s.phase === 'fight' && s.fight) return fail(tr('There are still units in the Fight phase that must fight.'))
     return OK
   }
   if (cmd.type === 'callWaaagh') {
-    if (s.activePlayer !== 'orks') return fail('Waaagh! может объявить только игрок Орков в свой ход.')
-    if (s.phase !== 'command') return fail('«Боевой клич» объявляется в фазе командования.')
-    if (s.players.orks.waaaghUsed) return fail('Waaagh! уже был объявлен в этой битве (раз за битву).')
+    if (s.activePlayer !== 'orks') return fail(tr('Waaagh! can only be called by the Ork player on their own turn.'))
+    if (s.phase !== 'command') return fail(tr('The “Battle Cry” is called in the Command phase.'))
+    if (s.players.orks.waaaghUsed) return fail(tr('Waaagh! has already been called in this battle (once per battle).'))
     return OK
   }
   if (cmd.type === 'callShadow') {
     const me = s.activePlayer
-    if (s.phase !== 'command') return fail('«Тень в Варпе» (Shadow in the Warp) применяется в фазе командования.')
-    if (s.players[me].shadowUsed === undefined) return fail('Тень в Варпе — правило армии Тиранидов.')
-    if (s.players[me].shadowUsed) return fail('Тень в Варпе уже применена в этой битве (раз за битву).')
-    if (!unitsOf(s, me).some((u) => hasAbility(u, 'shadowInTheWarp'))) return fail('На поле нет отряда с правилом «Тень в Варпе».')
+    if (s.phase !== 'command') return fail(tr('“Shadow in the Warp” is used in the Command phase.'))
+    if (s.players[me].shadowUsed === undefined) return fail(tr('Shadow in the Warp is a Tyranid army rule.'))
+    if (s.players[me].shadowUsed) return fail(tr('Shadow in the Warp has already been used in this battle (once per battle).'))
+    if (!unitsOf(s, me).some((u) => hasAbility(u, 'shadowInTheWarp'))) return fail(tr('There is no unit with the “Shadow in the Warp” rule on the field.'))
     return OK
   }
 
   if (cmd.type === 'doctrine') {
-    if (who !== 'marines') return fail('Боевые доктрины — правило армии Космодесанта.')
-    if (s.phase !== 'command') return fail('Боевая доктрина выбирается в фазе командования.')
+    if (who !== 'marines') return fail(tr('Combat Doctrines are a Space Marines army rule.'))
+    if (s.phase !== 'command') return fail(tr('A Combat Doctrine is chosen in the Command phase.'))
     const p = s.players.marines
-    if (p.doctrine) return fail('Доктрина уже выбрана в этом ходу.')
-    if (!DOCTRINES.includes(cmd.doctrine)) return fail('Неизвестная доктрина.')
+    if (p.doctrine) return fail(tr('A doctrine has already been chosen this turn.'))
+    if (!DOCTRINES.includes(cmd.doctrine)) return fail(tr('Unknown doctrine.'))
     if (!doctrineLeft(p.doctrinesUsed ?? [], cmd.doctrine, detachmentOn(s, 'marines') ? undefined : 0))
-      return fail(`«${DOCTRINE_NAME[cmd.doctrine]}» больше выбрать нельзя: каждая доктрина — раз за битву${detachmentOn(s, 'marines') ? ', и одна из них — ещё раз (Дисциплина Кодекса)' : ''}.`)
+      return fail(detachmentOn(s, 'marines')
+        ? tr('“{name}” can no longer be chosen: each doctrine is once per battle, and one of them once more (Codex Discipline).', { name: DOCTRINE_NAME[cmd.doctrine] })
+        : tr('“{name}” can no longer be chosen: each doctrine is once per battle.', { name: DOCTRINE_NAME[cmd.doctrine] }))
     return OK
   }
 
@@ -601,147 +604,147 @@ export function validate(s: GameState, cmd: Command): Validation {
   }
 
   if (cmd.type === 'imperative') {
-    if (s.phase !== 'command') return fail('Империатив (Doctrina Imperative) выбирается в фазе командования.')
-    if (s.players[who].imperative === undefined) return fail('Доктрины Империатива — правило армии Адептус Механикус.')
-    if (s.players[who].imperative !== null) return fail('Империатив уже выбран в этом ходу.')
-    if (cmd.imperative !== 'protector' && cmd.imperative !== 'conqueror') return fail('Неизвестный Империатив.')
+    if (s.phase !== 'command') return fail(tr('The Imperative (Doctrina Imperative) is chosen in the Command phase.'))
+    if (s.players[who].imperative === undefined) return fail(tr('Doctrina Imperatives are an Adeptus Mechanicus army rule.'))
+    if (s.players[who].imperative !== null) return fail(tr('An Imperative has already been chosen this turn.'))
+    if (cmd.imperative !== 'protector' && cmd.imperative !== 'conqueror') return fail(tr('Unknown Imperative.'))
     return OK
   }
 
   const unit = findUnit(s, cmd.unitId)
-  if (!unit || isDestroyed(unit)) return fail('Отряд не найден или уничтожен.')
-  if (unit.owner !== who) return fail(`Сейчас решение принимает ${FACTION_NAME[who]}.`)
+  if (!unit || isDestroyed(unit)) return fail(tr('The unit was not found or is destroyed.'))
+  if (unit.owner !== who) return fail(tr('{item} is making the decision now.', { item: FACTION_NAME[who] }))
 
   switch (cmd.type) {
     case 'stratagem':
       return stratagemProblem(s, unit, cmd)
     case 'declareAdvance':
     case 'move': {
-      if (s.phase !== 'movement') return fail('Двигаться можно только в фазе движения.')
-      if (unit.move !== 'none') return fail('Отряд уже двигался в этой фазе.')
+      if (s.phase !== 'movement') return fail(tr('You can only move in the Movement phase.'))
+      if (unit.move !== 'none') return fail(tr('The unit has already moved in this phase.'))
       const engaged = isEngaged(s, unit)
-      if (cmd.type === 'move' && cmd.fly && !isFlyer(unit)) return fail('«Взлететь» (FLY) могут только модели с ключевым словом FLY.')
+      if (cmd.type === 'move' && cmd.fly && !isFlyer(unit)) return fail(tr('Only models with the FLY keyword can “Take to the Skies”.'))
       if (cmd.type === 'move' && cmd.swift) {
-        if (datasheetOf(unit).faction !== 'aeldari') return fail('Swift as the Wind — манёвр Боевого фокуса (Battle Focus) армии Аэльдари.')
-        if ((s.players[unit.owner].focus ?? 0) <= 0) return fail('Нет жетонов Боевого фокуса (Battle Focus) в этом раунде.')
+        if (datasheetOf(unit).faction !== 'aeldari') return fail(tr('Swift as the Wind is an Aeldari Battle Focus manoeuvre.'))
+        if ((s.players[unit.owner].focus ?? 0) <= 0) return fail(tr('There are no Battle Focus tokens this round.'))
       }
       if (cmd.type === 'declareAdvance') {
-        if (engaged) return fail('Отряд в контакте с врагом: можно только отступить (Fall Back) или остаться на месте.')
-        if (unit.advanceRoll !== null) return fail('Продвижение уже объявлено.')
+        if (engaged) return fail(tr('The unit is in engagement range of the enemy: it can only Fall Back or stay put.'))
+        if (unit.advanceRoll !== null) return fail(tr('An Advance has already been declared.'))
         return OK
       }
-      if (cmd.mode === 'fallBack' && !engaged) return fail('Отступление (Fall Back) возможно только для отряда в контакте с врагом.')
-      if (cmd.mode !== 'fallBack' && engaged) return fail('Отряд в контакте с врагом: обычное движение невозможно, только отступление (Fall Back).')
-      if (cmd.mode === 'advance' && unit.advanceRoll === null) return fail('Сначала объявите продвижение и бросьте D6.')
-      if (cmd.mode !== 'advance' && unit.advanceRoll !== null) return fail('Продвижение уже объявлено — двигайтесь в режиме продвижения.')
+      if (cmd.mode === 'fallBack' && !engaged) return fail(tr('Fall Back is only possible for a unit in engagement range of the enemy.'))
+      if (cmd.mode !== 'fallBack' && engaged) return fail(tr('The unit is in engagement range of the enemy: a normal move is impossible, only Fall Back.'))
+      if (cmd.mode === 'advance' && unit.advanceRoll === null) return fail(tr('First declare an Advance and roll a D6.'))
+      if (cmd.mode !== 'advance' && unit.advanceRoll !== null) return fail(tr('An Advance has already been declared — move in Advance mode.'))
       const m = Math.min(...alive(unit).map((x) => profileOf(x).m)) + (hasBuff(unit, 'fungusFuelInjection') ? FUNGUS_BONUS : 0)
       const max = (cmd.mode === 'advance' ? m + (unit.advanceRoll ?? 0) : m) + (cmd.swift ? swiftBonusOf(s, unit.owner) : 0) - (cmd.fly ? FLY_PENALTY : 0)
       const p = moveProblem(s, unit, cmd.positions, max, cmd.mode, [], !!cmd.fly)
       return p ? fail(p) : OK
     }
     case 'rerollAdvance':
-      if (unit.advanceRoll === null || unit.move !== 'none') return fail('Нет броска продвижения для переброса.')
-      if (!hasAbility(unit, 'waaagh') && !hasAbility(unit, 'superlativeStrategist')) return fail('Переброс продвижения дают только Waaagh! и Superlative Strategist.')
-      if (unit.advanceRerolled) return fail('Кубик нельзя перебрасывать больше одного раза.')
+      if (unit.advanceRoll === null || unit.move !== 'none') return fail(tr('There is no Advance roll to re-roll.'))
+      if (!hasAbility(unit, 'waaagh') && !hasAbility(unit, 'superlativeStrategist')) return fail(tr('Only Waaagh! and Superlative Strategist allow re-rolling an Advance.'))
+      if (unit.advanceRerolled) return fail(tr('A die cannot be re-rolled more than once.'))
       return OK
     case 'startAction': {
       const p = actionProblem(s, unit, cmd.objectiveId)
       return p ? fail(p) : OK
     }
     case 'shoot': {
-      if (s.phase !== 'shooting') return fail('Стрелять можно только в фазе стрельбы.')
-      if (unit.action) return fail('Отряд выполняет действие миссии и не стреляет в этот ход.')
-      if (unit.shot) return fail('Отряд уже стрелял в этой фазе.')
-      if (unit.move === 'fallBack' && !canActAfterFallBack(s, unit) && !hasAbility(unit, 'warConstruct') && !hasAbility(unit, 'elevatedStrider')) return fail('Отряд отступил (Fall Back) в этот ход и не может стрелять.')
+      if (s.phase !== 'shooting') return fail(tr('You can only shoot in the Shooting phase.'))
+      if (unit.action) return fail(tr('The unit is performing a mission action and does not shoot this turn.'))
+      if (unit.shot) return fail(tr('The unit has already shot in this phase.'))
+      if (unit.move === 'fallBack' && !canActAfterFallBack(s, unit) && !hasAbility(unit, 'warConstruct') && !hasAbility(unit, 'elevatedStrider')) return fail(tr('The unit fell back (Fall Back) this turn and cannot shoot.'))
       const target = findUnit(s, cmd.targetId)
-      if (!target || isDestroyed(target) || target.owner === unit.owner) return fail('Недопустимая цель.')
+      if (!target || isDestroyed(target) || target.owner === unit.owner) return fail(tr('Invalid target.'))
       const plan = shootPlan(s, unit, target, cmd)
       return plan.problem ? fail(plan.problem) : OK
     }
     case 'declareCharge': {
-      if (s.phase !== 'charge') return fail('Атаку (charge) объявляют в фазе атаки.')
-      if (unit.chargeDeclared) return fail('Отряд уже объявлял атаку в этой фазе.')
-      if (unit.action) return fail('Отряд выполняет действие миссии и не может атаковать в этот ход.')
-      if (isEngaged(s, unit)) return fail('Отряд уже в контакте с врагом.')
-      if (unit.move === 'fallBack' && !canActAfterFallBack(s, unit)) return fail('Отряд отступил (Fall Back) в этот ход и не может атаковать.')
-      if (unit.move === 'advance' && !canChargeAfterAdvance(s, unit)) return fail('Отряд продвинулся (Advance) в этот ход и не может атаковать.')
+      if (s.phase !== 'charge') return fail(tr('A charge is declared in the Charge phase.'))
+      if (unit.chargeDeclared) return fail(tr('The unit has already declared a charge in this phase.'))
+      if (unit.action) return fail(tr('The unit is performing a mission action and cannot charge this turn.'))
+      if (isEngaged(s, unit)) return fail(tr('The unit is already in engagement range of the enemy.'))
+      if (unit.move === 'fallBack' && !canActAfterFallBack(s, unit)) return fail(tr('The unit fell back (Fall Back) this turn and cannot charge.'))
+      if (unit.move === 'advance' && !canChargeAfterAdvance(s, unit)) return fail(tr('The unit Advanced this turn and cannot charge.'))
       const near = enemiesOf(s, unit).filter((e) => withinRange(unitDistance(unit, e), CHARGE_RANGE))
       if (near.length === 0) {
         const d = Math.min(...enemiesOf(s, unit).map((e) => unitDistance(unit, e)))
-        return fail(`Нет врагов в пределах ${CHARGE_RANGE}" (ближайший — ${fmt(d)}").`)
+        return fail(tr('No enemies within {CHARGE_RANGE}" (nearest — {fmt}").', { CHARGE_RANGE, fmt: fmt(d) }))
       }
       return OK
     }
     case 'chargeMove':
     case 'skipCharge': {
-      if (!s.pendingCharge || s.pendingCharge.unitId !== unit.id) return fail('Нет объявленной атаки для этого отряда.')
+      if (!s.pendingCharge || s.pendingCharge.unitId !== unit.id) return fail(tr('There is no declared charge for this unit.'))
       if (cmd.type === 'skipCharge') return OK
-      if (cmd.targetIds.length === 0) return fail('Выберите хотя бы одну цель атаки.')
-      if (!cmd.targetIds.every((t) => s.pendingCharge!.targets.includes(t))) return fail('Цель недоступна при этом броске атаки.')
+      if (cmd.targetIds.length === 0) return fail(tr('Choose at least one charge target.'))
+      if (!cmd.targetIds.every((t) => s.pendingCharge!.targets.includes(t))) return fail(tr('The target is unavailable with this charge roll.'))
       const targets = cmd.targetIds.map((t) => findUnit(s, t)!)
       if (!planCharge(s, unit, targets, s.pendingCharge.roll))
-        return fail('Не удалось построить допустимое перемещение атаки (подставки мешают или нарушается связность).')
+        return fail(tr('Could not build a valid charge move (bases are in the way or coherency is broken).'))
       return OK
     }
     case 'divineWork': {
-      if (!hasAbility(unit, 'defendDivineWork')) return fail('У этого отряда нет способности «Защита божественного труда».')
-      if (s.players[unit.owner].divineUsed) return fail('Защита божественного труда уже применена в этой битве (раз за битву).')
+      if (!hasAbility(unit, 'defendDivineWork')) return fail(tr('This unit does not have the “Defend the Divine Work” ability.'))
+      if (s.players[unit.owner].divineUsed) return fail(tr('Defend the Divine Work has already been used in this battle (once per battle).'))
       return OK
     }
     case 'engrammatic': {
-      if (!hasAbility(unit, 'engrammaticLogic')) return fail('У этого отряда нет Энграмматической логики (Engrammatic Logic).')
-      if (unit.engrammaticUsed) return fail('Энграмматическая логика уже применена в этой битве (раз за битву).')
+      if (!hasAbility(unit, 'engrammaticLogic')) return fail(tr('This unit does not have Engrammatic Logic.'))
+      if (unit.engrammaticUsed) return fail(tr('Engrammatic Logic has already been used in this battle (once per battle).'))
       const target = findUnit(s, cmd.targetId)
-      if (!target || isDestroyed(target) || target.owner !== unit.owner) return fail('Цель — союзный отряд.')
-      if (!target.battleShocked) return fail('Этот отряд не в боевом шоке.')
-      if (target.id !== unit.id && unitDistance(unit, target) > ENGRAMMATIC_RANGE + 1e-6) return fail(`Отряд дальше ${ENGRAMMATIC_RANGE}″.`)
+      if (!target || isDestroyed(target) || target.owner !== unit.owner) return fail(tr('The target is a friendly unit.'))
+      if (!target.battleShocked) return fail(tr('This unit is not Battle-shocked.'))
+      if (target.id !== unit.id && unitDistance(unit, target) > ENGRAMMATIC_RANGE + 1e-6) return fail(tr('The unit is farther than {ENGRAMMATIC_RANGE}″.', { ENGRAMMATIC_RANGE }))
       return OK
     }
     case 'grenadePack': {
-      if (!hasAbility(unit, 'grenadePack')) return fail('У этого отряда нет гранатного налёта.')
-      if (s.phase !== 'movement' || unit.move === 'none') return fail('Гранатный налёт — после движения отряда в фазе движения.')
-      if (unit.grenadePackUsed) return fail('Гранатный налёт уже был в этот ход (раз за ход).')
+      if (!hasAbility(unit, 'grenadePack')) return fail(tr('This unit has no grenade flyover.'))
+      if (s.phase !== 'movement' || unit.move === 'none') return fail(tr('The grenade flyover is used after the unit’s move in the Movement phase.'))
+      if (unit.grenadePackUsed) return fail(tr('The grenade flyover has already been used this turn (once per turn).'))
       const target = findUnit(s, cmd.targetId)
-      if (!target || isDestroyed(target) || target.owner === unit.owner) return fail('Недопустимая цель для гранатного налёта.')
-      if (unitDistance(unit, target) > GRENADE_PACK_RANGE + 1e-6) return fail(`Гранатный налёт: цель дальше ${GRENADE_PACK_RANGE}″.`)
-      if (!alive(unit).some((m) => seesAny(s, m, target))) return fail('Гранатный налёт: цель не видна.')
+      if (!target || isDestroyed(target) || target.owner === unit.owner) return fail(tr('Invalid target for the grenade flyover.'))
+      if (unitDistance(unit, target) > GRENADE_PACK_RANGE + 1e-6) return fail(tr('Grenade flyover: the target is farther than {GRENADE_PACK_RANGE}″.', { GRENADE_PACK_RANGE }))
+      if (!alive(unit).some((m) => seesAny(s, m, target))) return fail(tr('Grenade flyover: the target is not visible.'))
       return OK
     }
     case 'wraithForm': {
-      if (!hasAbility(unit, 'wraithForm')) return fail('У этого отряда нет Фазовой формы (Wraith Form).')
-      if (s.phase !== 'movement' || unit.move !== 'normal') return fail('Фазовая форма применяется сразу после обычного движения.')
-      if (!unit.wraithTargets?.includes(cmd.targetId)) return fail('Отряд не пролетал сквозь эту цель в последнем движении.')
+      if (!hasAbility(unit, 'wraithForm')) return fail(tr('This unit does not have Wraith Form.'))
+      if (s.phase !== 'movement' || unit.move !== 'normal') return fail(tr('Wraith Form is used right after a normal move.'))
+      if (!unit.wraithTargets?.includes(cmd.targetId)) return fail(tr('The unit did not fly through this target in its last move.'))
       return OK
     }
     case 'bombSquig': {
-      if (!hasAbility(unit, 'bombSquig')) return fail('У этого отряда нет бомбосквига.')
-      if (unit.bombSquigUsed) return fail('Бомбосквиг уже взорван в этой битве (раз за битву).')
-      if (s.phase !== 'movement') return fail('Бомбосквиг выпускают в фазе движения.')
-      if (unit.move !== 'normal') return fail('Бомбосквиг выпускают после обычного движения отряда (не после продвижения или отступления).')
+      if (!hasAbility(unit, 'bombSquig')) return fail(tr('This unit has no bomb squig.'))
+      if (unit.bombSquigUsed) return fail(tr('The bomb squig has already been detonated in this battle (once per battle).'))
+      if (s.phase !== 'movement') return fail(tr('The bomb squig is released in the Movement phase.'))
+      if (unit.move !== 'normal') return fail(tr('The bomb squig is released after the unit’s normal move (not after an Advance or Fall Back).'))
       const target = findUnit(s, cmd.targetId)
-      if (!target || isDestroyed(target) || target.owner === unit.owner) return fail('Недопустимая цель для бомбосквига.')
-      if (unitDistance(unit, target) > BOMB_SQUIG_RANGE + 1e-6) return fail(`Бомбосквиг: цель дальше ${BOMB_SQUIG_RANGE}″.`)
-      if (!alive(unit).some((m) => seesAny(s, m, target))) return fail('Бомбосквиг: цель не видна.')
+      if (!target || isDestroyed(target) || target.owner === unit.owner) return fail(tr('Invalid target for the bomb squig.'))
+      if (unitDistance(unit, target) > BOMB_SQUIG_RANGE + 1e-6) return fail(tr('Bomb squig: the target is farther than {BOMB_SQUIG_RANGE}″.', { BOMB_SQUIG_RANGE }))
+      if (!alive(unit).some((m) => seesAny(s, m, target))) return fail(tr('Bomb squig: the target is not visible.'))
       return OK
     }
     case 'guide': {
-      if (s.phase !== 'movement') return fail('Guide применяется в фазе движения.')
-      if (!hasAbility(unit, 'guide')) return fail('У этого отряда нет способности Guide.')
-      if (unit.guided) return fail('Guide уже использован в этот ход.')
+      if (s.phase !== 'movement') return fail(tr('Guide is used in the Movement phase.'))
+      if (!hasAbility(unit, 'guide')) return fail(tr('This unit does not have the Guide ability.'))
+      if (unit.guided) return fail(tr('Guide has already been used this turn.'))
       const target = findUnit(s, cmd.targetId)
-      if (!target || isDestroyed(target) || target.owner === unit.owner) return fail('Недопустимая цель для Guide.')
-      if (unitDistance(unit, target) > GUIDE_RANGE + 1e-6) return fail(`Guide: цель дальше ${GUIDE_RANGE}″.`)
-      if (!alive(unit).some((m) => seesAny(s, m, target))) return fail('Guide: цель не видна.')
+      if (!target || isDestroyed(target) || target.owner === unit.owner) return fail(tr('Invalid target for Guide.'))
+      if (unitDistance(unit, target) > GUIDE_RANGE + 1e-6) return fail(tr('Guide: the target is farther than {GUIDE_RANGE}″.', { GUIDE_RANGE }))
+      if (!alive(unit).some((m) => seesAny(s, m, target))) return fail(tr('Guide: the target is not visible.'))
       return OK
     }
     case 'fight': {
-      if (s.phase !== 'fight' || !s.fight) return fail('Сейчас не фаза боя.')
+      if (s.phase !== 'fight' || !s.fight) return fail(tr('It is not the Fight phase now.'))
       if (!fightCandidates(s, s.fight.selecting, s.fight.step).some((u) => u.id === unit.id))
-        return fail(s.fight.step === 'first' ? 'Сначала сражаются отряды с правом «Бьёт первым» (Fights First) — например, совершившие атаку.' : 'Этот отряд не может сражаться (уже сражался или не в контакте).')
+        return fail(s.fight.step === 'first' ? tr('Units with Fights First fight first — for example those that charged.') : tr('This unit cannot fight (it has already fought or is not in engagement range).'))
       const target = findUnit(s, cmd.targetId)
-      if (!target || !engagedUnits(s, unit).some((e) => e.id === target.id)) return fail('Цель должна быть в зоне контакта с отрядом.')
-      if (cmd.finestHour && !hasAbility(unit, 'finestHour')) return fail('У этого отряда нет способности «Звёздный час» (Finest Hour).')
-      if (cmd.finestHour && unit.finestHourUsed) return fail('«Звёздный час» уже использован в этой битве (раз за битву).')
+      if (!target || !engagedUnits(s, unit).some((e) => e.id === target.id)) return fail(tr('The target must be in engagement range of the unit.'))
+      if (cmd.finestHour && !hasAbility(unit, 'finestHour')) return fail(tr('This unit does not have the “Finest Hour” ability.'))
+      if (cmd.finestHour && unit.finestHourUsed) return fail(tr('“Finest Hour” has already been used in this battle (once per battle).'))
       return OK
     }
   }
@@ -760,7 +763,7 @@ function advanceFight(s: GameState) {
   for (const u of s.units)
     if (fightEligible(s, u) && engagedUnits(s, u).length === 0) {
       u.fought = true
-      addLog(s, `${u.name}: нет врагов в зоне контакта — сражаться не с кем.`, 'standard')
+      addLog(s, tr('{name}: no enemies in engagement range — nobody to fight.', { name: u.name }), 'standard')
     }
   for (;;) {
     const f = s.fight
@@ -771,7 +774,7 @@ function advanceFight(s: GameState) {
     if (f.step === 'first') { f.step = 'rest'; f.selecting = s.activePlayer; continue }
     s.fight = null
     consolidateAll(s)
-    addLog(s, 'Все бои завершены. Можно завершить фазу.', 'beginner')
+    addLog(s, tr('All fights are finished. You can end the phase.'), 'beginner')
     return
   }
 }
@@ -788,7 +791,7 @@ function pileInAll(s: GameState) {
       const inContact = (m: ModelState) => em.some((e) => modelDistance(m, e) < 0.01)
       const pos = planMove(s, u, (m) => (inContact(m) ? { pos: m.pos, radius: 99 } : { pos: closest(m).pos, radius: radiusOf(closest(m)) }), PILE_IN, 'pileIn', ids)
       if (!moveProblem(s, u, pos, PILE_IN, 'pileIn', ids)) movedTo(u, pos)
-      addLog(s, `${u.name}: подход (pile-in) до ${PILE_IN}" к ближайшему врагу.`, 'beginner')
+      addLog(s, tr('{name}: pile-in of up to {PILE_IN}" toward the nearest enemy.', { name: u.name, PILE_IN }), 'beginner')
     }
   }
 }
@@ -805,13 +808,13 @@ function consolidateAll(s: GameState) {
         const closest = (m: ModelState) => em.reduce((b, t) => (modelDistance(m, t) < modelDistance(m, b) ? t : b))
         pos = planMove(s, u, (m) => ({ pos: closest(m).pos, radius: radiusOf(closest(m)) }), CONSOLIDATE, 'consolidate', ids)
         if (moveProblem(s, u, pos, CONSOLIDATE, 'consolidate', ids)) pos = null
-        else addLog(s, `${u.name}: закрепление (consolidate) к врагу.`, 'beginner')
+        else addLog(s, tr('{name}: consolidates toward the enemy.', { name: u.name }), 'beginner')
       } else {
         const obj = s.objectives.find((o) => alive(u).some((m) => withinRange(dist(m.pos, o.pos) - radiusOf(m) - baseRadius(OBJECTIVE_MARKER_MM), CONSOLIDATE + 3)))
         if (obj && !unitNearObjective(u, obj)) {
           pos = planMove(s, u, () => ({ pos: obj.pos, radius: baseRadius(OBJECTIVE_MARKER_MM) }), CONSOLIDATE, 'consolidate')
           if (moveProblem(s, u, pos, CONSOLIDATE, 'consolidate')) pos = null
-          else addLog(s, `${u.name}: закрепление (consolidate) к цели.`, 'beginner')
+          else addLog(s, tr('{name}: consolidates toward the objective.', { name: u.name }), 'beginner')
         }
       }
       if (pos) movedTo(u, pos)
@@ -876,14 +879,14 @@ function enterPhase(s: GameState, phase: Phase, r: Roller) {
     pileInAll(s)
     s.fight = { selecting: s.activePlayer, step: 'first' }
     advanceFight(s)
-    if (!s.fight) addLog(s, 'Нет отрядов в контакте — фаза боя пропускается (можно завершить фазу).', 'beginner')
+    if (!s.fight) addLog(s, tr('No units in engagement range — the Fight phase is skipped (you can end the phase).'), 'beginner')
   }
   const hints: Partial<Record<Phase, string>> = {
-    command: 'Оба игрока получают 1 CP; проверяется боевой шок (Battle-shock); затем подсчитываются очки за цели.',
-    movement: 'Выберите отряд и переместите модели на расстояние до M. Нельзя заканчивать ход ближе 2" к врагу.',
-    shooting: 'Выберите отряд и цель. Нужна линия видимости и дистанция оружия.',
-    charge: `Отряд в пределах ${CHARGE_RANGE}" от врага может объявить атаку: бросок 2D6 определяет максимальную дистанцию.`,
-    fight: 'Отряды в контакте сражаются. Сначала — те, кто атаковал (Fights First).',
+    command: tr('Both players get 1 CP; Battle-shock is checked; then objective points are scored.'),
+    movement: tr('Choose a unit and move its models up to M. You cannot end the move closer than 2" to an enemy.'),
+    shooting: tr('Choose a unit and a target. You need line of sight and weapon range.'),
+    charge: tr('A unit within {CHARGE_RANGE}" of an enemy can declare a charge: a 2D6 roll sets the maximum distance.', { CHARGE_RANGE }),
+    fight: tr('Units in engagement range fight. First — those that charged (Fights First).'),
   }
   if (hints[phase]) addLog(s, hints[phase]!, 'beginner')
 }
@@ -895,7 +898,7 @@ function leadershipRoll(s: GameState, u: UnitState, r: Roller, mod = 0) {
   const interference = neurostaticMod(s, u)
   const total = dice.reduce((a, b) => a + b, 0) + mod + interference
   const ld = psychicGuidance(s, u) ? Math.min(6, profileOf(alive(u)[0]).ld) : profileOf(alive(u)[0]).ld
-  return { dice, total, ld, pass: total >= ld, label: `${synapse ? '3D6 (Synapse)' : '2D6'}${interference ? ` (помехи ${interference})` : ''}` }
+  return { dice, total, ld, pass: total >= ld, label: `${synapse ? '3D6 (Synapse)' : '2D6'}${interference ? tr(' (interference {interference})', { interference }) : ''}` }
 }
 
 /** Chance that this unit fails its Battle-shock test (same dice and modifiers as `leadershipRoll`). */
@@ -919,7 +922,7 @@ function commandPhase(s: GameState, r: Roller) {
   for (const p of sidesOf(s)) s.players[p].cp++
   if (s.players[s.activePlayer].guide !== undefined) s.players[s.activePlayer].guide = null
   if (s.players[s.activePlayer].imperative !== undefined) s.players[s.activePlayer].imperative = null
-  addLog(s, 'Оба игрока получают 1 очко командования (CP).', 'beginner')
+  addLog(s, tr('Both players get 1 Command Point (CP).'), 'beginner')
   secondaryCommandStart(s)
   s.shockPending = unitsOf(s, s.activePlayer).filter((u) => u.battleShocked || atHalfStrength(u)).map((u) => u.id)
   // Insane Bravery is used before the test: the player may answer first, then the tests are rolled
@@ -934,9 +937,9 @@ function finishShockTests(s: GameState, r: Roller) {
     const was = u.battleShocked
     u.battleShocked = !pass
     if (!pass) u.shockedThisPhase = true
-    pushDice(s, `Боевой шок: ${u.name}`, [{ label, target: `${ld}+`, dice: dice.map((v) => ({ value: v, success: pass })), note: `Сумма ${total} против Ld ${ld}+` }],
-      pass ? `${u.name}: проверка пройдена${was ? ' — боевой шок снят' : ''}.` : `${u.name}: провал — отряд в боевом шоке (OC = 0, отступление опасно).`)
-    addLog(s, pass ? `${u.name} проходит проверку боевого шока (${total} ≥ ${ld}).` : `${u.name} проваливает проверку боевого шока (${total} < ${ld}) и получает Battle-shock.`, 'minimal')
+    pushDice(s, tr('Battle-shock: {name}', { name: u.name }), [{ label, target: `${ld}+`, dice: dice.map((v) => ({ value: v, success: pass })), note: tr('Total {total} vs Ld {ld}+', { total, ld }) }],
+      pass ? tr('{name}: test passed{value}.', { name: u.name, value: was ? tr(' — Battle-shock removed') : '' }) : tr('{name}: failed — the unit is Battle-shocked (OC = 0, falling back is dangerous).', { name: u.name }))
+    addLog(s, pass ? tr('{name} passes the Battle-shock test ({total} ≥ {ld}).', { name: u.name, total, ld }) : tr('{name} fails the Battle-shock test ({total} < {ld}) and becomes Battle-shocked.', { name: u.name, total, ld }), 'minimal')
   }
   s.shockPending = null
   updateObjectiveControl(s)
@@ -946,9 +949,9 @@ function finishShockTests(s: GameState, r: Roller) {
     const held = s.objectives.filter((o) => o.controller === s.activePlayer).length
     if (held) {
       s.players[s.activePlayer].vp += held * VP_PER_OBJECTIVE
-      addLog(s, `${FACTION_NAME[s.activePlayer]}: +${held * VP_PER_OBJECTIVE} ПО за удержание целей (${held}). [учебное правило]`, 'minimal')
-    } else addLog(s, `${FACTION_NAME[s.activePlayer]} не контролирует ни одной цели — очков нет.`, 'standard')
-  } else addLog(s, 'В первом раунде очки за цели не начисляются. [учебное правило]', 'beginner')
+      addLog(s, tr('{item}: +{value} VP for holding objectives ({held}). [training rule]', { item: FACTION_NAME[s.activePlayer], value: held * VP_PER_OBJECTIVE, held }), 'minimal')
+    } else addLog(s, tr('{item} controls no objectives — no points.', { item: FACTION_NAME[s.activePlayer] }), 'standard')
+  } else addLog(s, tr('No objective points are scored in the first round. [training rule]'), 'beginner')
 }
 
 function endTurn(s: GameState, r: Roller) {
@@ -961,7 +964,7 @@ function endTurn(s: GameState, r: Roller) {
       worst.destroyed = true
       removed++
     }
-    if (removed) addLog(s, `${u.name}: ${removed} модель(и) убраны в конце хода из-за нарушения связности (coherency).`, 'minimal')
+    if (removed) addLog(s, tr('{name}: {removed} model(s) removed at the end of the turn for breaking coherency.', { name: u.name, removed }), 'minimal')
   }
   for (const p of sidesOf(s)) if (s.players[p].riledTurns > 0) s.players[p].riledTurns--
   // Disruption Bombardment lasts until the end of the disrupted unit's owner's turn
@@ -979,12 +982,12 @@ function endTurn(s: GameState, r: Roller) {
       const [wa, wb] = sidesOf(s)
       const a = s.players[wa], b = s.players[wb]
       s.winner = a.vp > b.vp ? wa : b.vp > a.vp ? wb : 'draw'
-      addLog(s, `Битва окончена после ${s.maxRounds} раундов. ${s.winner === 'draw' ? 'Ничья!' : `Победа: ${FACTION_NAME[s.winner]}!`} (${a.vp}:${b.vp})`, 'minimal')
+      addLog(s, tr('The battle is over after {maxRounds} rounds. {value} ({vp}:{vp2})', { maxRounds: s.maxRounds, value: s.winner === 'draw' ? tr('Draw!') : tr('Victory: {item}!', { item: FACTION_NAME[s.winner] }), vp: a.vp, vp2: b.vp }), 'minimal')
       return
     }
     s.round++
     refreshFocus(s)
-    addLog(s, `===== Раунд ${s.round} =====`, 'minimal')
+    addLog(s, tr('===== Round {round} =====', { round: s.round }), 'minimal')
   }
   s.activePlayer = other(s, s.activePlayer)
   resetTurnFlags(s)
@@ -1001,7 +1004,7 @@ function checkWinner(s: GameState) {
   const m = unitsOf(s, wa).length + reservesOf(s, wa).length, o = unitsOf(s, wb).length + reservesOf(s, wb).length
   if (m && o) return
   s.winner = m ? wa : o ? wb : 'draw'
-  addLog(s, `Армия противника уничтожена. ${s.winner === 'draw' ? 'Ничья!' : `Победа: ${FACTION_NAME[s.winner]}!`}`, 'minimal')
+  addLog(s, tr('The enemy army is destroyed. {value}', { value: s.winner === 'draw' ? tr('Draw!') : tr('Victory: {item}!', { item: FACTION_NAME[s.winner] }) }), 'minimal')
 }
 
 /** Crewed Platform (Guardian Defenders): platforms are destroyed with the last non-platform model of the unit. */
@@ -1010,7 +1013,7 @@ function enforceCrews(s: GameState) {
     if (!hasAbility(u, 'crewedPlatform') || isDestroyed(u)) continue
     if (alive(u).some((m) => !profileOf(m).platform)) continue
     for (const m of u.models) if (!m.destroyed) m.destroyed = true
-    addLog(s, `${u.name}: последний Страж погиб — платформы тяжёлого оружия уничтожены (Crewed Platform).`, 'standard')
+    addLog(s, tr('{name}: the last Guardian died — the heavy weapon platforms are destroyed (Crewed Platform).', { name: u.name }), 'standard')
   }
 }
 
@@ -1038,9 +1041,9 @@ function reanimateUnit(s: GameState, u: UnitState, r: Roller, bonus = 0, source 
   }
   v += bonus
   const { healed, revived } = healUnit(s, u, v)
-  pushDice(s, `Реанимация: ${u.name}`, [{ label: bonus ? `D3+${bonus}` : 'D3', target: '—', dice, note: `Лечение ${v} ран: восстановлено ${healed}, возвращено моделей ${revived}.` }],
-    `${u.name}: ${source} — ${healed} ран восстановлено, ${revived} модел. возвращено.`)
-  addLog(s, `${u.name}: ${source} — лечение ${bonus ? `D3+${bonus}` : 'D3'} = ${v}${healed ? `, восстановлено ран: ${healed}` : ''}${revived ? `, возвращено моделей: ${revived}` : ''}.`, 'standard')
+  pushDice(s, tr('Reanimation: {name}', { name: u.name }), [{ label: bonus ? `D3+${bonus}` : 'D3', target: '—', dice, note: tr('Healing {v} wounds: {healed} restored, {revived} models returned.', { v, healed, revived }) }],
+    tr('{name}: {source} — {healed} wounds restored, {revived} models returned.', { name: u.name, source, healed, revived }))
+  addLog(s, tr('{name}: {source} — healing {value} = {v}{value2}{value3}.', { name: u.name, source, value: bonus ? `D3+${bonus}` : 'D3', v, value2: healed ? tr(', wounds restored: {healed}', { healed }) : '', value3: revived ? tr(', models returned: {revived}', { revived }) : '' }), 'standard')
 }
 
 // ---------------------------------------------------------------- Rad-bombardment (Rad-Zone Corps)
@@ -1062,18 +1065,22 @@ function radTargets(s: GameState): UnitState[] {
 function radBombardment(s: GameState, r: Roller) {
   if (!sidesOf(s).includes('adeptus_mechanicus') || !detachmentOn(s, 'adeptus_mechanicus')) return
   const targets = radTargets(s)
-  addLog(s, `Радиационная бомбардировка (Rad-Zone Corps): обстрел зоны расстановки противника — отрядов под ударом: ${targets.length}.`, 'minimal')
+  addLog(s, tr('Rad-bombardment (Rad-Zone Corps): shelling of the enemy deployment zone — units under fire: {n}.', { n: targets.length }), 'minimal')
   for (const u of targets) {
     const cover = woundsOf(u) <= RAD_COVER_WOUNDS
     const v = r.d6()
     const hit = v >= (cover ? 5 : 3)
     if (cover) u.battleShocked = true
     const mw = hit ? rollDie(r, 'D3') : 0
-    pushDice(s, `Радиационная бомбардировка: ${u.name}`, [{ label: 'D6', target: cover ? '5+' : '3+', dice: [{ value: v, success: hit }], note: cover ? 'Отряд залёг: боевой шок, на 5+ — D3 смертельных ран.' : 'Отряд держится: на 3+ — D3 смертельных ран.' }],
-      `${u.name}: ${cover ? 'залёг (боевой шок)' : 'держится'}${hit ? ` — ${mw} смертельн. ран` : ' — без потерь'}.`)
-    addLog(s, `${u.name}: ${cover ? 'залегает — отряд в боевом шоке' : 'держится'}${hit ? `, ${mw} смертельн. ран` : ', обстрел мимо'}.`, 'standard')
-    if (mw) applyMortalWounds(s, u, mw, 'радиационная бомбардировка')
-    if (isDestroyed(u)) addLog(s, `Отряд «${u.name}» уничтожен!`, 'minimal')
+    pushDice(s, tr('Rad-bombardment: {name}', { name: u.name }), [{ label: 'D6', target: cover ? '5+' : '3+', dice: [{ value: v, success: hit }], note: cover ? tr('The unit takes cover: Battle-shock, on a 5+ — D3 mortal wounds.') : tr('The unit stands firm: on a 3+ — D3 mortal wounds.') }],
+      cover
+        ? hit ? tr('{name}: takes cover (Battle-shock) — {mw} mortal wounds.', { name: u.name, mw }) : tr('{name}: takes cover (Battle-shock) — no losses.', { name: u.name })
+        : hit ? tr('{name}: stands firm — {mw} mortal wounds.', { name: u.name, mw }) : tr('{name}: stands firm — no losses.', { name: u.name }))
+    addLog(s, cover
+      ? hit ? tr('{name}: takes cover — the unit is Battle-shocked, {mw} mortal wounds.', { name: u.name, mw }) : tr('{name}: takes cover — the unit is Battle-shocked, the shelling missed.', { name: u.name })
+      : hit ? tr('{name}: stands firm, {mw} mortal wounds.', { name: u.name, mw }) : tr('{name}: stands firm, the shelling missed.', { name: u.name }), 'standard')
+    if (mw) applyMortalWounds(s, u, mw, tr('rad-bombardment'))
+    if (isDestroyed(u)) addLog(s, tr('Unit “{name}” is destroyed!', { name: u.name }), 'minimal')
   }
   checkWinner(s)
 }
@@ -1082,18 +1089,18 @@ function radBombardment(s: GameState, r: Roller) {
 function radFallout(s: GameState, r: Roller) {
   const targets = radTargets(s)
   if (!targets.length) return
-  addLog(s, `Радиоактивные осадки (Rad-Zone Corps): отрядов в зоне расстановки противника — ${targets.length}.`, 'standard')
+  addLog(s, tr('Fallout (Rad-Zone Corps): units in the enemy deployment zone — {n}.', { n: targets.length }), 'standard')
   for (const u of targets) {
     const v = r.d6()
-    pushDice(s, `Радиоактивные осадки: ${u.name}`, [{ label: 'D6', target: '3+', dice: [{ value: v, success: v >= 3 }], note: '3+ — 1 смертельная рана и проверка боевого шока' }],
-      v >= 3 ? `${u.name}: смертельная рана и проверка боевого шока.` : `${u.name}: без последствий.`)
+    pushDice(s, tr('Fallout: {name}', { name: u.name }), [{ label: 'D6', target: '3+', dice: [{ value: v, success: v >= 3 }], note: tr('3+ — a mortal wound and a Battle-shock test') }],
+      v >= 3 ? tr('{name}: a mortal wound and a Battle-shock test.', { name: u.name }) : tr('{name}: no effect.', { name: u.name }))
     if (v < 3) continue
-    applyMortalWounds(s, u, 1, 'радиоактивные осадки')
-    if (isDestroyed(u)) { addLog(s, `Отряд «${u.name}» уничтожен!`, 'minimal'); continue }
+    applyMortalWounds(s, u, 1, tr('fallout'))
+    if (isDestroyed(u)) { addLog(s, tr('Unit “{name}” is destroyed!', { name: u.name }), 'minimal'); continue }
     const t = leadershipRoll(s, u, r)
     if (!t.pass) u.battleShocked = true
-    pushDice(s, `Боевой шок: ${u.name}`, [{ label: t.label, target: `${t.ld}+`, dice: t.dice.map((x) => ({ value: x, success: t.pass })), note: `Сумма ${t.total} против Ld ${t.ld}+` }],
-      t.pass ? `${u.name}: проверка пройдена.` : `${u.name}: провал — отряд в боевом шоке.`)
+    pushDice(s, tr('Battle-shock: {name}', { name: u.name }), [{ label: t.label, target: `${t.ld}+`, dice: t.dice.map((x) => ({ value: x, success: t.pass })), note: tr('Total {total} vs Ld {ld}+', { total: t.total, ld: t.ld }) }],
+      t.pass ? tr('{name}: test passed{value}.', { name: u.name, value: '' }) : tr('{name}: failed — the unit is Battle-shocked (OC = 0, falling back is dangerous).', { name: u.name }))
   }
   checkWinner(s)
 }
@@ -1116,10 +1123,10 @@ function selfDestruction(s: GameState, r: Roller) {
     const raw = r.d6()
     const v = raw + (hasKeyword(target, 'VEHICLE') ? 1 : 0)
     const mw = v >= 6 ? 3 : v >= 2 ? rollDie(r, 'D3') : 0
-    pushDice(s, `Самоуничтожение: ${u.name}`, [{ label: 'D6', target: '2+', dice: [{ value: raw, success: v >= 2 }], note: `${hasKeyword(target, 'VEHICLE') ? '+1 против техники; ' : ''}2–5: D3 смертельных ран, 6+: 3` }],
-      mw ? `${u.name} → ${target.name}: ${mw} смертельн. ран.` : `${u.name}: самоуничтожение не причинило вреда.`)
-    addLog(s, `${u.name}: модель самоуничтожается (Self-destruction) рядом с «${target.name}» — ${mw} смертельн. ран.`, 'standard')
-    if (mw) applyMortalWounds(s, target, mw, 'самоуничтожение скарабеев')
+    pushDice(s, tr('Self-destruction: {name}', { name: u.name }), [{ label: 'D6', target: '2+', dice: [{ value: raw, success: v >= 2 }], note: tr('{value}2–5: D3 mortal wounds, 6+: 3', { value: hasKeyword(target, 'VEHICLE') ? tr('+1 against vehicles; ') : '' }) }],
+      mw ? tr('{name} → {name2}: {mw} mortal wounds.', { name: u.name, name2: target.name, mw }) : tr('{name}: the self-destruction did no harm.', { name: u.name }))
+    addLog(s, tr('{name}: a model self-destructs next to “{name2}” — {mw} mortal wounds.', { name: u.name, name2: target.name, mw }), 'standard')
+    if (mw) applyMortalWounds(s, target, mw, tr('scarab self-destruction'))
   }
   deadlyDemise(s, before, r)
   checkWinner(s)
@@ -1139,9 +1146,9 @@ function fightStartMechanicus(s: GameState, r: Roller) {
     const hit = v >= 4
     const mw = hit ? rollDie(r, 'D6') : 0
     if (hit) target.spiked = true
-    pushDice(s, `Шип данных: ${u.name} → ${target.name}`, [{ label: 'D6', target: '4+', dice: [{ value: v, success: hit }], note: hit ? `Успех: D6 = ${mw} смертельных ран; WS оружия ближнего боя цели на 1 хуже до конца фазы.` : 'Провал: ничего не происходит.' }],
-      hit ? `${u.name}: Data-spike — «${target.name}» получает ${mw} смертельн. ран и теряет точность.` : `${u.name}: Data-spike не сработал.`)
-    addLog(s, `${u.name}: Data-spike против «${target.name}» — ${hit ? `${mw} смертельн. ран, WS −1` : 'не сработал'}.`, 'standard')
+    pushDice(s, tr('Data-spike: {name} → {name2}', { name: u.name, name2: target.name }), [{ label: 'D6', target: '4+', dice: [{ value: v, success: hit }], note: hit ? tr('Success: D6 = {mw} mortal wounds; the WS of the target’s melee weapons is 1 worse until the end of the phase.', { mw }) : tr('Failure: nothing happens.') }],
+      hit ? tr('{name}: Data-spike — “{name2}” takes {mw} mortal wounds and loses accuracy.', { name: u.name, name2: target.name, mw }) : tr('{name}: the Data-spike did not work.', { name: u.name }))
+    addLog(s, tr('{name}: Data-spike against “{name2}” — {value}.', { name: u.name, name2: target.name, value: hit ? tr('{mw} mortal wounds, WS −1', { mw }) : tr('did not work') }), 'standard')
     if (mw) applyMortalWounds(s, target, mw, 'Data-spike')
   }
   for (const u of s.units) {
@@ -1151,9 +1158,9 @@ function fightStartMechanicus(s: GameState, r: Roller) {
       voiced.add(e.id)
       const { dice, total, ld, pass, label } = leadershipRoll(s, e, r)
       if (!pass) e.battleShocked = true
-      pushDice(s, `Голоса в коде: ${e.name}`, [{ label, target: `${ld}+`, dice: dice.map((x) => ({ value: x, success: pass })), note: `Сумма ${total} против Ld ${ld}+` }],
-        pass ? `${e.name}: проверка пройдена.` : `${e.name}: провал — отряд в боевом шоке (Voices in the Code).`)
-      addLog(s, `${e.name}: Voices in the Code — ${pass ? 'проверка боевого шока пройдена' : 'провал, боевой шок'} (${total} против ${ld}+).`, 'standard')
+      pushDice(s, tr('Voices in the Code: {name}', { name: e.name }), [{ label, target: `${ld}+`, dice: dice.map((x) => ({ value: x, success: pass })), note: tr('Total {total} vs Ld {ld}+', { total, ld }) }],
+        pass ? tr('{name}: test passed.', { name: e.name }) : tr('{name}: failed — the unit is Battle-shocked (Voices in the Code).', { name: e.name }))
+      addLog(s, tr('{name}: Voices in the Code — {value} ({total} vs {ld}+).', { name: e.name, value: pass ? tr('Battle-shock test passed') : tr('failed, Battle-shock'), total, ld }), 'standard')
     }
   }
   deadlyDemise(s, before, r)
@@ -1177,13 +1184,13 @@ function deadlyDemise(s: GameState, before: Set<string>, r: Roller) {
       if (!m.destroyed || !before.has(m.id)) continue
       const v = r.d6()
       if (v !== 6) {
-        pushDice(s, `Deadly Demise: ${u.name}`, [{ label: 'D6', target: '6', dice: [{ value: v, success: false }], note: 'Только на 6 подбитая техника взрывается.' }], `${u.name}: обломки не взорвались.`)
+        pushDice(s, `Deadly Demise: ${u.name}`, [{ label: 'D6', target: '6', dice: [{ value: v, success: false }], note: tr('A knocked-out vehicle explodes only on a 6.') }], tr('{name}: the wreck did not explode.', { name: u.name }))
         continue
       }
       const n = x === 'D3' ? rollDie(r, 'D3') : x
       const victims = s.units.filter((o) => !isDestroyed(o) && alive(o).some((om) => withinRange(modelDistance(m, om), 6)))
-      pushDice(s, `Deadly Demise: ${u.name}`, [{ label: 'D6', target: '6', dice: [{ value: v, success: true }], note: `Взрыв: ${n} смертельн. ран каждому отряду в 6″.` }], `${u.name} взрывается: ${victims.map((o) => o.name).join(', ') || 'рядом никого'}.`)
-      for (const o of victims) applyMortalWounds(s, o, n, `взрыв ${u.name} (Deadly Demise)`)
+      pushDice(s, `Deadly Demise: ${u.name}`, [{ label: 'D6', target: '6', dice: [{ value: v, success: true }], note: tr('Explosion: {n} mortal wounds to each unit within 6″.', { n }) }], tr('{name} explodes: {value}.', { name: u.name, value: victims.map((o) => o.name).join(', ') || tr('nobody nearby') }))
+      for (const o of victims) applyMortalWounds(s, o, n, tr('explosion of {name} (Deadly Demise)', { name: u.name }))
     }
   }
 }
@@ -1194,8 +1201,8 @@ function hazard(s: GameState, u: UnitState, n: number, r: Roller, why: string) {
   // Rites of Thermal Appeasement (Hellblasters): +1 to Hazardous rolls, so only a 1 fails
   const failOn = hasAbility(u, 'thermalAppeasement') ? 1 : 2
   const failed = dice.filter((v) => v <= failOn).length
-  pushDice(s, `Опасность (Hazard): ${u.name}`, [{ label: 'Hazard', target: `${failOn + 1}+`, dice: dice.map((v) => ({ value: v, success: v > failOn })), note: `${why}: ${failOn === 1 ? '1 (Rites of Thermal Appeasement +1)' : '1–2'} = 1 смертельная рана` }],
-    failed ? `${failed} провал(а) — смертельные раны.` : 'Все броски опасности пройдены.')
+  pushDice(s, tr('Hazard: {name}', { name: u.name }), [{ label: 'Hazard', target: `${failOn + 1}+`, dice: dice.map((v) => ({ value: v, success: v > failOn })), note: tr('{why}: {value} = 1 mortal wound', { why, value: failOn === 1 ? '1 (Rites of Thermal Appeasement +1)' : '1–2' }) }],
+    failed ? tr('{failed} failed — mortal wounds.', { failed }) : tr('All Hazard rolls passed.'))
   if (failed) applyMortalWounds(s, u, failed, why)
 }
 
@@ -1214,7 +1221,7 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       if (s.reaction && !s.winner && !reactionCommands(s).length) closeReaction(s, r)
       break
     case 'passReaction':
-      addLog(s, `${FACTION_NAME[s.reaction!.player]}: без реакции.`, 'beginner')
+      addLog(s, tr('{item}: no reaction.', { item: FACTION_NAME[s.reaction!.player] }), 'beginner')
       closeReaction(s, r)
       break
     case 'endPhase': {
@@ -1251,26 +1258,26 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       u.action = { id, objectiveId: cmd.objectiveId }
       u.shot = true
       const n = s.objectives.findIndex((o) => o.id === cmd.objectiveId) + 1
-      addLog(s, `${u.name} начинает действие «${MISSION_ACTION[id].name}» у цели Ц${n}: в этот ход отряд не стреляет и не атакует; действие завершится в конце хода, если цель останется за вами.`, 'minimal')
+      addLog(s, tr('{name} begins the action “{action}” at objective {obj}: the unit does not shoot or charge this turn; the action completes at the end of the turn if you keep the objective.', { name: u.name, action: MISSION_ACTION[id].name, obj: tr('O{value}', { value: n }) }), 'minimal')
       break
     }
     case 'callWaaagh': {
       s.players.orks.waaaghUsed = true
       s.players.orks.riledTurns = 2
-      addLog(s, 'WAAAGH! Боевой клич: до конца следующего хода Орки «разъярены» — 5+ непробиваемый спасбросок, всё оружие дальнего боя получает Assault, можно атаковать после продвижения.', 'minimal')
+      addLog(s, tr('WAAAGH! Battle Cry: until the end of the next turn the Orks are “enraged” — 5+ invulnerable save, all ranged weapons get Assault, they can charge after advancing.'), 'minimal')
       break
     }
     case 'callShadow': {
       const me = s.activePlayer
       s.players[me].shadowUsed = true
       const mine = unitsOf(s, me).filter((u) => hasKeyword(u, 'SYNAPSE'))
-      addLog(s, 'Тень в Варпе (Shadow in the Warp): каждый вражеский отряд проходит проверку боевого шока; в 6″ от отряда Synapse — с −1.', 'minimal')
+      addLog(s, tr('Shadow in the Warp: each enemy unit takes a Battle-shock test; within 6″ of a Synapse unit — with −1.'), 'minimal')
       for (const e of unitsOf(s, other(s, me))) {
         const mod = mine.some((x) => unitDistance(e, x) <= SYNAPSE_RANGE) ? -1 : 0
         const { dice, total, ld, pass } = leadershipRoll(s, e, r, mod)
         if (!pass) e.battleShocked = true
-        pushDice(s, `Тень в Варпе: ${e.name}`, [{ label: '2D6', target: `${ld}+`, dice: dice.map((v) => ({ value: v, success: pass })), note: `Сумма ${total}${mod ? ' (−1 рядом с Synapse)' : ''} против Ld ${ld}+` }],
-          pass ? `${e.name}: проверка пройдена.` : `${e.name}: провал — отряд в боевом шоке.`)
+        pushDice(s, tr('Shadow in the Warp: {name}', { name: e.name }), [{ label: '2D6', target: `${ld}+`, dice: dice.map((v) => ({ value: v, success: pass })), note: tr('Total {total}{value} vs Ld {ld}+', { total, value: mod ? tr(' (−1 near Synapse)') : '', ld }) }],
+          pass ? tr('{name}: test passed.', { name: e.name }) : tr('{name}: failed — the unit is Battle-shocked.', { name: e.name }))
       }
       break
     }
@@ -1278,18 +1285,18 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       const p = s.players.marines
       p.doctrine = cmd.doctrine
       p.doctrinesUsed = [...(p.doctrinesUsed ?? []), cmd.doctrine]
-      addLog(s, `Боевая доктрина «${DOCTRINE_NAME[cmd.doctrine]}»: до следующей фазы командования ${DOCTRINE_TEXT[cmd.doctrine]}.`, 'minimal')
+      addLog(s, tr('Combat Doctrine “{name}”: until the next Command phase {text}.', { name: DOCTRINE_NAME[cmd.doctrine], text: DOCTRINE_TEXT[cmd.doctrine] }), 'minimal')
       break
     }
     case 'hyperAdaptation':
       s.players.tyranids.hyperAdaptation = cmd.choice
-      addLog(s, `Тираниды: гиперадаптация «${HYPER_NAME[cmd.choice]}» на всю битву — ${HYPER_TEXT[cmd.choice]}.`, 'minimal')
+      addLog(s, tr('Tyranids: hyper-adaptation “{name}” for the whole battle — {text}.', { name: HYPER_NAME[cmd.choice], text: HYPER_TEXT[cmd.choice] }), 'minimal')
       break
     case 'imperative': {
       s.players[s.activePlayer].imperative = cmd.imperative
       addLog(s, cmd.imperative === 'protector'
-        ? 'Протектор (Protector Imperative): оружие дальнего боя Адептус Механикус получает Heavy и BS на 1 лучше; линейные отряды трудно бить в ближнем бою.'
-        : 'Завоеватель (Conqueror Imperative): оружие дальнего боя получает Assault, WS ближнего боя на 1 лучше; линейные отряды получают AP +1.', 'minimal')
+        ? tr('Protector Imperative: Adeptus Mechanicus ranged weapons get Heavy and BS 1 better; battleline units are hard to hit in melee.')
+        : tr('Conqueror Imperative: ranged weapons get Assault, melee WS 1 better; battleline units get AP +1.'), 'minimal')
       break
     }
     case 'divineWork': {
@@ -1298,7 +1305,7 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       s.players[u.owner].divineUsed = true
       u.warded = true
       if (led) led.warded = true
-      addLog(s, `${u.name}: Защита божественного труда — ${led ? `«${led.name}» и техножрец получают` : 'техножрец получает'} 4+ непробиваемый спасбросок до начала вашего следующего хода.`, 'minimal')
+      addLog(s, tr('{name}: Defend the Divine Work — {value} 4+ invulnerable save until the start of your next turn.', { name: u.name, value: led ? tr('“{name}” and the Tech-Priest get', { name: led.name }) : tr('the Tech-Priest gets') }), 'minimal')
       break
     }
     case 'engrammatic': {
@@ -1306,7 +1313,7 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       const t = findUnit(s, cmd.targetId)!
       u.engrammaticUsed = true
       t.battleShocked = false
-      addLog(s, `${u.name}: Энграмматическая логика — «${t.name}» выходит из боевого шока.`, 'minimal')
+      addLog(s, tr('{name}: Engrammatic Logic — “{name2}” is no longer Battle-shocked.', { name: u.name, name2: t.name }), 'minimal')
       break
     }
     case 'grenadePack': {
@@ -1315,10 +1322,10 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       u.grenadePackUsed = true
       const dice = rollMany(r, alive(u).length)
       const n = Math.min(6, dice.filter((v) => v >= 4).length)
-      pushDice(s, `Гранатный налёт: ${u.name} → ${t.name}`, [{ label: 'D6 за модель', target: '4+', dice: dice.map((v) => ({ value: v, success: v >= 4 })), note: `Каждая 4+ — 1 смертельная рана (не больше 6): ${n}.` }],
-        n ? `${u.name} забрасывает «${t.name}» гранатами: ${n} смертельн. ран.` : `Гранаты «${u.name}» не причинили вреда «${t.name}».`)
-      if (n) applyMortalWounds(s, t, n, `гранатный налёт «${u.name}»`)
-      if (isDestroyed(t)) addLog(s, `Отряд «${t.name}» уничтожен!`, 'minimal')
+      pushDice(s, tr('Grenade flyover: {name} → {name2}', { name: u.name, name2: t.name }), [{ label: tr('D6 per model'), target: '4+', dice: dice.map((v) => ({ value: v, success: v >= 4 })), note: tr('Each 4+ is 1 mortal wound (max 6): {n}.', { n }) }],
+        n ? tr('{name} bombards “{name2}” with grenades: {n} mortal wounds.', { name: u.name, name2: t.name, n }) : tr('The grenades of “{name}” did no harm to “{name2}”.', { name: u.name, name2: t.name }))
+      if (n) applyMortalWounds(s, t, n, tr('grenade flyover of “{name}”', { name: u.name }))
+      if (isDestroyed(t)) addLog(s, tr('Unit “{name}” is destroyed!', { name: t.name }), 'minimal')
       checkWinner(s)
       break
     }
@@ -1328,10 +1335,10 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       delete u.wraithTargets
       const dice = rollMany(r, alive(u).length)
       const n = dice.filter((v) => v >= 4).length
-      pushDice(s, `Фазовая форма: ${u.name} → ${t.name}`, [{ label: 'D6 за модель', target: '4+', dice: dice.map((v) => ({ value: v, success: v >= 4 })), note: `Каждая 4+ — 1 смертельная рана: ${n}.` }],
-        n ? `${u.name} проходит сквозь «${t.name}»: ${n} смертельн. ран.` : `${u.name} проходит сквозь «${t.name}» без вреда.`)
-      if (n) applyMortalWounds(s, t, n, `Фазовая форма «${u.name}»`)
-      if (isDestroyed(t)) addLog(s, `Отряд «${t.name}» уничтожен!`, 'minimal')
+      pushDice(s, tr('Wraith Form: {name} → {name2}', { name: u.name, name2: t.name }), [{ label: tr('D6 per model'), target: '4+', dice: dice.map((v) => ({ value: v, success: v >= 4 })), note: tr('Each 4+ is 1 mortal wound: {n}.', { n }) }],
+        n ? tr('{name} passes through “{name2}”: {n} mortal wounds.', { name: u.name, name2: t.name, n }) : tr('{name} passes through “{name2}” without harm.', { name: u.name, name2: t.name }))
+      if (n) applyMortalWounds(s, t, n, tr('Wraith Form of “{name}”', { name: u.name }))
+      if (isDestroyed(t)) addLog(s, tr('Unit “{name}” is destroyed!', { name: t.name }), 'minimal')
       checkWinner(s)
       break
     }
@@ -1341,13 +1348,13 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       u.bombSquigUsed = true
       const v = r.d6()
       if (v < 3) {
-        pushDice(s, `Бомбосквиг: ${u.name}`, [{ label: 'D6', target: '3+', dice: [{ value: v, success: false }], note: 'На 3+ сквиг добегает и взрывается.' }], `Сквиг «${u.name}» не добежал до «${t.name}».`)
-        addLog(s, `${u.name}: бомбосквиг не добежал до «${t.name}» (выпало ${v}).`, 'standard')
+        pushDice(s, tr('Bomb squig: {name}', { name: u.name }), [{ label: 'D6', target: '3+', dice: [{ value: v, success: false }], note: tr('On a 3+ the squig makes it and explodes.') }], tr('The squig “{name}” did not reach “{name2}”.', { name: u.name, name2: t.name }))
+        addLog(s, tr('{name}: the bomb squig did not reach “{name2}” (rolled {v}).', { name: u.name, name2: t.name, v }), 'standard')
         break
       }
       const n = rollDie(r, 'D3')
-      pushDice(s, `Бомбосквиг: ${u.name}`, [{ label: 'D6', target: '3+', dice: [{ value: v, success: true }], note: `Взрыв: ${n} смертельн. ран.` }], `Бомбосквиг взрывается у «${t.name}».`)
-      applyMortalWounds(s, t, n, `бомбосквиг «${u.name}»`)
+      pushDice(s, tr('Bomb squig: {name}', { name: u.name }), [{ label: 'D6', target: '3+', dice: [{ value: v, success: true }], note: tr('Explosion: {n} mortal wounds.', { n }) }], tr('The bomb squig explodes next to “{name}”.', { name: t.name }))
+      applyMortalWounds(s, t, n, tr('bomb squig “{name}”', { name: u.name }))
       break
     }
     case 'guide': {
@@ -1355,7 +1362,7 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       const t = findUnit(s, cmd.targetId)!
       s.players[u.owner].guide = t.id
       u.guided = true
-      addLog(s, `${u.name}: Guide — союзные модели Аэльдари получают +1 к попаданию по «${t.name}» до начала следующей фазы командования.`, 'standard')
+      addLog(s, tr('{name}: Guide — friendly Aeldari models get +1 to hit against “{name2}” until the start of the next Command phase.', { name: u.name, name2: t.name }), 'standard')
       break
     }
     case 'declareAdvance':
@@ -1365,9 +1372,9 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       const v2 = r.d6()
       u.advanceRoll = v2
       if (cmd.type === 'rerollAdvance') u.advanceRerolled = true
-      pushDice(s, `Продвижение: ${u.name}`, [{ label: 'D6', target: '—', dice: [{ value: v2, success: true, rerolledFrom: prev ?? undefined }], note: prev ? `Переброс (${hasAbility(u, 'waaagh') ? 'Waaagh!' : 'Superlative Strategist'}): было ${prev}` : undefined }],
-        `${u.name}: продвижение (Advance) на M + ${v2}". После продвижения отряд не может атаковать (charge) и стреляет только оружием Assault.`)
-      addLog(s, `${u.name} продвигается: бросок D6 = ${v2}.`, 'minimal')
+      pushDice(s, tr('Advance: {name}', { name: u.name }), [{ label: 'D6', target: '—', dice: [{ value: v2, success: true, rerolledFrom: prev ?? undefined }], note: prev ? tr('Re-roll ({value}): was {prev}', { value: hasAbility(u, 'waaagh') ? 'Waaagh!' : 'Superlative Strategist', prev }) : undefined }],
+        tr('{name}: Advance of M + {v2}". After an Advance the unit cannot charge and shoots only with Assault weapons.', { name: u.name, v2 }))
+      addLog(s, tr('{name} advances: D6 roll = {v2}.', { name: u.name, v2 }), 'minimal')
       break
     }
     case 'move': {
@@ -1385,19 +1392,19 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       u.move = cmd.mode
       if (cmd.swift) {
         s.players[u.owner].focus = (s.players[u.owner].focus ?? 1) - 1
-        addLog(s, `${u.name}: Swift as the Wind — +${swiftBonusOf(s, u.owner)}″ к движению (жетон Боевого фокуса, осталось ${s.players[u.owner].focus}).`, 'standard')
+        addLog(s, tr('{name}: Swift as the Wind — +{SWIFT_BONUS}″ to movement (Battle Focus token, {focus} left).', { name: u.name, SWIFT_BONUS: swiftBonusOf(s, u.owner), focus: s.players[u.owner].focus }), 'standard')
       }
-      if (cmd.fly) addLog(s, `${u.name} летит (take to the skies): −${FLY_PENALTY}″, игнорирует модели и тиррейн.`, 'standard')
-      const label = { normal: 'обычное движение (Normal Move)', advance: 'продвижение (Advance)', fallBack: 'отступление (Fall Back)' }[cmd.mode]
-      addLog(s, `${u.name}: ${label}, до ${fmt(u.movedDistance)}".`, 'standard')
+      if (cmd.fly) addLog(s, tr('{name} flies (take to the skies): −{FLY_PENALTY}″, ignores models and terrain.', { name: u.name, FLY_PENALTY }), 'standard')
+      const label = { normal: tr('normal move'), advance: tr('Advance'), fallBack: tr('Fall Back') }[cmd.mode]
+      addLog(s, tr('{name}: {label}, up to {fmt}".', { name: u.name, label, fmt: fmt(u.movedDistance) }), 'standard')
       if (cmd.mode === 'fallBack') {
-        addLog(s, 'Отступивший отряд не может стрелять и атаковать в этот ход.', 'beginner')
+        addLog(s, tr('A unit that fell back cannot shoot or charge this turn.'), 'beginner')
         if (u.battleShocked) {
-          hazard(s, u, alive(u).length, r, 'Отчаянный побег (Desperate Escape)')
+          hazard(s, u, alive(u).length, r, tr('Desperate Escape'))
           if (!isDestroyed(u)) {
             const { dice, ld, pass, label } = leadershipRoll(s, u, r)
             u.battleShocked = !pass
-            pushDice(s, `Боевой шок после побега: ${u.name}`, [{ label, target: `${ld}+`, dice: dice.map((x) => ({ value: x, success: pass })) }], pass ? 'Пройдено.' : 'Провал — отряд остаётся в боевом шоке.')
+            pushDice(s, tr('Battle-shock after escaping: {name}', { name: u.name }), [{ label, target: `${ld}+`, dice: dice.map((x) => ({ value: x, success: pass })) }], pass ? tr('Passed.') : tr('Failed — the unit stays Battle-shocked.'))
           }
         }
       }
@@ -1409,7 +1416,7 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
     case 'rerollChoice': {
       const pr = s.pendingReroll!
       s.pendingReroll = null
-      if (!cmd.reroll) addLog(s, `${FACTION_NAME[pr.player]}: без переброса.`, 'beginner')
+      if (!cmd.reroll) addLog(s, tr('{item}: no re-roll.', { item: FACTION_NAME[pr.player] }), 'beginner')
       attack(s, pr.cmd, r, pr.dice, { ...pr.decided, [pr.dice.length - 1]: cmd.reroll })
       break
     }
@@ -1419,20 +1426,20 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       const dice = rollMany(r, 2)
       const roll = Math.max(0, dice[0] + dice[1] - (u.disrupted ? DISRUPTION : 0))
       const targets = chargeTargetsFor(s, u, roll)
-      pushDice(s, `Бросок атаки: ${u.name}`, [{ label: '2D6', target: '—', dice: dice.map((x) => ({ value: x, success: targets.length > 0 })), note: `Максимальная дистанция атаки ${roll}"${u.disrupted ? ` (−${DISRUPTION}: Disruption Bombardment)` : ''}` }],
-        targets.length ? `Бросок ${roll}": доступные цели — ${targets.map((x) => x.name).join(', ')}.` : `Бросок ${roll}" — недостаточно, атака провалена.`)
+      pushDice(s, tr('Charge roll: {name}', { name: u.name }), [{ label: '2D6', target: '—', dice: dice.map((x) => ({ value: x, success: targets.length > 0 })), note: tr('Maximum charge distance {roll}"{value}', { roll, value: u.disrupted ? ` (−${DISRUPTION}: Disruption Bombardment)` : '' }) }],
+        targets.length ? tr('A roll of {roll}": available targets — {list}.', { roll, list: targets.map((x) => x.name).join(', ') }) : tr('A roll of {roll}" is not enough, the charge failed.', { roll }))
       s.lastCharge = { unitId: u.id, dice }
       if (targets.length) s.pendingCharge = { unitId: u.id, roll, dice, targets: targets.map((x) => x.id) }
       else {
         const d = Math.min(...enemiesOf(s, u).map((e) => unitDistance(u, e)))
-        addLog(s, `${u.name}: атака провалена — выпало ${roll}", а до ближайшего врага ${fmt(d)}"${roll === 2 ? ' (бросок 2 никогда не достаточен)' : ''}. Отряд остаётся на месте.`, 'minimal')
+        addLog(s, tr('{name}: the charge failed — rolled {roll}", but the nearest enemy is at {fmt}"{value}. The unit stays in place.', { name: u.name, roll, fmt: fmt(d), value: roll === 2 ? tr(' (a roll of 2 is never enough)') : '' }), 'minimal')
       }
       break
     }
     case 'skipCharge': {
       const u = findUnit(s, cmd.unitId)!
       s.pendingCharge = null
-      addLog(s, `${u.name} отказывается от перемещения атаки.`, 'standard')
+      addLog(s, tr('{name} gives up the charge move.', { name: u.name }), 'standard')
       break
     }
     case 'chargeMove': {
@@ -1444,7 +1451,7 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       movedTo(u, pos)
       u.charged = true
       s.pendingCharge = null
-      addLog(s, `${u.name} атакует (charge) отряд «${targets.map((x) => x.name).join(', ')}» и получает «Бьёт первым» (Fights First).`, 'minimal')
+      addLog(s, tr('{name} charges unit “{list}” and gets Fights First.', { name: u.name, list: targets.map((x) => x.name).join(', ') }), 'minimal')
       if (hasAbility(u, 'lineBreakers')) lineBreakers(s, u, targets, lineSupport, r)
       break
     }
@@ -1469,17 +1476,17 @@ function resolveFight(s: GameState, cmd: Extract<Command, { type: 'fight' }>, r:
   }
   const groups = meleePlan(s, u, t)
   delete u.finestHour
-  addLog(s, `${u.name} сражается с отрядом «${t.name}»${cmd.finestHour ? ' — «Звёздный час»: +3 атаки, Devastating Wounds' : ''}.`, 'minimal')
+  addLog(s, tr('{name} fights unit “{name2}”{value}.', { name: u.name, name2: t.name, value: cmd.finestHour ? tr(' — “Finest Hour”: +3 attacks, Devastating Wounds') : '' }), 'minimal')
   for (const g of groups) {
     if (isDestroyed(t)) break
     const res = resolveGroup(r, u.name, g, t, g.ctx, reroll)
-    pushDice(s, `Бой: ${u.name} → ${t.name}: ${g.weaponName}${g.notes.length ? ` [${g.notes.join(', ')}]` : ''}`, res.steps, res.summary)
+    pushDice(s, tr('Fight: {name} → {name2}: {weaponName}{value}', { name: u.name, name2: t.name, weaponName: g.weaponName, value: g.notes.length ? ` [${g.notes.join(', ')}]` : '' }), res.steps, res.summary)
     addLog(s, res.summary, 'standard')
   }
-  if (!groups.length) addLog(s, `${u.name}: ни одна модель не в зоне контакта (${ENGAGEMENT_RANGE}").`, 'standard')
+  if (!groups.length) addLog(s, tr('{name}: no model is within engagement range ({ENGAGEMENT_RANGE}").', { name: u.name, ENGAGEMENT_RANGE }), 'standard')
   lastStand(s, u, t, before, r)
   deadlyDemise(s, before, r)
-  if (isDestroyed(t)) addLog(s, `Отряд «${t.name}» уничтожен!`, 'minimal')
+  if (isDestroyed(t)) addLog(s, tr('Unit “{name}” is destroyed!', { name: t.name }), 'minimal')
   checkWinner(s)
   s.fight!.selecting = other(s, s.fight!.selecting)
   advanceFight(s)
@@ -1489,7 +1496,7 @@ function resolveFight(s: GameState, cmd: Extract<Command, { type: 'fight' }>, r:
 
 /** Expected damage a single re-roll must add (or prevent) before the game stops to offer it. */
 export const REROLL_WORTH = 1.5
-const REROLL_KIND: Record<RerollKind, string> = { attacks: 'число атак', hit: 'попадание', wound: 'ранение', save: 'спасбросок', damage: 'урон' }
+const REROLL_KIND: Record<RerollKind, string> = { attacks: tr('number of attacks'), hit: tr('hit'), wound: tr('wound|alt'), save: tr('save'), damage: tr('damage') }
 
 class RerollPause {
   at: Omit<PendingReroll, 'cmd' | 'dice' | 'decided'>
@@ -1509,7 +1516,7 @@ function spendCommandReroll(s: GameState, u: UnitState, kind: RerollKind, value:
   s.players[me].cp -= STRATAGEMS.commandReroll.cost
   ;(s.players[me].stratagemsThisPhase ??= []).push('commandReroll')
   ;(s.players[me].stratagemUnitsThisPhase ??= []).push(u.id)
-  addLog(s, `${FACTION_NAME[me]}: стратагема «Командный переброс» — ${u.name} перебрасывает ${REROLL_KIND[kind]} (выпало «${value}»), −${STRATAGEMS.commandReroll.cost} CP.`, 'minimal')
+  addLog(s, tr('{item}: Stratagem “Command Re-roll” — {name} re-rolls {item2} (rolled “{value}”), −{cost} CP.', { item: FACTION_NAME[me], name: u.name, item2: REROLL_KIND[kind], value, cost: STRATAGEMS.commandReroll.cost }), 'minimal')
 }
 
 function attackBody(s: GameState, cmd: PendingReroll['cmd'], r: Roller, reroll?: RerollHook) {
@@ -1550,19 +1557,19 @@ function lastStand(s: GameState, attacker: UnitState, t: UnitState, before: Set<
   const bonus = id === 'orksNeverBeaten' && riled(s, t) ? 1 : 0
   const dice = fallen.map(() => r.d6())
   const saved = fallen.filter((_, i) => dice[i] + bonus >= 4)
-  pushDice(s, `${info.name}: ${t.name}`, [{ label: 'D6', target: bonus ? '3+' : '4+', dice: dice.map((v) => ({ value: v, success: v + bonus >= 4 })), note: `Убито моделей: ${fallen.length}; успевают ударить перед смертью: ${saved.length}${bonus ? ' (+1: WAAAGH!)' : ''}` }],
-    saved.length ? `${t.name}: ${saved.length} павш. модел. успевают ударить.` : `${t.name}: павшие не успели ударить.`)
+  pushDice(s, `${info.name}: ${t.name}`, [{ label: 'D6', target: bonus ? '3+' : '4+', dice: dice.map((v) => ({ value: v, success: v + bonus >= 4 })), note: tr('Models killed: {length}; strike back before dying: {length2}{value}', { length: fallen.length, length2: saved.length, value: bonus ? ' (+1: WAAAGH!)' : '' }) }],
+    saved.length ? tr('{name}: {length} fallen models strike back.', { name: t.name, length: saved.length }) : tr('{name}: the fallen did not manage to strike.', { name: t.name }))
   if (!saved.length || isDestroyed(attacker)) return
   const groups = meleePlan(s, t, attacker, saved)
-  if (!groups.length) { addLog(s, `${t.name}: павшие модели не были в зоне контакта с «${attacker.name}» — ударить некому.`, 'standard'); return }
-  addLog(s, `${t.name}: «${info.name}» — ${saved.length} павш. модел. бьют «${attacker.name}» перед смертью.`, 'minimal')
+  if (!groups.length) { addLog(s, tr('{name}: the fallen models were not in engagement range of “{name2}” — nobody to strike.', { name: t.name, name2: attacker.name }), 'standard'); return }
+  addLog(s, tr('{name}: “{name2}” — {length} fallen models strike “{name3}” before dying.', { name: t.name, name2: info.name, length: saved.length, name3: attacker.name }), 'minimal')
   for (const g of groups) {
     if (isDestroyed(attacker)) break
     const res = resolveGroup(r, t.name, g, attacker, g.ctx)
     pushDice(s, `${info.name}: ${t.name} → ${attacker.name}: ${g.weaponName}${g.notes.length ? ` [${g.notes.join(', ')}]` : ''}`, res.steps, res.summary)
     addLog(s, res.summary, 'standard')
   }
-  if (isDestroyed(attacker)) addLog(s, `Отряд «${attacker.name}» уничтожен!`, 'minimal')
+  if (isDestroyed(attacker)) addLog(s, tr('Unit “{name}” is destroyed!', { name: attacker.name }), 'minimal')
 }
 
 /**
@@ -1611,9 +1618,9 @@ export function startGame(s0: GameState, r: Roller): GameState {
   s.firstPlayer = a > b ? west : east
   s.activePlayer = s.firstPlayer
   refreshFocus(s)
-  pushDice(s, 'Бросок за первый ход', [{ label: `${FACTION_NAME[west]} / ${FACTION_NAME[east]}`, target: '—', dice: rolls.map((v) => ({ value: v, success: true })) }], `Первым ходит: ${FACTION_NAME[s.firstPlayer]}.`)
-  addLog(s, `===== Раунд 1 ===== Первым ходит: ${FACTION_NAME[s.firstPlayer]}.`, 'minimal')
-  if (s.mission) addLog(s, `Основная миссия (обе стороны): ${PRIMARY[s.mission.primary].name} (${PRIMARY[s.mission.primary].nameEn}).`, 'minimal')
+  pushDice(s, tr('Roll for the first turn'), [{ label: `${FACTION_NAME[west]} / ${FACTION_NAME[east]}`, target: '—', dice: rolls.map((v) => ({ value: v, success: true })) }], tr('{item} goes first.', { item: FACTION_NAME[s.firstPlayer] }))
+  addLog(s, tr('===== Round 1 ===== {item} goes first.', { item: FACTION_NAME[s.firstPlayer] }), 'minimal')
+  if (s.mission) addLog(s, tr('Primary mission (both sides): {name} ({nameEn}).', { name: PRIMARY[s.mission.primary].name, nameEn: PRIMARY[s.mission.primary].nameEn }), 'minimal')
   // the start of the first battle round: the detachment rules that act then
   if (sidesOf(s).includes('tyranids') && detachmentOn(s, 'tyranids')) s.players.tyranids.hyperAdaptation = null
   radBombardment(s, r)
@@ -1644,40 +1651,40 @@ export function unitActions(s: GameState, unitId: string): ActionInfo[] {
     out.push({ id, label, ok: v.ok, reason: v.ok ? undefined : v.reason, cmd })
   }
   if (s.phase === 'movement') {
-    add('advance', 'Объявить продвижение (Advance): M + D6', { type: 'declareAdvance', unitId })
-    add('reroll', 'Перебросить продвижение (Waaagh!)', { type: 'rerollAdvance', unitId })
+    add('advance', tr('Declare an Advance: M + D6'), { type: 'declareAdvance', unitId })
+    add('reroll', tr('Re-roll the Advance (Waaagh!)'), { type: 'rerollAdvance', unitId })
     if (hasAbility(u, 'guide'))
-      for (const e of enemiesOf(s, u)) add(`guide:${e.id}`, `Guide: пометить «${e.name}»`, { type: 'guide', unitId, targetId: e.id })
+      for (const e of enemiesOf(s, u)) add(`guide:${e.id}`, tr('Guide: mark “{name}”', { name: e.name }), { type: 'guide', unitId, targetId: e.id })
     if (hasAbility(u, 'grenadePack') && !u.grenadePackUsed && u.move !== 'none')
-      for (const e of enemiesOf(s, u)) add(`grenade:${e.id}`, `💥 Гранатный налёт на «${e.name}» (D6 за модель, 4+ — смертельная рана)`, { type: 'grenadePack', unitId, targetId: e.id })
-    for (const id of u.wraithTargets ?? []) add(`wraith:${id}`, `👻 Фазовая форма сквозь «${findUnit(s, id)?.name ?? id}» (D6 за модель, 4+ — смертельная рана)`, { type: 'wraithForm', unitId, targetId: id })
+      for (const e of enemiesOf(s, u)) add(`grenade:${e.id}`, tr('💥 Grenade flyover on “{name}” (D6 per model, 4+ is a mortal wound)', { name: e.name }), { type: 'grenadePack', unitId, targetId: e.id })
+    for (const id of u.wraithTargets ?? []) add(`wraith:${id}`, tr('👻 Wraith Form through “{value}” (D6 per model, 4+ is a mortal wound)', { value: findUnit(s, id)?.name ?? id }), { type: 'wraithForm', unitId, targetId: id })
     if (hasAbility(u, 'bombSquig') && !u.bombSquigUsed && u.move === 'normal')
-      for (const e of enemiesOf(s, u)) add(`squig:${e.id}`, `💣 Бомбосквиг в «${e.name}» (3+: D3 смертельн. ран)`, { type: 'bombSquig', unitId, targetId: e.id })
+      for (const e of enemiesOf(s, u)) add(`squig:${e.id}`, tr('💣 Bomb squig at “{name}” (3+: D3 mortal wounds)', { name: e.name }), { type: 'bombSquig', unitId, targetId: e.id })
   }
   if (hasAbility(u, 'engrammaticLogic') && !u.engrammaticUsed)
     for (const f of s.units.filter((x) => x.owner === u.owner && !isDestroyed(x) && x.battleShocked))
-      add(`engram:${f.id}`, `Энграмматическая логика: снять боевой шок с «${f.name}» (раз за битву)`, { type: 'engrammatic', unitId, targetId: f.id })
-  if (hasAbility(u, 'defendDivineWork')) add('divineWork', 'Защита божественного труда (4+ инвуль, раз за битву)', { type: 'divineWork', unitId })
+      add(`engram:${f.id}`, tr('Engrammatic Logic: remove Battle-shock from “{name}” (once per battle)', { name: f.name }), { type: 'engrammatic', unitId, targetId: f.id })
+  if (hasAbility(u, 'defendDivineWork')) add('divineWork', tr('Defend the Divine Work (4+ invulnerable, once per battle)'), { type: 'divineWork', unitId })
   if (s.phase === 'shooting') {
     const act = s.mission && PRIMARY[s.mission.primary].action
     if (act)
       s.objectives.forEach((o, i) => {
         if (unitNearObjective(u, o))
-          add(`action:${o.id}`, `🛰 Действие «${MISSION_ACTION[act].name}» у цели Ц${i + 1} (вместо стрельбы)`, { type: 'startAction', unitId, objectiveId: o.id })
+          add(`action:${o.id}`, tr('🛰 Action “{name}” at objective {obj} (instead of shooting)', { name: MISSION_ACTION[act].name, obj: tr('O{value}', { value: i + 1 }) }), { type: 'startAction', unitId, objectiveId: o.id })
       })
-    for (const e of enemiesOf(s, u)) add(`shoot:${e.id}`, `Стрелять по «${e.name}»`, { type: 'shoot', unitId, targetId: e.id })
+    for (const e of enemiesOf(s, u)) add(`shoot:${e.id}`, tr('Shoot “{name}”', { name: e.name }), { type: 'shoot', unitId, targetId: e.id })
   }
   if (s.phase === 'charge') {
     if (s.pendingCharge?.unitId === unitId) {
-      for (const t of s.pendingCharge.targets) add(`charge:${t}`, `Атаковать «${findUnit(s, t)!.name}»`, { type: 'chargeMove', unitId, targetIds: [t] })
-      add('skipCharge', 'Отказаться от перемещения', { type: 'skipCharge', unitId })
-    } else add('declareCharge', 'Объявить атаку (Charge): бросок 2D6', { type: 'declareCharge', unitId })
+      for (const t of s.pendingCharge.targets) add(`charge:${t}`, tr('Charge “{name}”', { name: findUnit(s, t)!.name }), { type: 'chargeMove', unitId, targetIds: [t] })
+      add('skipCharge', tr('Give up the move'), { type: 'skipCharge', unitId })
+    } else add('declareCharge', tr('Declare a charge: 2D6 roll'), { type: 'declareCharge', unitId })
   }
   if (s.phase === 'fight')
     for (const e of enemiesOf(s, u)) {
-      add(`fight:${e.id}`, `Сражаться с «${e.name}»`, { type: 'fight', unitId, targetId: e.id })
+      add(`fight:${e.id}`, tr('Fight “{name}”', { name: e.name }), { type: 'fight', unitId, targetId: e.id })
       if (hasAbility(u, 'finestHour') && !u.finestHourUsed)
-        add(`finest:${e.id}`, `⭐ Сражаться с «${e.name}» — Звёздный час (+3 A, Devastating Wounds, раз за битву)`, { type: 'fight', unitId, targetId: e.id, finestHour: true })
+        add(`finest:${e.id}`, tr('⭐ Fight “{name}” — Finest Hour (+3 A, Devastating Wounds, once per battle)', { name: e.name }), { type: 'fight', unitId, targetId: e.id, finestHour: true })
     }
   out.push(...stratagemActions(s, unitId))
   return out.filter((a) => a.id !== 'reroll' || hasAbility(u, 'waaagh') || hasAbility(u, 'superlativeStrategist'))
@@ -1692,11 +1699,11 @@ export function stratagemActions(s: GameState, unitId: string): ActionInfo[] {
     if (validate(s, cmd).ok) out.push({ id, label, ok: true, cmd })
   }
   const cost = (id: StratagemId) => `${STRATAGEMS[id].cost} CP`
-  strat('strat:reroll', `🎲 Командный переброс (${cost('commandReroll')}): перебросить ${s.phase === 'charge' ? 'бросок атаки' : 'продвижение'}`, { type: 'stratagem', id: 'commandReroll', unitId })
-  strat('strat:bravery', `🦁 Безумная храбрость (${cost('insaneBravery')}): снять боевой шок, раз за битву`, { type: 'stratagem', id: 'insaneBravery', unitId })
+  strat('strat:reroll', tr('🎲 Command Re-roll ({cost}): re-roll {value}', { cost: cost('commandReroll'), value: s.phase === 'charge' ? tr('charge roll') : tr('advance') }), { type: 'stratagem', id: 'commandReroll', unitId })
+  strat('strat:bravery', tr('🦁 Insane Bravery ({cost}): remove Battle-shock, once per battle', { cost: cost('insaneBravery') }), { type: 'stratagem', id: 'insaneBravery', unitId })
   for (const e of enemiesOf(s, u)) {
-    strat(`strat:explosives:${e.id}`, `💣 Взрывчатка (${cost('explosives')}) в «${e.name}»: 6D6, 4+ — смертельная рана`, { type: 'stratagem', id: 'explosives', unitId, targetId: e.id })
-    strat(`strat:crush:${e.id}`, `🐘 Сокрушительный удар (${cost('crushingImpact')}) по «${e.name}»: D6 × Стойкость, 5+ — рана врагу, 1 — себе`, { type: 'stratagem', id: 'crushingImpact', unitId, targetId: e.id })
+    strat(`strat:explosives:${e.id}`, tr('💣 Explosives ({cost}) at “{name}”: 6D6, 4+ is a mortal wound', { cost: cost('explosives'), name: e.name }), { type: 'stratagem', id: 'explosives', unitId, targetId: e.id })
+    strat(`strat:crush:${e.id}`, tr('🐘 Crushing Blow ({cost}) on “{name}”: D6 × Toughness, 5+ is a wound to the enemy, 1 to yourself', { cost: cost('crushingImpact'), name: e.name }), { type: 'stratagem', id: 'crushingImpact', unitId, targetId: e.id })
   }
   // the army's own (detachment) Stratagems
   for (const info of Object.values(STRATAGEMS)) {
@@ -1705,7 +1712,7 @@ export function stratagemActions(s: GameState, unitId: string): ActionInfo[] {
     if (info.id === 'extinctionOrder') {
       s.objectives.forEach((o, i) => {
         if (enemiesOf(s, u).some((e) => alive(e).length > 0 && unitNearObjective(e, o)))
-          strat(`strat:${info.id}:${o.id}`, `📜 ${info.name} (${info.cost} CP): цель Ц${i + 1}`, { type: 'stratagem', id: info.id, unitId, targetId: o.id })
+          strat(`strat:${info.id}:${o.id}`, tr('📜 {name} ({cost} CP): target T{value}', { name: info.name, cost: info.cost, value: i + 1 }), { type: 'stratagem', id: info.id, unitId, targetId: o.id })
       })
     } else strat(`strat:${info.id}`, `📜 ${info.name} (${info.cost} CP)`, { type: 'stratagem', id: info.id, unitId })
   }
@@ -1720,7 +1727,7 @@ function resolveShooting(s: GameState, u: UnitState, t: UnitState, opts: { profi
   u.shot = true
   if (plan.oneShots.length) u.spent = [...(u.spent ?? []), ...plan.oneShots]
   if (opts.useAmmoRunts && hasAbility(u, 'ammoRunts') && !u.ammoRuntsUsed) u.ammoRuntsUsed = true
-  addLog(s, `${u.name} ${snap ? 'ведёт огонь на опережение по' : 'стреляет по'} отряду «${t.name}»${plan.cover ? ' (цель в укрытии: навык −1)' : ''}.`, 'minimal')
+  addLog(s, tr('{name} {value} unit “{name2}”{value2}.', { name: u.name, value: snap ? tr('fires overwatch at') : tr('shoots at'), name2: t.name, value2: plan.cover ? tr(' (target in cover: skill −1)') : '' }), 'minimal')
   for (const sk of plan.skipped) addLog(s, sk, 'beginner')
   let repulsed = 0
   let scored = false
@@ -1728,34 +1735,34 @@ function resolveShooting(s: GameState, u: UnitState, t: UnitState, opts: { profi
     if (isDestroyed(t)) break
     const res = resolveGroup(r, u.name, g, t, g.ctx, reroll)
     repulsed += res.repulsed
-    if (res.steps.some((st) => st.label === 'Попадание' && (st.target === 'авто' || st.dice.some((d) => d.success)))) scored = true
+    if (res.steps.some((st) => st.meta?.kind === 'hit' && (st.meta.auto || st.dice.some((d) => d.success)))) scored = true
     pushDice(s, `${u.name} → ${t.name}: ${g.weaponName}${g.notes.length ? ` [${g.notes.join(', ')}]` : ''}`, res.steps, res.summary)
     addLog(s, res.summary, 'standard')
   }
   // Disruption Bombardment (Barbgaunts): an INFANTRY target it hit is disrupted until the end of its owner's next turn
   if (scored && hasAbility(u, 'disruptionBombardment') && !isDestroyed(t) && hasKeyword(t, 'INFANTRY') && !t.disrupted) {
     t.disrupted = true
-    addLog(s, `${u.name}: «${t.name}» под подавляющим обстрелом (Disruption Bombardment) — до конца своего следующего хода −2″ к движению, −2 к броскам продвижения и атаки.`, 'standard')
+    addLog(s, tr('{name}: “{name2}” is under Disruption Bombardment — until the end of its next turn −2″ to movement, −2 to Advance and charge rolls.', { name: u.name, name2: t.name }), 'standard')
   }
   // Electro-shock (Corpuscarii): a target it hit, not a MONSTER or VEHICLE, is shocked until the end of its owner's next turn
   if (scored && !snap && hasAbility(u, 'electroShock') && !isDestroyed(t) && !isMV(t) && !t.disrupted) {
     t.disrupted = true
-    addLog(s, `${u.name}: «${t.name}» под электрошоком (Electro-shock) — до конца своего следующего хода −2″ к движению, −2 к броскам продвижения и атаки.`, 'standard')
+    addLog(s, tr('{name}: {target} is electro-shocked — until the end of its next turn −2″ to move, −2 to Advance and Charge rolls.', { name: u.name, target: quote(t.name) }), 'standard')
   }
   // Driven from Cover (Infernus): the target it hit loses cover against this army's shooting until the end of the turn
   if (scored && hasAbility(u, 'drivenFromCover') && !isDestroyed(t) && t.drivenFromCover !== u.owner) {
     t.drivenFromCover = u.owner
-    addLog(s, `${u.name}: «${t.name}» выкурен из укрытия (Driven from Cover) — до конца хода союзная стрельба по нему не учитывает укрытие.`, 'standard')
+    addLog(s, tr('{name}: “{name2}” is driven from cover — until the end of the turn friendly shooting at it ignores cover.', { name: u.name, name2: t.name }), 'standard')
   }
-  hazard(s, u, plan.hazardousModels, r, 'Перегрузка плазмы (Hazardous)')
+  hazard(s, u, plan.hazardousModels, r, tr('Plasma overload (Hazardous)'))
   // Repulsor Grid: every unmodified 6 on the target's saves = 1 mortal wound for the shooter, after it has shot
   if (repulsed && !isDestroyed(u)) {
-    pushDice(s, `Отталкивающая решётка: ${t.name} → ${u.name}`, [{ label: 'Спасброски «6»', target: '6', dice: Array.from({ length: repulsed }, () => ({ value: 6, success: true })), note: `Натуральных «6» в спасбросках: ${repulsed} — столько смертельных ран получает стрелок.` }],
-      `${u.name} получает ${repulsed} смертельн. ран от Repulsor Grid «${t.name}».`)
-    applyMortalWounds(s, u, repulsed, `Repulsor Grid «${t.name}»`)
+    pushDice(s, tr('Repulsor Grid: {name} → {name2}', { name: t.name, name2: u.name }), [{ label: tr('Saves of “6”'), target: '6', dice: Array.from({ length: repulsed }, () => ({ value: 6, success: true })), note: tr('Natural “6”s on saves: {repulsed} — that many mortal wounds go to the shooter.', { repulsed }) }],
+      tr('{name} takes {repulsed} mortal wounds from the Repulsor Grid of “{name2}”.', { name: u.name, repulsed, name2: t.name }))
+    applyMortalWounds(s, u, repulsed, `Repulsor Grid ${quote(t.name)}`)
   }
   deadlyDemise(s, before, r)
-  if (isDestroyed(t)) addLog(s, `Отряд «${t.name}» уничтожен!`, 'minimal')
+  if (isDestroyed(t)) addLog(s, tr('Unit “{name}” is destroyed!', { name: t.name }), 'minimal')
   checkWinner(s)
 }
 
@@ -1763,59 +1770,59 @@ function resolveShooting(s: GameState, u: UnitState, t: UnitState, opts: { profi
 
 function stratagemProblem(s: GameState, unit: UnitState, cmd: Extract<Command, { type: 'stratagem' }>): Validation {
   const info = STRATAGEMS[cmd.id]
-  if (!info) return fail('Неизвестная стратагема.')
+  if (!info) return fail(tr('Unknown Stratagem.'))
   const me = unit.owner
-  if (info.faction === me && !detachmentOn(s, me)) return fail(`«${info.name}» — стратагема детачмента, а армия собрана без детачмента: доступны только общие стратагемы.`)
+  if (info.faction === me && !detachmentOn(s, me)) return fail(tr('“{name}” is a detachment Stratagem, but the army is built without a detachment: only the shared Stratagems are available.', { name: info.name }))
   const turn = info.turn ?? 'own'
-  if (turn === 'own' && s.activePlayer !== me) return fail(`«${info.name}» применяется только в свой ход.`)
+  if (turn === 'own' && s.activePlayer !== me) return fail(tr('“{name}” can only be used on your own turn.', { name: info.name }))
   if (turn === 'opponent' && (s.reaction?.player !== me || s.reaction.window !== info.window))
-    return fail(`«${info.name}» — реакция в ход противника: её предлагают в нужный момент его хода.`)
-  if (info.window && (s.reaction?.window !== info.window || s.reaction.player !== me)) return fail(`«${info.name}» предлагается в нужный момент (окно перед действием), сейчас её применить нельзя.`)
-  if (!info.phases.includes(s.phase)) return fail(`«${info.name}» применяется в фазе: ${info.phases.map((p) => PHASE_NAME[p]).join(' или ')}.`)
-  if (s.players[me].cp < info.cost) return fail(`Не хватает очков командования: нужно ${info.cost} CP, есть ${s.players[me].cp}.`)
-  if (usedThisPhase(s, me, cmd.id)) return fail(`«${info.name}» уже применялась в этой фазе (каждая стратагема — раз за фазу).`)
-  if (info.faction && info.faction !== me) return fail(`«${info.name}» — стратагема другой армии.`)
-  if (!meetsRequirement(unit, info)) return fail(`«${info.name}»: нужен ${info.requires!.label}.`)
-  if (targetedThisPhase(s, unit)) return fail('На этот отряд уже применяли стратагему в этой фазе (одна стратагема на отряд за фазу).')
-  if (cmd.id !== 'insaneBravery' && unit.battleShocked) return fail('Отряд в боевом шоке: на него нельзя применять стратагемы.')
+    return fail(tr('“{name}” is a reaction in the opponent’s turn: it is offered at the right moment of their turn.', { name: info.name }))
+  if (info.window && (s.reaction?.window !== info.window || s.reaction.player !== me)) return fail(tr('“{name}” is offered at the right moment (a window before the action), it cannot be used now.', { name: info.name }))
+  if (!info.phases.includes(s.phase)) return fail(tr('“{name}” is used in the phase: {list}.', { name: info.name, list: info.phases.map((p) => PHASE_NAME[p]).join(tr(' or ')) }))
+  if (s.players[me].cp < info.cost) return fail(tr('Not enough Command Points: {cost} CP needed, you have {cp}.', { cost: info.cost, cp: s.players[me].cp }))
+  if (usedThisPhase(s, me, cmd.id)) return fail(tr('“{name}” has already been used in this phase (each Stratagem once per phase).', { name: info.name }))
+  if (info.faction && info.faction !== me) return fail(tr('“{name}” is a Stratagem of another army.', { name: info.name }))
+  if (!meetsRequirement(unit, info)) return fail(tr('“{name}”: {label} needed.', { name: info.name, label: info.requires!.label }))
+  if (targetedThisPhase(s, unit)) return fail(tr('A Stratagem has already been used on this unit in this phase (one Stratagem per unit per phase).'))
+  if (cmd.id !== 'insaneBravery' && unit.battleShocked) return fail(tr('The unit is Battle-shocked: Stratagems cannot be used on it.'))
   const target = cmd.targetId ? findUnit(s, cmd.targetId) : undefined
   switch (cmd.id) {
     case 'commandReroll': {
-      if (s.phase === 'charge') return s.lastCharge?.unitId === unit.id ? OK : fail('Перебросить можно только что брошенный бросок атаки (charge) этого отряда.')
-      if (unit.advanceRoll === null || unit.move !== 'none') return fail('Нет броска продвижения для переброса.')
-      if (unit.advanceRerolled) return fail('Кубик нельзя перебрасывать больше одного раза.')
+      if (s.phase === 'charge') return s.lastCharge?.unitId === unit.id ? OK : fail(tr('Only the unit’s charge roll that was just made can be re-rolled.'))
+      if (unit.advanceRoll === null || unit.move !== 'none') return fail(tr('There is no Advance roll to re-roll.'))
+      if (unit.advanceRerolled) return fail(tr('A die cannot be re-rolled more than once.'))
       return OK
     }
     case 'insaneBravery':
       // the engine rolls battle-shock tests automatically when the Command phase starts, so the Stratagem is offered
       // right after a failed test and turns it into a pass (see docs/stratagems.md)
-      if (s.players[me].braveryUsed) return fail('«Безумная храбрость» уже применялась в этой битве (раз за битву).')
-      return s.shockPending?.includes(unit.id) ? OK : fail('Только для отряда, которому сейчас предстоит проверка боевого шока.')
+      if (s.players[me].braveryUsed) return fail(tr('“Insane Bravery” has already been used in this battle (once per battle).'))
+      return s.shockPending?.includes(unit.id) ? OK : fail(tr('Only for a unit that is about to take a Battle-shock test.'))
     case 'explosives': {
-      if (unit.shot) return fail('Отряд уже стрелял в этой фазе.')
-      if (unit.move === 'advance' || unit.move === 'fallBack') return fail('После продвижения или отступления взрывчатку не бросить.')
-      if (isEngaged(s, unit)) return fail('Отряд в контакте с врагом.')
-      if (!target || target.owner === me || isDestroyed(target)) return fail('Выберите вражеский отряд.')
-      if (isEngaged(s, target)) return fail('Цель в контакте с другим отрядом — бросать в свалку нельзя.')
-      if (!explosivesReach(unit, target)) return fail(`Взрывчатку бросают не дальше ${EXPLOSIVES_RANGE}″.`)
-      if (!unitCanSee(s, unit, target)) return fail('Цель не видна: линию видимости перекрывает укрытие.')
+      if (unit.shot) return fail(tr('The unit has already shot in this phase.'))
+      if (unit.move === 'advance' || unit.move === 'fallBack') return fail(tr('Explosives cannot be thrown after an Advance or Fall Back.'))
+      if (isEngaged(s, unit)) return fail(tr('The unit is in engagement range of the enemy.'))
+      if (!target || target.owner === me || isDestroyed(target)) return fail(tr('Choose an enemy unit.'))
+      if (isEngaged(s, target)) return fail(tr('The target is in engagement range of another unit — you cannot throw into a melee.'))
+      if (!explosivesReach(unit, target)) return fail(tr('Explosives are thrown no farther than {EXPLOSIVES_RANGE}″.', { EXPLOSIVES_RANGE }))
+      if (!unitCanSee(s, unit, target)) return fail(tr('The target is not visible: cover blocks the line of sight.|alt'))
       return OK
     }
     case 'fireOverwatch': {
-      if (isEngaged(s, unit)) return fail('Отряд в контакте с врагом.')
-      if (!target || target.owner === me || isDestroyed(target)) return fail('Выберите вражеский отряд.')
-      if (unitDistance(unit, target) > OVERWATCH_RANGE + EPS) return fail(`Огонь на опережение — только по врагу в пределах ${OVERWATCH_RANGE}″.`)
+      if (isEngaged(s, unit)) return fail(tr('The unit is in engagement range of the enemy.'))
+      if (!target || target.owner === me || isDestroyed(target)) return fail(tr('Choose an enemy unit.'))
+      if (unitDistance(unit, target) > OVERWATCH_RANGE + EPS) return fail(tr('Overwatch fire — only at an enemy within {OVERWATCH_RANGE}″.', { OVERWATCH_RANGE }))
       const plan = shootPlan(s, unit, target, { snap: true })
       return plan.problem ? fail(plan.problem) : OK
     }
     case 'smokescreen':
       return OK
     case 'heroicIntervention': {
-      if (isEngaged(s, unit)) return fail('Отряд уже в контакте с врагом.')
-      if (hasKeyword(unit, 'VEHICLE') && !hasKeyword(unit, 'CHARACTER', 'WALKER')) return fail('Технике перехват доступен, только если она персонаж или шагоход (WALKER).')
-      if (!target || target.owner === me || isDestroyed(target)) return fail('Выберите вражеский отряд.')
-      if (!target.charged) return fail('Перехват — только против отряда, который атаковал (charge) в эту фазу.')
-      if (unitDistance(unit, target) > CHARGE_RANGE + EPS) return fail(`Враг дальше ${CHARGE_RANGE}″.`)
+      if (isEngaged(s, unit)) return fail(tr('The unit is already in engagement range of the enemy.'))
+      if (hasKeyword(unit, 'VEHICLE') && !hasKeyword(unit, 'CHARACTER', 'WALKER')) return fail(tr('Heroic Intervention is available to a vehicle only if it is a character or a walker (WALKER).'))
+      if (!target || target.owner === me || isDestroyed(target)) return fail(tr('Choose an enemy unit.'))
+      if (!target.charged) return fail(tr('Intervention is only against a unit that charged in this phase.'))
+      if (unitDistance(unit, target) > CHARGE_RANGE + EPS) return fail(tr('The enemy is farther than {CHARGE_RANGE}″.', { CHARGE_RANGE }))
       return OK
     }
     case 'armourOfContempt':
@@ -1827,46 +1834,46 @@ function stratagemProblem(s: GameState, unit: UnitState, cmd: Extract<Command, {
     case 'orksNeverBeaten':
     case 'deathFrenzy':
     case 'undyingLegions': {
-      if (s.reaction?.unitId !== unit.id) return fail(cmd.id === 'undyingLegions' ? 'Только для отряда, который только что потерял модели от атак врага.' : 'Только для отряда, который враг сейчас выбрал целью.')
-      if (cmd.id === 'lightningFastReactions' && hasKeyword(unit, 'WRAITH CONSTRUCT')) return fail('Не для конструктов-призраков (WRAITH CONSTRUCT).')
-      if (cmd.id === 'balefulHalo' && hasKeyword(unit, 'VEHICLE')) return fail('Не для техники (VEHICLE).')
-      if (cmd.id === 'orksNeverBeaten' && hasKeyword(unit, 'TITANIC')) return fail('Не для TITANIC.')
-      if (LAST_STAND.includes(cmd.id) && unit.fought) return fail('Отряд уже сражался в этой фазе.')
-      if (cmd.id === 'undyingLegions' && !hasAbility(unit, 'reanimation')) return fail('У отряда нет протоколов реанимации.')
-      if (cmd.id === 'undyingLegions' && !reanimationNeeded(unit)) return fail('Отряду нечего лечить.')
+      if (s.reaction?.unitId !== unit.id) return fail(cmd.id === 'undyingLegions' ? tr('Only for a unit that has just lost models to enemy attacks.') : tr('Only for a unit that the enemy has just chosen as a target.'))
+      if (cmd.id === 'lightningFastReactions' && hasKeyword(unit, 'WRAITH CONSTRUCT')) return fail(tr('Not for wraith constructs (WRAITH CONSTRUCT).'))
+      if (cmd.id === 'balefulHalo' && hasKeyword(unit, 'VEHICLE')) return fail(tr('Not for vehicles (VEHICLE).'))
+      if (cmd.id === 'orksNeverBeaten' && hasKeyword(unit, 'TITANIC')) return fail(tr('Not for TITANIC.'))
+      if (LAST_STAND.includes(cmd.id) && unit.fought) return fail(tr('The unit has already fought in this phase.'))
+      if (cmd.id === 'undyingLegions' && !hasAbility(unit, 'reanimation')) return fail(tr('The unit has no reanimation protocols.'))
+      if (cmd.id === 'undyingLegions' && !reanimationNeeded(unit)) return fail(tr('The unit has nothing to heal.'))
       return OK
     }
     case 'epicChallenge':
-      return enemiesOf(s, unit).some((e) => validate(s, { type: 'fight', unitId: unit.id, targetId: e.id }).ok) ? OK : fail('Отряд сейчас не может сражаться.')
+      return enemiesOf(s, unit).some((e) => validate(s, { type: 'fight', unitId: unit.id, targetId: e.id }).ok) ? OK : fail(tr('The unit cannot fight right now.'))
     case 'stormOfDevastation':
     case 'closeRangeDakka':
     case 'conqueringTyrant':
     case 'blitzingFirepower':
     case 'lethalDosage':
-      return unit.shot ? fail('Отряд уже стрелял в этой фазе.') : OK
+      return unit.shot ? fail(tr('The unit has already shot in this phase.')) : OK
     case 'fungusFuelInjection':
-      return unit.move === 'none' ? OK : fail('Отряд уже двигался в этой фазе.')
+      return unit.move === 'none' ? OK : fail(tr('The unit has already moved in this phase.'))
     case 'suddenStorm':
       return OK
     case 'feignedRetreat':
-      return unit.move === 'fallBack' ? OK : fail('Только для отряда, который отступил (Fall Back) в этой фазе.')
+      return unit.move === 'fallBack' ? OK : fail(tr('Only for a unit that fell back (Fall Back) in this phase.'))
     case 'aggressorImperative':
-      if (unit.move !== 'none' || unit.advanceRoll !== null) return fail('Отряд уже двигался или объявил продвижение.')
-      return isEngaged(s, unit) ? fail('Отряд в контакте с врагом — продвигаться нельзя.') : OK
+      if (unit.move !== 'none' || unit.advanceRoll !== null) return fail(tr('The unit has already moved or declared an Advance.'))
+      return isEngaged(s, unit) ? fail(tr('The unit is in engagement range of the enemy — it cannot Advance.')) : OK
     case 'hitEmHarder':
     case 'hungryVoid':
     case 'adrenalSurge':
-      return enemiesOf(s, unit).some((e) => validate(s, { type: 'fight', unitId: unit.id, targetId: e.id }).ok) ? OK : fail('Отряд сейчас не может сражаться.')
+      return enemiesOf(s, unit).some((e) => validate(s, { type: 'fight', unitId: unit.id, targetId: e.id }).ok) ? OK : fail(tr('The unit cannot fight right now.'))
     case 'extinctionOrder': {
       const o = s.objectives.find((x) => x.id === cmd.targetId)
-      if (!o) return fail('Выберите цель на поле.')
-      if (Math.min(...alive(unit).map((m) => dist(m.pos, o.pos))) > EXTINCTION_RANGE + EPS) return fail(`Цель дальше ${EXTINCTION_RANGE}″ от Техножреца.`)
+      if (!o) return fail(tr('Choose a target on the field.'))
+      if (Math.min(...alive(unit).map((m) => dist(m.pos, o.pos))) > EXTINCTION_RANGE + EPS) return fail(tr('The target is farther than {EXTINCTION_RANGE}″ from the Tech-Priest.', { EXTINCTION_RANGE }))
       return OK
     }
     case 'crushingImpact': {
-      if (!unit.charged) return fail('Применяется после того, как этот отряд завершил атаку (charge).')
-      if (!target || target.owner === me || isDestroyed(target)) return fail('Выберите вражеский отряд.')
-      if (!engagedUnits(s, unit).some((e) => e.id === target.id)) return fail('Цель должна быть в контакте с техникой.')
+      if (!unit.charged) return fail(tr('Used after this unit has finished a charge.'))
+      if (!target || target.owner === me || isDestroyed(target)) return fail(tr('Choose an enemy unit.'))
+      if (!engagedUnits(s, unit).some((e) => e.id === target.id)) return fail(tr('The target must be in engagement range of the vehicle.'))
       return OK
     }
   }
@@ -1898,10 +1905,10 @@ function openReaction(s: GameState, window: ReactionWindow, next: Phase, player 
   s.reaction = { player, window, next, ...about }
   if (reactionCommands(s).length) {
     const u = about.unitId ? findUnit(s, about.unitId)! : undefined
-    const text = window === 'beforeShockTests' ? `${FACTION_NAME[player]}: перед проверками боевого шока можно применить «Безумную храбрость».`
-      : window === 'onTargeted' ? `${FACTION_NAME[player]}: отряд «${u!.name}» выбран целью — можно ответить стратагемой до бросков.`
-      : window === 'afterAttacks' ? `${FACTION_NAME[player]}: отряд «${u!.name}» потерял модели — можно запустить реанимацию стратагемой.`
-      : `${FACTION_NAME[player]} может ответить реакцией (стратагемой в ход противника).`
+    const text = window === 'beforeShockTests' ? tr('{item}: “Insane Bravery” can be used before the Battle-shock tests.', { item: FACTION_NAME[player] })
+      : window === 'onTargeted' ? tr('{item}: unit “{name}” was picked as a target — you can answer with a Stratagem before the rolls.', { item: FACTION_NAME[player], name: u!.name })
+      : window === 'afterAttacks' ? tr('{item}: unit “{name}” lost models — a reanimation Stratagem can be used.', { item: FACTION_NAME[player], name: u!.name })
+      : tr('{item} can answer with a reaction (a Stratagem on the opponent’s turn).', { item: FACTION_NAME[player] })
     addLog(s, text, 'standard')
     return true
   }
@@ -1925,11 +1932,11 @@ function applyStratagem(s: GameState, cmd: Extract<Command, { type: 'stratagem' 
   s.players[me].cp -= info.cost
   ;(s.players[me].stratagemsThisPhase ??= []).push(cmd.id)
   ;(s.players[me].stratagemUnitsThisPhase ??= []).push(u.id)
-  addLog(s, `${FACTION_NAME[me]}: стратагема «${info.name}» (${info.nameEn}) — ${u.name}, −${info.cost} CP.`, 'minimal')
+  addLog(s, (showOfficialName ? tr('{item}: Stratagem “{name}” ({nameEn}) — {name2}, −{cost} CP.', { item: FACTION_NAME[me], name: info.name, nameEn: info.nameEn, name2: u.name, cost: info.cost }) : tr('{item}: Stratagem “{name}” — {name2}, −{cost} CP.', { item: FACTION_NAME[me], name: info.name, name2: u.name, cost: info.cost })), 'minimal')
   if (hasAbility(u, 'dataTether')) {
     const v = r.d6()
     if (v >= DATA_TETHER_ROLL) s.players[me].cp++
-    pushDice(s, `Канал данных: ${u.name}`, [{ label: 'D6', target: `${DATA_TETHER_ROLL}+`, dice: [{ value: v, success: v >= DATA_TETHER_ROLL }] }], v >= DATA_TETHER_ROLL ? `${u.name}: канал данных (Data-tether) — +1 CP.` : `${u.name}: канал данных — CP не вернулся.`)
+    pushDice(s, tr('Data-tether: {name}', { name: u.name }), [{ label: 'D6', target: `${DATA_TETHER_ROLL}+`, dice: [{ value: v, success: v >= DATA_TETHER_ROLL }] }], v >= DATA_TETHER_ROLL ? tr('{name}: Data-tether — +1 CP.', { name: u.name }) : tr('{name}: Data-tether — no CP returned.', { name: u.name }))
   }
   if (info.buff) {
     ;(info.buff === 'phase' ? (u.phaseBuffs ??= []) : (u.turnBuffs ??= [])).push(cmd.id)
@@ -1945,35 +1952,35 @@ function applyStratagem(s: GameState, cmd: Extract<Command, { type: 'stratagem' 
       const roll = Math.max(0, dice[0] + dice[1] - (u.disrupted ? DISRUPTION : 0))
       const d = unitDistance(u, t!)
       const pos = roll > 2 && withinRange(d, roll) ? planCharge(s, u, [t!], roll) : null
-      pushDice(s, `Героический перехват: ${u.name} → ${t!.name}`, [{ label: '2D6', target: '—', dice: dice.map((x) => ({ value: x, success: !!pos })), note: `Нужно ${fmt(d)}", выпало ${roll}"` }],
-        pos ? `${u.name} врывается в бой с «${t!.name}».` : `${u.name} не успевает: выпало ${roll}", а нужно ${fmt(d)}".`)
+      pushDice(s, tr('Heroic Intervention: {name} → {name2}', { name: u.name, name2: t!.name }), [{ label: '2D6', target: '—', dice: dice.map((x) => ({ value: x, success: !!pos })), note: tr('Needs {fmt}", rolled {roll}"', { fmt: fmt(d), roll }) }],
+        pos ? tr('{name} charges into combat with “{name2}”.', { name: u.name, name2: t!.name }) : tr('{name} does not make it: rolled {roll}", needs {fmt}".', { name: u.name, roll, fmt: fmt(d) }))
       if (pos) {
         movedTo(u, pos)
-        addLog(s, `${u.name}: героический перехват — отряд врывается в бой с «${t!.name}» (без «Бьёт первым»).`, 'minimal')
-      } else addLog(s, `${u.name}: героический перехват не удался — выпало ${roll}", а до врага ${fmt(d)}".`, 'minimal')
+        addLog(s, tr('{name}: Heroic Intervention — the unit charges into combat with “{name2}” (without Fights First).', { name: u.name, name2: t!.name }), 'minimal')
+      } else addLog(s, tr('{name}: Heroic Intervention failed — rolled {roll}", the enemy is at {fmt}".', { name: u.name, roll, fmt: fmt(d) }), 'minimal')
       break
     }
     case 'aggressorImperative': {
       u.advanceRoll = 6
       u.advanceRerolled = true
-      addLog(s, `${u.name}: продвижение без броска — M + 6".`, 'minimal')
+      addLog(s, tr('{name}: Advance without a roll — M + 6".', { name: u.name }), 'minimal')
       break
     }
     case 'extinctionOrder': {
       const o = s.objectives.find((x) => x.id === cmd.targetId)!
       const foes = enemiesOf(s, u).filter((e) => alive(e).length && unitNearObjective(e, o))
-      if (!foes.length) addLog(s, 'На этой цели нет вражеских отрядов — приказ ничего не дал.', 'minimal')
+      if (!foes.length) addLog(s, tr('There are no enemy units on this objective — the order achieved nothing.'), 'minimal')
       for (const e of foes) {
         const v = r.d6()
-        pushDice(s, `Приказ об истреблении: ${e.name}`, [{ label: 'D6', target: '4+', dice: [{ value: v, success: v >= 4 }], note: '4+ — смертельная рана и проверка боевого шока' }],
-          v >= 4 ? `${e.name}: смертельная рана и проверка боевого шока.` : `${e.name}: без последствий.`)
+        pushDice(s, tr('Order of Eradication: {name}', { name: e.name }), [{ label: 'D6', target: '4+', dice: [{ value: v, success: v >= 4 }], note: tr('4+ — a mortal wound and a Battle-shock test') }],
+          v >= 4 ? tr('{name}: a mortal wound and a Battle-shock test.', { name: e.name }) : tr('{name}: no consequences.', { name: e.name }))
         if (v < 4) continue
-        applyMortalWounds(s, e, 1, `приказ об истреблении «${u.name}»`)
-        if (isDestroyed(e)) { addLog(s, `Отряд «${e.name}» уничтожен!`, 'minimal'); continue }
+        applyMortalWounds(s, e, 1, tr('order of eradication of “{name}”', { name: u.name }))
+        if (isDestroyed(e)) { addLog(s, tr('Unit “{name}” is destroyed!', { name: e.name }), 'minimal'); continue }
         const { dice, total, ld, pass, label } = leadershipRoll(s, e, r)
         if (!pass) e.battleShocked = true
-        pushDice(s, `Боевой шок: ${e.name}`, [{ label, target: `${ld}+`, dice: dice.map((x) => ({ value: x, success: pass })), note: `Сумма ${total} против Ld ${ld}+` }],
-          pass ? `${e.name}: проверка пройдена.` : `${e.name}: провал — отряд в боевом шоке.`)
+        pushDice(s, tr('Battle-shock: {name}', { name: e.name }), [{ label, target: `${ld}+`, dice: dice.map((x) => ({ value: x, success: pass })), note: tr('Total {total} vs Ld {ld}+', { total, ld }) }],
+          pass ? tr('{name}: test passed.', { name: e.name }) : tr('{name}: failed — the unit is Battle-shocked.', { name: e.name }))
       }
       updateObjectiveControl(s)
       checkWinner(s)
@@ -1986,42 +1993,42 @@ function applyStratagem(s: GameState, cmd: Extract<Command, { type: 'stratagem' 
         const roll = Math.max(0, dice[0] + dice[1] - (u.disrupted ? DISRUPTION : 0))
         const targets = chargeTargetsFor(s, u, roll)
         s.lastCharge = null
-        pushDice(s, `Командный переброс атаки: ${u.name}`, [{ label: '2D6', target: '—', dice: dice.map((x, i) => ({ value: x, success: targets.length > 0, rerolledFrom: prev[i] })), note: `Было ${prev[0] + prev[1]}, стало ${roll}"` }],
-          targets.length ? `Переброс: ${roll}" — доступные цели: ${targets.map((x) => x.name).join(', ')}.` : `Переброс: ${roll}" — снова недостаточно, атака провалена.`)
+        pushDice(s, tr('Charge Command Re-roll: {name}', { name: u.name }), [{ label: '2D6', target: '—', dice: dice.map((x, i) => ({ value: x, success: targets.length > 0, rerolledFrom: prev[i] })), note: tr('Was {value}, now {roll}"', { value: prev[0] + prev[1], roll }) }],
+          targets.length ? tr('Re-roll: {roll}" — available targets: {list}.', { roll, list: targets.map((x) => x.name).join(', ') }) : tr('Re-roll: {roll}" — still not enough, the charge failed.', { roll }))
         if (targets.length) s.pendingCharge = { unitId: u.id, roll, dice, targets: targets.map((x) => x.id) }
         else {
           s.pendingCharge = null
-          addLog(s, `${u.name}: после переброса выпало ${roll}" — атака провалена.`, 'minimal')
+          addLog(s, tr('{name}: after the re-roll {roll}" came up — the charge failed.', { name: u.name, roll }), 'minimal')
         }
       } else {
         const prev = u.advanceRoll
         const v2 = r.d6()
         u.advanceRoll = v2
         u.advanceRerolled = true
-        pushDice(s, `Командный переброс продвижения: ${u.name}`, [{ label: 'D6', target: '—', dice: [{ value: v2, success: true, rerolledFrom: prev ?? undefined }], note: `Было ${prev}` }], `${u.name}: продвижение теперь M + ${v2}".`)
-        addLog(s, `${u.name}: переброс продвижения — D6 = ${v2}.`, 'minimal')
+        pushDice(s, tr('Advance Command Re-roll: {name}', { name: u.name }), [{ label: 'D6', target: '—', dice: [{ value: v2, success: true, rerolledFrom: prev ?? undefined }], note: tr('Was {prev}', { prev }) }], tr('{name}: the Advance is now M + {v2}".', { name: u.name, v2 }))
+        addLog(s, tr('{name}: Advance re-roll — D6 = {v2}.', { name: u.name, v2 }), 'minimal')
       }
       break
     }
     case 'undyingLegions':
-      reanimateUnit(s, u, r, isLed(s, u) ? 1 : 0, '«Протокол бессмертных легионов»')
+      reanimateUnit(s, u, r, isLed(s, u) ? 1 : 0, tr('“Immortal Legions Protocol”'))
       break
     case 'insaneBravery': {
       const was = u.battleShocked
       u.battleShocked = false
       s.players[me].braveryUsed = true
       s.shockPending = (s.shockPending ?? []).filter((id) => id !== u.id)
-      addLog(s, `${u.name}: проверка боевого шока автоматически пройдена${was ? ' — боевой шок снят' : ''}.`, 'minimal')
+      addLog(s, tr('{name}: the Battle-shock test is passed automatically{value}.', { name: u.name, value: was ? tr(' — Battle-shock removed') : '' }), 'minimal')
       break
     }
     case 'explosives': {
       u.shot = true
       const dice = rollMany(r, EXPLOSIVES_DICE)
       const n = dice.filter((v) => v >= 4).length
-      pushDice(s, `Взрывчатка: ${u.name} → ${t!.name}`, [{ label: `${EXPLOSIVES_DICE}D6`, target: '4+', dice: dice.map((v) => ({ value: v, success: v >= 4 })), note: `Каждая 4+ — 1 смертельная рана: ${n}.` }],
-        n ? `${u.name} бросает взрывчатку в «${t!.name}»: ${n} смертельн. ран.` : `Взрывчатка «${u.name}» не причинила вреда «${t!.name}».`)
-      if (n) applyMortalWounds(s, t!, n, `взрывчатка «${u.name}»`)
-      if (isDestroyed(t!)) addLog(s, `Отряд «${t!.name}» уничтожен!`, 'minimal')
+      pushDice(s, tr('Explosives: {name} → {name2}', { name: u.name, name2: t!.name }), [{ label: `${EXPLOSIVES_DICE}D6`, target: '4+', dice: dice.map((v) => ({ value: v, success: v >= 4 })), note: tr('Each 4+ is 1 mortal wound: {n}.', { n }) }],
+        n ? tr('{name} throws explosives at “{name2}”: {n} mortal wounds.', { name: u.name, name2: t!.name, n }) : tr('The explosives of “{name}” did no harm to “{name2}”.', { name: u.name, name2: t!.name }))
+      if (n) applyMortalWounds(s, t!, n, tr('explosives of “{name}”', { name: u.name }))
+      if (isDestroyed(t!)) addLog(s, tr('Unit “{name}” is destroyed!', { name: t!.name }), 'minimal')
       checkWinner(s)
       break
     }
@@ -2031,12 +2038,12 @@ function applyStratagem(s: GameState, cmd: Extract<Command, { type: 'stratagem' 
       const dice = rollMany(r, T)
       const hit = Math.min(CRUSHING_MAX, dice.filter((v) => v >= 5).length)
       const self = Math.min(CRUSHING_MAX, dice.filter((v) => v === 1).length)
-      pushDice(s, `Сокрушительный удар: ${u.name} → ${t!.name}`, [{ label: `${T}D6 (Стойкость)`, target: '5+', dice: dice.map((v) => ({ value: v, success: v >= 5 })), note: `5+ — рана врагу: ${hit}; 1 — рана себе: ${self} (не больше ${CRUSHING_MAX} каждому).` }],
-        `${u.name} врезается в «${t!.name}»: ${hit} смертельн. ран врагу${self ? `, ${self} — себе` : ''}.`)
-      if (hit) applyMortalWounds(s, t!, hit, `сокрушительный удар «${u.name}»`)
-      if (self) applyMortalWounds(s, u, self, 'отдача сокрушительного удара')
-      if (isDestroyed(t!)) addLog(s, `Отряд «${t!.name}» уничтожен!`, 'minimal')
-      if (isDestroyed(u)) addLog(s, `Отряд «${u.name}» уничтожен!`, 'minimal')
+      pushDice(s, tr('Crushing Blow: {name} → {name2}', { name: u.name, name2: t!.name }), [{ label: tr('{T}D6 (Toughness)', { T }), target: '5+', dice: dice.map((v) => ({ value: v, success: v >= 5 })), note: tr('5+ — a wound to the enemy: {hit}; 1 — a wound to yourself: {self} (max {CRUSHING_MAX} each).', { hit, self, CRUSHING_MAX }) }],
+        tr('{name} slams into “{name2}”: {hit} mortal wounds to the enemy{value}.', { name: u.name, name2: t!.name, hit, value: self ? tr(', {self} to itself', { self }) : '' }))
+      if (hit) applyMortalWounds(s, t!, hit, tr('crushing blow of “{name}”', { name: u.name }))
+      if (self) applyMortalWounds(s, u, self, tr('recoil of the crushing blow'))
+      if (isDestroyed(t!)) addLog(s, tr('Unit “{name}” is destroyed!', { name: t!.name }), 'minimal')
+      if (isDestroyed(u)) addLog(s, tr('Unit “{name}” is destroyed!', { name: u.name }), 'minimal')
       checkWinner(s)
       break
     }
@@ -2095,7 +2102,7 @@ function lineBreakers(s: GameState, u: UnitState, targets: UnitState[], support:
   const bonus = support ? 2 : 0
   const dice = rollMany(r, n)
   const mw = dice.filter((v) => v + bonus >= LINE_BREAKERS_ROLL).length
-  pushDice(s, `Прорыв строя: ${u.name} → ${t.name}`, [{ label: `D6 × ${n}${bonus ? ' (+2: рядом линейные)' : ''}`, target: `${LINE_BREAKERS_ROLL}+`, dice: dice.map((v) => ({ value: v, success: v + bonus >= LINE_BREAKERS_ROLL })) }],
-    mw ? `${t.name}: ${mw} смертельн. ран от прорыва строя.` : `${u.name}: прорыв строя без ран.`)
-  if (mw) applyMortalWounds(s, t, mw, 'прорыв строя (Line-breakers)')
+  pushDice(s, tr('Line-breakers: {name} → {target}', { name: u.name, target: t.name }), [{ label: bonus ? tr('D6 × {n} (+2: friendly Battleline nearby)', { n }) : tr('D6 × {n}', { n }), target: `${LINE_BREAKERS_ROLL}+`, dice: dice.map((v) => ({ value: v, success: v + bonus >= LINE_BREAKERS_ROLL })) }],
+    mw ? tr('{name}: {mw} mortal wounds from the line-breakers.', { name: t.name, mw }) : tr('{name}: line-breakers without wounds.', { name: u.name }))
+  if (mw) applyMortalWounds(s, t, mw, tr('line-breakers'))
 }

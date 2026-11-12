@@ -445,7 +445,12 @@ export interface DieRoll {
   critical?: boolean
 }
 
+export type AttackStepKind = 'attacks' | 'hit' | 'wound' | 'save' | 'damage' | 'fnp'
+
 export interface AttackStep {
+  /** Which part of the attack sequence this is, so logic never matches on the translated `label`.
+   *  Named `meta` so the golden-master hash ignores it (see golden.test.ts). */
+  meta?: { kind: AttackStepKind; /** the step needs no roll: Torrent hits, or wounds added automatically */ auto?: boolean }
   label: string
   target: string
   dice: DieRoll[]
