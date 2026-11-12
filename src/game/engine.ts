@@ -32,8 +32,8 @@ export const PHASE_NAME: Record<Phase, string> = {
 }
 
 export const VP_PER_OBJECTIVE = 5
-/** Swift as the Wind: 2″, plus 1″ from Martial Grace (the Warhost detachment rule, every Aeldari army here) */
-export const SWIFT_BONUS = 2 + MARTIAL_GRACE_SWIFT
+/** Swift as the Wind: 2″ (Martial Grace, the Warhost detachment rule, adds 1″: see `swiftBonusOf`) */
+export const SWIFT_BONUS = 2
 export const FLY_PENALTY = 2
 export const GUIDE_RANGE = 18
 /** Bomb Squig (Kommandos): range to the target unit */
@@ -82,6 +82,12 @@ const canActAfterFallBack = (s: GameState, u: UnitState) => hasAbility(u, 'adapt
 /** Space Marines Combat Doctrines: the doctrine active for this unit (Marines only). */
 export const doctrineOf = (s: GameState, u: UnitState) => (datasheetOf(u).faction === 'marines' ? s.players[u.owner].doctrine ?? null : null)
 
+/** The army plays with its detachment (rule and Stratagems); a pure custom list does not. */
+export const detachmentOn = (s: GameState, p: PlayerId) => !s.players[p]?.noDetachment
+
+/** Swift as the Wind for this army: 2″, plus 1″ from Martial Grace. */
+export const swiftBonusOf = (s: GameState, p: PlayerId) => SWIFT_BONUS + (detachmentOn(s, p) ? MARTIAL_GRACE_SWIFT : 0)
+
 /** Tyranids still have to choose their Hyper-adaptation (the battle waits for it). */
 export const hyperPending = (s: GameState) => s.players.tyranids?.hyperAdaptation === null && !s.winner
 
@@ -91,6 +97,7 @@ export const hyperPending = (s: GameState) => s.players.tyranids?.hyperAdaptatio
  */
 function detachmentAttack(s: GameState, unit: UnitState, target: UnitState) {
   const out = { sustained: false, lethal: false, critPrecision: false, hitMod: 0, notes: [] as string[], hitNotes: [] as string[] }
+  if (!detachmentOn(s, unit.owner)) return out
   const faction = datasheetOf(unit).faction
   const hyper = faction === 'tyranids' ? s.players[unit.owner].hyperAdaptation : null
   if (hyper === 'swarming' && hasKeyword(target, 'INFANTRY', 'SWARM')) { out.sustained = true; out.notes.push('Роевые инстинкты: Sustained Hits 1') }
@@ -426,7 +433,7 @@ export function meleeSetup(s: GameState, unit: UnitState, target: UnitState, p0:
   const det = detachmentAttack(s, unit, target)
   if (det.hitMod) { hitMod += det.hitMod; hitModNotes.push(...det.hitNotes) }
   // Get Stuck In (War Horde): Orks' melee attacks have Sustained Hits 1; Swarming Instincts gives the same
-  const stuckIn = datasheetOf(unit).faction === 'orks'
+  const stuckIn = datasheetOf(unit).faction === 'orks' && detachmentOn(s, unit.owner)
   if ((stuckIn || det.sustained) && !(p.keywords.sustainedHits ?? 0)) {
     p = { ...p, keywords: { ...p.keywords, sustainedHits: 1 } }
     if (stuckIn) notes.push('Ввяжись в драку: Sustained Hits 1')
@@ -560,7 +567,8 @@ export function validate(s: GameState, cmd: Command): Validation {
     const p = s.players.marines
     if (p.doctrine) return fail('Доктрина уже выбрана в этом ходу.')
     if (!DOCTRINES.includes(cmd.doctrine)) return fail('Неизвестная доктрина.')
-    if (!doctrineLeft(p.doctrinesUsed ?? [], cmd.doctrine)) return fail(`«${DOCTRINE_NAME[cmd.doctrine]}» больше выбрать нельзя: каждая доктрина — раз за битву, и одна из них — ещё раз (Дисциплина Кодекса).`)
+    if (!doctrineLeft(p.doctrinesUsed ?? [], cmd.doctrine, detachmentOn(s, 'marines') ? undefined : 0))
+      return fail(`«${DOCTRINE_NAME[cmd.doctrine]}» больше выбрать нельзя: каждая доктрина — раз за битву${detachmentOn(s, 'marines') ? ', и одна из них — ещё раз (Дисциплина Кодекса)' : ''}.`)
     return OK
   }
 
@@ -599,7 +607,7 @@ export function validate(s: GameState, cmd: Command): Validation {
       if (cmd.mode === 'advance' && unit.advanceRoll === null) return fail('Сначала объявите продвижение и бросьте D6.')
       if (cmd.mode !== 'advance' && unit.advanceRoll !== null) return fail('Продвижение уже объявлено — двигайтесь в режиме продвижения.')
       const m = Math.min(...alive(unit).map((x) => profileOf(x).m)) + (hasBuff(unit, 'fungusFuelInjection') ? FUNGUS_BONUS : 0)
-      const max = (cmd.mode === 'advance' ? m + (unit.advanceRoll ?? 0) : m) + (cmd.swift ? SWIFT_BONUS : 0) - (cmd.fly ? FLY_PENALTY : 0)
+      const max = (cmd.mode === 'advance' ? m + (unit.advanceRoll ?? 0) : m) + (cmd.swift ? swiftBonusOf(s, unit.owner) : 0) - (cmd.fly ? FLY_PENALTY : 0)
       const p = moveProblem(s, unit, cmd.positions, max, cmd.mode, [], !!cmd.fly)
       return p ? fail(p) : OK
     }
@@ -812,7 +820,7 @@ function resetTurnFlags(s: GameState) {
 /** Aeldari Battle Focus: tokens are refreshed at the start of every battle round. */
 function refreshFocus(s: GameState) {
   // Martial Grace (Warhost): one more token every round
-  for (const p of sidesOf(s)) if (s.players[p].focus !== undefined) s.players[p].focus = BATTLE_FOCUS_TOKENS + MARTIAL_GRACE_TOKENS
+  for (const p of sidesOf(s)) if (s.players[p].focus !== undefined) s.players[p].focus = BATTLE_FOCUS_TOKENS + (detachmentOn(s, p) ? MARTIAL_GRACE_TOKENS : 0)
 }
 
 function enterPhase(s: GameState, phase: Phase, r: Roller) {
@@ -872,7 +880,7 @@ export function shockFailChance(s: GameState, u: UnitState): number {
 function commandPhase(s: GameState, r: Roller) {
   // a combat doctrine lasts until the start of its player's next Command phase
   if (s.players[s.activePlayer].doctrine) s.players[s.activePlayer].doctrine = null
-  if (s.activePlayer === 'adeptus_mechanicus' && s.round >= 2 && s.round <= 5) radFallout(s, r)
+  if (s.activePlayer === 'adeptus_mechanicus' && s.round >= 2 && s.round <= 5 && detachmentOn(s, s.activePlayer)) radFallout(s, r)
   for (const p of sidesOf(s)) s.players[p].cp++
   if (s.players[s.activePlayer].guide !== undefined) s.players[s.activePlayer].guide = null
   if (s.players[s.activePlayer].imperative !== undefined) s.players[s.activePlayer].imperative = null
@@ -1009,7 +1017,7 @@ function radTargets(s: GameState): UnitState[] {
  * could wipe out (RAD_COVER_WOUNDS or fewer) takes cover, the others stand firm.
  */
 function radBombardment(s: GameState, r: Roller) {
-  if (!sidesOf(s).includes('adeptus_mechanicus')) return
+  if (!sidesOf(s).includes('adeptus_mechanicus') || !detachmentOn(s, 'adeptus_mechanicus')) return
   const targets = radTargets(s)
   addLog(s, `Радиационная бомбардировка (Rad-Zone Corps): обстрел зоны расстановки противника — отрядов под ударом: ${targets.length}.`, 'minimal')
   for (const u of targets) {
@@ -1317,7 +1325,7 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
       u.move = cmd.mode
       if (cmd.swift) {
         s.players[u.owner].focus = (s.players[u.owner].focus ?? 1) - 1
-        addLog(s, `${u.name}: Swift as the Wind — +${SWIFT_BONUS}″ к движению (жетон Боевого фокуса, осталось ${s.players[u.owner].focus}).`, 'standard')
+        addLog(s, `${u.name}: Swift as the Wind — +${swiftBonusOf(s, u.owner)}″ к движению (жетон Боевого фокуса, осталось ${s.players[u.owner].focus}).`, 'standard')
       }
       if (cmd.fly) addLog(s, `${u.name} летит (take to the skies): −${FLY_PENALTY}″, игнорирует модели и тиррейн.`, 'standard')
       const label = { normal: 'обычное движение (Normal Move)', advance: 'продвижение (Advance)', fallBack: 'отступление (Fall Back)' }[cmd.mode]
@@ -1543,7 +1551,7 @@ export function startGame(s0: GameState, r: Roller): GameState {
   pushDice(s, 'Бросок за первый ход', [{ label: `${FACTION_NAME[west]} / ${FACTION_NAME[east]}`, target: '—', dice: rolls.map((v) => ({ value: v, success: true })) }], `Первым ходит: ${FACTION_NAME[s.firstPlayer]}.`)
   addLog(s, `===== Раунд 1 ===== Первым ходит: ${FACTION_NAME[s.firstPlayer]}.`, 'minimal')
   // the start of the first battle round: the detachment rules that act then
-  if (sidesOf(s).includes('tyranids')) s.players.tyranids.hyperAdaptation = null
+  if (sidesOf(s).includes('tyranids') && detachmentOn(s, 'tyranids')) s.players.tyranids.hyperAdaptation = null
   radBombardment(s, r)
   enterPhase(s, 'command', r)
   s.rng = r.state()
@@ -1679,6 +1687,7 @@ function stratagemProblem(s: GameState, unit: UnitState, cmd: Extract<Command, {
   const info = STRATAGEMS[cmd.id]
   if (!info) return fail('Неизвестная стратагема.')
   const me = unit.owner
+  if (info.faction === me && !detachmentOn(s, me)) return fail(`«${info.name}» — стратагема детачмента, а армия собрана без детачмента: доступны только общие стратагемы.`)
   const turn = info.turn ?? 'own'
   if (turn === 'own' && s.activePlayer !== me) return fail(`«${info.name}» применяется только в свой ход.`)
   if (turn === 'opponent' && (s.reaction?.player !== me || s.reaction.window !== info.window))
@@ -1969,7 +1978,7 @@ export function effectiveMoveOptions(s: GameState, u: UnitState, o: MoveOptions)
 /** Maximum distance of a move with the given options. */
 export function moveAllowance(s: GameState, u: UnitState, o: MoveOptions): number {
   const e = effectiveMoveOptions(s, u, o)
-  return maxMove(u) + (e.swift ? SWIFT_BONUS : 0) - (e.fly ? FLY_PENALTY : 0)
+  return maxMove(u) + (e.swift ? swiftBonusOf(s, u.owner) : 0) - (e.fly ? FLY_PENALTY : 0)
 }
 
 /** The move command for `positions`, with the toggled options that apply. */

@@ -20,6 +20,8 @@ export interface ListEntry {
 export interface ArmyList {
   limit: PointsLimit
   units: ListEntry[]
+  /** a pure custom army: played without the detachment rule and the detachment Stratagems (absent = with them) */
+  noDetachment?: true
 }
 
 /** Copies of one datasheet allowed in a list: 3, or 6 for BATTLELINE (the usual "rule of three"). */
@@ -177,7 +179,7 @@ export function parseArmyList(raw: unknown): ArmyList | null {
     const lo = parseLoadout(loadout)
     units.push(lo && WARGEAR[datasheetId] ? { datasheetId, size, loadout: lo } : { datasheetId, size })
   }
-  return { limit: r.limit as PointsLimit, units }
+  return { limit: r.limit as PointsLimit, units, ...((raw as { noDetachment?: unknown }).noDetachment === true ? { noDetachment: true as const } : {}) }
 }
 
 /** A stored loadout, or null when absent or malformed (the unit then keeps its default equipment). */

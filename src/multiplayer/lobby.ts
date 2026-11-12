@@ -49,4 +49,4 @@ export function startProblem(l: LobbyState): string | null {
 
 /** «Учебный состав» or «Свой состав: 495 / 500 очк., 6 отр.» for the lobby. */
 export const armyLine = (list: ArmyList | null | undefined, points: (l: ArmyList) => number) =>
-  list ? `Свой состав: ${points(list)} / ${list.limit} очк., ${list.units.length} отр.` : 'Учебный состав'
+  list ? `Свой состав: ${points(list)} / ${list.limit} очк., ${list.units.length} отр.${list.noDetachment ? ', без детачмента' : ''}` : 'Учебный состав'

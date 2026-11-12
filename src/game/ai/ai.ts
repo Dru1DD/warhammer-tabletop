@@ -7,7 +7,7 @@ import {
   alive, CHARGE_RANGE, datasheetOf, ledUnitOf, engagedUnits, enemiesOf, hasAbility, hasKeyword, inSynapseRange, isEngaged, isFlyer, isMV, modelInTerrain, objectiveLevels, other, profileOf,
   sidesOf, unitDistance, unitNearObjective, unitsOf, unitsWithin, weaponsOf, fmt,
 } from '../gameState'
-import { actor, FLY_PENALTY, hyperPending, maxMove, meleePlan, meleeSetup, meleeWeaponsOf, shootPlan, SWIFT_BONUS, validate, moveModeFor } from '../engine'
+import { actor, FLY_PENALTY, hyperPending, maxMove, meleePlan, meleeSetup, meleeWeaponsOf, shootPlan, swiftBonusOf, validate, moveModeFor } from '../engine'
 import { unitProfile } from '../army/roles'
 import { DOCTRINE_NAME, HYPER_NAME } from '../rules/detachments'
 import { moveProblem, planMove } from '../rules/movement'
@@ -487,7 +487,7 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
           continue
         }
         const stay = scorePosition(s, u, level, 'stay')
-        const swiftBonus = swiftAvailable(s, u) ? SWIFT_BONUS : 0
+        const swiftBonus = swiftAvailable(s, u) ? swiftBonusOf(s, u.owner) : 0
         if (u.advanceRoll !== null) {
           const adv = bestMove(s, u, level, 'advance', maxMove(u) + swiftBonus)
           if (adv && adv.score > stay.score) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { scriptedRoller } from '../dice/dice'
-import { apply, BATTLE_FOCUS_TOKENS, meleePlan, shootPlan, startGame, SWIFT_BONUS, validate } from '../engine'
+import { apply, BATTLE_FOCUS_TOKENS, meleePlan, shootPlan, startGame, swiftBonusOf, validate } from '../engine'
 import { MARTIAL_GRACE_TOKENS } from '../rules/detachments'
 import { alive, inSynapseRange, modelInObjectiveRange, objectiveLevels, unitDistance } from '../gameState'
 import { basesOverlap } from '../geometry/geometry'
@@ -231,7 +231,7 @@ describe('Aeldari: Battle Focus', () => {
     expect(BATTLE_FOCUS_TOKENS + MARTIAL_GRACE_TOKENS).toBe(3)
   })
   it('Swift as the Wind spends a token for +3″ on the move (2, plus 1 from Martial Grace)', () => {
-    expect(SWIFT_BONUS).toBe(3)
+    expect(swiftBonusOf(battle('aeldari', 'orks'), 'aeldari')).toBe(3)
     const s = battle('aeldari', 'orks', 'movement', 'aeldari')
     s.players.aeldari.focus = 2
     const far: Command = { type: 'move', unitId: 'guardians', mode: 'normal', positions: guardMove(s, 8.5) }

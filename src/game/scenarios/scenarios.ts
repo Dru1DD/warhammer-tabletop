@@ -322,6 +322,8 @@ export const SCENARIOS: Scenario[] = [
         sides,
       )
       for (const f of sides) if (armies[f]) musterArmy(state, f, armies[f])
+      // a pure custom list plays without its detachment
+      for (const f of sides) if (armies[f]?.noDetachment) state.players[f].noDetachment = true
       return state
     },
   },

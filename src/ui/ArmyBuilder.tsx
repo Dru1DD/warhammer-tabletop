@@ -10,6 +10,7 @@ import { WARGEAR } from '../game/army/wargear'
 import { LoadoutEditor } from './LoadoutEditor'
 import { armyOf } from '../game/scenarios/scenarios'
 import { ArmyStratagems } from './ArmyStratagems'
+import { DETACHMENT } from '../game/rules/stratagems'
 import { ArmyCodes } from './ArmyCodes'
 
 const samePreset = (faction: PlayerId, list: ArmyList, limit: PointsLimit) =>
@@ -55,7 +56,17 @@ export function ArmyBuilder({ faction, role }: { faction: PlayerId; role: string
 
       <ArmyCodes faction={faction} list={list} setList={(l) => { setOpen(null); setList(l) }} />
 
-      <ArmyStratagems faction={faction} datasheetIds={list ? list.units.map((e) => e.datasheetId) : (armyOf(settings.scenarioId, faction) ?? []).map((u) => u.datasheetId)} />
+      {list && (
+        <label className="mt-2 flex items-start gap-2 text-xs" title="Без детачмента: нет его правила и его стратагем, остаются общие стратагемы и правила армии">
+          <input type="checkbox" checked={!list.noDetachment} onChange={(e) => {
+            const { noDetachment: _off, ...rest } = list
+            setList(e.target.checked ? rest : { ...rest, noDetachment: true })
+          }} />
+          <span>Правила детачмента «{DETACHMENT[faction]}» (правило и стратагемы детачмента). Снимите, чтобы играть чистым кастомом: только общие стратагемы и правила армии.</span>
+        </label>
+      )}
+
+      <ArmyStratagems faction={faction} noDetachment={!!list?.noDetachment} datasheetIds={list ? list.units.map((e) => e.datasheetId) : (armyOf(settings.scenarioId, faction) ?? []).map((u) => u.datasheetId)} />
 
       {list && (
         <>

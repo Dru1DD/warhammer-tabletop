@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { chooseHyper, decide } from '../ai/ai'
 import { resolveGroup, type AttackContext } from '../combat/attack'
 import { scriptedRoller, seededRoller } from '../dice/dice'
-import { actor, apply, hyperPending, meleePlan, shootPlan, startGame, validate } from '../engine'
+import { actor, apply, hyperPending, meleePlan, shootPlan, startGame, swiftBonusOf, validate } from '../engine'
+import { decodeArmy, encodeArmy } from '../army/armyCode'
+import { parseArmyList, presetList } from '../army/armyList'
+import { stratagemAvailability } from '../rules/stratagems'
+import { scenarioById } from '../scenarios/scenarios'
 import { alive, profileOf } from '../gameState'
 import { doctrineLeft } from '../rules/detachments'
 import type { Command, GameState, WeaponProfile } from '../types'
@@ -180,5 +184,56 @@ describe('Rad-bombardment (Adeptus Mechanicus, Rad-Zone Corps)', () => {
     const after = apply(s, { type: 'endPhase' }, seededRoller(2))
     expect(after.round).toBe(2)
     expect(after.diceLog.some((d) => d.title.startsWith('Радиоактивные осадки'))).toBe(true)
+  })
+})
+
+describe('a pure custom army (no detachment)', () => {
+  const custom = <F extends 'orks' | 'marines' | 'tyranids' | 'adeptus_mechanicus' | 'aeldari'>(f: F) => ({ ...presetList(f, 500), noDetachment: true as const })
+
+  it('the flag survives storage and the army code, and the scenario marks the side', () => {
+    const list = custom('orks')
+    expect(parseArmyList(JSON.parse(JSON.stringify(list)))).toEqual(list)
+    expect(decodeArmy(encodeArmy('orks', list))).toMatchObject({ ok: true, list: { noDetachment: true } })
+    const s = scenarioById('combat-patrol').build(['marines', 'orks'], { orks: list })
+    expect(s.players.orks.noDetachment).toBe(true)
+    expect(s.players.marines.noDetachment).toBeFalsy()
+  })
+
+  it('no detachment rule: no Get Stuck In, no Hyper-adaptation, no Rad-bombardment, no Martial Grace, no Codex Discipline repeat', () => {
+    const o = scenarioById('combat-patrol').build(['marines', 'orks'], { orks: custom('orks') })
+    o.phase = 'fight'
+    const boyz = o.units.find((u) => u.owner === 'orks' && u.datasheetId === 'boyz')!
+    const foe = o.units.find((u) => u.owner === 'marines')!
+    expect(meleePlan(o, boyz, foe).some((g) => g.notes.join(' ').includes('Ввяжись'))).toBe(false)
+
+    const t = startGame(scenarioById('combat-patrol').build(['marines', 'tyranids'], { tyranids: custom('tyranids') }), seededRoller(3))
+    expect(hyperPending(t)).toBe(false)
+
+    const m = startGame(scenarioById('combat-patrol').build(['adeptus_mechanicus', 'orks'], { adeptus_mechanicus: custom('adeptus_mechanicus') }), seededRoller(4))
+    expect(m.diceLog.some((d) => d.title.startsWith('Радиационная бомбардировка'))).toBe(false)
+
+    const a = startGame(scenarioById('combat-patrol').build(['aeldari', 'orks'], { aeldari: custom('aeldari') }), seededRoller(5))
+    expect(a.players.aeldari.focus).toBe(2)
+    expect(swiftBonusOf(a, 'aeldari')).toBe(2)
+
+    const sm = scenarioById('combat-patrol').build(['marines', 'orks'], { marines: custom('marines') })
+    sm.phase = 'command'
+    sm.activePlayer = 'marines'
+    sm.players.marines.doctrinesUsed = ['assault']
+    expect(validate(sm, { type: 'doctrine', doctrine: 'assault' }).ok).toBe(false) // no Codex Discipline repeat
+    expect(validate(sm, { type: 'doctrine', doctrine: 'tactical' }).ok).toBe(true) // the army rule stays
+  })
+
+  it('only the core Stratagems: detachment ones are refused, and the army screen says why', () => {
+    const s = scenarioById('combat-patrol').build(['marines', 'orks'], { orks: custom('orks') })
+    s.phase = 'shooting'
+    s.activePlayer = 'orks'
+    const boyz = s.units.find((u) => u.owner === 'orks' && u.datasheetId === 'boyz')!
+    const v = validate(s, { type: 'stratagem', id: 'closeRangeDakka', unitId: boyz.id })
+    expect(v.ok).toBe(false)
+    expect(!v.ok && v.reason).toContain('без детачмента')
+    const avail = stratagemAvailability('orks', ['boyz'], true)
+    expect(avail.filter((a) => a.info.faction).every((a) => !a.available)).toBe(true)
+    expect(avail.some((a) => !a.info.faction && a.available)).toBe(true)
   })
 })

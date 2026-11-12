@@ -50,11 +50,12 @@ export interface Availability {
 }
 
 /** Which Stratagems an army can use at all, given its datasheets: core ones plus its own faction's. */
-export function stratagemAvailability(faction: PlayerId, datasheetIds: string[]): Availability[] {
+export function stratagemAvailability(faction: PlayerId, datasheetIds: string[], noDetachment = false): Availability[] {
   const keywords = datasheetIds.map((id) => DATASHEETS[id]?.keywords ?? [])
   return Object.values(STRATAGEMS)
     .filter((info) => !info.faction || info.faction === faction)
     .map((info) => {
+      if (info.faction && noDetachment) return { info, available: false, why: 'армия без детачмента: только общие стратагемы' }
       const ok = !info.requires || keywords.some((k) => matchesKeywords(k, info.requires!))
       return ok ? { info, available: true } : { info, available: false, why: `нет отряда: нужен ${info.requires!.label}` }
     })
