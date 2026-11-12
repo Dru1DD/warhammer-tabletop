@@ -2,6 +2,7 @@ import { meleePotential } from './ai/ai'
 import { alive, CHARGE_RANGE, datasheetOf, engagedUnits, enemiesOf, fmt, profileOf, unitDistance, unitsOf, weaponsOf } from './gameState'
 import type { GameState, UnitState } from './types'
 import { profileVs, type Reference } from './weaponAdvice'
+import { tr } from '../i18n/index'
 
 // "Stay in combat or fall back?" for a unit locked in melee, in its own movement phase. Staying: what it deals and takes
 // in the coming fights. Falling back: it cannot shoot this turn, but shoots again next turn; and the enemies it held are
@@ -70,10 +71,10 @@ export function engagementAdvice(s: GameState, unit: UnitState): EngagementAdvic
   const verdict: EngagementAdvice['verdict'] = costly || gunsWorthIt ? 'leave' : 'stay'
   const why = verdict === 'leave'
     ? costly
-      ? `В бою отряд теряет ~${fmt(stayTaken)} ран за бой и наносит лишь ~${fmt(stayDealt)} — выгоднее выйти.`
-      : `Со следующего хода его стрельба даст ~${fmt(shootNext)} ран против ~${fmt(stayDealt)} в бою — выгоднее выйти.`
+      ? tr('In combat the unit loses ~{fmt} wounds per fight and deals only ~{fmt2} — it is better to disengage.', { fmt: fmt(stayTaken), fmt2: fmt(stayDealt) })
+      : tr('From next turn its shooting will deal ~{fmt} wounds vs ~{fmt2} in combat — it is better to disengage.', { fmt: fmt(shootNext), fmt2: fmt(stayDealt) })
     : freed && freed.dmg > stayTaken
-      ? `Отряд держит врага на себе: если выйти, «${freed.enemy}» сможет атаковать «${freed.victim}» (~${fmt(freed.dmg)} ран), а здесь бьёт всего на ~${fmt(stayTaken)}.`
-      : `Выход почти ничего не даст: стрельба ~${fmt(shootNext)} ран со следующего хода против ~${fmt(stayDealt)} в бою, а в этот ход после отступления стрелять нельзя.`
+      ? tr('The unit pins the enemy: if it leaves, “{enemy}” will be able to attack “{victim}” (~{fmt} wounds), while here it deals only ~{fmt2}.', { enemy: freed.enemy, victim: freed.victim, fmt: fmt(freed.dmg), fmt2: fmt(stayTaken) })
+      : tr('Disengaging gains almost nothing: shooting ~{fmt} wounds from next turn vs ~{fmt2} in combat, and after falling back it cannot shoot this turn.', { fmt: fmt(shootNext), fmt2: fmt(stayDealt) })
   return { holding: foes.map((e) => e.name), stayDealt, stayTaken, shootNext, shootTarget, freed, verdict, why }
 }

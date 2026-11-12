@@ -89,7 +89,7 @@ export interface RecordStep {
  *  - `dispatch`: append a step. `undo`: see below. `load`: see below. `placeUnit` / `editTerrain` happen before
  *    `startGame` and never touch the record.
  *  - A FINISHED battle (`winner` set) keeps its record, persisted under its own key, until `startDeployment`,
- *    `newGame` or `quit`. "Продолжить битву" is hidden once `winner` is set, so without this a reload loses the report.
+ *    `newGame` or `quit`. "Continue the battle" is hidden once `winner` is set, so without this a reload loses the report.
  *  - The AI level can change mid-battle (settings dialog, `aiStep` reads `settings.aiLevel` live): AI steps carry
  *    `RecordStep.aiLevel`; `BattleRecord.aiLevel` is the level at the START of the record.
  *
@@ -100,11 +100,11 @@ export interface RecordStep {
  * commands, the popped step never contains dice and the remaining prefix stays valid.
  *
  * SAVE / LOAD / RESUME (recorder). Both paths go through `store.load(key)` (src/store.ts):
- *  - `load(MANUAL_KEY)` (App.tsx: the "Загрузить сохранение" button and the in-game load button, which
+ *  - `load(MANUAL_KEY)` (App.tsx: the "Load a save" button and the in-game load button, which
  *    calls `load()` with the default key) ALWAYS rebases the record: `initial` = the loaded state,
  *    `steps` = [], `partial = true`. The save file has no record, and the loaded state may belong to
  *    any battle, so no earlier decisions are known and `tip` must NOT be used to try to stitch records.
- *  - `load(AUTOSAVE_KEY)` (App.tsx StartScreen "Продолжить битву" = the autosave RESUME: the page was
+ *  - `load(AUTOSAVE_KEY)` (App.tsx StartScreen "Continue the battle" = the autosave RESUME: the page was
  *    reloaded during the same battle, so autosave and stored record come from the same session) may
  *    compare the stored record's `tip` with the autosaved state (`nextId`, `rng` AND `digest`). If all
  *    three match, keep the record as is (still `partial` if it was); on any mismatch, rebase exactly like
@@ -246,7 +246,7 @@ export type BuildReportFn = (record: BattleRecord, config?: CoachConfig) => Coac
  *                  using the engine's own rules code. Safe to state as fact.
  *  - `'estimate'`  Modelled approximation: e.g. enemy exposure that ignores enemy movement,
  *                  line of sight from sampled points (research.md), cover predicted for a
- *                  hypothetical position. UI must hedge ("примерно", "по оценке").
+ *                  hypothetical position. UI must hedge ("approximately", "by estimate").
  *  - `'heuristic'` AI-style suggestion ("a stronger player would usually…"). NEVER above
  *                  severity `'info'`; never counted as a mistake.
  */

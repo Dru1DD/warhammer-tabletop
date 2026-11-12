@@ -19,6 +19,7 @@ import { ActionPanel, AttackReview, BottomPanel, DiceFaces, RosterPanel } from '
 import { PanelBoundary } from './ui/PanelBoundary'
 import { LEARNING_STYLE, learningStyleOf, type LearningStyle } from './ui/help'
 import { scoreText } from './ui/score'
+import { LOCALES, LOCALE_NAMES, locale, setLocale, tr, type Locale } from './i18n/index'
 
 export default function App() {
   const game = useStore((s) => s.game)
@@ -57,29 +58,29 @@ function useAiLoop() {
 }
 
 const EXPLAIN: Record<ExplainLevel, string> = {
-  beginner: 'Новичок — объяснять всё',
-  standard: 'Стандарт — решения и ограничения',
-  minimal: 'Минимум — только результаты',
+  beginner: tr('Beginner — explain everything'),
+  standard: tr('Standard — decisions and restrictions'),
+  minimal: tr('Minimum — results only'),
 }
 
 /** Lists the army of `faction`: unit, model count and cost (its army list, or the scenario's training roster). */
 function ArmyList({ faction, army }: { faction: PlayerId; army: UnitState[] }) {
   const total = army.reduce((n, u) => n + u.models.length, 0)
   return (
-    <ul className="mt-1 space-y-0.5 text-[11px] text-stone-300" aria-label={`Состав: ${FACTION_NAME[faction]}`}>
+    <ul className="mt-1 space-y-0.5 text-[11px] text-stone-300" aria-label={tr('Roster: {item}', { item: FACTION_NAME[faction] })}>
       {army.map((u) => {
         const cost = unitPoints(u.datasheetId, u.startingModels, copyIndex(army, u))
         return (
           <li key={u.id}>
             {u.name} <span className="text-stone-400">× {u.models.length}</span>{' '}
-            <span className="text-stone-500" title={cost.exact ? undefined : 'Такого размера отряда нет в Munitorum Field Manual — стоимость пересчитана по модели'}>
+            <span className="text-stone-500" title={cost.exact ? undefined : tr('This unit size is not in the Munitorum Field Manual — the cost was recalculated per model')}>
               · {fmtPoints(cost)}
             </span>
           </li>
         )
       })}
-      <li className="text-stone-400">Всего моделей: {total}</li>
-      <li className="font-semibold text-amber-200">Стоимость армии: {fmtPoints(armyPoints(army))}</li>
+      <li className="text-stone-400">{tr('Total models: {total}', { total })}</li>
+      <li className="font-semibold text-amber-200">{tr('Army cost: {fmtPoints}', { fmtPoints: fmtPoints(armyPoints(army)) })}</li>
     </ul>
   )
 }
@@ -94,11 +95,11 @@ function PointsMatchup({ settings }: { settings: Settings }) {
   const ratio = Math.max(a.points, b.points) / Math.max(1, Math.min(a.points, b.points))
   const lopsided = ratio >= 1.25
   return (
-    <p className={`mt-3 rounded p-2 text-xs ${lopsided ? 'bg-amber-950 text-amber-200' : 'bg-stone-900 text-stone-300'}`} aria-label="Баланс армий по очкам">
-      {FACTION_NAME[human]}: <b>{fmtPoints(a)}</b> против {FACTION_NAME[opponent]}: <b>{fmtPoints(b)}</b>
-      {lopsided && <> — перевес примерно в {ratio.toFixed(1)} раза, бой будет неравным.</>}
+    <p className={`mt-3 rounded p-2 text-xs ${lopsided ? 'bg-amber-950 text-amber-200' : 'bg-stone-900 text-stone-300'}`} aria-label={tr('Army points balance')}>
+      {FACTION_NAME[human]}: <b>{fmtPoints(a)}</b> {tr('vs {item}:', { item: FACTION_NAME[opponent] })} <b>{fmtPoints(b)}</b>
+      {lopsided && <> {tr('— about {toFixed}× advantage, the battle will be uneven.', { toFixed: ratio.toFixed(1) })}</>}
       <span className="block text-[10px] text-stone-500">
-        Ориентировочно, по {POINTS_SOURCE.name} от {POINTS_SOURCE.updated}. «≈» — размер отряда не из справочника, стоимость пересчитана по модели.
+        {tr('Approximate, per {name} from {updated}. “≈” — the unit size is not from the handbook, the cost was recalculated per model.', { name: POINTS_SOURCE.name, updated: POINTS_SOURCE.updated })}
       </span>
     </p>
   )
@@ -116,18 +117,26 @@ function StartScreen() {
   return (
     <div className="min-h-full bg-stone-900 p-4 text-stone-100">
       <div className="mx-auto max-w-5xl rounded-lg border border-stone-700 bg-stone-800 p-6 shadow-xl">
-        <h1 className="text-2xl font-bold">Тренировочный стол 40K</h1>
+        <div className="flex items-start justify-between gap-3">
+          <h1 className="text-2xl font-bold">{tr('Tabletop Trainer 40K')}</h1>
+          <label className="flex shrink-0 items-center gap-2 text-sm text-stone-400">
+            {tr('Language')}
+            <select className="input !mt-0 !w-auto" value={locale} onChange={(e) => setLocale(e.target.value as Locale)}>
+              {LOCALES.map((l) => <option key={l} value={l}>{LOCALE_NAMES[l]}</option>)}
+            </select>
+          </label>
+        </div>
         <p className="mt-1 text-sm text-stone-400">
-          Учебный симулятор по правилам Warhammer 40,000 (11-я редакция). Шесть армий: Космодесант, Орки, Тираниды, Некроны, Аэльдари, Адептус Механикус. Неофициальный любительский проект.
+          {tr('A training simulator for the Warhammer 40,000 rules (11th edition). Six armies: Space Marines, Orks, Tyranids, Necrons, Aeldari, Adeptus Mechanicus. An unofficial hobby project.')}
         </p>
 
         {auto.ok && !auto.file.state.winner && (
           <button className="btn btn-primary mt-4 w-full" onClick={() => st.load(AUTOSAVE_KEY)}>
-            ▶ Продолжить битву (раунд {auto.file.state.round}, {new Date(auto.file.savedAt).toLocaleString('ru-RU')})
+            {tr('▶ Continue the battle (round {round}, {toLocaleString})', { round: auto.file.state.round, toLocaleString: new Date(auto.file.savedAt).toLocaleString(locale) })}
           </button>
         )}
 
-        <h2 className="mt-5 font-semibold">Ваша армия</h2>
+        <h2 className="mt-5 font-semibold">{tr('Your army')}</h2>
         <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {FACTIONS.map((p) => {
             const army = armyUnits(st.settings, p)
@@ -156,31 +165,31 @@ function StartScreen() {
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <label className="text-sm">Противник (управляет компьютер)
+          <label className="text-sm">{tr('Opponent (computer-controlled)')}
             <select className="input" value={opponent} onChange={(e) => st.setSettings({ opponent: e.target.value as PlayerId })}>
-              {FACTIONS.filter((f) => f !== human).map((f) => <option key={f} value={f}>{FACTION_NAME[f]} (ИИ)</option>)}
+              {FACTIONS.filter((f) => f !== human).map((f) => <option key={f} value={f}>{tr('{item} (AI)', { item: FACTION_NAME[f] })}</option>)}
             </select>
           </label>
-          <label className="text-sm">Сценарий
+          <label className="text-sm">{tr('Scenario')}
             <select className="input" value={scenarioId} onChange={(e) => st.setSettings({ scenarioId: e.target.value })}>
               {SCENARIOS.map((s) => (
                 <option key={s.id} value={s.id} disabled={!playable(s)}>
-                  {s.name}{!both(s) ? ' — нет армий для этой пары' : !playable(s) ? ' — свои составы только в «Боевом патруле»' : ''}
+                  {s.name}{!both(s) ? tr(' — no armies for this pair') : !playable(s) ? tr(' — own rosters only in “Combat Patrol”') : ''}
                 </option>
               ))}
             </select>
           </label>
-          <label className="text-sm">Уровень ИИ
+          <label className="text-sm">{tr('AI level')}
             <select className="input" value={st.settings.aiLevel} onChange={(e) => st.setSettings({ aiLevel: e.target.value as never })}>
-              <option value="beginner">Новичок — простые приоритеты</option>
-              <option value="standard">Стандарт — тактическая оценка</option>
+              <option value="beginner">{tr('Beginner — simple priorities')}</option>
+              <option value="standard">{tr('Standard — tactical evaluation')}</option>
             </select>
           </label>
         </div>
-        <h2 className="mt-5 font-semibold">Состав армий</h2>
+        <h2 className="mt-5 font-semibold">{tr('Army rosters')}</h2>
         <div className="mt-2 grid gap-3 md:grid-cols-2">
-          <ArmyBuilder faction={human} role="Ваша армия" />
-          <ArmyBuilder faction={opponent} role="Противник (ИИ)" />
+          <ArmyBuilder faction={human} role={tr('Your army')} />
+          <ArmyBuilder faction={opponent} role={tr('Opponent (AI)')} />
         </div>
         <PointsMatchup settings={st.settings} />
         <LearningStylePicker />
@@ -190,15 +199,15 @@ function StartScreen() {
           <span className="text-amber-300">{SCENARIOS.find((s) => s.id === scenarioId)?.victory}</span>
         </p>
         <div className="mt-4 flex gap-2">
-          <button className="btn btn-primary flex-1" disabled={listIssues.length > 0} title={listIssues[0] ?? ''} onClick={() => st.startDeployment()}>Начать новую битву</button>
-          <button className="btn" disabled={!manual.ok} onClick={() => st.load(MANUAL_KEY)} title={manual.ok ? '' : manual.reason}>Загрузить сохранение</button>
+          <button className="btn btn-primary flex-1" disabled={listIssues.length > 0} title={listIssues[0] ?? ''} onClick={() => st.startDeployment()}>{tr('Start a new battle')}</button>
+          <button className="btn" disabled={!manual.ok} onClick={() => st.load(MANUAL_KEY)} title={manual.ok ? '' : manual.reason}>{tr('Load a save')}</button>
         </div>
-        <button className="btn mt-2 w-full" onClick={() => openOnlineMenu()}>🌐 Играть онлайн вдвоём</button>
+        <button className="btn mt-2 w-full" onClick={() => openOnlineMenu()}>{tr('🌐 Play online together')}</button>
         <p className="mt-2 text-xs text-stone-400">
-          Сначала вы расставите армию в своей зоне, затем начнётся раунд 1.{' '}
-          <button className="text-sky-300 underline disabled:text-stone-500 disabled:no-underline" disabled={listIssues.length > 0} onClick={() => st.newGame()}>Быстрый старт</button> — сразу в бой, отряды на стандартных позициях.
+          {tr('First you will place your army in your zone, then round 1 begins. ')}
+          <button className="text-sky-300 underline disabled:text-stone-500 disabled:no-underline" disabled={listIssues.length > 0} onClick={() => st.newGame()}>{tr('Quick start')}</button> {tr('— straight into battle, units at standard positions.')}
         </p>
-        {listIssues.length > 0 && <p className="mt-2 text-sm text-rose-300">Исправьте состав армии, чтобы начать: {listIssues[0]}</p>}
+        {listIssues.length > 0 && <p className="mt-2 text-sm text-rose-300">{tr('Fix the army roster to start: {item}', { item: listIssues[0] })}</p>}
         {st.message && <p className="mt-2 text-sm text-rose-300">{st.message.text}</p>}
       </div>
     </div>
@@ -210,7 +219,7 @@ function LearningStylePicker() {
   const cur = learningStyleOf(st.settings)
   return (
     <fieldset className="mt-3">
-      <legend className="text-sm">Стиль обучения</legend>
+      <legend className="text-sm">{tr('Learning style')}</legend>
       <div className="mt-1 grid gap-1 sm:grid-cols-3">
         {(Object.keys(LEARNING_STYLE) as LearningStyle[]).map((k) => (
           <label key={k} className={`cursor-pointer rounded border p-2 text-xs ${cur === k ? 'border-yellow-400 bg-stone-700' : 'border-stone-600'}`}>
@@ -234,34 +243,34 @@ function GameScreen() {
   return (
     <div className="grid h-full grid-rows-[auto_1fr_auto] bg-stone-900 text-stone-100">
       <header className="flex flex-wrap items-center gap-2 border-b border-stone-700 bg-stone-950 px-3 py-2">
-        <h1 className="mr-2 font-bold"><span className="hidden 2xl:inline">Тренировочный стол </span>40K</h1>
+        <h1 className="mr-2 font-bold"><span className="hidden 2xl:inline">{tr('Tabletop Trainer')} </span>40K</h1>
         {st.deploying ? (
-          <span className="rounded bg-yellow-600 px-2 py-0.5 text-sm font-semibold text-black">Подготовка: расстановка армии</span>
+          <span className="rounded bg-yellow-600 px-2 py-0.5 text-sm font-semibold text-black">{tr('Setup: army placement')}</span>
         ) : (
           <>
-            <span className="rounded bg-stone-800 px-2 py-0.5 text-sm">Раунд {game.round}/{game.maxRounds}</span>
+            <span className="rounded bg-stone-800 px-2 py-0.5 text-sm">{tr('Round {round}/{maxRounds}', { round: game.round, maxRounds: game.maxRounds })}</span>
             <span className="rounded px-2 py-0.5 text-sm" style={{ background: FACTION_STYLE[game.activePlayer].primary }}>
-              Ход: {FACTION_NAME[game.activePlayer]}
+              {tr('Turn: {item}', { item: FACTION_NAME[game.activePlayer] })}
             </span>
           </>
         )}
         <OnlineHeader />
-        <span className="text-sm text-stone-300">ПО: {scoreText(game)}</span>
+        <span className="text-sm text-stone-300">{tr('VP: {scoreText}', { scoreText: scoreText(game) })}</span>
         {game.players.orks?.riledTurns > 0 && <span className="rounded bg-red-800 px-2 py-0.5 text-xs">WAAAGH!</span>}
-        {game.players.adeptus_mechanicus?.imperative && <span className="rounded bg-amber-800 px-2 py-0.5 text-xs" title="Доктрина Империатива армии Адептус Механикус">{game.players.adeptus_mechanicus.imperative === 'protector' ? 'Протектор' : 'Завоеватель'}</span>}
+        {game.players.adeptus_mechanicus?.imperative && <span className="rounded bg-amber-800 px-2 py-0.5 text-xs" title={tr('Adeptus Mechanicus army Imperative doctrine')}>{game.players.adeptus_mechanicus.imperative === 'protector' ? tr('Protector') : tr('Conqueror')}</span>}
         <div className="ml-auto flex flex-wrap gap-1">
           {/* icons only on laptop widths; labels from 1536px */}
-          <button className={`btn ${st.measuring ? 'btn-primary' : ''}`} onClick={() => st.toggleMeasure()} aria-pressed={st.measuring} title="Линейка (R)" aria-label="Линейка">📏<span className="hidden 2xl:inline"> Линейка</span></button>
-          <button className="btn" disabled={!!st.deploying} onClick={() => st.save()} title="Сохранить" aria-label="Сохранить">💾<span className="hidden 2xl:inline"> Сохранить</span></button>
-          <button className="btn" disabled={!!st.shared} onClick={() => st.load()} title="Загрузить" aria-label="Загрузить">📂<span className="hidden 2xl:inline"> Загрузить</span></button>
-          {game.winner && <button className="btn" onClick={() => setOverClosedFor(null)} title="Итоги боя" aria-label="Итоги">🏆<span className="hidden 2xl:inline"> Итоги</span></button>}
-          <button className="btn" onClick={() => setSettingsOpen(true)} title="Настройки" aria-label="Настройки">⚙<span className="hidden 2xl:inline"> Настройки</span></button>
-          <button className="btn" onClick={() => (st.shared ? window.confirm('Покинуть онлайн-партию? Соперник увидит, что вы отключились.') && leaveRoom() : st.quit())} title={st.shared ? 'Покинуть партию' : 'Главное меню'} aria-label="Меню">☰<span className="hidden 2xl:inline"> Меню</span></button>
+          <button className={`btn ${st.measuring ? 'btn-primary' : ''}`} onClick={() => st.toggleMeasure()} aria-pressed={st.measuring} title={tr('Ruler (R)')} aria-label={tr('Ruler')}>📏<span className="hidden 2xl:inline"> {tr('Ruler')}</span></button>
+          <button className="btn" disabled={!!st.deploying} onClick={() => st.save()} title={tr('Save')} aria-label={tr('Save')}>💾<span className="hidden 2xl:inline"> {tr('Save')}</span></button>
+          <button className="btn" disabled={!!st.shared} onClick={() => st.load()} title={tr('Load')} aria-label={tr('Load')}>📂<span className="hidden 2xl:inline"> {tr('Load')}</span></button>
+          {game.winner && <button className="btn" onClick={() => setOverClosedFor(null)} title={tr('Battle results')} aria-label={tr('Results')}>🏆<span className="hidden 2xl:inline"> {tr('Results')}</span></button>}
+          <button className="btn" onClick={() => setSettingsOpen(true)} title={tr('Settings')} aria-label={tr('Settings')}>⚙<span className="hidden 2xl:inline"> {tr('Settings')}</span></button>
+          <button className="btn" onClick={() => (st.shared ? window.confirm(tr('Leave the online game? Your opponent will see that you disconnected.')) && leaveRoom() : st.quit())} title={st.shared ? tr('Leave the game') : tr('Main menu')} aria-label={tr('Menu')}>☰<span className="hidden 2xl:inline"> {tr('Menu')}</span></button>
         </div>
       </header>
 
       <main className={`grid min-h-0 grid-cols-1 overflow-y-auto md:grid-cols-2 lg:overflow-hidden ${st.layout.roster ? 'lg:grid-cols-[240px_1fr_270px] 2xl:grid-cols-[300px_1fr_320px]' : 'lg:grid-cols-[60px_1fr_280px] 2xl:grid-cols-[60px_1fr_320px]'}`}>
-        <aside className="order-2 border-r border-stone-700 p-2 lg:order-1 lg:overflow-y-auto"><PanelBoundary name="Отряды" resetKey={st.selectedUnitId}><RosterPanel /></PanelBoundary></aside>
+        <aside className="order-2 border-r border-stone-700 p-2 lg:order-1 lg:overflow-y-auto"><PanelBoundary name={tr('Units')} resetKey={st.selectedUnitId}><RosterPanel /></PanelBoundary></aside>
         <section className="relative order-1 h-[60vh] min-w-0 overflow-hidden md:col-span-2 lg:order-2 lg:col-span-1 lg:h-auto">
           <Board />
           <OnlineBanner />
@@ -270,14 +279,14 @@ function GameScreen() {
           <AttackReview />
           {st.message && (
             <div className={`absolute left-1/2 top-24 z-[2] max-w-md -translate-x-1/2 rounded px-3 py-2 text-sm shadow ${st.message.kind === 'error' ? 'bg-rose-900' : 'bg-stone-700'}`} role="status">
-              {st.message.text} <button className="ml-2 text-stone-300" onClick={() => st.setMessage(null)} aria-label="Закрыть">✕</button>
+              {st.message.text} <button className="ml-2 text-stone-300" onClick={() => st.setMessage(null)} aria-label={tr('Close')}>✕</button>
             </div>
           )}
         </section>
-        <aside className="order-3 border-l border-stone-700 p-2 lg:overflow-y-auto"><PanelBoundary name="Действия" resetKey={st.selectedUnitId}><ActionPanel /></PanelBoundary></aside>
+        <aside className="order-3 border-l border-stone-700 p-2 lg:overflow-y-auto"><PanelBoundary name={tr('Actions')} resetKey={st.selectedUnitId}><ActionPanel /></PanelBoundary></aside>
       </main>
 
-      <footer className={`${st.layout.log ? 'h-48' : ''} border-t border-stone-700 p-2`}><PanelBoundary name="Журнал"><BottomPanel /></PanelBoundary></footer>
+      <footer className={`${st.layout.log ? 'h-48' : ''} border-t border-stone-700 p-2`}><PanelBoundary name={tr('Log')}><BottomPanel /></PanelBoundary></footer>
       {game.winner && !st.deploying && overClosedFor !== game && (
         <BattleOverDialog game={{ ...game, winner: game.winner }} human={st.settings.human} onClose={() => setOverClosedFor(game)} onNewBattle={() => (st.shared ? leaveRoom() : st.startDeployment())} />
       )}
@@ -292,11 +301,11 @@ function MeasureBar() {
   const st = useStore()
   return (
     <div className="absolute left-2 top-2 flex items-center gap-2 rounded bg-black/70 px-2 py-1 text-xs">
-      <span>Линейка: щёлкните две точки или модели (от края подставки).</span>
-      <label>Проверить дальность
+      <span>{tr('Ruler: click two points or models (from the base edge).')}</span>
+      <label>{tr('Check range')}
         <input className="ml-1 w-12 rounded bg-stone-700 px-1" type="number" min={1} max={72} value={st.measure.range} onChange={(e) => st.setMeasureRange(Number(e.target.value) || 1)} />″
       </label>
-      <button className="btn" onClick={() => st.clearMeasure()}>Сбросить</button>
+      <button className="btn" onClick={() => st.clearMeasure()}>{tr('Reset')}</button>
     </div>
   )
 }
@@ -310,7 +319,7 @@ function DiceToast({ entryId }: { entryId: number }) {
   }, [])
   if (!visible || !entry) return null
   return (
-    <div className="absolute bottom-16 left-2 z-[1] max-w-xs rounded bg-black/80 p-2 text-xs shadow-lg" onClick={() => setVisible(false)} title="Щёлкните, чтобы скрыть">
+    <div className="absolute bottom-16 left-2 z-[1] max-w-xs rounded bg-black/80 p-2 text-xs shadow-lg" onClick={() => setVisible(false)} title={tr('Click to hide')}>
       <div className="mb-1 font-semibold">🎲 {entry.title}</div>
       <DiceFaces entry={entry} />
     </div>
@@ -321,24 +330,24 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
   const st = useStore()
   return (
     <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/60" onClick={onClose}>
-      <div className="w-80 rounded-lg bg-stone-800 p-4" role="dialog" aria-label="Настройки" onClick={(e) => e.stopPropagation()}>
-        <h2 className="mb-2 font-semibold">Настройки</h2>
-        <label className="block text-sm">Объяснения
+      <div className="w-80 rounded-lg bg-stone-800 p-4" role="dialog" aria-label={tr('Settings')} onClick={(e) => e.stopPropagation()}>
+        <h2 className="mb-2 font-semibold">{tr('Settings')}</h2>
+        <label className="block text-sm">{tr('Explanations')}
           <select className="input" value={st.settings.explain} onChange={(e) => st.setSettings({ explain: e.target.value as ExplainLevel })}>
             {Object.entries(EXPLAIN).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </label>
         {!st.shared && (
-          <label className="mt-2 block text-sm">Уровень ИИ
+          <label className="mt-2 block text-sm">{tr('AI level')}
             <select className="input" value={st.settings.aiLevel} onChange={(e) => st.setSettings({ aiLevel: e.target.value as never })}>
-              <option value="beginner">Новичок</option>
-              <option value="standard">Стандарт</option>
+              <option value="beginner">{tr('Beginner')}</option>
+              <option value="standard">{tr('Standard')}</option>
             </select>
           </label>
         )}
         <LearningStylePicker />
-        {st.tutorialDone.length > 0 && <button className="mt-1 text-xs text-sky-300 underline" onClick={() => st.resetTutorial()}>Пройти обучение заново</button>}
-        <button className="btn btn-primary mt-3 w-full" onClick={onClose}>Готово</button>
+        {st.tutorialDone.length > 0 && <button className="mt-1 text-xs text-sky-300 underline" onClick={() => st.resetTutorial()}>{tr('Redo the tutorial')}</button>}
+        <button className="btn btn-primary mt-3 w-full" onClick={onClose}>{tr('Done')}</button>
       </div>
     </div>
   )

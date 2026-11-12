@@ -3,6 +3,7 @@
 
 import { decide, type AiDecision, type AiLevel } from './ai'
 import type { GameState } from '../types'
+import { locale } from '../../i18n/index'
 import type { AiRequest, AiResponse } from './worker'
 
 /** The part of the Worker interface used here (a test can pass a stand-in). */
@@ -40,7 +41,7 @@ function getWorker(): AiWorkerLike | null {
   if (worker !== undefined) return worker
   if (typeof Worker === 'undefined') return (worker = null)
   try {
-    worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' }) as unknown as AiWorkerLike
+    worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module', name: locale }) as unknown as AiWorkerLike
   } catch {
     return (worker = null)
   }

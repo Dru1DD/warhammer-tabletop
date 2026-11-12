@@ -13,6 +13,7 @@ import { openPeer, PeerFailureError, type PeerHandle } from './peer'
 import { HOST_ID, type JoinRefusal, type LobbyState } from './protocol'
 import { reconnectLoop } from './reconnect'
 import { sharedAssignments, viewAs } from './sync'
+import { tr } from '../i18n/index'
 
 export const ROOM_PREFIX = 'wh40k-tt-'
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -23,11 +24,11 @@ export const GUEST_SESSION_KEY = 'wh40k-training-mp-guest'
 export type ConnStatus = 'connecting' | 'connected' | 'lost' | 'reconnecting' | 'failed'
 
 export const STATUS_TEXT: Record<ConnStatus, string> = {
-  connecting: 'Подключение...',
-  connected: 'Подключено.',
-  lost: 'Соединение потеряно.',
-  reconnecting: 'Переподключение...',
-  failed: 'Соединение потеряно.',
+  connecting: tr('Connecting...'),
+  connected: tr('Connected.'),
+  lost: tr('Connection lost.'),
+  reconnecting: tr('Reconnecting...'),
+  failed: tr('Connection lost.'),
 }
 
 export interface MpState {
@@ -76,18 +77,18 @@ export function parseRoomCode(input: string): string | null {
 export const inviteLink = (code: string) => `${location.origin}${location.pathname}?room=${code}`
 
 const REFUSALS: Record<JoinRefusal, string> = {
-  'room-full': 'В комнате уже два игрока.',
-  'game-started': 'В этой комнате партия уже идёт.',
-  'bad-token': 'Партия идёт с другим игроком: вас не узнали.',
-  version: 'Версии игры у игроков различаются. Обновите страницу.',
+  'room-full': tr('The room already has two players.'),
+  'game-started': tr('A game is already in progress in this room.'),
+  'bad-token': tr('The game is going on with another player: you were not recognised.'),
+  version: tr('The players’ game versions differ. Refresh the page.'),
 }
 
 function failureText(e: unknown): string {
   const kind = e instanceof PeerFailureError ? e.kind : 'other'
-  if (kind === 'peer-unavailable') return 'Комната не найдена. Проверьте код и убедитесь, что хозяин не закрыл страницу.'
-  if (kind === 'network') return 'Нет связи с сервером соединений. Проверьте интернет и попробуйте ещё раз.'
-  if (kind === 'timeout') return 'Не удалось установить прямое соединение. Возможно, мешает сетевой экран или VPN.'
-  return 'Не удалось подключиться. Попробуйте ещё раз.'
+  if (kind === 'peer-unavailable') return tr('Room not found. Check the code and make sure the host has not closed the page.')
+  if (kind === 'network') return tr('No connection to the signalling server. Check your internet and try again.')
+  if (kind === 'timeout') return tr('Could not establish a direct connection. A firewall or VPN may be getting in the way.')
+  return tr('Could not connect. Try again.')
 }
 
 // ------------------------------------------------------------ saved sessions (one local record each)
@@ -180,8 +181,8 @@ export async function createRoom(restore?: { session: SavedHost; match: MatchSta
 export const configureRoom = (c: { scenarioId?: string; hostSide?: PlayerId }) =>
   host?.setConfig(c.hostSide ? { ...c, hostArmy: useStore.getState().settings.armies?.[c.hostSide] ?? null } : c)
 
-/** Host presses «Начать матч»; returns a Russian reason on failure. */
-export const startRoomMatch = (): string | null => (host ? host.start() : 'Комната не создана.')
+/** Host presses "Start the match"; returns a translated reason on failure. */
+export const startRoomMatch = (): string | null => (host ? host.start() : tr('The room was not created.'))
 
 // ------------------------------------------------------------ guest
 
@@ -203,7 +204,7 @@ function onGuestChange(s: GuestState) {
   if (s.link === 'connected') patch.status = 'connected'
   if (s.link === 'refused') {
     patch.status = 'failed'
-    patch.error = s.refusal ? REFUSALS[s.refusal] : 'Подключение отклонено.'
+    patch.error = s.refusal ? REFUSALS[s.refusal] : tr('Connection refused.')
     if (s.refusal === 'bad-token') saveToStorage(GUEST_SESSION_KEY, 'null')
   }
   set(patch)
@@ -214,8 +215,8 @@ function onGuestChange(s: GuestState) {
 export async function joinRoom(input: string, token?: string | null) {
   const mp = useMp.getState()
   const code = parseRoomCode(input)
-  if (!code) return set({ screen: 'menu', error: 'Введите код комнаты (6 символов) или ссылку-приглашение.' })
-  if (mp.role === 'host' && mp.code === code) return set({ error: 'Нельзя присоединиться к собственной комнате.' })
+  if (!code) return set({ screen: 'menu', error: tr('Enter the room code (6 characters) or the invitation link.') })
+  if (mp.role === 'host' && mp.code === code) return set({ error: tr('You cannot join your own room.') })
   if (mp.busy || host || guest) return
   const my = ++epoch
   set({ ...idle, screen: 'room', role: 'guest', code, busy: true })
@@ -256,7 +257,7 @@ async function reconnect(my: number, delays?: number[]) {
     { delays, cancelled: () => my !== epoch },
   )
   if (my !== epoch) return
-  if (r === 'gave-up') set({ status: 'failed', error: 'Хозяин не отвечает. Партия приостановлена, пока он не вернётся.' })
+  if (r === 'gave-up') set({ status: 'failed', error: tr('The host is not responding. The game is paused until they return.') })
 }
 
 /** Manual retry after the automatic attempts ran out. */
@@ -278,7 +279,7 @@ function teardown() {
   host = guest = handle = null
 }
 
-/** Leave the room (and the battle, if one is running). A guest's rejoin record is forgotten; a host's save stays for «Восстановить». */
+/** Leave the room (and the battle, if one is running). A guest's rejoin record is forgotten; a host's save stays for "Restore". */
 export function leaveRoom() {
   epoch++
   if (guest) saveToStorage(GUEST_SESSION_KEY, 'null')

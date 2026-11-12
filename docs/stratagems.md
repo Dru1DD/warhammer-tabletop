@@ -4,10 +4,10 @@ Command points (CP) used to pile up with nothing to spend them on. Now every arm
 
 | Stratagem | CP | When | What it does |
 |---|---|---|---|
-| 🎲 Командный переброс (Command Re-roll) | 1 | any | Re-roll the Advance roll, or the charge roll (both dice) just made by the unit, even a failed one. In the middle of an attack: one hit, wound, damage, number-of-attacks or saving-throw die (see below). |
-| 🦁 Безумная храбрость (Insane Bravery) | 1 | Command | Before the unit's battle-shock test: the test is passed without a roll. Once per battle. |
-| 💣 Взрывчатка (Explosives) | 1 | Shooting | A unit with EXPLOSIVES (or GRENADES) throws 6D6 at a visible, unengaged enemy within 8″ instead of shooting: each 4+ is a mortal wound. |
-| 🐘 Сокрушительный удар (Crushing Impact) | 1 | Charge | A MONSTER or VEHICLE that has charged rolls D6 equal to its Toughness: each 5+ is a mortal wound to an engaged enemy unit, each 1 a mortal wound to itself (at most 6 each). |
+| 🎲 Command Re-roll | 1 | any | Re-roll the Advance roll, or the charge roll (both dice) just made by the unit, even a failed one. In the middle of an attack: one hit, wound, damage, number-of-attacks or saving-throw die (see below). |
+| 🦁 Insane Bravery | 1 | Command | Before the unit's battle-shock test: the test is passed without a roll. Once per battle. |
+| 💣 Explosives | 1 | Shooting | A unit with EXPLOSIVES (or GRENADES) throws 6D6 at a visible, unengaged enemy within 8″ instead of shooting: each 4+ is a mortal wound. |
+| 🐘 Crushing Blow | 1 | Charge | A MONSTER or VEHICLE that has charged rolls D6 equal to its Toughness: each 5+ is a mortal wound to an engaged enemy unit, each 1 a mortal wound to itself (at most 6 each). |
 
 General rules:
 
@@ -18,12 +18,12 @@ General rules:
 
 ## Where to find them
 
-- **The «📜 Стратагемы» card** in the right panel shows your CP and every Stratagem usable right now. Each Stratagem has one «Применить» button per unit it can be used on (and per target), so no unit has to be selected first; the selected unit's Stratagems come first. Below is a list of what each one does and when it pays off.
+- **The “📜 Stratagems” card** in the right panel shows your CP and every Stratagem usable right now. Each Stratagem has one “Use” button per unit it can be used on (and per target), so no unit has to be selected first; the selected unit's Stratagems come first. Below is a list of what each one does and when it pays off.
   - The buttons come from `stratagemActions` in the engine, the same list the unit's own action panel shows.
   - Extinction Order is offered only for objectives with an enemy unit on them; on an empty one it would do nothing.
-- **The board's action bar** offers «🎲 Перебросить атаку (1 CP)» right after a charge roll, because that window closes with the next command.
+- **The board's action bar** offers “🎲 Re-roll the charge (1 CP)” right after a charge roll, because that window closes with the next command.
 - **A CP reminder.** With 3 CP or more (`CP_HOARD`), a Stratagem usable now and none used this phase:
-  - the card shows «💡 Накопилось N CP»;
+  - the card shows “💡 You have N CP saved up”;
   - ending the phase asks once, naming the usable Stratagems, the same way as the Imperative reminder.
 
   It comes from `cpReminder` in `src/ui/guidance.ts`. Unspent CP piled up to 5–10 by the end of the player's games.
@@ -84,7 +84,7 @@ A Stratagem may require a unit with certain keywords (`requires` in `rules/strat
 
 The same data is used in two places:
 
-- **The army screen:** each army's card has a «📜 Стратагемы: N из M доступны» line. Missing ones are marked ✗ with the reason, for example «нет отряда: нужен отряд с EXPLOSIVES или GRENADES». The detachment's other Stratagems are marked ⏳ with why they are not playable yet. This works for the training roster, the presets and a custom list.
+- **The army screen:** each army's card has a “📜 Stratagems: N of M available” line. Missing ones are marked ✗ with the reason, for example “no unit: a unit with EXPLOSIVES or GRENADES is needed”. The detachment's other Stratagems are marked ⏳ with why they are not playable yet. This works for the training roster, the presets and a custom list.
 - **In battle:** the engine refuses a Stratagem on a unit that does not fit it, or on a unit from another army.
 
 ## Effects
@@ -157,7 +157,7 @@ The engine (`runAttack`) resolves `shoot` and `fight` on a copy of the state. Su
 - The answer replays the attack with the same dice and goes on. The dice after the stopped one were never shown, because they are rolled only now.
 - A re-roll costs 1 CP and is logged as the Stratagem.
 
-The standard AI always re-rolls when asked (it is asked only when it is worth it). The beginner AI keeps the die. For the player, `RerollPrompt` shows the die, its value and the expected gain, with «Перебросить (1 CP)» and «Оставить». In AI games this stops 0–4 times a battle.
+The standard AI always re-rolls when asked (it is asked only when it is worth it). The beginner AI keeps the die. For the player, `RerollPrompt` shows the die, its value and the expected gain, with “Re-roll (1 CP)” and “Keep”. In AI games this stops 0–4 times a battle.
 
 ## Insane Bravery before the test
 
@@ -213,7 +213,7 @@ In an online game a reaction window or a Command Re-roll question waits for the 
 
 Both sides see the time:
 
-- the prompts (`ReactionPrompt`, `RerollPrompt`) show «⏱ N с»;
-- the waiting side's hint says «Ждём не больше 20 с, потом — пропуск».
+- the prompts (`ReactionPrompt`, `RerollPrompt`) show “⏱ N s”;
+- the waiting side's hint says “We wait no more than 20 s, then — a pass”.
 
 Each side counts locally (`useCountdown`); only the host's timer acts. Games against the AI have no limit.

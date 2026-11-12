@@ -11,6 +11,8 @@ export default defineConfig({
     babel({ presets: [reactCompilerPreset()] }),
     tailwindcss(),
   ],
+  // The AI worker is a module worker and loads its language catalog with a top-level await (src/i18n/index.ts).
+  worker: { format: 'es' },
   test: {
     environment: 'jsdom',
     globals: true,

@@ -2,7 +2,7 @@
 
 ## Charge forecast
 
-In the Charge phase, select a unit that has not declared a charge yet. Under its actions, «⚔ Прогноз атаки» lists every enemy unit within 12″:
+In the Charge phase, select a unit that has not declared a charge yet. Under its actions, “⚔ Charge forecast” lists every enemy unit within 12″:
 
 - the distance to cover and the chance to roll it on 2D6;
 - the expected wounds and models killed by your unit;
@@ -12,9 +12,9 @@ Your unit fights first after charging. The enemy strikes back only with the mode
 
 Each line is marked ✅ (good), ⚠ (risky) or ⛔ (bad). The warnings say why:
 
-- «Мало шансов дойти»: less than 30% to make the distance;
-- «Невыгодный размен»: you would take more than you deal, and it costs a third of your unit or more;
-- «Это стрелки»: a shooting unit locked in combat barely shoots next turn (pistols only), and it is weaker in melee.
+- “Little chance to make it”: less than 30% to make the distance;
+- “Bad trade”: you would take more than you deal, and it costs a third of your unit or more;
+- “These are shooters”: a shooting unit locked in combat barely shoots next turn (pistols only), and it is weaker in melee.
 
 The same line appears in the tooltip of an enemy model on the board.
 
