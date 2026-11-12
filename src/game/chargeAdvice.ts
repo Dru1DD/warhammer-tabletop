@@ -79,3 +79,26 @@ export function forecastLine(f: ChargeForecast): string {
   const n = (x: number) => (x >= 1 ? String(Math.round(x)) : fmt(x))
   return `нужно ${Math.ceil(f.distance)}″ — ${Math.round(f.p * 100)}% · вы: ~${fmt(f.dealt)} ран (~${n(f.killsDealt)} из ${f.enemyModels}) · в ответ: ~${fmt(f.taken)} (~${n(f.killsTaken)} из ${f.myModels})`
 }
+
+/** Below this chance to get there, a charge is worth a second thought. */
+export const LOW_CHARGE_CHANCE = 0.3
+
+/**
+ * Why to think twice before declaring this charge, or null when it looks fine. Asked when the player presses
+ * «Объявить атаку»: the forecast is on screen, but the battles showed it is easy to charge without reading it (from 11″
+ * at 3%, a support Tech-Priest into a Captain, shooters into melee). Flags: every target out of reasonable reach, every
+ * fight a bad trade, or a shooter or a character heading into a fight that is not a good one.
+ */
+export function chargeWarning(s: GameState, unit: UnitState): { why: string[]; best: ChargeForecast } | null {
+  const list = chargeForecast(s, unit)
+  if (!list.length) return null
+  const top = list[0]
+  const likeliest = list.reduce((a, b) => (b.p > a.p ? b : a))
+  const role = unitProfile(unit).role
+  const why: string[] = []
+  if (likeliest.p < LOW_CHARGE_CHANCE)
+    why.push(`Мало шансов дойти: даже до ближайшей цели «${likeliest.name}» нужно ${Math.ceil(likeliest.distance)}″ на 2D6 — ${Math.round(likeliest.p * 100)}%. Не дойдёт — отряд просто останется стоять.`)
+  const reasons = list.every((f) => f.verdict === 'bad') || ((role === 'shooter' || role === 'character') && top.verdict !== 'good')
+  if (reasons) for (const w of top.warnings) if (!w.startsWith('Мало шансов')) why.push(`«${top.name}»: ${w}`)
+  return why.length ? { why, best: top } : null
+}

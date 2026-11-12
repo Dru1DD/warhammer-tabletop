@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { AiDecision, AiLevel } from './game/ai/ai'
+import { chargeWarning } from './game/chargeAdvice'
 import { aiReserves, arrivalSpot, fromReserve, reserveProblem, toReserve } from './game/rules/reserves'
 import { decideAsync } from './game/ai/aiClient'
 import { seededRoller } from './game/dice/dice'
@@ -123,6 +124,12 @@ interface Store {
   arriveAt: (p: Vec) => void
   /** shooting target picked on the board, waiting for «Огонь» */
   aimTargetId: string | null
+  /** a charge the forecast advises against, waiting for «Атаковать всё равно» (chargeAdvice.ts chargeWarning) */
+  chargeConfirm: { unitId: string; why: string[] } | null
+  /** the player confirmed that charge: the next declareCharge of this unit goes through */
+  chargeOk: string | null
+  /** answer the charge question: true declares the charge anyway, false drops it */
+  confirmCharge: (go: boolean) => void
   /** step-by-step replay of attacks with dice id > afterId; pauses the AI while open */
   review: { afterId: number } | null
   layout: Layout
@@ -347,6 +354,8 @@ export const useStore = create<Store>((set, get) => {
   deploying: null,
   deployHistory: [],
   arriving: null,
+  chargeConfirm: null,
+  chargeOk: null,
   aimTargetId: null,
   review: null,
   selectedTerrainId: null,
@@ -551,9 +560,27 @@ export const useStore = create<Store>((set, get) => {
     get().dispatch({ type: 'arrive', unitId: u.id, positions, rapid: arriving.rapid || undefined })
   },
 
+  confirmCharge: (go) => {
+    const c = get().chargeConfirm
+    set({ chargeConfirm: null, chargeOk: go && c ? c.unitId : null })
+    if (go && c) get().dispatch({ type: 'declareCharge', unitId: c.unitId })
+  },
+
   dispatch: (cmd) => {
     const { game, settings } = get()
     if (!game) return false
+    // a charge the forecast advises against: ask first (not in the «minimal» explanation mode)
+    if (cmd.type === 'declareCharge' && settings.explain !== 'minimal' && validate(game, cmd).ok) {
+      if (get().chargeOk === cmd.unitId) set({ chargeOk: null })
+      else {
+        const unit = game.units.find((u) => u.id === cmd.unitId)
+        const warning = unit && chargeWarning(game, unit)
+        if (warning) {
+          set({ chargeConfirm: { unitId: cmd.unitId, why: warning.why } })
+          return false
+        }
+      }
+    }
     const m = matchOf(game, get().match, settings.human)
     const me = localPlayerOf(m)
     if (!me) return false

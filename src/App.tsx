@@ -17,6 +17,7 @@ import { LAYOUT_IDS, LAYOUT_NAME, MAP_IDS, MAPS, PATROL_LAYOUT_NAME } from './ga
 import { armyUnits, battleListProblems } from './ui/armyUnits'
 import { BattleOverDialog } from './ui/BattleOverDialog'
 import { ReactionPrompt } from './ui/ReactionPrompt'
+import { ChargeConfirm } from './ui/ChargeConfirm'
 import { RerollPrompt } from './ui/RerollPrompt'
 import { HyperAdaptationPrompt } from './ui/HyperAdaptationPrompt'
 import { hyperPending } from './game/engine'
@@ -341,6 +342,7 @@ function GameScreen() {
         <BattleOverDialog game={{ ...game, winner: game.winner }} human={st.settings.human} onClose={() => setOverClosedFor(game)} onNewBattle={() => (st.shared ? leaveRoom() : st.startDeployment())} />
       )}
       {game.reaction?.player === st.settings.human && !game.winner && !st.review && <ReactionPrompt game={game} human={st.settings.human} />}
+      <ChargeConfirm />
       {game.pendingReroll?.player === st.settings.human && !game.winner && !st.review && <RerollPrompt game={game} human={st.settings.human} />}
       {hyperPending(game) && st.settings.human === 'tyranids' && !st.review && <HyperAdaptationPrompt game={game} />}
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
