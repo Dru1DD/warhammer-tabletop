@@ -6,10 +6,11 @@ import { FACTION_NAME } from './game/data/datasheets'
 import { armyPoints, copyIndex, fmtPoints, POINTS_SOURCE, unitPoints } from './game/data/points'
 import { actor } from './game/engine'
 import { deserialize, readStorage } from './game/persistence'
-import { SCENARIOS } from './game/scenarios/scenarios'
+import { mapLine, SCENARIOS } from './game/scenarios/scenarios'
 import { FACTIONS, type ExplainLevel, type PlayerId, type UnitState } from './game/types'
 import { AI_STEP_MS, AUTOSAVE_KEY, MANUAL_KEY, useStore, type Settings } from './store'
 import { ArmyBuilder } from './ui/ArmyBuilder'
+import { LAYOUT_IDS, LAYOUT_NAME, MAP_IDS, MAPS, PATROL_LAYOUT_NAME } from './game/scenarios/strikeForce'
 import { armyUnits, battleListProblems } from './ui/armyUnits'
 import { BattleOverDialog } from './ui/BattleOverDialog'
 import { ReactionPrompt } from './ui/ReactionPrompt'
@@ -173,6 +174,30 @@ function StartScreen() {
               ))}
             </select>
           </label>
+          {scenarioId === 'combat-patrol' && (
+            <label className="text-sm">Раскладка укрытий
+              <select className="input" value={st.settings.layoutId ?? 'A'} onChange={(e) => st.setSettings({ layoutId: e.target.value })}>
+                {LAYOUT_IDS.map((id) => <option key={id} value={id}>{id} — {PATROL_LAYOUT_NAME[id]}</option>)}
+                <option value="random">Случайная</option>
+              </select>
+            </label>
+          )}
+          {scenarioId === 'strike-force' && (
+            <>
+              <label className="text-sm">Карта расстановки
+                <select className="input" value={st.settings.mapId ?? 'random'} onChange={(e) => st.setSettings({ mapId: e.target.value })}>
+                  <option value="random">Случайная (как из колоды)</option>
+                  {MAP_IDS.map((id) => <option key={id} value={id}>{MAPS[id].name} ({MAPS[id].nameEn})</option>)}
+                </select>
+              </label>
+              <label className="text-sm">Раскладка укрытий
+                <select className="input" value={st.settings.layoutId ?? 'random'} onChange={(e) => st.setSettings({ layoutId: e.target.value })}>
+                  <option value="random">Случайная</option>
+                  {LAYOUT_IDS.map((id) => <option key={id} value={id}>{id} — {LAYOUT_NAME[id]}</option>)}
+                </select>
+              </label>
+            </>
+          )}
           <label className="text-sm">Уровень ИИ
             <select className="input" value={st.settings.aiLevel} onChange={(e) => st.setSettings({ aiLevel: e.target.value as never })}>
               <option value="beginner">Новичок — простые приоритеты</option>
@@ -243,6 +268,7 @@ function GameScreen() {
         ) : (
           <>
             <span className="rounded bg-stone-800 px-2 py-0.5 text-sm">Раунд {game.round}/{game.maxRounds}</span>
+            {mapLine(game) && <span className="hidden rounded bg-stone-800 px-2 py-0.5 text-xs xl:inline" title={mapLine(game)!}>🗺 {mapLine(game)!.split(' (')[0]}</span>}
             <span className="rounded px-2 py-0.5 text-sm" style={{ background: FACTION_STYLE[game.activePlayer].primary }}>
               Ход: {FACTION_NAME[game.activePlayer]}
             </span>
