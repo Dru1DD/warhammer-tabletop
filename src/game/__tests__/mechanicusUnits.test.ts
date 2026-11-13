@@ -3,7 +3,8 @@ import { listUnits, musterArmy } from '../army/placement'
 import { composeUnit, type ArmyList } from '../army/armyList'
 import { rollDie, seededRoller } from '../dice/dice'
 import { apply, isDamaged, shootPlan, validate } from '../engine'
-import { feelNoPainOf, newUnit } from '../gameState'
+import { alive, feelNoPainOf, newUnit, radiusOf } from '../gameState'
+import { dist } from '../geometry/geometry'
 import { scenarioById } from '../scenarios/scenarios'
 import type { GameState, UnitState, Vec } from '../types'
 import { battle, column, place } from './helpers'
@@ -57,14 +58,25 @@ describe('new Adeptus Mechanicus units', () => {
     expect(shootPlan(s, onager, boyz).groups[0].ctx.hitMod).toBe(full - 1)
   })
 
-  it('the Onager\'s force field gives friendly Battleline within 6″ a 4+ invulnerable save against shooting', () => {
+  it('the Onager\'s force field gives each friendly Battleline model wholly within 6″ a 4+ invulnerable save against shooting', () => {
     const { s, boyz, rangers } = bare('shooting', true)
     place(s, rangers!.id, column(14, 4, 10))
     s.activePlayer = 'orks'
-    const before = shootPlan(s, boyz, rangers!).groups.map((g) => g.ctx.invulnOverride)
-    expect(before.every((x) => x === undefined)).toBe(true)
-    add(s, 'onager', 1, [{ x: 8, y: 10 }])
-    expect(shootPlan(s, boyz, rangers!).groups.every((g) => g.ctx.invulnOverride === 4)).toBe(true)
+    const before = shootPlan(s, boyz, rangers!).groups
+    expect(before.every((g) => g.ctx.invulnOverride === undefined && g.ctx.invulnByModel === undefined)).toBe(true)
+    const onager = add(s, 'onager', 1, [{ x: 8, y: 10 }])
+    const groups = shootPlan(s, boyz, rangers!).groups
+    // the force field is per model: the unit as a whole gets nothing, the models wholly within 6″ get 4+
+    expect(groups.every((g) => g.ctx.invulnOverride === undefined)).toBe(true)
+    const covered = new Set(Object.entries(groups[0].ctx.invulnByModel ?? {}).filter(([, v]) => v === 4).map(([id]) => id))
+    const o = alive(onager)[0]
+    for (const m of alive(rangers!)) expect(covered.has(m.id), m.id).toBe(dist(m.pos, o.pos) + radiusOf(m) - radiusOf(o) <= 6 + 1e-6)
+    // the column reaches past the field: some Rangers are covered, some are not
+    expect(covered.size).toBeGreaterThan(0)
+    expect(covered.size).toBeLessThan(10)
+    // a model only partly within 6″ is not covered, although the unit is within 6″
+    const partly = alive(rangers!).find((m) => !covered.has(m.id) && dist(m.pos, o.pos) - radiusOf(m) - radiusOf(o) <= 6)
+    expect(partly).toBeDefined()
   })
 
   it('Electro-Priests: Feel No Pain 5+, and the infantry they hit is shocked (−2″ Move, −2 to Advance and Charge)', () => {
