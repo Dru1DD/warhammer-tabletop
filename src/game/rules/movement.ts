@@ -1,4 +1,4 @@
-import { basesOverlap, circlePolygonDistance, dist, edgeDistance, EPS, sweptCircleHits, sweptCircleHitsPolygon, withinRange } from '../geometry/geometry'
+import { basesOverlap, circlePolygonDistance, dist, edgeDistance, EPS, polygonCentroid, sweptCircleHits, sweptCircleHitsPolygon, withinRange } from '../geometry/geometry'
 import {
   alive, checkCoherency, enemiesOf, ENGAGEMENT_RANGE, fmt, isInfantry, isMV, modelDistance, profileOf, radiusOf, TERRAIN_CATEGORY,
 } from '../gameState'
@@ -56,9 +56,69 @@ export function terrainBlock(s: GameState, unit: UnitState, r: number, from: Vec
   return null
 }
 
+/** The dense terrain a non-INFANTRY base would cross on the straight line `from` → `to` (null: none, or it may cross). */
+function denseOnLine(s: GameState, unit: UnitState, r: number, from: Vec, to: Vec, fly: boolean): Terrain | null {
+  if (fly || isInfantry(unit) || dist(from, to) <= EPS) return null
+  for (const t of s.terrain) {
+    if (clearOf(t, r, from, to)) continue
+    if ((TERRAIN_CATEGORY[t.kind] ?? { category: 'exposed' }).category === 'dense' && sweptCircleHitsPolygon(from, to, r, t.poly)) return t
+  }
+  return null
+}
+
+/** A base's way from `from` to `to`: the straight line, or — when dense terrain it may not cross is in the way — the
+ * shortest route around it (11th edition: a model moves along any path; its move is the length of that path). The route
+ * goes through points just outside the corners of the blocking terrain; enemy models are not crossed either (unless
+ * `overModels`). Null when there is no way round. */
+export function movePath(
+  s: GameState, unit: UnitState, r: number, from: Vec, to: Vec, fly = false,
+  enemies: { pos: Vec; r: number }[] = [], overModels = false,
+): { points: Vec[]; length: number } | null {
+  const blocked = (a: Vec, b: Vec) =>
+    !!denseOnLine(s, unit, r, a, b, fly) || (!fly && !overModels && enemies.some((e) => sweptCircleHits(a, b, r, e.pos, e.r)))
+  if (!denseOnLine(s, unit, r, from, to, fly)) return { points: [from, to], length: dist(from, to) }
+  // corners of every dense terrain area, pushed out far enough for the base to pass
+  const nodes: Vec[] = [from, to]
+  for (const t of s.terrain) {
+    if ((TERRAIN_CATEGORY[t.kind] ?? { category: 'exposed' }).category !== 'dense') continue
+    const c = polygonCentroid(t.poly)
+    for (const v of t.poly) {
+      const dx = v.x - c.x, dy = v.y - c.y
+      const len = Math.hypot(dx, dy) || 1
+      const push = r * 1.45 + 0.1
+      const w = { x: v.x + (dx / len) * push, y: v.y + (dy / len) * push }
+      if (w.x - r < 0 || w.y - r < 0 || w.x + r > s.board.width || w.y + r > s.board.height) continue
+      nodes.push(w)
+    }
+  }
+  // Dijkstra over the visibility graph of those points
+  const n = nodes.length
+  const best = new Array<number>(n).fill(Infinity)
+  const prev = new Array<number>(n).fill(-1)
+  const done = new Array<boolean>(n).fill(false)
+  best[0] = 0
+  for (;;) {
+    let i = -1
+    for (let k = 0; k < n; k++) if (!done[k] && best[k] < Infinity && (i < 0 || best[k] < best[i])) i = k
+    if (i < 0 || i === 1) break
+    done[i] = true
+    for (let k = 0; k < n; k++) {
+      if (done[k] || k === i) continue
+      const len = best[i] + dist(nodes[i], nodes[k])
+      if (len >= best[k] || blocked(nodes[i], nodes[k])) continue
+      best[k] = len
+      prev[k] = i
+    }
+  }
+  if (best[1] === Infinity) return null
+  const points: Vec[] = []
+  for (let k = 1; k >= 0; k = prev[k]) points.unshift(nodes[k])
+  return { points, length: best[1] }
+}
+
 /**
- * Validate final positions for a unit move. Each model moves in a straight
- * line from its current position. Returns a Russian reason or null if legal.
+ * Validate final positions for a unit move. Each model moves in a straight line from its current position, or around
+ * dense terrain it may not cross (`movePath`). Returns a reason or null if legal.
  */
 export function moveProblem(
   s: GameState,
@@ -79,20 +139,28 @@ export function moveProblem(
 
   for (const { m, pos } of final) {
     const r = radiusOf(m)
-    const d = dist(m.pos, pos)
-    if (d > maxDist + EPS)
-      return tr('{name}: the move of {fmt}" is more than the allowed {fmt2}".', { name: name(m), fmt: fmt(d), fmt2: fmt(maxDist) })
-    if (pos.x - r < -EPS || pos.y - r < -EPS || pos.x + r > s.board.width + EPS || pos.y + r > s.board.height + EPS)
-      return tr('{name}: the base goes beyond the edge of the field.', { name: name(m) })
     // MONSTER/VEHICLE may move through non-M/V models in normal and advance moves (17.01)
     const overModels = isMV(unit) && (mode === 'normal' || mode === 'advance')
-    const nearEnemies = nearby(enemyModels, (e) => e.m, m.pos, r, d)
-    if (d > EPS) {
+    // the way it goes: straight, or around dense terrain it may not cross (then its move is the length of the detour)
+    const straight = dist(m.pos, pos)
+    const nearEnemies = nearby(enemyModels, (e) => e.m, m.pos, r, Math.max(straight, maxDist))
+    const crossing = denseOnLine(s, unit, r, m.pos, pos, fly)
+    const path = crossing ? movePath(s, unit, r, m.pos, pos, fly, nearEnemies.filter((e) => !(overModels && !isMV(e.unit))).map((e) => ({ pos: e.m.pos, r: radiusOf(e.m) })), overModels) : null
+    if (crossing && !path) return `${name(m)}: ${tr('“{name}” is dense terrain: only infantry pass through it. Go around.', { name: crossing.name })}`
+    const d = path ? path.length : straight
+    if (d > maxDist + EPS)
+      return path
+        ? tr('{name}: the way around “{terrain}” is {fmt}", more than the allowed {fmt2}".', { name: name(m), terrain: crossing!.name, fmt: fmt(d), fmt2: fmt(maxDist) })
+        : tr('{name}: the move of {fmt}" is more than the allowed {fmt2}".', { name: name(m), fmt: fmt(d), fmt2: fmt(maxDist) })
+    if (pos.x - r < -EPS || pos.y - r < -EPS || pos.x + r > s.board.width + EPS || pos.y + r > s.board.height + EPS)
+      return tr('{name}: the base goes beyond the edge of the field.', { name: name(m) })
+    if (d > EPS && !path) {
       for (const e of nearEnemies)
         if (!fly && !(overModels && !isMV(e.unit)) && sweptCircleHits(m.pos, pos, r, e.m.pos, radiusOf(e.m)))
           return tr('{name}: you cannot move through enemy models.', { name: name(m) })
     }
-    const tb = terrainBlock(s, unit, r, m.pos, pos, false, fly)
+    // dense terrain on the way was handled above (a detour was found); solid terrain still cannot be ended in
+    const tb = path ? terrainBlock(s, unit, r, pos, pos, true, fly) : terrainBlock(s, unit, r, m.pos, pos, false, fly)
     if (tb) return `${name(m)}: ${tb}`
     for (const o of nearby(others, (x) => x, m.pos, r, d))
       if (basesOverlap(pos, r, o.pos, radiusOf(o))) return tr('{name}: the base overlaps another model.', { name: name(m) })

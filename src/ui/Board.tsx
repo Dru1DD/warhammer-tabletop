@@ -8,6 +8,7 @@ import { baseRadius, dist, edgeDistance, withinRange } from '../game/geometry/ge
 import { alive, CHARGE_RANGE, findUnit, fmt, hasAbility, isFlyer, modelDistance, OBJECTIVE_MARKER_MM, OBJECTIVE_RANGE, profileOf, radiusOf, sidesOf, weaponsOf } from '../game/gameState'
 import type { Command, GameState, ModelState, Terrain, UnitState, Vec } from '../game/types'
 import { useStore } from '../store'
+import { movePath } from '../game/rules/movement'
 import { objectiveStakes } from '../game/missionAdvice'
 import { passengersOf } from '../game/rules/transports'
 import { clampToRadius, fitBoard, screenToWorld, worldToScreen, zoomAt, type Viewport } from '../view/transform'
@@ -367,7 +368,7 @@ function ActionBar() {
       btn('reroll', { type: 'rerollAdvance', unitId: mine.id }, hasAbility(mine, 'waaagh') ? tr('🎲 Re-roll (Waaagh!)') : tr('🎲 Re-roll (Superlative Strategist)'))
     if (isFlyer(mine)) buttons.push(<button key="fly" className={`btn ${st.moveOptions.fly ? 'btn-primary' : ''}`} aria-pressed={st.moveOptions.fly} onClick={() => st.setMoveOptions({ fly: !st.moveOptions.fly })} title={tr('FLY: −2″ to movement, but the models fly over models and terrain')}>{tr('🕊 Take off (−2″)')}</button>)
     if (hasAbility(mine, 'battleFocus') && (game.players[human].focus ?? 0) > 0) buttons.push(<button key="swift" className={`btn ${st.moveOptions.swift ? 'btn-primary' : ''}`} aria-pressed={st.moveOptions.swift} onClick={() => st.setMoveOptions({ swift: !st.moveOptions.swift })} title={tr('Battle Focus: a token gives +2″ to movement')}>{tr('✦ Swift as the Wind (+2″) · tokens {focus}', { focus: game.players[human].focus })}</button>)
-    buttons.push(<DragModeToggle key="group" />)
+    buttons.push(<DragModeToggle key="group" stuck={hasDraft && !validate(game, moveCommand(game, mine, st.draft, st.moveOptions)).ok} />)
   }
   if (game.phase === 'shooting' && mine && st.aimTargetId) {
     const aim = findUnit(game, st.aimTargetId)
@@ -408,8 +409,9 @@ function ActionBar() {
   )
 }
 
-/** Whole unit vs one model per drag. Moving only some models is legal: the rest stay put. */
-export function DragModeToggle() {
+/** Whole unit vs one model per drag. Moving only some models is legal: the rest stay put. `stuck`: the planned
+ * positions are not legal, so in «Whole unit» mode the player is told how to fix a single model. */
+export function DragModeToggle({ stuck = false }: { stuck?: boolean }) {
   const group = useStore((s) => s.groupDrag)
   const set = useStore((s) => s.setGroupDrag)
   const opt = (v: boolean, label: string, title: string) => (
@@ -418,10 +420,13 @@ export function DragModeToggle() {
     </button>
   )
   return (
-    <div className="flex overflow-hidden rounded border border-stone-600" role="group" aria-label={tr('What dragging moves')}>
-      {opt(true, tr('Whole unit'), tr('Dragging one model moves the whole unit'))}
-      {opt(false, tr('One model at a time'), tr('Each model moves separately; you can move one, two or all, then one confirmation'))}
-    </div>
+    <>
+      <div className="flex overflow-hidden rounded border border-stone-600" role="group" aria-label={tr('What dragging moves')}>
+        {opt(true, tr('Whole unit'), tr('Dragging one model moves the whole unit'))}
+        {opt(false, tr('One model at a time'), tr('Each model moves separately; you can move one, two or all, then one confirmation'))}
+      </div>
+      {stuck && group && <span className="self-center px-1 text-xs text-amber-300" role="status">{tr('To fix just one model, switch to “One model at a time” and drag it.')}</span>}
+    </>
   )
 }
 
@@ -442,7 +447,7 @@ function DeployBar() {
           {tr('✓ Place “{name}”', { name: mine.name })}{placed.includes(mine.id) && !hasDraft ? tr(' (already placed)') : ''}
         </button>
       )}
-      <DragModeToggle />
+      <DragModeToggle stuck={hasDraft && !!why} />
       {st.deployHistory.length > 0 && <button className="btn" onClick={() => st.undo()} title={tr('Undo the last placement')}>{tr('↶ Undo')}</button>}
       <button className={`btn ${allPlaced && !hasDraft ? 'btn-primary' : ''}`} disabled={!allPlaced} title={allPlaced ? tr('Roll for the first turn and the start of round 1') : tr('First place all your units')} onClick={() => st.finishDeployment()}>
         {tr('Start the battle ▶')}
@@ -601,7 +606,10 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
     if (el) el.style.cursor = c
   }
 
-  const unitsRendered = game.units.map((u) => {
+  // the selected unit is drawn last, on top: a model dragged onto another unit's model stays grabbable (a click would
+  // otherwise hit the model above it, select that unit and drop the planned move)
+  const drawOrder = sel ? [...game.units.filter((u) => u.id !== sel.id), ...game.units.filter((u) => u.id === sel.id)] : game.units
+  const unitsRendered = drawOrder.map((u) => {
     const draggable = canDrag(u)
     const max = deploying ? Infinity : moveAllowance(game, u, u.id === st.selectedUnitId ? st.moveOptions : { fly: false, swift: false })
     const unplaced = !!deploying && u.owner === human && !deploying.placed.includes(u.id)
@@ -615,6 +623,8 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
       const p = profileOf(m)
       const selected = sel?.id === u.id
       const moved = dist(pos, m.pos) > 0.01
+      // the way the model goes: straight, or around dense terrain it may not cross (its move is the detour's length)
+      const way = moved && !deploying ? movePath(game, u, r, m.pos, pos, st.moveOptions.fly) ?? { points: [m.pos, pos], length: dist(m.pos, pos) } : { points: [m.pos, pos], length: dist(m.pos, pos) }
       const img = images[tokenImageFor(m.profileId, st.customTokens) ?? '']
       const ring = FACTION_LINE[u.owner]
       // built-in art faces east (+x); the army on the east side is flipped so both armies face each other (user photos are never flipped)
@@ -627,9 +637,8 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
           {moved && (
             <>
               <Circle x={m.pos.x} y={m.pos.y} radius={r} stroke="#ffffff" strokeWidth={0.05} dash={[0.15, 0.1]} opacity={0.6} listening={false} />
-              <Line points={flat([m.pos, pos])} stroke="#ffffff" strokeWidth={0.05} dash={[0.2, 0.1]} listening={false} />
-              {!deploying && <Text x={m.pos.x - 1} y={m.pos.y - r - 0.5} width={2} align="center" text={tr('{fmt}″ of {fmt2}″', { fmt: fmt(dist(m.pos, pos)), fmt2: fmt(max) })} fontSize={0.38} fill="#ffffff" shadowColor="black" shadowBlur={0.1} listening={false} />}
-
+              <Line points={flat(way.points)} stroke="#ffffff" strokeWidth={0.05} dash={[0.2, 0.1]} listening={false} />
+              {!deploying && <Text x={m.pos.x - 1} y={m.pos.y - r - 0.5} width={2} align="center" text={tr('{fmt}″ of {fmt2}″', { fmt: fmt(way.length), fmt2: fmt(max) })} fontSize={0.38} fill="#ffffff" shadowColor="black" shadowBlur={0.1} listening={false} />}
             </>
           )}
           <Group
