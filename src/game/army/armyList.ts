@@ -94,6 +94,16 @@ export const COMPOSITION: Record<string, { leader?: string; pattern: string[] }>
   onager: { pattern: ['onager'] },
   electroPriests: { pattern: ['electroPriest'] },
   dunerider: { pattern: ['dunerider'] },
+  rhino: { pattern: ['rhino'] },
+  predatorAnnihilator: { pattern: ['predatorAnnihilator'] },
+  trukk: { pattern: ['trukk'] },
+  battlewagon: { pattern: ['battlewagon'] },
+  ghostArk: { pattern: ['ghostArk'] },
+  doomsdayArk: { pattern: ['doomsdayArk'] },
+  waveSerpent: { pattern: ['waveSerpent'] },
+  firePrism: { pattern: ['firePrism'] },
+  exocrine: { pattern: ['exocrine'] },
+  tyrannofex: { pattern: ['tyrannofex'] },
 }
 
 /** Model profile ids of a unit of `size` models, with the chosen wargear if any. */
@@ -191,7 +201,7 @@ export function parseArmyList(raw: unknown): ArmyList | null {
 /** A stored loadout, or null when absent or malformed (the unit then keeps its default equipment). */
 function parseLoadout(raw: unknown): Loadout | null {
   if (!raw || typeof raw !== 'object') return null
-  const r = raw as { leader?: unknown; counts?: unknown }
+  const r = raw as { leader?: unknown; counts?: unknown; slots?: unknown }
   if (r.leader !== undefined && typeof r.leader !== 'string') return null
   if (!r.counts || typeof r.counts !== 'object') return null
   const counts: Record<string, number> = {}
@@ -199,7 +209,14 @@ function parseLoadout(raw: unknown): Loadout | null {
     if (typeof v !== 'number' || !Number.isInteger(v) || v < 0) return null
     counts[k] = v
   }
-  return { ...(typeof r.leader === 'string' ? { leader: r.leader } : {}), counts }
+  // optional wargear slots of a vehicle: slot id → choice id (data/vehicles.ts)
+  if (r.slots !== undefined && (!r.slots || typeof r.slots !== 'object')) return null
+  const slots: Record<string, string> = {}
+  for (const [k, v] of Object.entries((r.slots ?? {}) as Record<string, unknown>)) {
+    if (typeof v !== 'string') return null
+    slots[k] = v
+  }
+  return { ...(typeof r.leader === 'string' ? { leader: r.leader } : {}), counts, ...(Object.keys(slots).length ? { slots } : {}) }
 }
 
 /** Per-faction lists from storage; a list whose datasheets belong to another faction is dropped. */

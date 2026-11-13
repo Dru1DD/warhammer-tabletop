@@ -1,5 +1,5 @@
 import { DATASHEETS } from '../data/datasheets'
-import { alive, datasheetOf, isDestroyed, unitDistance } from '../gameState'
+import { alive, isDestroyed, unitDistance, unitKeywords } from '../gameState'
 import type { GameState, Phase, PlayerId, ReactionWindow, StratagemId, UnitState } from '../types'
 import { locale, tr } from '../../i18n/index'
 
@@ -41,7 +41,7 @@ export interface Requirement {
 const matchesKeywords = (keywords: string[], r: Requirement) => r.any.some((group) => group.every((k) => keywords.includes(k)))
 
 /** The unit fits the Stratagem's unit requirement (or the Stratagem has none). */
-export const meetsRequirement = (u: UnitState, info: StratagemInfo) => !info.requires || matchesKeywords(datasheetOf(u).keywords, info.requires)
+export const meetsRequirement = (u: UnitState, info: StratagemInfo) => !info.requires || matchesKeywords(unitKeywords(u), info.requires)
 
 export interface Availability {
   info: StratagemInfo

@@ -34,7 +34,7 @@ export interface UnitProfile {
   fast: boolean
 }
 
-const AVG: Record<RandomDie, number> = { D3: 2, D6: 3.5, '3D3': 6 }
+const AVG: Record<RandomDie, number> = { D3: 2, D6: 3.5, '2D6': 7, '3D3': 6 }
 const pSkill = (skill: number | null) => (skill === null ? 1 : Math.max(1, Math.min(5, 7 - skill)) / 6)
 
 /** Expected damage of one profile against T4 / 3+ (wound roll from S, save worsened by AP, damage capped at 3). */

@@ -657,6 +657,82 @@ function dunerider(): string {
     ${cog(22, 50, 7, 8)}${skull(66, 50, 0.55)}`, false)
 }
 
+// ---------------------------------------------------------------- vehicles and monsters of data/vehicles.ts
+
+/** Tracked hull seen from above: two tracks and a body (Rhino, Predator). */
+function tracks(c: string): string {
+  const links = (y: number) => Array.from({ length: 9 }, (_, i) => `<line x1="${18 + i * 8}" y1="${y}" x2="${18 + i * 8}" y2="${y + 9}" opacity="0.5"/>`).join('')
+  return `<rect x="14" y="18" width="70" height="11" rx="3" ${f(c, 0.2)}/>${links(19)}<rect x="14" y="71" width="70" height="11" rx="3" ${f(c, 0.2)}/>${links(72)}`
+}
+
+function rhino(): string {
+  const c = BLUEPRINT_LINE.marines
+  return base(c, `${tracks(c)}
+    <path d="M18 30 H74 L86 38 V62 L74 70 H18 Z" ${f(c)}/>
+    <rect x="26" y="38" width="30" height="24" rx="3" ${f(c, 0.3)}/><line x1="41" y1="38" x2="41" y2="62" opacity="0.6"/>
+    <rect x="60" y="44" width="10" height="12" rx="2" ${f(c, 0.4)}/><line x1="70" y1="47" x2="82" y2="47"/><line x1="70" y1="53" x2="82" y2="53"/>`, false)
+}
+
+function predator(): string {
+  const c = BLUEPRINT_LINE.marines
+  return base(c, `${tracks(c)}
+    <path d="M18 30 H74 L86 38 V62 L74 70 H18 Z" ${f(c)}/>
+    <rect x="40" y="12" width="14" height="10" rx="2" ${f(c, 0.35)}/><line x1="54" y1="17" x2="78" y2="17" stroke-width="3"/>
+    <rect x="40" y="78" width="14" height="10" rx="2" ${f(c, 0.35)}/><line x1="54" y1="83" x2="78" y2="83" stroke-width="3"/>
+    <circle cx="44" cy="50" r="13" ${f(c, 0.35)}/><line x1="52" y1="46" x2="90" y2="46" stroke-width="3"/><line x1="52" y1="54" x2="90" y2="54" stroke-width="3"/>`, false)
+}
+
+function trukk(): string {
+  const c = BLUEPRINT_LINE.orks
+  return base(c, `
+    <circle cx="26" cy="22" r="7" ${f(c, 0.2)}/><circle cx="26" cy="78" r="7" ${f(c, 0.2)}/><circle cx="70" cy="24" r="6" ${f(c, 0.2)}/><circle cx="70" cy="76" r="6" ${f(c, 0.2)}/>
+    <path d="M14 30 H64 L82 36 V64 L64 70 H14 Z" ${f(c)}/>
+    <path d="M18 36 H52 V64 H18 Z" fill="none" opacity="0.6"/><path d="M22 42 L48 58 M22 58 L48 42" opacity="0.35"/>
+    <path d="M82 38 L94 42 L90 50 L94 58 L82 62 Z" ${f(c, 0.45)}/>
+    <rect x="56" y="44" width="10" height="12" rx="2" ${f(c, 0.35)}/><line x1="66" y1="47" x2="80" y2="47"/><line x1="66" y1="53" x2="80" y2="53"/>`, false)
+}
+
+function battlewagon(): string {
+  const c = BLUEPRINT_LINE.orks
+  const plates = Array.from({ length: 4 }, (_, i) => `<path d="M${22 + i * 14} 28 l10 0 l-2 6 l-8 0 Z M${22 + i * 14} 72 l10 0 l-2 -6 l-8 0 Z" ${f(c, 0.3)}/>`).join('')
+  return base(c, `${tracks(c)}
+    <path d="M14 30 H70 L88 40 V60 L70 70 H14 Z" ${f(c)}/>${plates}
+    <rect x="24" y="38" width="36" height="24" rx="2" ${f(c, 0.25)}/><path d="M24 50 H60 M42 38 V62" opacity="0.45"/>
+    <path d="M88 40 L96 44 L96 56 L88 60" ${f(c, 0.5)}/><circle cx="66" cy="50" r="5" ${f(c, 0.4)}/>`, false)
+}
+
+/** A Necron Ark: a long keel with energy ribs, seen from above. */
+function ark(cannon: boolean): string {
+  const c = BLUEPRINT_LINE.necrons
+  const ribs = Array.from({ length: 5 }, (_, i) => `<path d="M${26 + i * 10} 30 Q${30 + i * 10} 50 ${26 + i * 10} 70" fill="none" opacity="0.6"/>`).join('')
+  return base(c, `
+    <path d="M12 50 L26 26 H70 L88 50 L70 74 H26 Z" ${f(c, 0.18)}/>${ribs}
+    <rect x="30" y="16" width="34" height="7" rx="3" ${f(c, 0.3)}/><rect x="30" y="77" width="34" height="7" rx="3" ${f(c, 0.3)}/>
+    ${cannon ? `<rect x="34" y="44" width="58" height="12" rx="3" ${f(c, 0.4)}/><circle cx="40" cy="50" r="6" ${f(c, 0.5)}/>` : `<path d="M40 36 H62 V64 H40 Z" ${f(c, 0.3)}/><circle cx="51" cy="50" r="5" fill="#47e08a" fill-opacity="0.6" stroke="none"/>`}`, false)
+}
+
+/** An Aeldari grav-tank: a curved hull with a raised spine. */
+function gravTank(prism: boolean): string {
+  const c = BLUEPRINT_LINE.aeldari
+  return base(c, `
+    <path d="M10 50 Q14 24 40 22 L74 30 Q92 40 92 50 Q92 60 74 70 L40 78 Q14 76 10 50 Z" ${f(c)}/>
+    <path d="M20 34 L8 26 M20 66 L8 74" fill="none" stroke-width="2.6"/>
+    <path d="M30 40 Q50 36 70 44 V56 Q50 64 30 60 Z" ${f(c, 0.3)}/>
+    ${prism ? `<path d="M44 42 L60 50 L44 58 Z" ${f(c, 0.5)}/><line x1="60" y1="50" x2="94" y2="50" stroke-width="3.2"/>` : `<circle cx="50" cy="50" r="7" ${f(c, 0.4)}/><line x1="56" y1="47" x2="76" y2="47"/><line x1="56" y1="53" x2="76" y2="53"/>`}
+    <rect x="74" y="56" width="12" height="5" rx="2" ${f(c, 0.4)}/>`, false)
+}
+
+/** A gun beast of the Hive Fleets: carapace plates and a bio-cannon. */
+function gunBeast(exocrine: boolean): string {
+  const c = BLUEPRINT_LINE.tyranids
+  const legs = [26, 42, 58].map((x) => `<path d="M${x} 32 L${x - 6} 16 M${x} 68 L${x - 6} 84" fill="none" stroke-width="2.6"/>`).join('')
+  const plates = [28, 40, 52].map((x) => `<path d="M${x} 32 Q${x + 6} 50 ${x} 68" fill="none" opacity="0.55"/>`).join('')
+  return base(c, `${legs}
+    <ellipse cx="46" cy="50" rx="32" ry="20" ${f(c)}/>${plates}
+    <path d="M70 42 Q84 44 88 50 Q84 56 70 58 Z" ${f(c, 0.35)}/>
+    ${exocrine ? `<rect x="40" y="43" width="52" height="14" rx="6" ${f(c, 0.45)}/><circle cx="88" cy="50" r="4" fill="none"/>` : `<path d="M58 30 L86 34 L86 40 L58 40 Z M58 60 L86 60 L86 66 L58 70 Z" ${f(c, 0.4)}/>`}`, false)
+}
+
 const SVGS: Record<string, string> = {
   hiveTyrant: hiveTyrant(),
   termagant: termagant('fleshborer'),
@@ -743,6 +819,16 @@ const SVGS: Record<string, string> = {
   onagerPhosphor: onager('phosphor'),
   electroPriest: electroPriest(),
   dunerider: dunerider(),
+  rhino: rhino(),
+  predatorAnnihilator: predator(),
+  trukk: trukk(),
+  battlewagon: battlewagon(),
+  ghostArk: ark(false),
+  doomsdayArk: ark(true),
+  waveSerpent: gravTank(false),
+  firePrism: gravTank(true),
+  exocrine: gunBeast(true),
+  tyrannofex: gunBeast(false),
   lieutenant: marine('swordPistol', { officer: true }),
   captain: marine('bolterSword', { officer: true }),
   hellblasterSergeant: marine('plasma', { sergeant: true }),

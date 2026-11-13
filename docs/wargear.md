@@ -23,6 +23,11 @@ A unit edited this way is marked ⚙ in the list. The loadout is saved with the 
 | Kataphron Destroyers | any number: plasma culverin instead of heavy grav-cannon; cognis flamer instead of phosphor blaster |
 | Sicarian Infiltrators | any number of troopers: flechette blaster and taser goad instead of stubcarbine and power weapon |
 | Kastelan Robots | any number: heavy phosphor blaster instead of combustor; phosphor blaster and fist, or twin phosphor blaster and close combat weapon, instead of twin fist |
+| Serberys Sulphurhounds | one model in three: phosphor blast carbine and phosphor pistol instead of two phosphor pistols |
+| Ironstrider Ballistarii | any number: twin cognis lascannon instead of twin cognis autocannon |
+| Onager Dunecrawler | eradication beamer, Daedalus missile launcher and Icarus array, neutron laser and heavy stubber, or twin heavy phosphor blaster; and, as slots ([vehicles.md](vehicles.md)), an additional cognis heavy stubber and a broad spectrum data-tether |
+
+Corpuscarii Electro-Priests and the Skorpius Dunerider have no wargear options on their datasheets.
 
 New data:
 
@@ -42,6 +47,8 @@ The parts:
 - `ui/LoadoutEditor.tsx`: the editor.
 
 A unit without a loadout keeps its old default composition, so presets, scenarios and the golden test are unchanged.
+
+**Single-model vehicles** (Rhino, Predator Annihilator, Trukk, Battlewagon, Wave Serpent, Fire Prism, Tyrannofex, and the Onager's extras) have optional wargear **slots**: a drop-down list per slot. See [vehicles.md](vehicles.md).
 
 ## Simplifications and a note for the data
 

@@ -20,7 +20,9 @@ export const transportSpec = (u: UnitState): TransportSpec | undefined => datash
 export const isTransport = (u: UnitState) => !!transportSpec(u)
 export const passengersOf = (s: GameState, transportId: string) => (s.embarked ?? []).filter((u) => u.embarkedIn === transportId)
 export const embarkedOf = (s: GameState, p: PlayerId) => (s.embarked ?? []).filter((u) => u.owner === p)
-const usedCapacity = (s: GameState, t: UnitState) => passengersOf(s, t.id).reduce((a, u) => a + alive(u).length, 0)
+/** Places a unit takes in this transport: one per model, two for models with a `double` keyword (Wave Serpent: WRAITH CONSTRUCT). */
+export const placesOf = (u: UnitState, spec: TransportSpec) => alive(u).length * (spec.double?.some((k) => hasKeyword(u, k)) ? 2 : 1)
+const usedCapacity = (s: GameState, t: UnitState) => passengersOf(s, t.id).reduce((a, u) => a + placesOf(u, transportSpec(t)!), 0)
 /** A transport's hull as a round base: its centre and radius (the first living model). */
 const hull = (t: UnitState) => {
   const m = alive(t)[0] ?? t.models[0]
@@ -33,10 +35,11 @@ export function carryProblem(s: GameState, u: UnitState, t: UnitState): string |
   if (!spec) return tr('{name} is not a transport.', { name: quote(t.name) })
   if (t.owner !== u.owner) return tr('Only a friendly transport.')
   if (isTransport(u)) return tr('A transport cannot embark in another transport.')
-  if (!spec.keywords.every((k) => hasKeyword(u, k)) || (spec.exclude ?? []).some((k) => hasKeyword(u, k)))
+  const kinds = spec.keywords.every((k) => hasKeyword(u, k)) && (!spec.anyOf || spec.anyOf.some((set) => set.every((k) => hasKeyword(u, k))))
+  if (!kinds || (spec.exclude ?? []).some((k) => hasKeyword(u, k)))
     return tr('{transport} carries only {kinds}.', { transport: quote(t.name), kinds: spec.label })
   const free = spec.capacity - usedCapacity(s, t)
-  if (alive(u).length > free) return tr('Not enough room: {models} models, {free} places left of {capacity}.', { models: alive(u).length, free, capacity: spec.capacity })
+  if (placesOf(u, spec) > free) return tr('Not enough room: {models} models, {free} places left of {capacity}.', { models: placesOf(u, spec), free, capacity: spec.capacity })
   return null
 }
 

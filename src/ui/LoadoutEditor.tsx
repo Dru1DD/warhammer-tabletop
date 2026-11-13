@@ -1,5 +1,5 @@
 import { composeUnit, type ListEntry } from '../game/army/armyList'
-import { loadoutOf, loadoutProblems, WARGEAR, type Loadout } from '../game/army/wargear'
+import { composeLoadout, loadoutOf, loadoutProblems, WARGEAR, type Loadout } from '../game/army/wargear'
 import { PROFILES, WEAPONS } from '../game/data/datasheets'
 import { weaponAdvice, weaponReach } from '../game/weaponAdvice'
 import { tr } from '../i18n/index'
@@ -59,7 +59,23 @@ export function LoadoutEditor({ entry, onChange }: { entry: ListEntry; onChange:
           })}
         </fieldset>
       ))}
-      {spec.groups.length > 0 && (
+      {spec.slots?.map((sl) => (
+        <label key={sl.id} className="mt-1 block">
+          {sl.label}:{' '}
+          <select
+            className="input inline-block w-auto py-0.5 text-xs"
+            aria-label={sl.label}
+            value={current.slots?.[sl.id] ?? ''}
+            onChange={(e) => onChange({ ...current, slots: { ...current.slots, [sl.id]: e.target.value } })}
+          >
+            {sl.choices.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+          </select>
+        </label>
+      ))}
+      {spec.slots && (
+        <div className="mt-1 text-stone-400">{tr('Together:')}<VariantWeapons profile={composeLoadout(spec, entry.size, current)[0]} /></div>
+      )}
+      {spec.groups.length > 0 && !spec.slots && (
         <div className="mt-1 text-stone-400">{tr('The other {max}: {label}.', { max: Math.max(0, troopers - taken), label: spec.base.label })}<VariantWeapons profile={spec.base.profile} /></div>
       )}
       {problems.length > 0 && (

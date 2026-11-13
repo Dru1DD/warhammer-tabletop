@@ -1,11 +1,11 @@
 # Transports
 
-The transport rules of the 11th edition Core Rules (section 18, read on Wahapedia, 12.11.2026), with one transport so far: the **Skorpius Dunerider** (Adeptus Mechanicus). Discussed in Dru1DD/warhammer-tabletop#48.
+The transport rules of the 11th edition Core Rules (section 18, read on Wahapedia, 12.11.2026), first with the **Skorpius Dunerider** (Adeptus Mechanicus), discussed in Dru1DD/warhammer-tabletop#48. Since 13.11.2026 also the Rhino, Trukk, Battlewagon, Ghost Ark and Wave Serpent ([vehicles.md](vehicles.md)).
 
 Code: `src/game/rules/transports.ts`. Engine hooks in `src/game/engine.ts`: the `embark` and `disembark` commands, emergency disembarks after a command, empty Dedicated Transports at the start of the battle, Firing Deck in `shootPlan`.
 
 ## Capacity
-A datasheet with `transport` carries `capacity` models of units that have every keyword in `keywords` and none in `exclude` (`TransportSpec`). The Dunerider carries 12 Adeptus Mechanicus INFANTRY models, not JUMP PACK, KATAPHRON or SYDONIAN SKATROS ones. Several units can ride together while there is room.
+A datasheet with `transport` carries `capacity` models of units that have every keyword in `keywords` and none in `exclude` (`TransportSpec`). The Dunerider carries 12 Adeptus Mechanicus INFANTRY models, not JUMP PACK, KATAPHRON or SYDONIAN SKATROS ones. Several units can ride together while there is room. With `anyOf` the unit must also have every keyword of one of the listed sets (the Ghost Ark: NECRON WARRIORS, or INFANTRY and CHARACTER); models with a keyword in `double` take two places (a Wraithguard in a Wave Serpent).
 
 ## Before the battle
 The deployment panel has a «🚚 Transports» block:

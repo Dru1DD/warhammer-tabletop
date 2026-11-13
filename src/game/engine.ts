@@ -143,7 +143,9 @@ const lethalVs = (p: WeaponProfile, attacker: UnitState, target: UnitState) => {
 /** Defensive abilities of the target that modify the wound roll / damage. */
 function defenceMods(s: GameState, p: WeaponProfile, target: UnitState) {
   const t = Math.max(...alive(target).map((m) => profileOf(m).t))
+  // Duty Eternal (Redemptor), Wave Serpent Shield (ranged attacks only): −1 to wound when Strength beats Toughness
   const duty = hasAbility(target, 'dutyEternal') && p.s > t
+  const shield = !duty && hasAbility(target, 'waveSerpentShield') && p.range !== 'melee' && p.s > t
   const guard = !duty && hasAbility(target, 'guardianProtocols') && p.s > t && nobleLeads(s, target)
   // Rapid Regeneration: Feel No Pain 6+, or 5+ within Synapse Range, for the rest of the phase
   const regen = hasBuff(target, 'rapidRegeneration') ? (inSynapseRange(s, target) ? 5 : 6) : undefined
@@ -151,11 +153,13 @@ function defenceMods(s: GameState, p: WeaponProfile, target: UnitState) {
   const fnp = fnps.length ? Math.min(...fnps) : undefined
   // Baleful Halo: −1 to wound rolls; a roll is never modified by more than −1
   const halo = hasBuff(target, 'balefulHalo')
-  const woundNotes = [duty ? tr('Duty Eternal: Strength beats Toughness') : guard ? tr('Guardian Protocols: Strength beats Toughness') : '', halo ? tr('Sinister Halo') : ''].filter(Boolean)
+  const woundNotes = [duty ? tr('Duty Eternal: Strength beats Toughness') : shield ? tr('Wave Serpent Shield: Strength beats Toughness') : guard ? tr('Guardian Protocols: Strength beats Toughness') : '', halo ? tr('Sinister Halo') : ''].filter(Boolean)
+  // Mobile Fortress (Battlewagon): ranged attacks that target it have −1 Damage
+  const fortress = hasAbility(target, 'mobileFortress') && p.range !== 'melee'
   return {
-    woundMod: duty || guard || halo ? -1 : 0,
+    woundMod: duty || shield || guard || halo ? -1 : 0,
     woundModNote: woundNotes.length ? woundNotes.join(', ') : undefined,
-    damageMod: hasAbility(target, 'dreadArd') || hasAbility(target, 'implacableResilience') ? -1 : 0,
+    damageMod: hasAbility(target, 'dreadArd') || hasAbility(target, 'implacableResilience') || fortress ? -1 : 0,
     ...(fnp ? { fnp } : {}),
   }
 }
@@ -172,6 +176,13 @@ function rangedInvuln(s: GameState, target: UnitState): number | undefined {
   return v.length ? Math.min(...v) : undefined
 }
 
+/** Overwhelming Obliteration (Doomsday Ark): if it Remained Stationary in its own Movement phase, its doomsday cannon
+ * has Devastating Wounds until the end of the turn. */
+function obliteration(s: GameState, unit: UnitState, w: Weapon, p: WeaponProfile): WeaponProfile {
+  if (w.id !== 'doomsdayCannon' || !hasAbility(unit, 'overwhelmingObliteration') || s.activePlayer !== unit.owner || unit.move !== 'none') return p
+  return { ...p, keywords: { ...p.keywords, devastatingWounds: true } }
+}
+
 /** Implacable Eradication (Immortals): re-roll wound rolls of 1, or every failed one against a target within range of an objective. */
 function eradication(s: GameState, unit: UnitState, target: UnitState, notes: string[]): { rerollWounds?: 'ones' | 'all' } {
   if (!hasAbility(unit, 'implacableEradication')) return {}
@@ -181,9 +192,14 @@ function eradication(s: GameState, unit: UnitState, target: UnitState, notes: st
 }
 
 /** Doctrina Imperatives / Breaching Command / Galvanic Field: attacker-side modifiers shared by shooting and melee. */
-/** Damaged: 1–4 wounds remaining (Onager Dunecrawler): −1 to its hit rolls. */
+/** Damaged: 1–X wounds remaining (Onager Dunecrawler 1–4, Doomsday Ark 1–5, Battlewagon 1–6): −1 to its hit rolls. */
 export const DAMAGED_WOUNDS = 4
-export const isDamaged = (u: UnitState) => hasAbility(u, 'damaged1to4') && alive(u).some((m) => m.wounds <= DAMAGED_WOUNDS)
+export const damagedAt = (u: UnitState): number | null =>
+  hasAbility(u, 'damaged1to6') ? 6 : hasAbility(u, 'damaged1to5') ? 5 : hasAbility(u, 'damaged1to4') ? DAMAGED_WOUNDS : null
+export const isDamaged = (u: UnitState) => {
+  const x = damagedAt(u)
+  return x !== null && alive(u).some((m) => m.wounds <= x)
+}
 
 /** Every ranged weapon of the unit counts as Assault, so it may still shoot after an Advance. */
 export function assaultAll(s: GameState, unit: UnitState): boolean {
@@ -302,7 +318,7 @@ export function shootPlan(
       const key = `${w.id}:${idx}${bladestorm ? ':bs' : ''}${blitz ? ':bf' : ''}${tyrant ? ':ct' : ''}`
       let g = byKey.get(key)
       if (!g) {
-        g = { weaponName: w.name, profile: p, models: 0, attacks: 0, randomAttacks: 0, notes: bladestorm ? ['Bladestorm: Sustained Hits 1'] : [], sustainedHits: bladestorm ? Math.max(1, p.keywords.sustainedHits ?? 0) : undefined, ctx: { hitMod: 0, hitModNotes: [], skillWorsen: 0, lethalHits: false } }
+        g = { weaponName: w.name, profile: obliteration(s, unit, w, p), models: 0, attacks: 0, randomAttacks: 0, notes: bladestorm ? ['Bladestorm: Sustained Hits 1'] : [], sustainedHits: bladestorm ? Math.max(1, p.keywords.sustainedHits ?? 0) : undefined, ctx: { hitMod: 0, hitModNotes: [], skillWorsen: 0, lethalHits: false } }
         if (blitz) {
           if (g.sustainedHits ?? p.keywords.sustainedHits) g.notes.push(BLITZ_CRIT)
           else { g.sustainedHits = 1; g.notes.push('Blitzing Firepower: Sustained Hits 1') }
@@ -1203,7 +1219,7 @@ const aliveIds = (s: GameState) => new Set(s.units.flatMap((u) => alive(u).map((
  * on a 6 every unit within 6″ of it suffers X mortal wounds. No chain reactions. */
 function deadlyDemise(s: GameState, before: Set<string>, r: Roller) {
   for (const u of s.units) {
-    const x = hasAbility(u, 'deadlyDemiseD3') ? 'D3' : hasAbility(u, 'deadlyDemise1') ? 1 : null
+    const x = hasAbility(u, 'deadlyDemiseD6') ? 'D6' : hasAbility(u, 'deadlyDemiseD3') ? 'D3' : hasAbility(u, 'deadlyDemise1') ? 1 : null
     if (!x) continue
     for (const m of u.models) {
       if (!m.destroyed || !before.has(m.id)) continue
@@ -1212,7 +1228,7 @@ function deadlyDemise(s: GameState, before: Set<string>, r: Roller) {
         pushDice(s, `Deadly Demise: ${u.name}`, [{ label: 'D6', target: '6', dice: [{ value: v, success: false }], note: tr('A knocked-out vehicle explodes only on a 6.') }], tr('{name}: the wreck did not explode.', { name: u.name }))
         continue
       }
-      const n = x === 'D3' ? rollDie(r, 'D3') : x
+      const n = typeof x === 'string' ? rollDie(r, x) : x
       const victims = s.units.filter((o) => !isDestroyed(o) && alive(o).some((om) => withinRange(modelDistance(m, om), 6)))
       pushDice(s, `Deadly Demise: ${u.name}`, [{ label: 'D6', target: '6', dice: [{ value: v, success: true }], note: tr('Explosion: {n} mortal wounds to each unit within 6″.', { n }) }], tr('{name} explodes: {value}.', { name: u.name, value: victims.map((o) => o.name).join(', ') || tr('nobody nearby') }))
       for (const o of victims) applyMortalWounds(s, o, n, tr('explosion of {name} (Deadly Demise)', { name: u.name }))
@@ -1974,7 +1990,7 @@ function applyStratagem(s: GameState, cmd: Extract<Command, { type: 'stratagem' 
   ;(s.players[me].stratagemsThisPhase ??= []).push(cmd.id)
   ;(s.players[me].stratagemUnitsThisPhase ??= []).push(u.id)
   addLog(s, (showOfficialName ? tr('{item}: Stratagem “{name}” ({nameEn}) — {name2}, −{cost} CP.', { item: FACTION_NAME[me], name: info.name, nameEn: info.nameEn, name2: u.name, cost: info.cost }) : tr('{item}: Stratagem “{name}” — {name2}, −{cost} CP.', { item: FACTION_NAME[me], name: info.name, name2: u.name, cost: info.cost })), 'minimal')
-  if (hasAbility(u, 'dataTether')) {
+  if (hasAbility(u, 'dataTether') || hasWargear(u, 'dataTether')) {
     const v = r.d6()
     if (v >= DATA_TETHER_ROLL) s.players[me].cp++
     pushDice(s, tr('Data-tether: {name}', { name: u.name }), [{ label: 'D6', target: `${DATA_TETHER_ROLL}+`, dice: [{ value: v, success: v >= DATA_TETHER_ROLL }] }], v >= DATA_TETHER_ROLL ? tr('{name}: Data-tether — +1 CP.', { name: u.name }) : tr('{name}: Data-tether — no CP returned.', { name: u.name }))

@@ -90,7 +90,6 @@ Four more datasheets for the army builder, transcribed from Wahapedia on 12.11.2
 **Not modelled:**
 
 - Scuttling Walker (moving through terrain up to 4″ high; terrain has no height here);
-- the Onager's optional extra heavy stubber and data-tether;
 - the lascannon's +10 points.
 
 Oval bases are drawn as round ones: Sulphurhounds 50 mm, Ironstriders 90 mm. Each model has its own blueprint portrait (`src/assets/tokenArt.ts`).

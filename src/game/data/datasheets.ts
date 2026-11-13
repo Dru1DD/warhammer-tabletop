@@ -1,3 +1,4 @@
+import { slotCombos, slotProfileId, times, VEHICLE_ABILITY_TEXT, VEHICLE_DATASHEETS, VEHICLE_PROFILES, VEHICLE_SLOTS, VEHICLE_WEAPONS } from './vehicles'
 import { WARGEAR_VARIANTS, WARGEAR_WEAPONS } from './wargearExtra'
 import type { Datasheet, ModelProfile, PlayerId, Weapon } from '../types'
 import { AELDARI_ABILITY_TEXT, AELDARI_DATASHEETS, AELDARI_PROFILES, AELDARI_WEAPONS } from './aeldari'
@@ -240,16 +241,35 @@ const CORE_ABILITY_TEXT: Record<string, string> = {
   waaagh: tr('Waaagh! (army rule): re-roll the Advance roll; once per battle — “Battle Cry”: until the end of the next turn the unit is “enraged” — 5+ invulnerable save, ranged weapons get Assault, it can charge after advancing.'),
 }
 
-export const WEAPONS: Record<string, Weapon> = { ...WARGEAR_WEAPONS, ...CORE_WEAPONS, ...TYRANID_WEAPONS, ...NECRON_WEAPONS, ...AELDARI_WEAPONS, ...MECHANICUS_WEAPONS, ...ORK_WEAPONS, ...MARINE_WEAPONS, ...TYRANID_EXTRA_WEAPONS, ...NECRON_EXTRA_WEAPONS, ...AELDARI_EXTRA_WEAPONS }
-export const PROFILES: Record<string, ModelProfile> = { ...CORE_PROFILES, ...TYRANID_PROFILES, ...NECRON_PROFILES, ...AELDARI_PROFILES, ...MECHANICUS_PROFILES, ...ORK_PROFILES, ...MARINE_PROFILES, ...TYRANID_EXTRA_PROFILES, ...NECRON_EXTRA_PROFILES, ...AELDARI_EXTRA_PROFILES }
+export const WEAPONS: Record<string, Weapon> = { ...WARGEAR_WEAPONS, ...CORE_WEAPONS, ...TYRANID_WEAPONS, ...NECRON_WEAPONS, ...AELDARI_WEAPONS, ...MECHANICUS_WEAPONS, ...ORK_WEAPONS, ...MARINE_WEAPONS, ...TYRANID_EXTRA_WEAPONS, ...NECRON_EXTRA_WEAPONS, ...AELDARI_EXTRA_WEAPONS, ...VEHICLE_WEAPONS }
+export const PROFILES: Record<string, ModelProfile> = { ...CORE_PROFILES, ...TYRANID_PROFILES, ...NECRON_PROFILES, ...AELDARI_PROFILES, ...MECHANICUS_PROFILES, ...ORK_PROFILES, ...MARINE_PROFILES, ...TYRANID_EXTRA_PROFILES, ...NECRON_EXTRA_PROFILES, ...AELDARI_EXTRA_PROFILES, ...VEHICLE_PROFILES }
 // wargear variants (army builder loadouts): an existing profile with other weapons
 for (const x of WARGEAR_VARIANTS) {
   const base = PROFILES[x.from]
   if (!base) throw new Error(`Wargear variant "${x.id}": no profile "${x.from}".`)
   PROFILES[x.id] = { ...base, id: x.id, name: x.name, weapons: x.weapons, ...(x.invuln ? { invuln: x.invuln } : {}), ...(x.w ? { w: x.w } : {}) }
 }
-export const DATASHEETS: Record<string, Datasheet> = { ...CORE_DATASHEETS, ...TYRANID_DATASHEETS, ...NECRON_DATASHEETS, ...AELDARI_DATASHEETS, ...MECHANICUS_DATASHEETS, ...ORK_DATASHEETS, ...MARINE_DATASHEETS, ...TYRANID_EXTRA_DATASHEETS, ...NECRON_EXTRA_DATASHEETS, ...AELDARI_EXTRA_DATASHEETS }
-export const ABILITY_TEXT: Record<string, string> = { ...CORE_ABILITY_TEXT, ...TYRANID_ABILITY_TEXT, ...NECRON_ABILITY_TEXT, ...AELDARI_ABILITY_TEXT, ...MECHANICUS_ABILITY_TEXT, ...ORK_ABILITY_TEXT, ...MARINE_ABILITY_TEXT, ...TYRANID_EXTRA_ABILITY_TEXT, ...NECRON_EXTRA_ABILITY_TEXT, ...AELDARI_EXTRA_ABILITY_TEXT }
+// optional wargear of single-model vehicles (vehicles.ts VEHICLE_SLOTS): every combination of choices on every base profile;
+// the same weapon twice becomes one weapon with twice the attacks (Onager: neutron laser's stubber and the additional one)
+for (const v of Object.values(VEHICLE_SLOTS))
+  for (const b of v.bases)
+    for (const combo of slotCombos(v.slots).slice(1)) {
+      const base = PROFILES[b]
+      if (!base) throw new Error(`Wargear slots: no profile "${b}".`)
+      const ids = [...base.weapons.filter((x) => !combo.some((c) => c.remove?.includes(x))), ...combo.flatMap((c) => c.add ?? [])]
+      const weapons = [...new Set(ids)].map((x) => {
+        const n = ids.filter((y) => y === x).length
+        if (n === 1) return x
+        const many = times(WEAPONS[x], n)
+        WEAPONS[many.id] ??= many
+        return many.id
+      })
+      const wargear = [...(base.wargear ?? []), ...combo.flatMap((c) => c.wargear ?? [])]
+      const id = slotProfileId(b, combo)
+      PROFILES[id] = { ...base, id, weapons, ...(wargear.length ? { wargear } : {}) }
+    }
+export const DATASHEETS: Record<string, Datasheet> = { ...CORE_DATASHEETS, ...TYRANID_DATASHEETS, ...NECRON_DATASHEETS, ...AELDARI_DATASHEETS, ...MECHANICUS_DATASHEETS, ...ORK_DATASHEETS, ...MARINE_DATASHEETS, ...TYRANID_EXTRA_DATASHEETS, ...NECRON_EXTRA_DATASHEETS, ...AELDARI_EXTRA_DATASHEETS, ...VEHICLE_DATASHEETS }
+export const ABILITY_TEXT: Record<string, string> = { ...CORE_ABILITY_TEXT, ...TYRANID_ABILITY_TEXT, ...NECRON_ABILITY_TEXT, ...AELDARI_ABILITY_TEXT, ...MECHANICUS_ABILITY_TEXT, ...ORK_ABILITY_TEXT, ...MARINE_ABILITY_TEXT, ...TYRANID_EXTRA_ABILITY_TEXT, ...NECRON_EXTRA_ABILITY_TEXT, ...AELDARI_EXTRA_ABILITY_TEXT, ...VEHICLE_ABILITY_TEXT }
 
 export const FACTION_NAME: Record<PlayerId, string> = {
   marines: tr('Space Marines'),

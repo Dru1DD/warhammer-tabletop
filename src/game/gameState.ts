@@ -50,7 +50,10 @@ export const datasheetOf = (u: UnitState) => DATASHEETS[u.datasheetId]
 export const hasAbility = (u: UnitState, a: string) => datasheetOf(u).abilities.includes(a as never)
 export const alive = (u: UnitState) => u.models.filter((m) => !m.destroyed)
 
-export const hasKeyword = (u: UnitState, ...k: string[]) => datasheetOf(u).keywords.some((x) => k.includes(x))
+/** The unit's keywords: its datasheet's, without SMOKE when a model carries a broad spectrum data-tether (Onager). */
+export const unitKeywords = (u: UnitState): string[] =>
+  hasWargear(u, 'dataTether') ? datasheetOf(u).keywords.filter((k) => k !== 'SMOKE') : datasheetOf(u).keywords
+export const hasKeyword = (u: UnitState, ...k: string[]) => unitKeywords(u).some((x) => k.includes(x))
 /** MONSTER or VEHICLE: Lethal Hits "non-M/V", cover, engaged shooting and movement differ. */
 export const isMV = (u: UnitState) => hasKeyword(u, 'MONSTER', 'VEHICLE')
 /** SWARM models are treated like INFANTRY for terrain and cover (13.06, 13.08). */
