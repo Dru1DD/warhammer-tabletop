@@ -4,6 +4,7 @@ import { basesOverlap, dist, edgeDistance, EPS, pointInPolygon } from '../geomet
 import { formation } from '../army/placement'
 import { addLog, alive, checkCoherency, hasAbility, other, profileOf, radiusOf, sidesOf, unitsOf } from '../gameState'
 import { terrainBlock } from './movement'
+import { destroyPassengers, passengersOf } from './transports'
 import type { GameState, PlayerId, UnitState, Vec } from '../types'
 import { quote, tr } from '../../i18n/index'
 
@@ -27,15 +28,17 @@ export const canDeepStrike = (u: UnitState) => hasAbility(u, 'deepStrike')
 
 /** The army's whole cost (on the board and in reserve) and the cost of its reserves. */
 export function reserveBudget(s: GameState, p: PlayerId): { army: number; reserved: number; limit: number } {
-  const all = [...s.units, ...(s.reserves ?? [])].filter((u) => u.owner === p)
+  const all = [...s.units, ...(s.reserves ?? []), ...(s.embarked ?? [])].filter((u) => u.owner === p)
   const army = armyPoints(all).points
-  const reserved = reservesOf(s, p).reduce((a, u) => a + unitPoints(u.datasheetId, u.startingModels, copyIndex(all, u)).points, 0)
+  // units embarked in a transport in reserve count too
+  const inReserve = reservesOf(s, p).flatMap((t) => [t, ...passengersOf(s, t.id)])
+  const reserved = inReserve.reduce((a, u) => a + unitPoints(u.datasheetId, u.startingModels, copyIndex(all, u)).points, 0)
   return { army, reserved, limit: Math.floor(army * RESERVE_SHARE) }
 }
 
 /** Why this unit cannot go into Strategic Reserves (before the battle), or null. */
 export function reserveProblem(s: GameState, u: UnitState): string | null {
-  const all = [...s.units, ...(s.reserves ?? [])].filter((x) => x.owner === u.owner)
+  const all = [...s.units, ...(s.reserves ?? []), ...(s.embarked ?? [])].filter((x) => x.owner === u.owner)
   const { reserved, limit } = reserveBudget(s, u.owner)
   const cost = unitPoints(u.datasheetId, u.startingModels, copyIndex(all, u)).points
   if (reserved + cost > limit) return tr('Reserves hold at most half of the army’s points: {reserved} + {cost} > {limit}.', { reserved, cost, limit })
@@ -108,6 +111,7 @@ export function arrive(s: GameState, unitId: string, positions: Record<string, V
   for (const m of u.models) if (positions[m.id]) m.pos = { ...positions[m.id] }
   u.move = 'normal'
   u.movedDistance = INGRESS_EDGE
+  u.setUpThisTurn = true
   s.units.push(u)
   if (rapid) {
     s.players[u.owner].cp -= RAPID_INGRESS_CP
@@ -122,6 +126,7 @@ export function expireReserves(s: GameState) {
   if (!s.reserves?.length || s.round < RESERVE_DEADLINE) return
   for (const u of s.reserves) {
     for (const m of u.models) m.destroyed = true
+    destroyPassengers(s, u)
     s.units.push(u)
     addLog(s, tr('{faction}: {name} never came out of Reserves by the end of round {round} — the unit is destroyed.', { faction: FACTION_NAME[u.owner], name: quote(u.name), round: RESERVE_DEADLINE }), 'minimal')
   }

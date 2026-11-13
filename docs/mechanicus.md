@@ -66,6 +66,10 @@ Roles (what makes the units different):
 | Tech-Priest Dominus | Support in the front line: Feel No Pain 5+ for the unit he leads, Data-spike against vehicles, Omnissian axe in melee. |
 | Tech-Priest Manipulus | Fire support: magnarail lance (36″, Heavy), Lethal Hits for the unit he leads, once-per-battle 4+ invulnerable save. |
 
+## Transport: Skorpius Dunerider
+
+75 points (from the 4th unit: 85). M12″, T9, Sv 3+, W11, OC2. Cognis heavy stubber array (36″, 9 attacks, Rapid Fire 9, Sustained Hits 1, Twin-linked) and armoured hull. Carries 12 Adeptus Mechanicus INFANTRY models (no Kataphrons). Firing Deck 2, Data-tether, Deadly Demise D3; Fire Support is not implemented. The transport rules are in [transports.md](transports.md).
+
 ## Added units (12.11.2026)
 
 Four more datasheets for the army builder, transcribed from Wahapedia on 12.11.2026. The presets and the training roster do not change, so the AI fingerprints stay the same.

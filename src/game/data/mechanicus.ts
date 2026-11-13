@@ -248,6 +248,15 @@ export const MECHANICUS_WEAPONS: Record<string, Weapon> = {
     id: 'electrostaticGauntlets', name: tr('Electrostatic Gauntlets'),
     profiles: [{ name: '', range: 'melee', attacks: 3, skill: 4, s: 5, ap: 0, d: 1, keywords: { sustainedHits: 2 } }],
   },
+  // ---- Skorpius Dunerider
+  cognisHeavyStubberArray: {
+    id: 'cognisHeavyStubberArray', name: tr('Cognis Heavy Stubber Array'),
+    profiles: [{ name: '', range: 36, attacks: 9, skill: 4, s: 4, ap: 0, d: 1, keywords: { rapidFire: 9, sustainedHits: 1, twinLinked: true } }],
+  },
+  armouredHull: {
+    id: 'armouredHull', name: tr('Armoured Hull'),
+    profiles: [{ name: '', range: 'melee', attacks: 3, skill: 4, s: 6, ap: 0, d: 1, keywords: {} }],
+  },
 }
 
 const skitarii = { m: 6, t: 3, sv: 4, w: 1, ld: 7, oc: 2, invuln: 5, baseMm: 25 }
@@ -324,6 +333,8 @@ export const MECHANICUS_PROFILES: Record<string, ModelProfile> = {
   onagerNeutron: { id: 'onagerNeutron', name: tr('Onager with neutron laser'), ...onager, weapons: ['neutronLaser', 'cognisHeavyStubber', 'dunecrawlerLegs'] },
   onagerPhosphor: { id: 'onagerPhosphor', name: tr('Onager with phosphor blaster'), ...onager, weapons: ['twinOnagerPhosphor', 'dunecrawlerLegs'] },
   // Corpuscarii Electro-Priests
+  // Skorpius Dunerider: a FRAME vehicle without a base, drawn as a round 105 mm one
+  dunerider: { id: 'dunerider', name: tr('Skorpius Dunerider'), m: 12, t: 9, sv: 3, w: 11, ld: 7, oc: 2, baseMm: 105, weapons: ['cognisHeavyStubberArray', 'armouredHull'] },
   electroPriest: { id: 'electroPriest', name: tr('Corpuscarii Electro-Priest'), m: 6, t: 3, sv: 7, w: 1, ld: 7, oc: 1, invuln: 5, baseMm: 32, weapons: ['electrostaticGauntletsRanged', 'electrostaticGauntlets'] },
 }
 
@@ -402,6 +413,13 @@ export const MECHANICUS_DATASHEETS: Record<string, Datasheet> = {
     abilities: ['doctrina', 'ledUnit', 'feelNoPain5', 'electroShock'],
     description: tr('Fanatics with lightning in their hands: gauntlets at 12″ and in melee with Sustained Hits 2; the discharge slows enemy infantry.'),
   },
+  dunerider: {
+    id: 'dunerider', name: tr('Skorpius Dunerider'), faction: 'adeptus_mechanicus',
+    keywords: ['VEHICLE', 'TRANSPORT', 'DEDICATED TRANSPORT', 'IMPERIUM', 'FRAME', 'SKITARII', 'SMOKE', 'SKORPIUS DUNERIDER', AM],
+    abilities: ['doctrina', 'deadlyDemiseD3', 'firingDeck', 'dataTether', 'fireSupport'],
+    description: tr('Skimmer transport: carries up to 12 Mechanicus infantry fast (M12″); two passengers shoot from its Firing Deck.'),
+    transport: { capacity: 12, keywords: ['INFANTRY', AM], exclude: ['JUMP PACK', 'KATAPHRON', 'SYDONIAN SKATROS'], label: tr('Adeptus Mechanicus INFANTRY (no Kataphrons)'), firingDeck: 2 },
+  },
 }
 
 export const MECHANICUS_ABILITY_TEXT: Record<string, string> = {
@@ -423,6 +441,8 @@ export const MECHANICUS_ABILITY_TEXT: Record<string, string> = {
   scouts: tr('Scouts 6″: pre-battle move of up to 6″. [Not implemented: there is no pre-battle movement.]'),
   lineBreakers: tr('Line-breakers: when the unit ends a charge move, pick an enemy in engagement range and roll a D6 for each of its models in contact with it; +2 to the roll if the charge started within 6″ of a friendly Adeptus Mechanicus BATTLELINE unit. Each 4+ is a mortal wound.'),
   elevatedStrider: tr('Elevated Strider: the unit can shoot in a turn when it Advanced or fell back. [Re-rolling Desperate Escape tests is not needed: the game has none.]'),
+  firingDeck: tr('Firing Deck 2: when this transport shoots, up to 2 embarked models each fire one ranged weapon with it (measured from the transport).'),
+  fireSupport: tr('Fire Support: after this transport shoots, units that disembarked from it this turn may re-roll wound rolls against a unit it hit. [Not implemented yet.]'),
   dataTether: tr('Broad Spectrum Data-tether: when a Stratagem is used on this unit, roll a D6; on a 5+ you get 1 CP.'),
   emanatusForceField: tr('Emanatus Force Field (6″ aura): friendly Adeptus Mechanicus BATTLELINE models within 6″ get a 4+ invulnerable save against ranged attacks.'),
   scuttlingWalker: tr('Scuttling Walker: when making a Normal move, Advancing or falling back, it can move through friendly Monsters and Vehicles and through terrain up to 4″ high. [Not implemented: the game has no terrain heights.]'),

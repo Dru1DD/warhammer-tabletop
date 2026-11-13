@@ -13,6 +13,7 @@ import { DOCTRINE_NAME, HYPER_NAME } from '../rules/detachments'
 import { moveProblem, planMove } from '../rules/movement'
 import { EXPLOSIVES_DICE, STRATAGEMS } from '../rules/stratagems'
 import { aiArrivalTarget, arrivalSpot, canDeepStrike, reservesOf } from '../rules/reserves'
+import { disembarkSpot, embarkedOf } from '../rules/transports'
 import { aiDiscards, SECONDARY, secondaryGoals } from '../rules/secondaries'
 import { inTerritory, MISSION_ACTION, objectiveWorth, PRIMARY, SABOTAGE_TERRITORY_BONUS } from '../rules/missions'
 import { reactionAdvice } from '../reactionAdvice'
@@ -499,6 +500,10 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
       return end(tr('{fac}: Command phase finished.', { fac }))
     }
     case 'movement': {
+      for (const u of embarkedOf(s, me)) {
+        const pos = disembarkSpot(s, u, aiArrivalTarget(s, me))
+        if (pos) return { cmd: { type: 'disembark', unitId: u.id, positions: pos }, explanation: tr('{faction}: {name} gets out of its transport.', { faction: fac, name: quote(u.name) }) }
+      }
       for (const u of mine) {
         if (u.move !== 'none') continue
         const mode = moveModeFor(s, u)
