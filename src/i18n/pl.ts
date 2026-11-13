@@ -2107,6 +2107,7 @@ const catalog: Catalog = {
   "Thunder Hammer": "Młot gromu (Thunder Hammer)",
   "Tide of Muscle: if the unit charged this turn, its melee attacks have Lethal Hits.": "Fala mięśni (Tide of Muscle): jeśli oddział szarżował w tej turze, jego ataki wręcz mają Lethal Hits.",
   "Tipping Point": "Punkt zwrotny",
+  "To fix just one model, switch to “One model at a time” and drag it.": "Aby poprawić jeden model, włącz „Po jednym modelu” i przeciągnij go.",
   "To the nearest objective ({cp} CP)": "Do najbliższego celu ({cp} CP)",
   "To “{name}”: {fmt}″ (from the base edge)": "Do „{name}”: {fmt}″ (od krawędzi podstawki)",
   "Torrent: all {attacks} attacks hit automatically.": "Torrent: wszystkie {attacks} ataków trafia automatycznie.",
