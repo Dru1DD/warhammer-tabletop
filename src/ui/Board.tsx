@@ -1,5 +1,5 @@
-import type Konva from 'konva'
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import Konva from 'konva'
+import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Circle, Ellipse, Group, Image as KImage, Layer, Line, Rect, Stage, Text } from 'react-konva'
 import { BOARD_STYLE, FACTION_LINE, FACTION_STYLE, TERRAIN_STYLE, TOKENS, tokenImageFor } from '../assets/manifest'
 import { boxOf, fitBox, withBox, type Box } from '../game/terrainLayout'
@@ -17,6 +17,7 @@ import { movePreview, type MovePreview } from '../game/movePreview'
 import { adviceLine, adviceWarnings, shotAdvice } from '../game/shotAdvice'
 import { chargeForecast, forecastLine } from '../game/chargeAdvice'
 import { tr } from '../i18n/index'
+import { casualties, moveSeconds, reducedMotion, type Casualty } from '../view/animation'
 
 const flat = (pts: Vec[]) => pts.flatMap((p) => [p.x, p.y])
 
@@ -506,6 +507,56 @@ function ModelTooltip({ hover, view, width }: { hover: Hover; view: Viewport; wi
 
 // ---------------------------------------------------------------- canvas
 
+/** The round token of a model (base, art or label, faction ring); shared by live models and casualty ghosts. */
+function TokenFace({ m, owner, flip, img }: { m: ModelState; owner: UnitState['owner']; flip: boolean; img?: HTMLImageElement }) {
+  const r = radiusOf(m)
+  const tok = TOKENS[m.profileId]
+  return (
+    <>
+      <Circle radius={r} fill={tok.fill} shadowColor="black" shadowBlur={0.25} shadowOpacity={0.6} shadowOffsetY={0.05} />
+      {img ? (
+        <Group clipFunc={(ctx) => ctx.arc(0, 0, r - 0.05, 0, Math.PI * 2)} listening={false}>
+          <KImage image={img} x={flip ? r : -r} y={-r} width={r * 2} height={r * 2} scaleX={flip ? -1 : 1} />
+        </Group>
+      ) : (
+        <Text text={tok.label} fontSize={r * 0.75} fontStyle="bold" fill={tok.text} width={r * 2} height={r * 2} x={-r} y={-r} align="center" verticalAlign="middle" listening={false} />
+      )}
+      <Circle radius={r} stroke={FACTION_LINE[owner]} strokeWidth={0.06} listening={false} />
+    </>
+  )
+}
+
+/** A model that has just been destroyed: it stays on the table until its turn, then flashes and shrinks away. */
+function CasualtyGhost({ c, flip, img, setGhosts }: { c: Casualty; flip: boolean; img?: HTMLImageElement; setGhosts: React.Dispatch<React.SetStateAction<Casualty[]>> }) {
+  const group = useRef<Konva.Group>(null)
+  const ring = useRef<Konva.Circle>(null)
+  useEffect(() => {
+    const tweens: Konva.Tween[] = []
+    const t = setTimeout(() => {
+      const node = group.current
+      if (!node) return
+      ring.current?.opacity(1)
+      const pop = new Konva.Tween({
+        node, duration: 0.1, scaleX: 1.2, scaleY: 1.2,
+        onFinish: () => {
+          const gone = new Konva.Tween({ node, duration: 0.28, scaleX: 0.3, scaleY: 0.3, opacity: 0, easing: Konva.Easings.EaseIn, onFinish: () => setGhosts((g) => g.filter((x) => x !== c)) })
+          tweens.push(gone)
+          gone.play()
+        },
+      })
+      tweens.push(pop)
+      pop.play()
+    }, c.delay)
+    return () => { clearTimeout(t); tweens.forEach((x) => x.destroy()) }
+  }, [c, setGhosts])
+  return (
+    <Group ref={group} x={c.pos.x} y={c.pos.y} listening={false}>
+      <TokenFace m={c.model} owner={c.owner} flip={flip} img={img} />
+      <Circle ref={ring} radius={radiusOf(c.model) + 0.12} stroke="#ef4444" strokeWidth={0.14} opacity={0} />
+    </Group>
+  )
+}
+
 function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameState; view: Viewport; stageRef: React.RefObject<Konva.Stage | null>; setHover: (h: Hover | null) => void; sight: Sight | null }) {
   const st = useStore()
   // turn plan: primary VP at stake on each objective, for the human
@@ -528,6 +579,49 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
   const profileIds = [...new Set(game.units.flatMap((u) => u.models.map((m) => m.profileId)))]
   const imageUrls = profileIds.map((id) => tokenImageFor(id, st.customTokens)).filter((x): x is string => !!x)
   const images = useImages(imageUrls)
+
+  // casualties stay on the table as ghosts and fall one after another (see CasualtyGhost)
+  const [seen, setSeen] = useState(game)
+  const [ghosts, setGhosts] = useState<Casualty[]>([])
+  if (seen !== game) {
+    setSeen(game)
+    const dead = reducedMotion() ? [] : casualties(seen, game)
+    if (dead.length) setGhosts((g) => [...g, ...dead])
+  }
+
+  // models slide to their new place instead of jumping: the node is put back where it was seen last and tweened
+  const nodes = useRef(new Map<string, Konva.Group>())
+  const motion = useRef({ gid: undefined as string | undefined, last: new Map<string, Vec>(), shown: new Map<string, Vec>(), tweens: new Map<string, Konva.Tween>() })
+  const gameId = st.match?.gameId
+  useLayoutEffect(() => {
+    const mo = motion.current
+    if (mo.gid !== gameId) { mo.gid = gameId; mo.last.clear(); mo.shown.clear() }
+    const still = !!deploying || reducedMotion()
+    for (const u of game.units)
+      for (const m of alive(u)) {
+        const to = st.draft[m.id] ?? m.pos
+        const prev = mo.last.get(m.id)
+        mo.last.set(m.id, to)
+        if (prev && prev.x === to.x && prev.y === to.y) continue
+        mo.tweens.get(m.id)?.destroy()
+        mo.tweens.delete(m.id)
+        const from = mo.shown.get(m.id) ?? prev
+        mo.shown.set(m.id, to)
+        const node = nodes.current.get(m.id)
+        // dragging (a draft) moves the node itself; arrivals have nowhere to slide from
+        if (!node || !from || still || st.draft[m.id]) continue
+        const d = dist(from, to)
+        if (d < 0.01) continue
+        node.position(from)
+        mo.tweens.set(m.id, new Konva.Tween({
+          node, x: to.x, y: to.y, duration: moveSeconds(d), easing: Konva.Easings.EaseInOut,
+          onUpdate: () => mo.shown.set(m.id, node.position()),
+          onFinish: () => { mo.tweens.delete(m.id); mo.shown.set(m.id, to) },
+        }))
+        mo.tweens.get(m.id)!.play()
+      }
+  })
+  useEffect(() => () => motion.current.tweens.forEach((t) => t.destroy()), [])
 
   const canDrag = (u: UnitState) =>
     !st.measuring && u.owner === human && sel?.id === u.id && (deploying ? true : myTurn && game.phase === 'movement' && u.move === 'none')
@@ -618,12 +712,10 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
     return alive(u).map((m) => {
       const r = radiusOf(m)
       const pos = st.draft[m.id] ?? m.pos
-      const tok = TOKENS[m.profileId]
       const p = profileOf(m)
       const selected = sel?.id === u.id
       const moved = dist(pos, m.pos) > 0.01
       const img = images[tokenImageFor(m.profileId, st.customTokens) ?? '']
-      const ring = FACTION_LINE[u.owner]
       // built-in art faces east (+x); the army on the east side is flipped so both armies face each other (user photos are never flipped)
       const flip = sidesOf(game)[1] === u.owner && !st.customTokens[m.profileId]
       return (
@@ -640,6 +732,7 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
             </>
           )}
           <Group
+            ref={(n) => { if (n) nodes.current.set(m.id, n); else nodes.current.delete(m.id) }}
             x={pos.x}
             y={pos.y}
             draggable={draggable}
@@ -667,15 +760,7 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
             {sightOf.get(u.id)?.far && <Circle radius={r + 0.22} stroke="#fbbf24" strokeWidth={0.07} dash={[0.12, 0.12]} listening={false} />}
             {sightOf.get(u.id)?.threat && <Circle radius={r + 0.42} stroke="#f43f5e" strokeWidth={0.06} dash={[0.08, 0.1]} listening={false} />}
             <Group opacity={unplaced && !moved ? 0.75 : 1}>
-            <Circle radius={r} fill={tok.fill} shadowColor="black" shadowBlur={0.25} shadowOpacity={0.6} shadowOffsetY={0.05} />
-            {img ? (
-              <Group clipFunc={(ctx) => ctx.arc(0, 0, r - 0.05, 0, Math.PI * 2)} listening={false}>
-                <KImage image={img} x={flip ? r : -r} y={-r} width={r * 2} height={r * 2} scaleX={flip ? -1 : 1} />
-              </Group>
-            ) : (
-              <Text text={tok.label} fontSize={r * 0.75} fontStyle="bold" fill={tok.text} width={r * 2} height={r * 2} x={-r} y={-r} align="center" verticalAlign="middle" listening={false} />
-            )}
-            <Circle radius={r} stroke={ring} strokeWidth={0.06} listening={false} />
+            <TokenFace m={m} owner={u.owner} flip={flip} img={img} />
             {p.w > 1 && (
               <Group x={0} y={r + 0.12} listening={false}>
                 <Rect x={-0.42} y={-0.2} width={0.84} height={0.36} fill={m.wounds < p.w ? '#b91c1c' : '#111827'} cornerRadius={0.1} opacity={0.9} />
@@ -820,6 +905,7 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
       </Layer>
       <Layer>
         {unitsRendered}
+        {ghosts.map((c) => <CasualtyGhost key={c.model.id} c={c} flip={sidesOf(game)[1] === c.owner && !st.customTokens[c.model.profileId]} img={images[tokenImageFor(c.model.profileId, st.customTokens) ?? '']} setGhosts={setGhosts} />)}
         {measureNode}
       </Layer>
     </>
