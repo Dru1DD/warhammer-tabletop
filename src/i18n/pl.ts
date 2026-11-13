@@ -2964,6 +2964,7 @@ const catalog: Catalog = {
   "{name}: the unit is destroyed.": "{name}: oddział zniszczony.",
   "{name}: the unit’s model bases overlap each other.": "{name}: podstawki modeli oddziału nachodzą na siebie.",
   "{name}: the unit’s model bases overlap.": "{name}: podstawki modeli oddziału nachodzą na siebie.",
+  "{name}: the way around “{terrain}” is {fmt}\", more than the allowed {fmt2}\".": "{name}: obejście „{terrain}” to {fmt}\", więcej niż dozwolone {fmt2}\".",
   "{name}: the wreck did not explode.": "{name}: wrak nie wybuchł.",
   "{name}: you cannot end a move in engagement range ({ENGAGEMENT_RANGE}\") of the enemy.": "{name}: nie można kończyć ruchu w zasięgu walki (engagement range, {ENGAGEMENT_RANGE}\") z wrogiem.",
   "{name}: you cannot enter engagement range of a unit that is not the target.": "{name}: nie można wejść w zasięg walki z oddziałem, który nie jest celem.",

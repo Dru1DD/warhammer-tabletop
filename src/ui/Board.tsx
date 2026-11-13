@@ -8,6 +8,7 @@ import { baseRadius, dist, edgeDistance, withinRange } from '../game/geometry/ge
 import { alive, CHARGE_RANGE, findUnit, fmt, hasAbility, isFlyer, modelDistance, OBJECTIVE_MARKER_MM, OBJECTIVE_RANGE, profileOf, radiusOf, sidesOf, weaponsOf } from '../game/gameState'
 import type { Command, GameState, ModelState, Terrain, UnitState, Vec } from '../game/types'
 import { useStore } from '../store'
+import { movePath } from '../game/rules/movement'
 import { objectiveStakes } from '../game/missionAdvice'
 import { passengersOf } from '../game/rules/transports'
 import { clampToRadius, fitBoard, screenToWorld, worldToScreen, zoomAt, type Viewport } from '../view/transform'
@@ -622,6 +623,8 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
       const p = profileOf(m)
       const selected = sel?.id === u.id
       const moved = dist(pos, m.pos) > 0.01
+      // the way the model goes: straight, or around dense terrain it may not cross (its move is the detour's length)
+      const way = moved && !deploying ? movePath(game, u, r, m.pos, pos, st.moveOptions.fly) ?? { points: [m.pos, pos], length: dist(m.pos, pos) } : { points: [m.pos, pos], length: dist(m.pos, pos) }
       const img = images[tokenImageFor(m.profileId, st.customTokens) ?? '']
       const ring = FACTION_LINE[u.owner]
       // built-in art faces east (+x); the army on the east side is flipped so both armies face each other (user photos are never flipped)
@@ -634,9 +637,8 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
           {moved && (
             <>
               <Circle x={m.pos.x} y={m.pos.y} radius={r} stroke="#ffffff" strokeWidth={0.05} dash={[0.15, 0.1]} opacity={0.6} listening={false} />
-              <Line points={flat([m.pos, pos])} stroke="#ffffff" strokeWidth={0.05} dash={[0.2, 0.1]} listening={false} />
-              {!deploying && <Text x={m.pos.x - 1} y={m.pos.y - r - 0.5} width={2} align="center" text={tr('{fmt}″ of {fmt2}″', { fmt: fmt(dist(m.pos, pos)), fmt2: fmt(max) })} fontSize={0.38} fill="#ffffff" shadowColor="black" shadowBlur={0.1} listening={false} />}
-
+              <Line points={flat(way.points)} stroke="#ffffff" strokeWidth={0.05} dash={[0.2, 0.1]} listening={false} />
+              {!deploying && <Text x={m.pos.x - 1} y={m.pos.y - r - 0.5} width={2} align="center" text={tr('{fmt}″ of {fmt2}″', { fmt: fmt(way.length), fmt2: fmt(max) })} fontSize={0.38} fill="#ffffff" shadowColor="black" shadowBlur={0.1} listening={false} />}
             </>
           )}
           <Group

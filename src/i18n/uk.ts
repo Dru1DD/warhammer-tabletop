@@ -2964,6 +2964,7 @@ const catalog: Catalog = {
   "{name}: the unit is destroyed.": "{name}: загін знищено.",
   "{name}: the unit’s model bases overlap each other.": "{name}: підставки моделей загону перетинаються.",
   "{name}: the unit’s model bases overlap.": "{name}: підставки моделей загону перетинаються.",
+  "{name}: the way around “{terrain}” is {fmt}\", more than the allowed {fmt2}\".": "{name}: обхід «{terrain}» — {fmt}\", більше дозволених {fmt2}\".",
   "{name}: the wreck did not explode.": "{name}: уламки не вибухнули.",
   "{name}: you cannot end a move in engagement range ({ENGAGEMENT_RANGE}\") of the enemy.": "{name}: не можна закінчувати рух у зоні контакту (engagement range, {ENGAGEMENT_RANGE}\") із ворогом.",
   "{name}: you cannot enter engagement range of a unit that is not the target.": "{name}: не можна входити в контакт із загоном, який не є ціллю.",
