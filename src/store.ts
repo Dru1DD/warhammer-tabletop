@@ -1,7 +1,8 @@
 import { create } from 'zustand'
 import type { AiDecision, AiLevel } from './game/ai/ai'
+import { advanceWarning } from './game/advanceAdvice'
 import { chargeWarning } from './game/chargeAdvice'
-import { aiEmbark, carryProblem, disembarkSpot, embark, leaveBeforeBattle } from './game/rules/transports'
+import { aiEmbark, carryProblem, disembarkSpot, embark, emptyDedicated, leaveBeforeBattle } from './game/rules/transports'
 import { aiReserves, arrivalSpot, fromReserve, reserveProblem, toReserve } from './game/rules/reserves'
 import { decideAsync } from './game/ai/aiClient'
 import { seededRoller } from './game/dice/dice'
@@ -132,11 +133,13 @@ interface Store {
   arriveAt: (p: Vec) => void
   /** shooting target picked on the board, waiting for the "Fire" button */
   aimTargetId: string | null
-  /** a charge the forecast advises against, waiting for “Charge anyway” (chargeAdvice.ts chargeWarning) */
-  chargeConfirm: { unitId: string; why: string[] } | null
-  /** the player confirmed that charge: the next declareCharge of this unit goes through */
+  /** a question before an action that usually wastes a unit: a charge the forecast advises against (chargeAdvice.ts
+   * chargeWarning; no `kind`), an Advance that costs the unit its shooting (advanceAdvice.ts, kind 'advance'), or the
+   * start of the battle with an empty Dedicated Transport (kind 'start', `unitId` is the transport) */
+  chargeConfirm: { unitId: string; why: string[]; kind?: 'advance' | 'start' } | null
+  /** the player confirmed that action: the next declareCharge of this unit (or declareAdvance, as `advance:<id>`) goes through */
   chargeOk: string | null
-  /** answer the charge question: true declares the charge anyway, false drops it */
+  /** answer the question: true does it anyway, false drops it */
   confirmCharge: (go: boolean) => void
   /** step-by-step replay of attacks with dice id > afterId; pauses the AI while open */
   review: { afterId: number } | null
@@ -155,7 +158,8 @@ interface Store {
   autoDeploy: () => void
   /** Sets up every unit of the player in a deployment preset (all count as placed; each can still be moved). */
   deployPreset: (id: DeployPresetId) => void
-  finishDeployment: () => boolean
+  /** start the battle; without `force` an empty Dedicated Transport (removed at the start) is asked about first */
+  finishDeployment: (force?: boolean) => boolean
   quit: () => void
   /** The single entry point for every command from any controller (local UI, AI, future remote).
    * Returns the full result (accepted action or reject code) so a network adapter can answer the sender. */
@@ -444,12 +448,18 @@ export const useStore = create<Store>((set, get) => {
     })
   },
 
-  finishDeployment: () => {
+  finishDeployment: (force) => {
     const { game, deploying, settings } = get()
     if (!game || !deploying) return false
     const issues = deploymentIssues(game, settings.human, deploying.placed)
     if (issues.length) {
       set({ message: { text: issues[0], kind: 'error' } })
+      return false
+    }
+    // an empty Dedicated Transport is removed when the battle starts: its points are lost, so ask first
+    const empty = force || settings.explain === 'minimal' ? [] : emptyDedicated(game, settings.human)
+    if (empty.length) {
+      set({ chargeConfirm: { kind: 'start', unitId: empty[0].id, why: empty.map((t) => tr('{transport} has nobody inside: a Dedicated Transport without passengers is removed before the battle.', { transport: quote(t.name) })) } })
       return false
     }
     const seed = (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0
@@ -604,8 +614,14 @@ export const useStore = create<Store>((set, get) => {
 
   confirmCharge: (go) => {
     const c = get().chargeConfirm
-    set({ chargeConfirm: null, chargeOk: go && c ? c.unitId : null })
-    if (go && c) get().dispatch({ type: 'declareCharge', unitId: c.unitId })
+    if (c?.kind === 'start') {
+      // “Back”: select the transport, so its panel (who can get in) is right there
+      set(go ? { chargeConfirm: null } : { chargeConfirm: null, selectedUnitId: c.unitId })
+      if (go) get().finishDeployment(true)
+      return
+    }
+    set({ chargeConfirm: null, chargeOk: go && c ? (c.kind === 'advance' ? `advance:${c.unitId}` : c.unitId) : null })
+    if (go && c) get().dispatch(c.kind === 'advance' ? { type: 'declareAdvance', unitId: c.unitId } : { type: 'declareCharge', unitId: c.unitId })
   },
 
   dispatch: (cmd) => {
@@ -619,6 +635,18 @@ export const useStore = create<Store>((set, get) => {
         const warning = unit && chargeWarning(game, unit)
         if (warning) {
           set({ chargeConfirm: { unitId: cmd.unitId, why: warning.why } })
+          return false
+        }
+      }
+    }
+    // an Advance that costs the unit its shooting: ask first too
+    if (cmd.type === 'declareAdvance' && settings.explain !== 'minimal' && validate(game, cmd).ok) {
+      if (get().chargeOk === `advance:${cmd.unitId}`) set({ chargeOk: null })
+      else {
+        const unit = game.units.find((u) => u.id === cmd.unitId)
+        const warning = unit && advanceWarning(game, unit)
+        if (warning) {
+          set({ chargeConfirm: { kind: 'advance', unitId: cmd.unitId, why: warning.why } })
           return false
         }
       }
