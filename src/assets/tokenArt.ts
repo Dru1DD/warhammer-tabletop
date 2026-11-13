@@ -647,6 +647,16 @@ function electroPriest(): string {
     <path d="M58 50 L66 46 L64 52 L72 48" fill="none" stroke="${RED}" stroke-width="1.6"/>`, false)
 }
 
+/** Skorpius Dunerider: a long skimmer hull seen from above, a crew bay in the middle and the stubber array at the front. */
+function dunerider(): string {
+  return base(BRASS, `
+    <path d="M14 40 Q14 30 26 28 H70 L90 44 V56 L70 72 H26 Q14 70 14 60 Z" ${rd(0.38)}/>
+    <path d="M18 34 L10 26 M18 66 L10 74" fill="none" stroke-width="2.4"/>
+    <rect x="30" y="38" width="30" height="24" rx="4" ${f(BRASS, 0.22)}/><path d="M34 44 H56 M34 50 H56 M34 56 H56" fill="none" opacity="0.5"/>
+    <rect x="70" y="42" width="22" height="5" rx="2" ${f(BRASS, 0.35)}/><rect x="70" y="53" width="22" height="5" rx="2" ${f(BRASS, 0.35)}/>
+    ${cog(22, 50, 7, 8)}${skull(66, 50, 0.55)}`, false)
+}
+
 const SVGS: Record<string, string> = {
   hiveTyrant: hiveTyrant(),
   termagant: termagant('fleshborer'),
@@ -732,6 +742,7 @@ const SVGS: Record<string, string> = {
   onagerNeutron: onager('neutron'),
   onagerPhosphor: onager('phosphor'),
   electroPriest: electroPriest(),
+  dunerider: dunerider(),
   lieutenant: marine('swordPistol', { officer: true }),
   captain: marine('bolterSword', { officer: true }),
   hellblasterSergeant: marine('plasma', { sergeant: true }),

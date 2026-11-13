@@ -44,7 +44,7 @@ At the end of round 3, units still in reserve are destroyed. They join the board
 
 ## Not modelled
 
-- Transports.
+- Transports in reserve carry their passengers with them (see [transports.md](transports.md)); a Rapid disembark after an Ingress move does not re-check the Ingress restrictions.
 - AIRCRAFT.
 - The 25% limit on units arriving in round 2 (from 10th edition; not found in 11th).
 

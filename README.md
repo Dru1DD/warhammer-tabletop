@@ -137,6 +137,7 @@ The full list, with what is exact and what is approximated, is in [docs/research
 - [docs/missions.md](docs/missions.md): primary missions and objective actions on the 44″×60″ board.
 - [docs/secondaries.md](docs/secondaries.md): Tactical and Fixed secondary missions.
 - [docs/reserves.md](docs/reserves.md): Strategic Reserves, Deep Strike and Rapid Ingress.
+- [docs/transports.md](docs/transports.md): transports (embark, disembark, Firing Deck) and the Skorpius Dunerider.
 - [docs/research.md](docs/research.md): edition, sources, box contents, datasheets, exact vs approximated rules.
 - [docs/assets.md](docs/assets.md): asset inventory and licensing.
 - [docs/i18n.md](docs/i18n.md): languages, how strings are written and how to add one.

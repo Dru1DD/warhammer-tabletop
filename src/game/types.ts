@@ -144,6 +144,8 @@ export type AbilityId =
   | 'damaged1to4'
   | 'feelNoPain5'
   | 'electroShock'
+  | 'firingDeck'
+  | 'fireSupport'
   | 'deepStrike'
   | 'stealth'
   | 'voicesInTheCode'
@@ -194,6 +196,18 @@ export interface Datasheet {
   abilities: AbilityId[]
   /** short role description shown on the unit card */
   description?: string
+  /** TRANSPORT: what it carries (rules/transports.ts) */
+  transport?: TransportSpec
+}
+
+/** Transport capacity: how many models, which ones (every keyword in `keywords`, none in `exclude`), Firing Deck X. */
+export interface TransportSpec {
+  capacity: number
+  keywords: string[]
+  exclude?: string[]
+  /** the passengers in words, for the player («12 Adeptus Mechanicus INFANTRY models») */
+  label: string
+  firingDeck?: number
 }
 
 export interface ModelState {
@@ -257,6 +271,14 @@ export interface UnitState {
   grenadePackUsed?: boolean
   /** a mission action started this turn (rules/missions.ts): no shooting or charging; completes at the end of the turn */
   action?: { id: MissionActionId; objectiveId: string }
+  /** inside this transport (the unit is in `GameState.embarked`, off the board) */
+  embarkedIn?: string
+  /** embarked during the current phase: it cannot disembark in the same phase */
+  embarkedThisPhase?: boolean
+  /** set up on the battlefield this turn (out of reserves or a transport): it cannot embark this turn */
+  setUpThisTurn?: boolean
+  /** Rapid or Emergency disembark: no charge this turn */
+  noChargeThisTurn?: boolean
 }
 
 export type SecondaryId =
@@ -477,6 +499,8 @@ export interface GameState {
   /** 44″×60″: the deployment map and terrain layout of this battle */
   mapId?: string
   layoutId?: string
+  /** units embarked in a transport, off the battlefield (rules/transports.ts); absent = none */
+  embarked?: UnitState[]
   /** units in Strategic Reserves, off the battlefield (rules/reserves.ts); absent = none */
   reserves?: UnitState[]
   /** the primary mission (44″×60″); absent = the training score */
@@ -561,6 +585,10 @@ export type Command =
   | { type: 'secondary'; op: 'swap' | 'discard'; card: SecondaryId }
   /** a unit arrives from Strategic Reserves (Ingress Move); `rapid`: Rapid Ingress at the end of the opponent's Movement phase */
   | { type: 'arrive'; unitId: string; positions: Record<string, Vec>; rapid?: boolean }
+  /** a unit that has moved this phase gets into a friendly transport (rules/transports.ts) */
+  | { type: 'embark'; unitId: string; transportId: string }
+  /** an embarked unit is set up out of its transport, wholly within 3″ (Tactical or Rapid by how the transport moved) */
+  | { type: 'disembark'; unitId: string; positions: Record<string, Vec> }
   /** a mission action at an objective, started in the Shooting phase (rules/missions.ts) */
   | { type: 'startAction'; unitId: string; objectiveId: string }
   /** Core Stratagem in the player's own turn (see rules/stratagems.ts) */
