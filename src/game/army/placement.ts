@@ -34,6 +34,14 @@ export function listUnits(faction: PlayerId, list: ArmyList): UnitState[] {
  * coherency allows.
  */
 export function formation(u: UnitState, maxDepth: number, shape: 'deep' | 'wide' = 'deep'): { dx: number; dy: number }[] {
+  return formations(u, maxDepth, shape)[0]
+}
+
+/**
+ * Every coherent grid for the unit, best first: `formation`'s choice, then the other column counts from deep to
+ * shallow. Setting up a large army falls back on them when the densest grid no longer fits the space left.
+ */
+export function formations(u: UnitState, maxDepth: number, shape: 'deep' | 'wide' = 'deep'): { dx: number; dy: number }[][] {
   const radii = u.models.map(radiusOf)
   const n = radii.length
   // rows of `cols` models, each base touching the next with GAP between them (bases differ: a Nob is bigger than a Boy)
@@ -61,16 +69,21 @@ export function formation(u: UnitState, maxDepth: number, shape: 'deep' | 'wide'
     }
     return true
   }
+  const out: { dx: number; dy: number }[][] = []
   if (shape === 'wide')
     for (let cols = 1; cols <= n; cols++) {
       const offs = layout(cols)
-      if (fits(offs)) return offs
+      if (fits(offs)) {
+        out.push(offs)
+        break
+      }
     }
   for (let cols = n; cols > 1; cols--) {
     const offs = layout(cols)
-    if (fits(offs)) return offs
+    if (fits(offs)) out.push(offs)
   }
-  return layout(1)
+  out.push(layout(1))
+  return out
 }
 
 /** Area the unit's bases cover, to set up the bulkiest units first. */
@@ -97,7 +110,6 @@ export function musterArmy(s: GameState, faction: PlayerId, list: ArmyList): voi
   const placed: UnitState[] = []
   let charIndex = 0
   for (const u of order) {
-    const offs = formation(u, depth)
     const r = Math.max(...u.models.map(radiusOf))
     const anchors: Vec[] = []
     for (let a = r + 0.05; a <= depth - r; a += STEP)
@@ -112,9 +124,14 @@ export function musterArmy(s: GameState, faction: PlayerId, list: ArmyList): voi
         anchors.sort((p, q) => Math.hypot(p.x - c.x, p.y - c.y) - Math.hypot(q.x - c.x, q.y - c.y))
       }
     }
-    const spot = anchors
-      .map((a) => Object.fromEntries(u.models.map((m, i) => [m.id, { x: a.x + back * offs[i].dx, y: a.y + offs[i].dy }])) as Record<string, Vec>)
-      .find((pos) => !deploymentProblem(s, u, pos))
+    // the densest grid first; a narrower one only when it no longer fits the space left
+    let spot: Record<string, Vec> | undefined
+    for (const offs of formations(u, depth)) {
+      spot = anchors
+        .map((a) => Object.fromEntries(u.models.map((m, i) => [m.id, { x: a.x + back * offs[i].dx, y: a.y + offs[i].dy }])) as Record<string, Vec>)
+        .find((pos) => !deploymentProblem(s, u, pos))
+      if (spot) break
+    }
     if (!spot) throw new Error(tr('Not enough room in the deployment zone for “{name}”. Remove some units.', { name: u.name }))
     for (const m of u.models) m.pos = spot[m.id]
     s.units.push(u)

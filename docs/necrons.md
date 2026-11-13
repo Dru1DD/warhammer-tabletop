@@ -53,3 +53,4 @@ The Necron presets in the army builder now use the new units:
 
 - **500 (495 points):** Overlord, Royal Warden, 10 Immortals, 5 Lychguard, 3 Canoptek Wraiths, 3 Scarab Swarms.
 - **1000 (990 points):** Overlord, Royal Warden, 20 Necron Warriors, 2 × 10 Immortals, 10 Lychguard, 3 Canoptek Wraiths, 3 Skorpekh Destroyers, 3 Scarab Swarms.
+- **1500, 2000, 2500:** see [armies.md](armies.md#presets-over-1000-points).

@@ -58,6 +58,7 @@ The Marine presets in the army builder now use the new units:
 
 - **500 (480 points):** Captain, Lieutenant, 5 Intercessors, 5 Hellblasters, 5 Infernus, 3 Bladeguard.
 - **1000 (980 points):** Captain, 2 Lieutenants, 10 Intercessors, 10 Hellblasters, 5 Infernus, 6 Bladeguard, Redemptor.
+- **1500, 2000, 2500:** see [armies.md](armies.md#presets-over-1000-points).
 
 ## AI
 

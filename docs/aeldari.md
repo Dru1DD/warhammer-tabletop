@@ -58,3 +58,4 @@ The Aeldari presets in the army builder now use the new units:
 
 - **500 (480 points):** Farseer, Autarch, Guardian Defenders, 5 Rangers, 5 Swooping Hawks, 5 Dire Avengers.
 - **1000 (980 points):** Farseer, Autarch, 2 × Guardian Defenders, 10 Rangers, 5 Rangers, 5 Wraithguard, 5 Swooping Hawks, 10 Dire Avengers, 3 Windriders.
+- **1500, 2000, 2500:** see [armies.md](armies.md#presets-over-1000-points).

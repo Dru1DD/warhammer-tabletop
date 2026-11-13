@@ -29,6 +29,8 @@ describe('own army lists in an online game', () => {
     expect(l.guestArmy).toEqual(orks500())
     expect(l.scenarioId).toBe('combat-patrol')
     expect(normalizeLobby(defaultLobby()).scenarioId).toBe('training-outpost')
+    // a list over 1000 points needs the 44″×60″ board, even when the host picked Combat Patrol
+    expect(normalizeLobby({ ...defaultLobby(), scenarioId: 'combat-patrol', guestArmy: presetList('orks', 2000) }).scenarioId).toBe('strike-force')
   })
 
   it('a list that breaks the rules blocks the start, with the reason', () => {

@@ -14,6 +14,9 @@ import { DETACHMENT } from '../game/rules/stratagems'
 import { ArmyCodes } from './ArmyCodes'
 import { tr } from '../i18n/index'
 
+/** Lists above this limit need the 44″×60″ board (the Combat Patrol board takes up to 1000 points). */
+const BIG_LIST = 1000
+
 const samePreset = (faction: PlayerId, list: ArmyList, limit: PointsLimit) =>
   list.limit === limit && JSON.stringify(list.units) === JSON.stringify(presetList(faction, limit).units)
 
@@ -53,7 +56,7 @@ export function ArmyBuilder({ faction, role }: { faction: PlayerId; role: string
         {mode === 'custom' && <span className="self-center rounded bg-stone-700 px-2 py-1 text-xs">{tr('Own list')}</span>}
       </div>
 
-      {!list && <p className="mt-2 text-xs text-stone-400">{tr('The scenario roster without a points limit. Pick a preset to build an army for 500 or 1000 points.')}</p>}
+      {!list && <p className="mt-2 text-xs text-stone-400">{tr('The scenario roster without a points limit. Pick a preset to build an army for 500 to 2500 points.')}</p>}
 
       <ArmyCodes faction={faction} list={list} setList={(l) => { setOpen(null); setList(l) }} />
 
@@ -82,6 +85,9 @@ export function ArmyBuilder({ faction, role }: { faction: PlayerId; role: string
           <div className="mt-1 h-1.5 w-full overflow-hidden rounded bg-stone-700" aria-hidden>
             <div className={`h-full ${pts > list.limit ? 'bg-rose-500' : 'bg-amber-400'}`} style={{ width: `${Math.min(100, (pts / list.limit) * 100)}%` }} />
           </div>
+          {list.limit > BIG_LIST && (
+            <p className="mt-1 text-xs text-stone-400">{tr('Over {points} points the battle is played on the 44″×60″ board, and the AI takes longer over each turn.', { points: BIG_LIST })}</p>
+          )}
 
           <ul className="mt-2 space-y-1" aria-label={tr('Army units')}>
             {list.units.map((e, i) => (

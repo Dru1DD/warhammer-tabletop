@@ -3,7 +3,7 @@
 import { listProblems, type ArmyList } from '../game/army/armyList'
 import { DATASHEETS, FACTION_NAME } from '../game/data/datasheets'
 import { FACTIONS, type PlayerId } from '../game/types'
-import { scenarioById, SCENARIOS } from '../game/scenarios/scenarios'
+import { boardForLists, scenarioById, SCENARIOS, takesLists } from '../game/scenarios/scenarios'
 import type { LobbyState } from './protocol'
 import { tr } from '../i18n/index'
 
@@ -17,7 +17,7 @@ const ownList = (side: PlayerId, list: ArmyList | null | undefined) => (list && 
 
 /**
  * Valid, distinct factions on a scenario that has both armies (else the all-factions "combat-patrol"). An army list of the
- * wrong faction is dropped; own lists play only on a board that takes them (the Combat Patrol board).
+ * wrong faction is dropped; own lists play only on a board that takes them (Combat Patrol; over 1000 points the 44″×60″ board).
  */
 export function normalizeLobby(l: LobbyState): LobbyState {
   const hostSide = FACTIONS.includes(l.hostSide) ? l.hostSide : 'marines'
@@ -25,8 +25,8 @@ export function normalizeLobby(l: LobbyState): LobbyState {
   if (guestSide === hostSide) guestSide = FACTIONS.find((f) => f !== hostSide)!
   const hostArmy = ownList(hostSide, l.hostArmy)
   const guestArmy = ownList(guestSide, l.guestArmy)
-  const custom = !!(hostArmy || guestArmy)
-  const scenarioId = supports(l.scenarioId, hostSide, guestSide) && (!custom || scenarioById(l.scenarioId).customArmies) ? scenarioById(l.scenarioId).id : 'combat-patrol'
+  const lists = [hostArmy, guestArmy]
+  const scenarioId = supports(l.scenarioId, hostSide, guestSide) && takesLists(scenarioById(l.scenarioId), lists) ? scenarioById(l.scenarioId).id : boardForLists(hostSide, guestSide, lists)
   return { ...l, hostSide, guestSide, scenarioId, hostArmy, guestArmy, guestReady: l.guestReady && guestSide === l.guestSide && scenarioId === l.scenarioId }
 }
 
