@@ -305,8 +305,8 @@ export const modelInTerrain = (s: GameState, m: ModelState, pos: Vec = m.pos) =>
   s.terrain.some((t) => circlePolygonDistance(pos, radiusOf(m), t.poly) === 0)
 
 export function addLog(s: GameState, text: string, level: GameState['log'][number]['level'] = 'standard') {
+  // the whole battle is kept (a few thousand entries at most), so the log can be read back from the first round
   s.log.push({ id: s.nextId++, round: s.round, player: s.activePlayer, phase: s.phase, text, level })
-  if (s.log.length > 400) s.log.splice(0, s.log.length - 400)
 }
 
 export function checkCoherency(models: { m: ModelState; pos: Vec }[]): string | null {
