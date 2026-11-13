@@ -28,7 +28,7 @@ const GAMES: Record<string, Game> = {
 // recorded on feature/army-builder (bfe917d), before the speed-ups
 const RECORDED: Record<string, { actions: number; commands: string }> = {
   // re-recorded: the AI now spends CP on core and army (detachment) Stratagems, on reactions in the opponent's turn, on Command Re-rolls mid-attack and Insane Bravery before the test, and on faction reactions when attacked, and on the detachment rules (doctrines, Hyper-adaptations, Rad-bombardment), and aggressive armies value a charge next turn (melee swarms close in)
-  'patrol marines-orks standard': { actions: 87, commands: '324f5593' },
+  'patrol marines-orks standard': { actions: 108, commands: '9087e289' },
   'patrol aeldari-mechanicus beginner': { actions: 77, commands: '1fb1f556' },
   '500 tyranids-necrons standard': { actions: 60, commands: 'd2cc1c22' },
   '1000 orks-aeldari standard': { actions: 40, commands: 'f5fad9f0' },

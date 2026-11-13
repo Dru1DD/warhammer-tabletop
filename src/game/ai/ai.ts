@@ -60,6 +60,8 @@ export const AI_WEIGHTS: Record<PlayerId, AiWeights> = {
 /** Faction temperament: `aggressive` closes the distance to the enemy (original Orks behaviour), `retreats` falls back from a lost melee. */
 /** How much a charge possible next turn is worth against one possible now (it is a turn later and the enemy reacts). */
 export const NEXT_TURN_CHARGE = 0.5
+/** Share of an enemy's shooting that still threatens a vehicle or monster it cannot see (or reach) yet: it moves first. */
+export const HIDDEN_RISK = 0.5
 
 export const AI_STYLE: Record<PlayerId, { aggressive: boolean; retreats: boolean }> = {
   marines: { aggressive: false, retreats: true },
@@ -171,6 +173,18 @@ function maxRange(u: UnitState) {
 const shootDamage = (s: GameState, u: UnitState, t: UnitState, d?: number) =>
   (d === undefined ? unitsWithin(u, t, maxRange(u)) : withinRange(d, maxRange(u))) ? shootValue(s, u, t).dmg : 0
 
+/** The shooting damage `e` is expected to deal to `u` where it stands (`d`: their edge distance), as movement scores it.
+ * A vehicle or a monster cannot really hide: an enemy that does not see it (or reach it) now usually drives to a line of
+ * fire before it shoots, so half of that damage still counts. Without this, ranged vehicles hid behind ruins and never
+ * fired (battle of 13.11.2026: a Redemptor against six lascannon platforms, three rounds without a shot). */
+export function shootingRisk(s: GameState, e: UnitState, u: UnitState, d = unitDistance(u, e)) {
+  const seen = shootDamage(s, e, u)
+  if (seen > 0 || !isMV(u)) return seen
+  if (withinRange(d, maxRange(e))) return HIDDEN_RISK * shootValue(s, e, u, { assumeSight: true }).dmg
+  if (withinRange(d, maxRange(e) + maxMove(e))) return HIDDEN_RISK * shootValue(s, e, u, { assumeSight: true, assumeReach: maxMove(e) }).dmg
+  return 0
+}
+
 /** Melee damage if every model got into combat (optimistic, used for planning). */
 /** Expected melee wounds of every model of `u` against `t` (as if all of them reach), with the charge bonuses when `charged`. */
 export function meleePotential(s: GameState, u: UnitState, t: UnitState, charged: boolean) {
@@ -242,8 +256,8 @@ function scorePosition(s: GameState, u: UnitState, level: AiLevel, mode: 'normal
   let taken = 0
   if (level === 'standard')
     for (const e of enemies) {
-      taken += shootDamage(hs, e, hypo)
       const d = dTo.get(e)!
+      taken += shootingRisk(hs, e, hypo, d)
       if (d <= CHARGE_RANGE) taken += p2d6AtLeast(Math.ceil(d)) * meleePotential(s, e, hypo, true) * 0.5
     }
   // a unit cannot lose more than it has: summed over every enemy gun, the risk of a big swarm ran past its own wounds
