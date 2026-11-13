@@ -50,7 +50,7 @@ import { leaveRoom } from '../multiplayer/session'
 import { turnPlan, type PlanKind } from '../game/missionAdvice'
 import { quote, tr } from '../i18n/index'
 import { MISSION_ACTION, PRIMARY, PRIMARY_CAP, primaryTotal, ROUND_CAP } from '../game/rules/missions'
-import { carryProblem, disembarkMode, disembarkSpot, disembarkWindow, embarkedOf, isTransport, passengersOf, transportSpec } from '../game/rules/transports'
+import { carryProblem, disembarkMode, disembarkSpot, disembarkWindow, embarkedOf, isTransport, passengersOf, placesOf, transportSpec } from '../game/rules/transports'
 import { aiArrivalTarget, arrivalSpot, canDeepStrike, ingressWindow, INGRESS_EDGE, INGRESS_ENEMY, RAPID_INGRESS_CP, RESERVE_DEADLINE, RESERVE_FROM_ROUND, reserveBudget, reservesOf } from '../game/rules/reserves'
 import { FIXED_CARD_CAP, SECONDARY, SECONDARY_CAP, SECONDARY_ROUND_CAP, secondaryTotal } from '../game/rules/secondaries'
 
@@ -1195,7 +1195,7 @@ function TransportSetup() {
       {transports.map((t) => {
         const spec = transportSpec(t)!
         const inside = passengersOf(game, t.id)
-        const used = inside.reduce((a, u) => a + alive(u).length, 0)
+        const used = inside.reduce((a, u) => a + placesOf(u, spec), 0)
         const canTake = sel && sel.id !== t.id && !carryProblem(game, sel, t)
         return (
           <div key={t.id} className="mt-1 rounded bg-stone-900/60 p-1.5">

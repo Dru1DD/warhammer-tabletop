@@ -211,7 +211,7 @@ export const MECHANICUS_WEAPONS: Record<string, Weapon> = {
   eradicationBeamer: {
     id: 'eradicationBeamer', name: tr('Onager Eradication Beamer'),
     profiles: [
-      { name: tr('Dissipated'), range: 36, attacks: 0, randomA: '3D3', skill: 4, s: 10, ap: -2, d: 2, keywords: { blast: 1, sustainedHits: 1 } },
+      { name: tr('Dissipated'), range: 36, attacks: 0, randomA: '3D3', skill: 4, s: 9, ap: -2, d: 2, keywords: { blast: 1, sustainedHits: 1 } },
       { name: tr('Focused'), range: 18, attacks: 0, randomA: '3D3', skill: 4, s: 10, ap: -3, d: 3, keywords: { blast: 1, sustainedHits: 1 } },
     ],
   },
@@ -441,7 +441,7 @@ export const MECHANICUS_ABILITY_TEXT: Record<string, string> = {
   scouts: tr('Scouts 6″: pre-battle move of up to 6″. [Not implemented: there is no pre-battle movement.]'),
   lineBreakers: tr('Line-breakers: when the unit ends a charge move, pick an enemy in engagement range and roll a D6 for each of its models in contact with it; +2 to the roll if the charge started within 6″ of a friendly Adeptus Mechanicus BATTLELINE unit. Each 4+ is a mortal wound.'),
   elevatedStrider: tr('Elevated Strider: the unit can shoot in a turn when it Advanced or fell back. [Re-rolling Desperate Escape tests is not needed: the game has none.]'),
-  firingDeck: tr('Firing Deck 2: when this transport shoots, up to 2 embarked models each fire one ranged weapon with it (measured from the transport).'),
+  firingDeck: tr('Firing Deck X: when this transport shoots, up to X embarked models each fire one ranged weapon with it, measured from the transport (Dunerider and Rhino 2, Battlewagon 11, Trukk 12).'),
   fireSupport: tr('Fire Support: after this transport shoots, units that disembarked from it this turn may re-roll wound rolls against a unit it hit. [Not implemented yet.]'),
   dataTether: tr('Broad Spectrum Data-tether: when a Stratagem is used on this unit, roll a D6; on a 5+ you get 1 CP.'),
   emanatusForceField: tr('Emanatus Force Field (6″ aura): friendly Adeptus Mechanicus BATTLELINE models within 6″ get a 4+ invulnerable save against ranged attacks.'),

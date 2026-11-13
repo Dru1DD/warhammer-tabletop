@@ -77,6 +77,18 @@ export const POINTS: Record<string, PointsBracket[]> = {
   onager: [{ models: 1, points: 150 }],
   electroPriests: [{ models: 5, points: 60 }, { models: 10, points: 120 }],
   dunerider: [{ models: 1, points: 75 }],
+  // Vehicles and monsters (Wahapedia, 13.11.2026): wargear does not change the price here (Tyrannofex acid spray +10 and
+  // rupture cannon +20 are not counted, see docs/vehicles.md)
+  rhino: [{ models: 1, points: 70 }],
+  predatorAnnihilator: [{ models: 1, points: 135 }],
+  trukk: [{ models: 1, points: 60 }],
+  battlewagon: [{ models: 1, points: 160 }],
+  ghostArk: [{ models: 1, points: 100 }],
+  doomsdayArk: [{ models: 1, points: 200 }],
+  waveSerpent: [{ models: 1, points: 115 }],
+  firePrism: [{ models: 1, points: 150 }],
+  exocrine: [{ models: 1, points: 135 }],
+  tyrannofex: [{ models: 1, points: 170 }],
 }
 
 /**
@@ -95,6 +107,14 @@ export const POINTS_LATER: Record<string, { fromCopy: number; brackets: PointsBr
   kastelans: { fromCopy: 2, brackets: [{ models: 2, points: 180 }, { models: 4, points: 340 }] },
   ironstriders: { fromCopy: 3, brackets: [{ models: 1, points: 95 }, { models: 2, points: 175 }, { models: 3, points: 265 }] },
   dunerider: { fromCopy: 4, brackets: [{ models: 1, points: 85 }] },
+  rhino: { fromCopy: 4, brackets: [{ models: 1, points: 80 }] },
+  predatorAnnihilator: { fromCopy: 3, brackets: [{ models: 1, points: 145 }] },
+  trukk: { fromCopy: 4, brackets: [{ models: 1, points: 70 }] },
+  battlewagon: { fromCopy: 3, brackets: [{ models: 1, points: 180 }] },
+  doomsdayArk: { fromCopy: 3, brackets: [{ models: 1, points: 230 }] },
+  waveSerpent: { fromCopy: 4, brackets: [{ models: 1, points: 125 }] },
+  exocrine: { fromCopy: 3, brackets: [{ models: 1, points: 145 }] },
+  tyrannofex: { fromCopy: 3, brackets: [{ models: 1, points: 180 }] },
 }
 
 /** Unit sizes the Field Manual lists for a datasheet. */

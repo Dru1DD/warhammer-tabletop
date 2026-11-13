@@ -1,4 +1,5 @@
 import type { Weapon, WeaponKeywords, WeaponProfile } from '../types'
+import { SLOT_VARIANT_FROM } from './vehicles'
 import { tr } from '../../i18n/index'
 
 // Weapons and model variants for the wargear options of Space Marines, Orks, Tyranids, Necrons and Aeldari (11th edition
@@ -201,4 +202,4 @@ export const WARGEAR_VARIANTS: Variant[] = [
 ]
 
 /** Token / art of each variant: the profile it is built from. */
-export const VARIANT_FROM: Record<string, string> = Object.fromEntries(WARGEAR_VARIANTS.map((x) => [x.id, x.from]))
+export const VARIANT_FROM: Record<string, string> = { ...Object.fromEntries(WARGEAR_VARIANTS.map((x) => [x.id, x.from])), ...SLOT_VARIANT_FROM }

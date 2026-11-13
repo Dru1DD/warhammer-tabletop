@@ -12,6 +12,7 @@ const one = () => 1
 const opt = (profile: string, label: string): Variant => ({ profile, label })
 /** a single-model unit choosing between whole loadouts */
 const single = (...variants: Variant[]): WargearSpec => ({ leader: variants, base: variants[0], groups: [] })
+const vehicle = (profile: string, label: string): WargearSpec => ({ base: opt(profile, label), groups: [] })
 
 export const OTHER_WARGEAR: Record<string, WargearSpec> = {
   // ---- Space Marines
@@ -259,4 +260,12 @@ export const OTHER_WARGEAR: Record<string, WargearSpec> = {
     base: opt('windrider', tr('Twin shuriken catapult')),
     groups: [{ id: 'heavy', label: tr('Heavy weapon — any number of models'), variants: [opt('windriderLaser', tr('Scatter laser')), opt('windriderCannon', tr('Shuriken cannon'))], max: any }],
   },
+  // ---- vehicles of data/vehicles.ts: only optional wargear slots (wargear.ts adds them from VEHICLE_SLOTS)
+  rhino: vehicle('rhino', tr('Rhino')),
+  predatorAnnihilator: vehicle('predatorAnnihilator', tr('Predator Annihilator')),
+  trukk: vehicle('trukk', tr('Trukk')),
+  battlewagon: vehicle('battlewagon', tr('Battlewagon')),
+  waveSerpent: vehicle('waveSerpent', tr('Wave Serpent')),
+  firePrism: vehicle('firePrism', tr('Fire Prism')),
+  tyrannofex: vehicle('tyrannofex', tr('Tyrannofex')),
 }

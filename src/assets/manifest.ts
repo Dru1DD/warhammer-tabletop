@@ -142,6 +142,17 @@ export const TOKENS: Record<string, TokenStyle> = {
   onagerPhosphor: { fill: '#6e1b1b', stroke: '#f1d9a6', text: '#ffffff', label: tr('OnP') },
   electroPriest: { fill: '#8a1f1f', stroke: '#f1d9a6', text: '#ffffff', label: tr('EP') },
   dunerider: { fill: '#6e1b1b', stroke: '#e8b04a', text: '#ffffff', label: tr('SD') },
+  // vehicles and monsters of data/vehicles.ts
+  rhino: { fill: '#1f4e9c', stroke: '#e4b33a', text: '#ffffff', label: tr('Rh') },
+  predatorAnnihilator: { fill: '#1f4e9c', stroke: '#e4b33a', text: '#ffffff', label: tr('PA') },
+  trukk: { fill: '#3f7a2a', stroke: '#b83a2b', text: '#ffffff', label: tr('Tr') },
+  battlewagon: { fill: '#3f7a2a', stroke: '#b83a2b', text: '#ffffff', label: tr('BW') },
+  ghostArk: { fill: '#46585f', stroke: '#47e08a', text: '#ffffff', label: tr('GA') },
+  doomsdayArk: { fill: '#46585f', stroke: '#47e08a', text: '#ffffff', label: tr('DA') },
+  waveSerpent: { fill: '#6a52b0', stroke: '#f0c75e', text: '#ffffff', label: tr('WS') },
+  firePrism: { fill: '#6a52b0', stroke: '#f0c75e', text: '#ffffff', label: tr('FP') },
+  exocrine: { fill: '#8c2f4a', stroke: '#ff7a8a', text: '#ffffff', label: tr('Ex') },
+  tyrannofex: { fill: '#8c2f4a', stroke: '#ff7a8a', text: '#ffffff', label: tr('TF') },
 }
 
 // wargear variants without their own token use the token of the profile they are built from

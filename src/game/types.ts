@@ -60,7 +60,7 @@ export interface WeaponProfile {
   keywords: WeaponKeywords
 }
 
-export type RandomDie = 'D3' | 'D6' | '3D3'
+export type RandomDie = 'D3' | 'D6' | '2D6' | '3D3'
 
 /** A weapon with one or more profiles; the player picks one profile per attack. */
 export interface Weapon {
@@ -88,7 +88,8 @@ export interface ModelProfile {
   weapons: string[]
 }
 
-export type Wargear = 'omnispex'
+/** omnispex: the whole unit ignores cover; dataTether: broad spectrum data-tether (Data-tether, and no SMOKE keyword) */
+export type Wargear = 'omnispex' | 'dataTether'
 
 export type AbilityId =
   | 'boltDiscipline'
@@ -100,6 +101,7 @@ export type AbilityId =
   | 'dreadArd'
   | 'deadlyDemise1'
   | 'deadlyDemiseD3'
+  | 'deadlyDemiseD6'
   | 'targetedIntercession'
   // Tyranids
   | 'synapse'
@@ -142,6 +144,8 @@ export type AbilityId =
   | 'emanatusForceField'
   | 'scuttlingWalker'
   | 'damaged1to4'
+  | 'damaged1to5'
+  | 'damaged1to6'
   | 'feelNoPain5'
   | 'electroShock'
   | 'firingDeck'
@@ -187,6 +191,18 @@ export type AbilityId =
   | 'sentinelDirectives'
   | 'scouts'
   | 'roboticBodyguard'
+  // vehicles and monsters of 13.11.2026 (data/vehicles.ts)
+  | 'veilingSmoke'
+  | 'annihilator'
+  | 'pilinOut'
+  | 'mobileFortress'
+  | 'repairBarge'
+  | 'overwhelmingObliteration'
+  | 'waveSerpentShield'
+  | 'linkedFire'
+  | 'crystalMatrix'
+  | 'symbioticTargeting'
+  | 'resilientOrganism'
 
 export interface Datasheet {
   id: string
@@ -205,6 +221,10 @@ export interface TransportSpec {
   capacity: number
   keywords: string[]
   exclude?: string[]
+  /** besides `keywords`, the unit must have every keyword of one of these sets (Ghost Ark: NECRON WARRIORS, or an INFANTRY CHARACTER) */
+  anyOf?: string[][]
+  /** models with one of these keywords take the space of 2 (Wave Serpent: WRAITH CONSTRUCT) */
+  double?: string[]
   /** the passengers in words, for the player («12 Adeptus Mechanicus INFANTRY models») */
   label: string
   firingDeck?: number
