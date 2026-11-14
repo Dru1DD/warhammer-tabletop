@@ -1,6 +1,6 @@
 import { DATASHEETS, PROFILES, WEAPONS } from './data/datasheets'
 import { baseRadius, edgeDistance, EPS, withinRange, circlePolygonDistance } from './geometry/geometry'
-import type { GameState, ModelProfile, ModelState, Objective, PlayerId, TerrainKind, UnitState, Vec } from './types'
+import type { Datasheet, GameState, ModelProfile, ModelState, Objective, PlayerId, TerrainKind, UnitState, Vec } from './types'
 import { DECIMAL_MARK, tr } from '../i18n/index'
 
 export const SCHEMA_VERSION = 1
@@ -46,13 +46,63 @@ export function newUnit(id: string, datasheetId: string, owner: PlayerId, name: 
     chargeDeclared: false, charged: false, fought: false, ammoRuntsUsed: false,
   }
 }
+/** The unit's own datasheet: the bodyguard's in an attached unit (name, faction, transport, description). */
 export const datasheetOf = (u: UnitState) => DATASHEETS[u.datasheetId]
-export const hasAbility = (u: UnitState, a: string) => datasheetOf(u).abilities.includes(a as never)
 export const alive = (u: UnitState) => u.models.filter((m) => !m.destroyed)
 
-/** The unit's keywords: its datasheet's, without SMOKE when a model carries a broad spectrum data-tether (Onager). */
-export const unitKeywords = (u: UnitState): string[] =>
-  hasWargear(u, 'dataTether') ? datasheetOf(u).keywords.filter((k) => k !== 'SMOKE') : datasheetOf(u).keywords
+// ---------------------------------------------------------------- attached units (core rules 19)
+
+/** The attached character part a model belongs to, or undefined for a bodyguard model (or a unit without characters). */
+export const partOf = (u: UnitState, m: ModelState) => u.attached?.find((p) => p.models.includes(m.id))
+/** Datasheet id of the part a model belongs to: an attached character's, or the unit's own. */
+export const modelDatasheetId = (u: UnitState, m: ModelState) => partOf(u, m)?.datasheetId ?? u.datasheetId
+/** The models of the unit's own datasheet: every model, or the bodyguard models of an attached unit. */
+export const bodyguardModels = (u: UnitState) => (u.attached?.length ? u.models.filter((m) => !partOf(u, m)) : u.models)
+
+/**
+ * Datasheets whose abilities and keywords the unit has now. An attached unit has those of every part with a living
+ * model (19.03, 19.04): a character's abilities end with its last model, the bodyguard's with theirs. A destroyed unit
+ * keeps all of them, so that rules looking back at it still recognise it.
+ */
+export function liveDatasheets(u: UnitState): Datasheet[] {
+  const own = DATASHEETS[u.datasheetId]
+  if (!u.attached?.length) return [own]
+  const out = bodyguardModels(u).some((m) => !m.destroyed) ? [own] : []
+  for (const p of u.attached) if (u.models.some((m) => !m.destroyed && p.models.includes(m.id))) out.push(DATASHEETS[p.datasheetId])
+  return out.length ? out : [own, ...u.attached.map((p) => DATASHEETS[p.datasheetId])]
+}
+
+/** The unit has the ability: its own datasheet's, or a living attached character's. */
+export const hasAbility = (u: UnitState, a: string) =>
+  u.attached?.length ? liveDatasheets(u).some((d) => d.abilities.includes(a as never)) : datasheetOf(u).abilities.includes(a as never)
+/** Every part of the unit has the ability: Deep Strike, Infiltrators, Stealth, Scouts work for an attached unit only then (24.09). */
+export const hasAbilityAll = (u: UnitState, a: string) => liveDatasheets(u).every((d) => d.abilities.includes(a as never))
+/** The model's own datasheet has the ability: for abilities of "this model" (Might Is Right, Finest Hour, Implacable Resilience). */
+export const modelHasAbility = (u: UnitState, m: ModelState, a: string) => DATASHEETS[modelDatasheetId(u, m)].abilities.includes(a as never)
+
+/** A living attached character of the unit has the ability: "while this model is leading a unit" (19.04). A character
+ * on its own leads nobody. */
+export const leadingAbility = (u: UnitState, a: string) =>
+  !!u.attached?.some((p) => DATASHEETS[p.datasheetId].abilities.includes(a as never) && u.models.some((m) => !m.destroyed && p.models.includes(m.id)))
+/** A living attached character of the unit has one of the keywords (Guardian Protocols: "while a NOBLE model is leading this unit"). */
+export const ledBy = (u: UnitState, ...k: string[]) =>
+  !!u.attached?.some((p) => DATASHEETS[p.datasheetId].keywords.some((x) => k.includes(x)) && u.models.some((m) => !m.destroyed && p.models.includes(m.id)))
+/** A character leads the unit: an attached character still has a living model. */
+export const isLed = (u: UnitState) => !!u.attached?.some((p) => u.models.some((m) => !m.destroyed && p.models.includes(m.id)))
+
+/** Toughness an attack against the unit uses: the highest of the bodyguard models on the battlefield, or of the
+ * characters when no bodyguard is left (19.02). */
+export function attackToughness(u: UnitState): number {
+  const own = alive(u).filter((m) => !partOf(u, m))
+  const ms = own.length ? own : alive(u)
+  return ms.length ? Math.max(...ms.map((m) => profileOf(m).t)) : 0
+}
+
+/** The unit's keywords: those of its living parts (19.03), without SMOKE when a model carries a broad spectrum data-tether (Onager). */
+export function unitKeywords(u: UnitState): string[] {
+  const kw = u.attached?.length ? [...new Set(liveDatasheets(u).flatMap((d) => d.keywords))] : datasheetOf(u).keywords
+  return hasWargear(u, 'dataTether') ? kw.filter((k) => k !== 'SMOKE') : kw
+}
 export const hasKeyword = (u: UnitState, ...k: string[]) => unitKeywords(u).some((x) => k.includes(x))
 /** MONSTER or VEHICLE: Lethal Hits "non-M/V", cover, engaged shooting and movement differ. */
 export const isMV = (u: UnitState) => hasKeyword(u, 'MONSTER', 'VEHICLE')
@@ -62,8 +112,6 @@ export const isFlyer = (u: UnitState) => hasKeyword(u, 'FLY')
 
 // ---------------------------------------------------------------- Adeptus Mechanicus
 
-/** Distance (edge to edge) within which a Tech-Priest counts as leading a friendly unit (approximation of attached units). */
-export const LEADER_RANGE = 3
 /** BATTLELINE support radius of the Doctrina Imperatives and Breaching Command. */
 export const BATTLELINE_RANGE = 6
 export const RAD_RANGE = 3
@@ -80,26 +128,15 @@ export function battlelineSupport(s: GameState, u: UnitState): boolean {
   return s.units.some((x) => x.id !== u.id && x.owner === u.owner && !isDestroyed(x) && hasKeyword(x, 'BATTLELINE') && hasKeyword(x, 'ADEPTUS MECHANICUS') && unitDistance(u, x) <= BATTLELINE_RANGE + EPS)
 }
 
-/** The one unit a Tech-Priest (a unit with `ability`) leads: the nearest friendly unit with Leader support within 3″ (ties: by id). */
-export function ledUnitOf(s: GameState, leader: UnitState): UnitState | null {
-  const cands = s.units
-    .filter((x) => x.id !== leader.id && x.owner === leader.owner && !isDestroyed(x) && hasAbility(x, 'ledUnit'))
-    .map((x) => ({ x, d: unitDistance(leader, x) }))
-    .filter((c) => c.d <= LEADER_RANGE + EPS)
-    .sort((a, b) => a.d - b.d || (a.x.id < b.x.id ? -1 : 1))
-  return cands[0]?.x ?? null
-}
-
-/** Friendly units that lead or are led by `u` and carry `ability`: the Tech-Priests whose bonus applies to `u`. */
-export function leadersOf(s: GameState, u: UnitState, ability: string): UnitState[] {
-  return s.units.filter((l) => l.owner === u.owner && !isDestroyed(l) && hasAbility(l, ability) && (l.id === u.id || ledUnitOf(s, l)?.id === u.id))
-}
-
 /** Wargear carried by any living model of the unit. */
 export const hasWargear = (u: UnitState, g: string) => alive(u).some((m) => profileOf(m).wargear?.includes(g as never))
 
-/** Feel No Pain value for damage to this unit (Lord of the Machine Cult), or undefined. */
-export const feelNoPainOf = (s: GameState, u: UnitState): number | undefined => (leadersOf(s, u, 'lordOfMachineCult').length || hasAbility(u, 'feelNoPain5') ? 5 : undefined)
+/** Feel No Pain value for damage to this unit, or undefined. Lord of the Machine Cult: a Tech-Priest Dominus leading the
+ * unit gives 5+, or 4+ to ELECTRO-PRIESTS. */
+export function feelNoPainOf(_s: GameState, u: UnitState): number | undefined {
+  if (leadingAbility(u, 'lordOfMachineCult')) return hasKeyword(u, 'ELECTRO-PRIESTS') ? 4 : 5
+  return hasAbility(u, 'feelNoPain5') ? 5 : undefined
+}
 
 /** Best invulnerable save granted to the unit as a whole (Waaagh! 5+, Defend the Divine Work 4+). */
 export function invulnOverrideOf(s: GameState, u: UnitState): number | undefined {
@@ -121,21 +158,8 @@ export function warpField(s: GameState, u: UnitState): boolean {
   return s.units.some((x) => x.owner === u.owner && !isDestroyed(x) && hasAbility(x, 'warpField') && (x.id === u.id || unitDistance(u, x) <= WARP_FIELD_RANGE + EPS))
 }
 
-/** The Tyranid Warriors unit a Winged Prime leads: the nearest one within 3″ (approximation of attached units). */
-export function primeLeads(s: GameState, prime: UnitState): UnitState | null {
-  if (!hasAbility(prime, 'alphaWarrior') || isDestroyed(prime)) return null
-  return s.units
-    .filter((x) => x.owner === prime.owner && !isDestroyed(x) && x.datasheetId === 'tyranidWarriors')
-    .map((x) => ({ x, d: unitDistance(prime, x) }))
-    .filter((e) => e.d <= LEADER_RANGE + EPS)
-    .sort((a, b) => a.d - b.d || (a.x.id < b.x.id ? -1 : 1))[0]?.x ?? null
-}
-
-/** Alpha Warrior: the Prime and the Tyranid Warriors it leads have Sustained Hits 1 on every weapon. */
-export function alphaWarrior(s: GameState, u: UnitState): boolean {
-  if (hasAbility(u, 'alphaWarrior')) return primeLeads(s, u) !== null
-  return u.datasheetId === 'tyranidWarriors' && s.units.some((p) => p.owner === u.owner && primeLeads(s, p)?.id === u.id)
-}
+/** Alpha Warrior: while a Winged Prime leads the unit, every weapon of its models has Sustained Hits 1. */
+export const alphaWarrior = (_s: GameState, u: UnitState): boolean => leadingAbility(u, 'alphaWarrior')
 
 // ---------------------------------------------------------------- Aeldari beyond the first four units
 
@@ -151,9 +175,8 @@ export const psychicGuidance = (s: GameState, u: UnitState) =>
 
 export const ENGRAMMATIC_RANGE = 12
 
-/** Guardian Protocols (Lychguard): a friendly NOBLE within 3″ counts as leading the unit (approximation of attached units). */
-export const nobleLeads = (s: GameState, u: UnitState) =>
-  s.units.some((x) => x.id !== u.id && x.owner === u.owner && !isDestroyed(x) && hasKeyword(x, 'NOBLE') && unitDistance(u, x) <= LEADER_RANGE + EPS)
+/** Guardian Protocols (Lychguard): a NOBLE model is leading the unit. */
+export const nobleLeads = (_s: GameState, u: UnitState) => ledBy(u, 'NOBLE')
 
 /** Neurostatic Interference: modifier to Battle-shock and Leadership tests of `u` caused by enemy Sicarians within 6″. */
 export function neurostaticMod(s: GameState, u: UnitState): number {

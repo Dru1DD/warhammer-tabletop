@@ -1,5 +1,5 @@
 import { avgDie, fmtRandom, rollDie, type Roller } from '../dice/dice'
-import { addLog, alive, datasheetOf, isDestroyed, profileOf } from '../gameState'
+import { addLog, alive, attackToughness, datasheetOf, isDestroyed, profileOf, unitKeywords } from '../gameState'
 import type { AttackStep, DieRoll, GameState, ModelState, UnitState, WeaponProfile } from '../types'
 import { tr } from '../../i18n/index'
 
@@ -32,6 +32,8 @@ export interface AttackContext {
   woundModNote?: string
   /** damage modifier per attack, result never below 1 (e.g. Dread 'Ard −1) */
   damageMod?: number
+  /** damage modifier for attacks allocated to single models (Implacable Resilience: the Overlord, also inside the unit it leads) */
+  damageModByModel?: Record<string, number>
   /** re-roll hit rolls: only 1s, or every failed hit (e.g. Swift Demise, Whirling Onslaught) */
   rerollHits?: 'ones' | 'all'
   /** re-roll wound rolls: only 1s, or every failed wound (e.g. Implacable Eradication) */
@@ -58,7 +60,11 @@ export function woundTarget(s: number, t: number): number {
   return 5
 }
 
-export const toughness = (u: UnitState) => Math.max(...alive(u).map((m) => profileOf(m).t))
+/** Toughness an attack against the unit uses (the bodyguard's in an attached unit, 19.02). */
+export const toughness = (u: UnitState) => attackToughness(u)
+
+/** Damage modifier of an attack allocated to model `m`: the unit's and the model's own. */
+export const damageModFor = (ctx: Pick<AttackContext, 'damageMod' | 'damageModByModel'>, m: ModelState) => (ctx.damageMod ?? 0) + (ctx.damageModByModel?.[m.id] ?? 0)
 
 /** Hit roll target after cover, and the hit modifier capped to ±1. */
 export const hitRoll = (p: WeaponProfile, ctx: AttackContext) => ({
@@ -164,14 +170,14 @@ export function resolveGroup(
   const t = toughness(target)
   const wt = woundTarget(p.s, t)
   const wmod = ctx.woundMod ?? 0
-  const anti = p.keywords.anti && datasheetOf(target).keywords.includes(p.keywords.anti.keyword) ? p.keywords.anti.roll : 7
+  const anti = p.keywords.anti && unitKeywords(target).includes(p.keywords.anti.keyword) ? p.keywords.anti.roll : 7
   const wins = (x: number) => x !== 1 && (x === 6 || x >= anti || x + wmod >= wt)
   /** expected damage of one more wound, one more hit, one more attack (against the model that would take it now) */
-  const avgDmg = Math.max(1, p.d + avgDie(p.randomD) + (ctx.damageMod ?? 0))
+  const avgDmg = (m: ModelState) => Math.max(1, p.d + avgDie(p.randomD) + damageModFor(ctx, m))
   const saveChance = (m: ModelState) => chance((x) => x !== 1 && x >= saveTarget(m, p.ap, invulnFor(ctx, m)).need)
   const perWound = () => {
     const m = isDestroyed(target) ? undefined : pickModelForDamage(target, ctx.precision)
-    return m ? (1 - saveChance(m)) * Math.min(avgDmg, m.wounds) : 0
+    return m ? (1 - saveChance(m)) * Math.min(avgDmg(m), m.wounds) : 0
   }
   const perHit = () => chance(wins) * perWound()
   const perAttack = () => (p.skill === null ? 1 : chance(passes)) * perHit()
@@ -310,7 +316,7 @@ export function resolveGroup(
     let v = roller.d6()
     let from: number | undefined
     if (v === 1 || v < st.need) {
-      const again = offer('save', v, 'defender', saveChance(m) * Math.min(avgDmg, m.wounds), () => roller.d6())
+      const again = offer('save', v, 'defender', saveChance(m) * Math.min(avgDmg(m), m.wounds), () => roller.d6())
       if (again !== null) { from = v; v = again; saveRerolled = true }
     }
     const saved = v !== 1 && v >= st.need
@@ -321,7 +327,7 @@ export function resolveGroup(
       let dmg = p.d
       if (p.randomD) {
         let v = rollDie(roller, p.randomD)
-        const flat = p.d + (ctx.damageMod ?? 0)
+        const flat = p.d + damageModFor(ctx, m)
         const dealt = (x: number) => Math.min(m.wounds, Math.max(1, flat + x))
         const faces = p.randomD === 'D3' ? [1, 1, 2, 2, 3, 3] : [1, 2, 3, 4, 5, 6]
         const gain = faces.reduce((a, x) => a + dealt(x), 0) / 6 - dealt(v)
@@ -330,7 +336,7 @@ export function resolveGroup(
         if (again !== null) v = again
         dmg += v
       }
-      dmg = throughFnp(Math.max(1, dmg + (ctx.damageMod ?? 0)))
+      dmg = throughFnp(Math.max(1, dmg + damageModFor(ctx, m)))
       killed += dmg > 0 ? applyDamage(target, dmg, m) : 0
       damage += before - m.wounds
     }

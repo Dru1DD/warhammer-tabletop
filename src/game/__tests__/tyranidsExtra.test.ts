@@ -81,32 +81,30 @@ describe('Warp Field (Zoanthropes)', () => {
 })
 
 describe('Alpha Warrior (Winged Prime)', () => {
-  it('within 3″ of Tyranid Warriors both get Sustained Hits 1', () => {
+  it('the Prime leading Tyranid Warriors gives every weapon of the unit Sustained Hits 1; on its own it gives none', () => {
     const s = battle('fight')
-    const prime = byDs(s, 'wingedPrime')
     const warriors = byDs(s, 'tyranidWarriors')
-    moveUnitTo(s, warriors.id, { x: 8, y: 6 })
-    prime.models[0].pos = { x: 8, y: 9.5 }
-    expect(alphaWarrior(s, prime)).toBe(true)
+    expect(warriors.attached?.map((p) => p.datasheetId)).toEqual(['wingedPrime'])
+    const prime = warriors.models.find((m) => m.profileId === 'wingedPrime')!
     expect(alphaWarrior(s, warriors)).toBe(true)
     const target = s.units.find((u) => u.owner === 'marines')!
-    const set = meleeSetup(s, prime, target, WEAPONS.primeTalons.profiles[0])
+    const set = meleeSetup(s, warriors, target, WEAPONS.primeTalons.profiles[0], prime)
     expect(set.profile.keywords.sustainedHits).toBe(1)
     expect(set.notes).toContain('Alpha Warrior: Sustained Hits 1')
-    // far away: no bonus
-    prime.models[0].pos = { x: 8, y: 25 }
-    expect(alphaWarrior(s, prime)).toBe(false)
+    // the Prime falls: no bonus
+    prime.destroyed = true
     expect(alphaWarrior(s, warriors)).toBe(false)
-    expect(meleeSetup(s, prime, target, WEAPONS.primeTalons.profiles[0]).profile.keywords.sustainedHits).toBeUndefined()
+    // a Prime on its own leads nobody
+    const alone = scenarioById('combat-patrol').build(['marines', 'tyranids'], { tyranids: { ...NIDS, units: NIDS.units.map((e) => (e.datasheetId === 'wingedPrime' ? { ...e, attachTo: null } : e)) } })
+    expect(alphaWarrior(alone, byDs(alone, 'wingedPrime'))).toBe(false)
+    expect(alphaWarrior(alone, byDs(alone, 'tyranidWarriors'))).toBe(false)
   })
 
   it('the bonus reaches the Warriors\' shooting', () => {
     const s = battle()
-    const prime = byDs(s, 'wingedPrime')
     const warriors = byDs(s, 'tyranidWarriors')
     const int = s.units.find((u) => u.id === 'int')!
     moveUnitTo(s, warriors.id, { x: 14, y: 6 })
-    prime.models[0].pos = { x: 14, y: 9.8 }
     moveUnitTo(s, int.id, { x: 30, y: 6 })
     const plan = shootPlan(s, warriors, int)
     expect(plan.groups.length).toBeGreaterThan(0)

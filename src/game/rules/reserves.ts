@@ -1,8 +1,8 @@
 import { FACTION_NAME } from '../data/datasheets'
-import { armyPoints, unitPoints, copyIndex } from '../data/points'
+import { armyPoints, unitCost } from '../data/points'
 import { basesOverlap, dist, edgeDistance, EPS, pointInPolygon } from '../geometry/geometry'
 import { formation } from '../army/placement'
-import { addLog, alive, checkCoherency, hasAbility, other, profileOf, radiusOf, sidesOf, unitsOf } from '../gameState'
+import { addLog, alive, checkCoherency, hasAbilityAll, other, profileOf, radiusOf, sidesOf, unitsOf } from '../gameState'
 import { terrainBlock } from './movement'
 import { destroyPassengers, passengersOf } from './transports'
 import type { GameState, PlayerId, UnitState, Vec } from '../types'
@@ -24,7 +24,7 @@ export const RESERVE_DEADLINE = 3
 export const RAPID_INGRESS_CP = 1
 
 export const reservesOf = (s: GameState, p: PlayerId) => (s.reserves ?? []).filter((u) => u.owner === p)
-export const canDeepStrike = (u: UnitState) => hasAbility(u, 'deepStrike')
+export const canDeepStrike = (u: UnitState) => hasAbilityAll(u, 'deepStrike')
 
 /** The army's whole cost (on the board and in reserve) and the cost of its reserves. */
 export function reserveBudget(s: GameState, p: PlayerId): { army: number; reserved: number; limit: number } {
@@ -32,7 +32,7 @@ export function reserveBudget(s: GameState, p: PlayerId): { army: number; reserv
   const army = armyPoints(all).points
   // units embarked in a transport in reserve count too
   const inReserve = reservesOf(s, p).flatMap((t) => [t, ...passengersOf(s, t.id)])
-  const reserved = inReserve.reduce((a, u) => a + unitPoints(u.datasheetId, u.startingModels, copyIndex(all, u)).points, 0)
+  const reserved = inReserve.reduce((a, u) => a + unitCost(all, u).points, 0)
   return { army, reserved, limit: Math.floor(army * RESERVE_SHARE) }
 }
 
@@ -40,7 +40,7 @@ export function reserveBudget(s: GameState, p: PlayerId): { army: number; reserv
 export function reserveProblem(s: GameState, u: UnitState): string | null {
   const all = [...s.units, ...(s.reserves ?? []), ...(s.embarked ?? [])].filter((x) => x.owner === u.owner)
   const { reserved, limit } = reserveBudget(s, u.owner)
-  const cost = unitPoints(u.datasheetId, u.startingModels, copyIndex(all, u)).points
+  const cost = unitCost(all, u).points
   if (reserved + cost > limit) return tr('Reserves hold at most half of the army’s points: {reserved} + {cost} > {limit}.', { reserved, cost, limit })
   if (unitsOf(s, u.owner).length <= 1) return tr('At least one unit must start the battle on the battlefield.')
   return null

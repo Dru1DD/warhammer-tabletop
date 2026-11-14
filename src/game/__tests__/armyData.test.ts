@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { portraitFor } from '../../assets/tokenArt'
 import { TOKENS } from '../../assets/manifest'
 import { ABILITY_TEXT, DATASHEETS, PROFILES, WEAPONS } from '../data/datasheets'
-import { alive, profileOf } from '../gameState'
+import { alive, bodyguardModels, profileOf } from '../gameState'
 import { basesOverlap } from '../geometry/geometry'
 import { deploymentIssues } from '../rules/deployment'
 import { armyOf, scenarioById, SCENARIOS } from '../scenarios/scenarios'
@@ -129,13 +129,15 @@ describe('army compositions (docs/armies.md)', () => {
   it('Tyranids: 1 Hive Tyrant, 10 Termagants, 10 Hormagaunts, 3 Tyranid Warriors', () => {
     expect(counts('tyranids')).toEqual({ tyrant: 1, termagants: 10, hormagaunts: 10, warriors: 3 })
   })
-  it('Necrons: 1 Overlord, 10 Necron Warriors, 3 Skorpekh Destroyers, 3 Canoptek Scarab Swarms', () => {
-    expect(counts('necrons')).toEqual({ overlord: 1, nwar: 10, skorp: 3, scarabs: 3 })
+  it('Necrons: 10 Necron Warriors led by 1 Overlord, 3 Skorpekh Destroyers, 3 Canoptek Scarab Swarms', () => {
+    expect(counts('necrons')).toEqual({ nwar: 11, skorp: 3, scarabs: 3 })
+    expect(armyOf('combat-patrol', 'necrons')!.find((u) => u.id === 'nwar')!.attached?.map((p) => p.datasheetId)).toEqual(['overlord'])
   })
-  it('Aeldari: 1 Farseer, 10 Guardian Defenders (+ the datasheet platform), 5 Dire Avengers, 3 Windriders', () => {
-    expect(counts('aeldari')).toEqual({ farseer: 1, guardians: 11, avengers: 5, riders: 3 })
+  it('Aeldari: 10 Guardian Defenders (+ the datasheet platform) led by 1 Farseer, 5 Dire Avengers, 3 Windriders', () => {
+    expect(counts('aeldari')).toEqual({ guardians: 12, avengers: 5, riders: 3 })
     const g = armyOf('combat-patrol', 'aeldari')!.find((u) => u.id === 'guardians')!
-    expect(g.models.filter((m) => !profileOf(m).platform)).toHaveLength(10)
+    expect(g.attached?.map((p) => p.datasheetId)).toEqual(['farseer'])
+    expect(bodyguardModels(g).filter((m) => !profileOf(m).platform)).toHaveLength(10)
     expect(g.models.filter((m) => profileOf(m).platform)).toHaveLength(1)
   })
   it('loadouts respect the datasheet limits (special weapons per 10 / per 3 models)', () => {

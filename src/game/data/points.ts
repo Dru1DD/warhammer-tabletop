@@ -156,11 +156,34 @@ export function pointsPerModel(datasheetId: string, models: number, copy = 1): n
 export const copyIndex = (units: UnitState[], u: UnitState) =>
   units.filter((x) => x.owner === u.owner && x.datasheetId === u.datasheetId).indexOf(u) + 1 || 1
 
+/** The datasheets a unit was mustered from, with their model counts: its own, then each attached character's. */
+function pieces(u: UnitState): { id: string; models: number }[] {
+  const chars = (u.attached ?? []).map((p) => ({ id: p.datasheetId, models: p.models.length }))
+  return [{ id: u.datasheetId, models: u.startingModels - chars.reduce((a, c) => a + c.models, 0) }, ...chars]
+}
+
+/** Cost of `u` as it was mustered: its own datasheet and every character attached to it. Copies of a datasheet are
+ * numbered in roster order among the owner's `units`, characters inside units included. */
+export function unitCost(units: UnitState[], u: UnitState): UnitCost {
+  const seen: Record<string, number> = {}
+  let points = 0, exact = true
+  const roster = units.includes(u) ? units.filter((x) => x.owner === u.owner) : [u]
+  for (const x of roster)
+    for (const p of pieces(x)) {
+      seen[p.id] = (seen[p.id] ?? 0) + 1
+      if (x !== u) continue
+      const c = unitPoints(p.id, p.models, seen[p.id])
+      points += c.points
+      exact &&= c.exact
+    }
+  return { points, exact }
+}
+
 /** Army cost from the units as they were mustered (casualties do not change the list cost). */
 export function armyPoints(units: UnitState[]): UnitCost {
   return units.reduce<UnitCost>(
     (sum, u) => {
-      const c = unitPoints(u.datasheetId, u.startingModels, copyIndex(units, u))
+      const c = unitCost(units, u)
       return { points: sum.points + c.points, exact: sum.exact && c.exact }
     },
     { points: 0, exact: true },

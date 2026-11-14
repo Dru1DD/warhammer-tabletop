@@ -88,6 +88,7 @@ export const MARINE_DATASHEETS: Record<string, Datasheet> = {
     id: 'captain', name: tr('Captain|army'), faction: 'marines',
     keywords: ['INFANTRY', 'CHARACTER', 'EXPLOSIVES', 'IMPERIUM', 'TACTICUS'],
     abilities: ['finestHour', 'strategicAcumen'],
+    leads: ['intercessors', 'assaultIntercessors', 'hellblasters', 'infernus', 'bladeguard'],
     description: tr('Company commander: 4+ invulnerable save, master-crafted bolter and power weapon; once per battle — “Finest Hour” in melee.'),
   },
   hellblasters: {
@@ -111,7 +112,7 @@ export const MARINE_DATASHEETS: Record<string, Datasheet> = {
 }
 
 export const MARINE_ABILITY_TEXT: Record<string, string> = {
-  finestHour: tr('Finest Hour: once per battle, when the unit is selected to fight, its melee attacks get +3 Attacks and Devastating Wounds.'),
+  finestHour: tr('Finest Hour: once per battle, when the unit is selected to fight, this model’s melee attacks get +3 Attacks and Devastating Wounds.'),
   strategicAcumen:
     tr('Strategic Acumen: in the Command phase makes one Combat Doctrine active for the unit. [Not implemented: the game has no Combat Doctrines.]'),
   thermalAppeasement: tr('Rites of Thermal Appeasement: +1 to Hazardous rolls for the unit’s plasma weapons — fails only on a 1.'),

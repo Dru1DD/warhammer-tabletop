@@ -50,7 +50,7 @@ Unit sizes: Captain 1; Hellblasters and Infernus 5 or 10; Bladeguard 3 or 6.
 | Driven from Cover | Infernus | After the Infernus shoot and score at least one hit, the target gets no cover against this army's shooting until the end of the turn. The datasheet gives no duration. The AI shoots with the Infernus first so the rest of the army benefits. |
 | Bladeguard | Bladeguard | The fight option: +1 to melee hit rolls when the unit fights. **The defensive option** (−1 to hit when the unit is attacked) **is not implemented**: the game has no decisions in the opponent's turn. |
 | Strategic Acumen | Captain | **Not implemented**: the game has no Combat Doctrines (the 11th-edition Marine army rule). |
-| Leader | Captain | **Not implemented**, as for the Lieutenant: the Captain is a separate unit. |
+| Leader | Captain | The Captain joins a unit (Leader), the Lieutenant too (Support, it must). See [leaders.md](leaders.md). |
 
 ## Presets
 

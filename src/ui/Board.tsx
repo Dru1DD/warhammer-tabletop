@@ -5,7 +5,7 @@ import { BOARD_STYLE, FACTION_LINE, FACTION_STYLE, TERRAIN_STYLE, TOKENS, tokenI
 import { boxOf, fitBox, withBox, type Box } from '../game/terrainLayout'
 import { actor, moveAllowance, moveCommand, moveModeFor, shootPlan, validate } from '../game/engine'
 import { baseRadius, dist, edgeDistance, withinRange } from '../game/geometry/geometry'
-import { alive, CHARGE_RANGE, findUnit, fmt, hasAbility, isFlyer, modelDistance, OBJECTIVE_MARKER_MM, OBJECTIVE_RANGE, profileOf, radiusOf, sidesOf, weaponsOf } from '../game/gameState'
+import { alive, CHARGE_RANGE, findUnit, fmt, hasAbility, isFlyer, leadingAbility, modelDistance, OBJECTIVE_MARKER_MM, OBJECTIVE_RANGE, profileOf, radiusOf, sidesOf, weaponsOf } from '../game/gameState'
 import type { Command, GameState, ModelState, Terrain, UnitState, Vec } from '../game/types'
 import { useStore } from '../store'
 import { movePath } from '../game/rules/movement'
@@ -22,8 +22,8 @@ import { casualties, moveSeconds, reducedMotion, type Casualty } from '../view/a
 import { dragZoneNotes, withDraft, zoneBadges, zoneShapes, type ZoneShape, type ZoneTone } from '../view/zones'
 import { zonesOf } from '../game/rules/zones'
 
-/** Colours of ability zones: a bonus, a penalty, a leader link, an explosion. */
-const ZONE_COLOR: Record<ZoneTone, string> = { help: '#2dd4bf', harm: '#f43f5e', leader: '#facc15', explosion: '#fb923c' }
+/** Colours of ability zones: a bonus, a penalty, an explosion. */
+const ZONE_COLOR: Record<ZoneTone, string> = { help: '#2dd4bf', harm: '#f43f5e', explosion: '#fb923c' }
 
 const flat = (pts: Vec[]) => pts.flatMap((p) => [p.x, p.y])
 
@@ -347,7 +347,6 @@ function Legend({ allZones, setAllZones }: { allZones: boolean; setAllZones: (v:
         {row(<span className="inline-block h-3 w-4 shrink-0 border-2 border-dashed border-yellow-400 bg-blue-800/50" />, tr('deployment zone'))}
         {row(zone('help'), tr('aura or zone: a bonus for its side'))}
         {row(zone('harm'), tr('aura: a penalty for the enemy'))}
-        {row(zone('leader'), tr('leader: the unit it leads (within 3″)'))}
         {row(zone('explosion'), tr('explosion if destroyed (Deadly Demise)'))}
       </ul>
       <label className="mt-1 flex cursor-pointer items-center gap-1.5">
@@ -396,7 +395,7 @@ function ActionBar() {
     } else if (mine.advanceRoll === null && mode === 'normal') {
       btn('advance', { type: 'declareAdvance', unitId: mine.id }, tr('⚡ Advance (+D6″)'))
     }
-    if (mine.advanceRoll !== null && !mine.advanceRerolled && (hasAbility(mine, 'waaagh') || hasAbility(mine, 'superlativeStrategist')))
+    if (mine.advanceRoll !== null && !mine.advanceRerolled && (hasAbility(mine, 'waaagh') || leadingAbility(mine, 'superlativeStrategist')))
       btn('reroll', { type: 'rerollAdvance', unitId: mine.id }, hasAbility(mine, 'waaagh') ? tr('🎲 Re-roll (Waaagh!)') : tr('🎲 Re-roll (Superlative Strategist)'))
     if (isFlyer(mine)) buttons.push(<button key="fly" className={`btn ${st.moveOptions.fly ? 'btn-primary' : ''}`} aria-pressed={st.moveOptions.fly} onClick={() => st.setMoveOptions({ fly: !st.moveOptions.fly })} title={tr('FLY: −2″ to movement, but the models fly over models and terrain')}>{tr('🕊 Take off (−2″)')}</button>)
     if (hasAbility(mine, 'battleFocus') && (game.players[human].focus ?? 0) > 0) buttons.push(<button key="swift" className={`btn ${st.moveOptions.swift ? 'btn-primary' : ''}`} aria-pressed={st.moveOptions.swift} onClick={() => st.setMoveOptions({ swift: !st.moveOptions.swift })} title={tr('Battle Focus: a token gives +2″ to movement')}>{tr('✦ Swift as the Wind (+2″) · tokens {focus}', { focus: game.players[human].focus })}</button>)
@@ -849,7 +848,7 @@ function BoardLayers({ game, view, stageRef, setHover, sight, hoverUnitId, allZo
         fill={ZONE_COLOR[z.tone]}
         opacity={z.tone === 'explosion' ? 0.08 : 0.1}
       />
-      {z.outline.map((pts, i) => <Line key={i} points={flat(pts)} stroke={ZONE_COLOR[z.tone]} strokeWidth={0.06} dash={z.tone === 'leader' ? [0.12, 0.12] : [0.35, 0.2]} opacity={0.8} />)}
+      {z.outline.map((pts, i) => <Line key={i} points={flat(pts)} stroke={ZONE_COLOR[z.tone]} strokeWidth={0.06} dash={[0.35, 0.2]} opacity={0.8} />)}
       <Text x={z.label.x - 4} y={z.label.y - 0.5} width={8} align="center" text={z.label.text} fontSize={0.36} fill={ZONE_COLOR[z.tone]} shadowColor="black" shadowBlur={0.1} />
     </Group>
   ))

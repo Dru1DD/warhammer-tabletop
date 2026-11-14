@@ -66,6 +66,7 @@ export const NECRON_EXTRA_DATASHEETS: Record<string, Datasheet> = {
     id: 'royalWarden', name: tr('Royal Warden|army'), faction: 'necrons',
     keywords: ['INFANTRY', 'CHARACTER', 'ROYAL WARDEN', 'NECRONS'],
     abilities: ['reanimation', 'adaptiveStrategy', 'engrammaticLogic'],
+    leads: ['necronWarriors', 'immortals'],
     description: tr('Phalanx officer: shoots and charges even after falling back, once per battle removes Battle-shock from a friendly unit.'),
   },
   immortals: {
@@ -95,7 +96,7 @@ export const NECRON_EXTRA_ABILITY_TEXT: Record<string, string> = {
   implacableEradication:
     tr('Implacable Eradication: the unit’s attacks re-roll wound rolls of 1; if the target is within an objective zone — any failed wound rolls.'),
   guardianProtocols:
-    tr('Guardian Protocols: while the unit is led by a NOBLE, attacks against it with Strength greater than its Toughness get −1 to the wound roll. [Approximation: there is no leader attachment — the unit counts as led if a friendly NOBLE (Overlord) is within 3″.]'),
+    tr('Guardian Protocols: while a NOBLE (Overlord) leads the unit, attacks against it with Strength greater than its Toughness get −1 to the wound roll.'),
   wraithForm:
     tr('Wraith Form: after a normal move pick an enemy unit the unit flew through and roll a D6 for each model: each 4+ is 1 mortal wound.'),
 }

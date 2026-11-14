@@ -53,7 +53,7 @@ describe('own army lists in an online game', () => {
     expect(count('orks', 'kommandos')).toBe(1)
     expect(count('orks', 'gretchin')).toBe(1)
     expect(count('marines', 'redemptor')).toBe(1)
-    expect(m.state.units.filter((u) => u.owner === 'orks')).toHaveLength(orks500().units.length)
+    expect(m.state.units.filter((u) => u.owner === 'orks')).toHaveLength(orks500().units.length - 1) // the Warboss leads the Boyz
     useStore.getState().quit()
   })
 })

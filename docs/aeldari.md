@@ -42,7 +42,7 @@ Unit sizes: Autarch 1; Rangers 5 or 10; Wraithguard 5; Swooping Hawks 5 or 10.
 | Rule | Unit | Status |
 |---|---|---|
 | Battle Focus | all | As for the other Aeldari. |
-| Superlative Strategist | Autarch | The unit can re-roll its Advance roll (button “Re-roll”, the same command as Waaagh!). **Not implemented:** the re-rolls for Agile Manoeuvres. There is no leader attachment, so the rule acts on the Autarch himself. |
+| Superlative Strategist | Autarch | While the Autarch leads a unit, the unit can re-roll its Advance roll (button “Re-roll”, the same command as Waaagh!). An Autarch on its own cannot ([leaders.md](leaders.md)). **Not implemented:** the re-rolls for Agile Manoeuvres. |
 | Path of Command | Autarch | **Not implemented**: there are no stratagems. |
 | 5+ invulnerable save vs ranged | Rangers | Applied to shooting only. Melee attacks do not get it. |
 | Infiltrators, Stealth | Rangers | Core rules, already used by the Sicarians. |

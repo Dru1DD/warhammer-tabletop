@@ -24,11 +24,11 @@ The datasheets were checked against Wahapedia (11th edition) on 13.11.2026. Of t
 | Synapse | SYNAPSE units | 6″ | friendly Tyranids | Synapse (only while its zone is drawn: it covers nearly every Tyranid) |
 | Near Battleline | Skitarii Rangers and Vanguard | 6″ | Kataphron Breachers (re-roll hits), Serberys Sulphurhounds (Line-breakers +2), Sicarians (−2 Ld), any Mechanicus unit under the Conqueror Imperative (AP +1) | as listed |
 | Psychic Guidance | an Aeldari PSYKER (Farseer) | 12″ | Wraithguard | +1 to hit |
-| Leads a unit | Tech-Priest Dominus and Manipulus; a Necron NOBLE | 3″ | the unit it leads (the game's approximation of attached leaders) | FNP 5+, Lethal Hits, −1 to wound |
 | Deadly Demise | vehicles and monsters | 6″ | every unit, if the model is destroyed and explodes | none; drawn on hover only |
 
 Not drawn:
 - Spirit Leech (Zoanthropes) is not implemented.
+- A leader's bonus: since #64 the character is inside the unit it leads ([leaders.md](leaders.md)), so there is no zone around it.
 - One-off abilities with a chosen target (Guide, Bomb Squig, Grenade Pack Flyover) are not zones.
 
 ## How the board shows them
@@ -39,7 +39,6 @@ Not drawn:
 - **Colours:**
   - teal: a bonus for the source's side;
   - red: a penalty for the enemy;
-  - yellow: a leader;
   - orange: an explosion.
 - **Badges** above each affected unit name the effect, for example "4++" on Rangers inside the Onager's field. They are always shown, except Synapse.
 - **While a unit is dragged** its zones move with it. The movement panel says whom they will cover from there, and which zones the unit enters or leaves.
@@ -55,7 +54,7 @@ A zone is measured from the edge of each model's base, so it is drawn as one cir
 - which side it affects;
 - the badge it gives a unit.
 
-The UI reads only the registry. The rules stay in their own functions (`emanatusModels`, `neurostaticMod`, `inOnslaught`, `warpField`, `inSynapseRange`, `battlelineSupport`, `psychicGuidance`, `ledUnitOf`, `nobleLeads`, `irradiated`). `zones.test.ts` moves a target unit away from each source in small steps and checks that the registry and the rule agree at every step.
+The UI reads only the registry. The rules stay in their own functions (`emanatusModels`, `neurostaticMod`, `inOnslaught`, `warpField`, `inSynapseRange`, `battlelineSupport`, `psychicGuidance`, `irradiated`). `zones.test.ts` moves a target unit away from each source in small steps and checks that the registry and the rule agree at every step.
 
 ## Emanatus Force Field: each model wholly within
 

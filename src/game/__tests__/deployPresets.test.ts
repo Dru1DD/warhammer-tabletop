@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { presetList } from '../army/armyList'
 import { applyPreset, DEPLOY_PRESETS, deployWithPreset, presetFit, recommendedPreset } from '../army/deployPresets'
 import { unitProfile } from '../army/roles'
+import { listUnits } from '../army/placement'
 import { alive, sidesOf, unitsOf } from '../gameState'
 import { deploymentProblem, deploymentZone } from '../rules/deployment'
 import { scenarioById } from '../scenarios/scenarios'
@@ -30,7 +31,9 @@ describe('unit roles', () => {
     expect(role('boyz')).toBe('assault')
     expect(role('nobz')).toBe('assault')
     expect(role('gretchin')).toBe('screen')
-    expect(role('warboss')).toBe('character')
+    // the Warboss leads the biggest Boyz mob, which stays an assault unit; a character on its own is a character
+    expect(s.units.some((u) => u.id.startsWith('warboss'))).toBe(false)
+    expect(unitProfile(listUnits('orks', { limit: 1000, units: [{ datasheetId: 'warboss', size: 1, attachTo: null }] })[0]).role).toBe('character')
     expect(role('rangers')).toBe('shooter')
     expect(role('sicarians')).toBe('infiltrator')
   })

@@ -76,7 +76,8 @@ export const TYRANID_EXTRA_DATASHEETS: Record<string, Datasheet> = {
     id: 'wingedPrime', name: tr('Winged Tyranid Prime'), faction: 'tyranids',
     keywords: ['INFANTRY', 'CHARACTER', 'FLY', 'GREAT DEVOURER', 'SYNAPSE', 'VANGUARD INVADER', 'WINGED TYRANID PRIME', 'TYRANIDS'],
     abilities: ['synapse', 'shadowInTheWarp', 'alphaWarrior', 'deathBlow', 'deepStrike'],
-    description: tr('Winged synapse commander: M12″, flies; near Tyranid Warriors their attacks get Sustained Hits 1.'),
+    leads: ['tyranidWarriors'],
+    description: tr('Winged synapse commander: M12″, flies; the Tyranid Warriors it leads get Sustained Hits 1.'),
   },
   zoanthropes: {
     id: 'zoanthropes', name: tr('Zoanthropes'), faction: 'tyranids',
@@ -100,7 +101,7 @@ export const TYRANID_EXTRA_DATASHEETS: Record<string, Datasheet> = {
 
 export const TYRANID_EXTRA_ABILITY_TEXT: Record<string, string> = {
   alphaWarrior:
-    tr('Alpha Warrior: while a Prime leads the unit, the unit’s weapons get Sustained Hits 1. [Approximation: there is no leader attachment — a Prime within 3″ of a Tyranid Warriors unit counts as leading it, and both the Prime and the Warriors get Sustained Hits 1.]'),
+    tr('Alpha Warrior: while a Winged Prime leads the unit, the weapons of its models get Sustained Hits 1.'),
   deathBlow:
     tr('Death Blow: if the Prime is destroyed in melee before it fought, on a 4+ it manages to strike back. [Not implemented.]'),
   warpField: tr('Warp Field (aura): friendly Tyranid units within 6″ of the Zoanthropes have a 6+ invulnerable save.'),

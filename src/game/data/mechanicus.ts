@@ -339,42 +339,46 @@ export const MECHANICUS_PROFILES: Record<string, ModelProfile> = {
 }
 
 const AM = 'ADEPTUS MECHANICUS'
+/** Leader (Tech-Priest Dominus, Manipulus): the units of the game from the datasheet's list */
+const TECH_PRIEST_LEADS = ['rangers', 'vanguard', 'breachers', 'destroyers', 'electroPriests']
 
 export const MECHANICUS_DATASHEETS: Record<string, Datasheet> = {
   techDominus: {
     id: 'techDominus', name: tr('Tech-Priest Dominus|army'), faction: 'adeptus_mechanicus',
     keywords: ['INFANTRY', 'CHARACTER', 'IMPERIUM', 'CULT MECHANICUS', 'TECH-PRIEST', 'DOMINUS', AM],
     abilities: ['doctrina', 'lordOfMachineCult', 'dataSpike'],
+    leads: TECH_PRIEST_LEADS,
     description: tr('Commander and battle priest: protects the led unit (Feel No Pain 5+), breaks enemy vehicles in melee.'),
   },
   techManipulus: {
     id: 'techManipulus', name: tr('Tech-Priest Manipulus|army'), faction: 'adeptus_mechanicus',
     keywords: ['INFANTRY', 'CHARACTER', 'IMPERIUM', 'CULT MECHANICUS', 'TECH-PRIEST', 'MANIPULUS', AM],
     abilities: ['doctrina', 'galvanicField', 'defendDivineWork'],
+    leads: TECH_PRIEST_LEADS,
     description: tr('Fire support: the magnarail lance hits at 36″, and the led unit gets Lethal Hits and, once per battle, a 4+ invulnerable save.'),
   },
   rangers: {
     id: 'rangers', name: tr('Skitarii Rangers'), faction: 'adeptus_mechanicus',
     keywords: ['INFANTRY', 'BATTLELINE', 'IMPERIUM', 'SKITARII', 'RANGERS', AM],
-    abilities: ['doctrina', 'ledUnit', 'objectiveScouted', 'scouts'],
+    abilities: ['doctrina', 'objectiveScouted', 'scouts'],
     description: tr('Long-range line infantry: 30″ rifles, omnispex against cover, hold an objective even after leaving.'),
   },
   vanguard: {
     id: 'vanguard', name: tr('Skitarii Vanguard|alt'), faction: 'adeptus_mechanicus',
     keywords: ['INFANTRY', 'BATTLELINE', 'IMPERIUM', 'SKITARII', 'VANGUARD', AM],
-    abilities: ['doctrina', 'ledUnit', 'radSaturation'],
+    abilities: ['doctrina', 'radSaturation'],
     description: tr('Close-fire line infantry: radium carbines at 18″, radiation around the unit lowers enemy OC.'),
   },
   breachers: {
     id: 'breachers', name: tr('Kataphron Breachers'), faction: 'adeptus_mechanicus',
     keywords: ['INFANTRY', 'IMPERIUM', 'CULT MECHANICUS', 'KATAPHRON', 'BREACHERS', AM],
-    abilities: ['doctrina', 'ledUnit', 'breachingCommand'],
+    abilities: ['doctrina', 'breachingCommand'],
     description: tr('Durable heavy fire support: T7, 3+ save, arc rifles against vehicles and claws in melee.'),
   },
   destroyers: {
     id: 'destroyers', name: tr('Kataphron Destroyers'), faction: 'adeptus_mechanicus',
     keywords: ['INFANTRY', 'IMPERIUM', 'CULT MECHANICUS', 'KATAPHRON', 'DESTROYERS', AM],
-    abilities: ['doctrina', 'ledUnit', 'sentinelDirectives'],
+    abilities: ['doctrina', 'sentinelDirectives'],
     description: tr('Specialised long-range fire: grav-cannons and plasma culverins against heavy targets, phosphor ignores cover.'),
   },
   sicarians: {
@@ -410,7 +414,7 @@ export const MECHANICUS_DATASHEETS: Record<string, Datasheet> = {
   electroPriests: {
     id: 'electroPriests', name: tr('Corpuscarii Electro-Priests'), faction: 'adeptus_mechanicus',
     keywords: ['INFANTRY', 'IMPERIUM', 'CULT MECHANICUS', 'CORPUSCARII', 'ELECTRO-PRIESTS', AM],
-    abilities: ['doctrina', 'ledUnit', 'feelNoPain5', 'electroShock'],
+    abilities: ['doctrina', 'feelNoPain5', 'electroShock'],
     description: tr('Fanatics with lightning in their hands: gauntlets at 12″ and in melee with Sustained Hits 2; the discharge slows enemy infantry.'),
   },
   dunerider: {
@@ -424,11 +428,10 @@ export const MECHANICUS_DATASHEETS: Record<string, Datasheet> = {
 
 export const MECHANICUS_ABILITY_TEXT: Record<string, string> = {
   doctrina: tr('Doctrina Imperatives (army rule): once per round choose Protector (Protector: ranged weapons get Heavy and BS 1 better; a BATTLELINE unit or one within 6″ of a friendly BATTLELINE gets −1 to be hit in melee) or Conqueror (Conqueror: ranged weapons get Assault, melee WS 1 better; for such a unit attacks’ AP is 1 better). [Approximation: chosen in your Command phase and lasts until your next Command phase.]'),
-  ledUnit: tr('Can be led by a Tech-Priest (Leader): [Not implemented: leaders cannot join units. Approximation: a Tech-Priest within 3″ of the nearest such unit counts as leading it.]'),
-  lordOfMachineCult: tr('Lord of the Machine Cult: the led unit’s models get Feel No Pain 5+ (a 5+ roll for each lost wound cancels it). [Approximation: the nearest friendly unit within 3″.]'),
+  lordOfMachineCult: tr('Lord of the Machine Cult: while this model leads a unit, its models get Feel No Pain 5+, or 4+ for Electro-Priests (a roll for each lost wound cancels it).'),
   dataSpike: tr('Data-spike: at the start of the Fight phase, if the unit is in engagement range of an enemy VEHICLE, roll a D6: on a 4+ that vehicle takes D6 mortal wounds and the WS of its melee weapons is 1 worse until the end of the phase. [Triggers automatically.]'),
-  galvanicField: tr('Galvanic Field: the weapons of the led unit’s models get Lethal Hits. [Approximation: the nearest friendly unit within 3″.]'),
-  defendDivineWork: tr('Defend the Divine Work: once per battle — the led unit’s models get a 4+ invulnerable save. [Approximation: used in your phase and lasts until the start of your next turn.]'),
+  galvanicField: tr('Galvanic Field: while this model leads a unit, the weapons of its models get Lethal Hits.'),
+  defendDivineWork: tr('Defend the Divine Work: once per battle — every model of this model’s unit gets a 4+ invulnerable save. [Approximation: used in your phase and lasts until the start of your next turn.]'),
   objectiveScouted: tr('Objective Scouted: at the end of your Command phase, if the unit is near an objective you control, you hold it until the enemy’s control level becomes higher than yours.'),
   radSaturation: tr('Rad-saturation (3″ aura): models of enemy units (except VEHICLE) within 3″ of this unit lower their OC by 1.'),
   breachingCommand: tr('Breaching Command: each of the unit’s attacks re-rolls a hit roll of 1; within 6″ of a friendly BATTLELINE — re-rolls any hit roll.'),

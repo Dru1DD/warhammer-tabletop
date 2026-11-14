@@ -68,6 +68,7 @@ export const ORK_DATASHEETS: Record<string, Datasheet> = {
     id: 'warboss', name: tr('Warboss|army'), faction: 'orks',
     keywords: ['INFANTRY', 'CHARACTER', 'EXPLOSIVES', 'WARBOSS', 'ORKS'],
     abilities: ['ammoRunts', 'mightIsRight', 'intimidatingMotivation', 'waaagh'],
+    leads: ['boyz', 'nobz'],
     description: tr('Army leader: T6, W6, 5+ invulnerable save; after a charge his choppa hits even harder.'),
   },
   nobz: {
@@ -91,7 +92,7 @@ export const ORK_DATASHEETS: Record<string, Datasheet> = {
 }
 
 export const ORK_ABILITY_TEXT: Record<string, string> = {
-  mightIsRight: tr('Might Is Right: if the unit charged this turn, its melee attacks get +3 Attacks and +2 Strength.'),
+  mightIsRight: tr('Might Is Right: if the unit charged this turn, this model’s melee attacks get +3 Attacks and +2 Strength.'),
   intimidatingMotivation:
     tr('Intimidating Motivation: once per round in the Movement phase pick a friendly Ork unit within 6″ — it is no longer Battle-shocked and becomes “enraged”. [Not implemented: “enraged” is army-wide in the game (Waaagh!), there is no per-unit version.]'),
   getOutDaWay:

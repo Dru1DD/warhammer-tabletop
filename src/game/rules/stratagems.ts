@@ -210,7 +210,7 @@ export const LATER_STRATAGEMS: LaterStratagem[] = [
   { faction: 'marines', name: tr('Might of the Angels'), nameEn: 'Might of Angels', cost: 1, why: tr('needs the Lance rule') },
   { faction: 'marines', name: tr('Adaptive Strategy|stratagem'), nameEn: 'Adaptive Strategy', cost: 1, why: tr('will appear later') },
   { faction: 'marines', name: tr('Counter-tactics'), nameEn: 'Responsive Tactics', cost: 1, why: tr('needs movement in the opponent’s turn') },
-  { faction: 'orks', name: tr('Knock Some Sense'), nameEn: "Breakin' Heads", cost: 1, why: tr('needs attached characters') },
+  { faction: 'orks', name: tr('Knock Some Sense'), nameEn: "Breakin' Heads", cost: 1, why: tr('will appear later') },
   { faction: 'orks', name: tr('Mow Them Down!'), nameEn: "Mow 'Em Down", cost: 1, why: tr('only non-WALKER vehicles, the Orks have none here') },
   { faction: 'tyranids', name: tr('Overwhelm'), nameEn: 'Overrun', cost: 1, why: tr('needs a consolidation choice after combat') },
   { faction: 'tyranids', name: tr('Predatory Imperative'), nameEn: 'Predatory Imperative', cost: 1, why: tr('needs hyper-adaptations') },

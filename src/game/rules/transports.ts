@@ -137,24 +137,34 @@ function slots(c: Vec, hr: number, mr: number, range: number): Vec[] {
 /** Set the unit's models up around a hull: the free slots nearest to `near` first (or nearest the hull when `near` is
  * null). Returns the positions of the models that fit; the caller decides what to do with the rest. */
 function placeAround(s: GameState, u: UnitState, c: Vec, hr: number, range: number, near: Vec | null, allowEngaged: boolean): Record<string, Vec> {
-  const ms = alive(u)
-  const mr = Math.max(...ms.map(radiusOf))
+  // the biggest bases first, each on a spot sized for its own base: a Tech-Priest (50 mm) among Rangers (25 mm) must
+  // not make every Ranger take a 50 mm spot, or an attached unit no longer fits within 3″ of its transport
+  const ms = [...alive(u)].sort((a, b) => radiusOf(b) - radiusOf(a))
   const foes = s.units.filter((x) => x.owner !== u.owner).flatMap(alive)
   const others = s.units.filter((x) => x.id !== u.id).flatMap(alive)
-  const free = slots(c, hr, mr, range).filter((p) =>
-    p.x - mr >= 0 && p.y - mr >= 0 && p.x + mr <= s.board.width && p.y + mr <= s.board.height &&
-    !others.some((o) => basesOverlap(p, mr, o.pos, radiusOf(o))) &&
-    (allowEngaged || !foes.some((f) => edgeDistance(p, mr, f.pos, radiusOf(f)) <= ENGAGEMENT_RANGE + EPS)) &&
-    !terrainBlock(s, u, mr, p, p, true))
   const key = near ? (p: Vec) => dist(p, near) : (p: Vec) => dist(p, c)
-  free.sort((a, b) => key(a) - key(b))
+  const spots = new Map<number, Vec[]>()
+  const spotsFor = (mr: number) => {
+    let free = spots.get(mr)
+    if (!free) {
+      free = slots(c, hr, mr, range).filter((p) =>
+        p.x - mr >= 0 && p.y - mr >= 0 && p.x + mr <= s.board.width && p.y + mr <= s.board.height &&
+        !others.some((o) => basesOverlap(p, mr, o.pos, radiusOf(o))) &&
+        (allowEngaged || !foes.some((f) => edgeDistance(p, mr, f.pos, radiusOf(f)) <= ENGAGEMENT_RANGE + EPS)) &&
+        !terrainBlock(s, u, mr, p, p, true))
+      free.sort((a, b) => key(a) - key(b))
+      spots.set(mr, free)
+    }
+    return free
+  }
   const out: Record<string, Vec> = {}
-  const taken: Vec[] = []
+  const taken: { p: Vec; r: number }[] = []
   for (const m of ms) {
-    const p = free.find((q) => !taken.some((t) => basesOverlap(q, radiusOf(m), t, mr)))
+    const r = radiusOf(m)
+    const p = spotsFor(r).find((q) => !taken.some((t) => basesOverlap(q, r, t.p, t.r)))
     if (!p) break
     out[m.id] = p
-    taken.push(p)
+    taken.push({ p, r })
   }
   return out
 }

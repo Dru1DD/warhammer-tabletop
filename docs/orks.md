@@ -54,7 +54,7 @@ Unit sizes: Warboss 1; Nobz 5 or 10; Gretchin 10 or 20; Kommandos 10 (1 Nob + 9)
 | Intimidating Motivation | Warboss | **Not implemented.** "Riled up" is army-wide in this engine (the Waaagh!), there is no per-unit state for it. |
 | Get Out da Way! | Nobz | **Not implemented.** Charge moves still go around other bases. |
 | Found 'Em!, Nowhere to Hide, Taktikal Know-wotz | Kommandos | **Not implemented.** The game has no detection rules, and units cannot be split. |
-| Leader (Warboss → Boyz, Nobz) | Warboss | **Not implemented**, as for the Lieutenant: the Warboss is a separate unit. Might Is Right therefore applies to the Warboss model only. |
+| Leader (Warboss → Boyz, Nobz) | Warboss | The Warboss joins Boyz or Nobz ([leaders.md](leaders.md)). Might Is Right is for the Warboss's own attacks, as on the datasheet. |
 
 ## Presets
 

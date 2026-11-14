@@ -43,9 +43,9 @@ Unit sizes: Royal Warden 1; Immortals and Lychguard 5 or 10; Wraiths 3 or 6.
 | Adaptive Strategy | Royal Warden | The unit can shoot and charge after Falling Back. Same mechanism as the Tyranid Warriors' Adaptable Predators. |
 | Engrammatic Logic | Royal Warden | Once per battle, remove battle-shock from a friendly unit within 12″. **Approximation:** it can be used at any time in your turn, not only at the start of a phase. It is offered in the unit card, and the AI uses it in its Command phase, preferring a unit near an objective. |
 | Implacable Eradication | Immortals | Re-roll wound rolls of 1, or every failed wound roll against a target within range of an objective. Added as a general `rerollWounds` attack option, also counted in the AI's damage estimate. |
-| Guardian Protocols | Lychguard | While a NOBLE leads the unit, attacks with Strength above its Toughness get −1 to wound. **Approximation**, as for the Tech-Priests: there is no leader attachment, so a friendly NOBLE (the Overlord) within 3″ counts as leading the unit. |
+| Guardian Protocols | Lychguard | While a NOBLE leads the unit, attacks with Strength above its Toughness get −1 to wound. The Overlord must be inside the unit ([leaders.md](leaders.md)). |
 | Wraith Form | Canoptek Wraiths | After a Normal move, choose an enemy unit the Wraiths passed over (a model's base swept across one of its bases), roll a D6 per Wraith, and each 4+ is 1 mortal wound. Offered in the unit card, and used by the AI. Passing over enemy models needs a FLY move (“Take off”), as everywhere in the engine. |
-| Leader | Royal Warden | **Not implemented**: the Warden is a separate unit. |
+| Leader | Overlord, Royal Warden | They join Necron Warriors, Immortals or (the Overlord) Lychguard ([leaders.md](leaders.md)). |
 
 ## Presets
 

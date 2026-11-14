@@ -8,6 +8,7 @@ import { parseArmyList, presetList } from '../army/armyList'
 import { stratagemAvailability } from '../rules/stratagems'
 import { scenarioById } from '../scenarios/scenarios'
 import { alive, profileOf } from '../gameState'
+import { attachUnit } from '../rules/attached'
 import { doctrineLeft } from '../rules/detachments'
 import type { Command, GameState, WeaponProfile } from '../types'
 import { battle, column, place, unit } from './helpers'
@@ -34,9 +35,13 @@ describe('Command Protocols (Necrons, Awakened Dynasty)', () => {
     place(s, 'nwar', column(30, 8, 10, 1.2))
     place(s, 'int', column(14, 10, 5, 1.2))
     place(s, 'overlord', [{ x: 31.5, y: 9 }])
+    expect(shootPlan(s, unit(s, 'nwar'), unit(s, 'int')).groups[0].ctx.hitModNotes).not.toContain('Командные протоколы +1') // standing by is not leading
+    const ov = unit(s, 'overlord')
+    attachUnit(unit(s, 'nwar'), ov)
+    s.units = s.units.filter((u) => u !== ov)
     const led = shootPlan(s, unit(s, 'nwar'), unit(s, 'int')).groups[0].ctx
     expect(led.hitModNotes).toContain('Командные протоколы +1')
-    place(s, 'overlord', [{ x: 40, y: 28 }])
+    ov.models[0].destroyed = true
     expect(shootPlan(s, unit(s, 'nwar'), unit(s, 'int')).groups[0].ctx.hitModNotes).not.toContain('Командные протоколы +1')
   })
 })

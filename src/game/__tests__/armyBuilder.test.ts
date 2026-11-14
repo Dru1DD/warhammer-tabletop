@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { decide } from '../ai/ai'
 import {
-  composeUnit, COMPOSITION, entryCosts, listPoints, listProblems, maxCopies, parseArmies, POINTS_LIMITS, presetList, unknownProfiles,
+  attachments, composeUnit, COMPOSITION, entryCosts, listPoints, listProblems, maxCopies, parseArmies, POINTS_LIMITS, presetList, unknownProfiles,
   type ArmyList,
 } from '../army/armyList'
 import { listUnits } from '../army/placement'
@@ -76,7 +76,7 @@ describe('army list rules', () => {
     const totals = Object.fromEntries(FACTIONS.map((f) => [f, POINTS_LIMITS.map((l) => listPoints(presetList(f, l)))]))
     expect(totals).toEqual({
       marines: [480, 980, 1500, 1985, 2485],
-      orks: [495, 975, 1495, 1995, 2500],
+      orks: [495, 975, 1495, 1995, 2465],
       tyranids: [480, 1000, 1480, 2000, 2500],
       necrons: [495, 990, 1475, 1985, 2500],
       aeldari: [480, 980, 1460, 1985, 2445],
@@ -92,7 +92,8 @@ describe('army list rules', () => {
 
   it('numbers repeated units and keeps their ids unique', () => {
     const units = listUnits('marines', presetList('marines', 1000))
-    expect(units.map((u) => u.name)).toEqual(['Капитан', 'Лейтенант I', 'Лейтенант II', 'Отделение интерсессоров', 'Отделение адских бластеров', 'Отделение Инфернус', 'Ветераны Bladeguard', 'Дредноут «Редемптор»'])
+    // the characters are inside the units they lead: the Captain in the biggest squad, each Lieutenant in the next free one
+    expect(units.map((u) => u.name)).toEqual(['Отделение интерсессоров + Капитан', 'Отделение адских бластеров + Лейтенант I', 'Отделение Инфернус', 'Ветераны Bladeguard + Лейтенант II', 'Дредноут «Редемптор»'])
     expect(new Set(units.flatMap((u) => u.models.map((m) => m.id))).size).toBe(units.reduce((n, u) => n + u.models.length, 0))
     for (const u of units) for (const m of u.models) expect(m.wounds).toBe(PROFILES[m.profileId].w)
   })
@@ -105,7 +106,7 @@ describe('mustering an army list on the board', () => {
       const s = patrol.build([a, b], { [a]: presetList(a, limit), [b]: presetList(b, limit) })
       for (const f of [a, b]) {
         const mine = s.units.filter((u) => u.owner === f)
-        expect(mine.length).toBe(presetList(f, limit).units.length)
+        expect(mine.length).toBe(attachments(presetList(f, limit)).filter((j) => j === null).length)
         expect(deploymentIssues(s, f, mine.map((u) => u.id)), `${f} vs ${a === f ? b : a} at ${limit}`).toEqual([])
       }
     }
@@ -113,17 +114,17 @@ describe('mustering an army list on the board', () => {
 
   it('a custom list can face a default training roster', () => {
     const s = patrol.build(['marines', 'orks'], { orks: presetList('orks', 500) })
-    expect(s.units.filter((u) => u.owner === 'marines').map((u) => u.id)).toEqual(['lt', 'int', 'int2', 'aint', 'red'])
-    expect(s.units.filter((u) => u.owner === 'orks')).toHaveLength(5)
+    expect(s.units.filter((u) => u.owner === 'marines').map((u) => u.id)).toEqual(['int', 'int2', 'aint', 'red']) // the Lieutenant leads Intercessors II
+    expect(s.units.filter((u) => u.owner === 'orks')).toHaveLength(4) // the Warboss leads the Boyz
     expect(deploymentIssues(s, 'orks', s.units.filter((u) => u.owner === 'orks').map((u) => u.id))).toEqual([])
   })
 
-  it('a Tech-Priest is set up next to a Skitarii unit it can lead', () => {
+  it('a Tech-Priest joins a Skitarii unit and is set up with it, in coherency', () => {
     const s = patrol.build(['marines', 'adeptus_mechanicus'], { adeptus_mechanicus: presetList('adeptus_mechanicus', 500) })
-    const dominus = s.units.find((u) => u.datasheetId === 'techDominus')!
-    const near = s.units.filter((u) => u.owner === 'adeptus_mechanicus' && u !== dominus).some((u) =>
-      u.models.some((m) => Math.hypot(m.pos.x - dominus.models[0].pos.x, m.pos.y - dominus.models[0].pos.y) < 5))
-    expect(near).toBe(true)
+    expect(s.units.some((u) => u.datasheetId === 'techDominus')).toBe(false)
+    const led = s.units.find((u) => u.attached?.some((p) => p.datasheetId === 'techDominus'))!
+    expect(['rangers', 'vanguard']).toContain(led.datasheetId)
+    expect(deploymentIssues(s, 'adeptus_mechanicus', s.units.filter((u) => u.owner === 'adeptus_mechanicus').map((u) => u.id))).toEqual([])
   })
 
   it('reports a list that does not fit instead of overlapping models', () => {

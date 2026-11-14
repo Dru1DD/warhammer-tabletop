@@ -2,6 +2,7 @@ import { composeLoadout, loadoutProblems, WARGEAR, type Loadout } from './wargea
 import { DATASHEETS, PROFILES } from '../data/datasheets'
 import { legalSizes, listedCost } from '../data/points'
 import { FACTIONS, type PlayerId } from '../types'
+import { attachKind, canLead, isCharacterDatasheet, leadsOf } from '../rules/attached'
 import { tr } from '../../i18n/index'
 
 // Army lists built in the army builder. A list is a points limit plus units, each a datasheet
@@ -16,6 +17,9 @@ export interface ListEntry {
   size: number
   /** chosen wargear (see army/wargear.ts); absent = the default equipment */
   loadout?: Loadout
+  /** a Leader or Support character: the index of the unit in `units` it joins, null = it stays on its own, absent = the
+   * game picks a unit (`attachments`) */
+  attachTo?: number | null
 }
 
 export interface ArmyList {
@@ -128,6 +132,50 @@ export function entryCosts(list: ArmyList): number[] {
 
 export const listPoints = (list: ArmyList) => entryCosts(list).reduce((a, b) => a + b, 0)
 
+/**
+ * Which unit each entry joins (core rules 19, 25.04): the index of its bodyguard unit, or null. A character with its own
+ * choice (`attachTo`) gets it when it is legal; the others are placed by the game: each joins a unit its datasheet lists
+ * that has no character of its kind yet, preferring a unit with no character at all, then the biggest, then the first.
+ * A unit takes one Leader and one Support.
+ */
+export function attachments(list: ArmyList): (number | null)[] {
+  const out: (number | null)[] = list.units.map(() => null)
+  const taken = new Set<string>()
+  const busy = (j: number) => out.some((t) => t === j)
+  const fits = (i: number, j: number) => {
+    const e = list.units[i], b = list.units[j]
+    return !!b && j !== i && !isCharacterDatasheet(b.datasheetId) && canLead(e.datasheetId, b.datasheetId) && !taken.has(`${j}:${attachKind(e.datasheetId)}`)
+  }
+  const join = (i: number, j: number) => {
+    out[i] = j
+    taken.add(`${j}:${attachKind(list.units[i].datasheetId)}`)
+  }
+  list.units.forEach((e, i) => {
+    if (typeof e.attachTo === 'number' && isCharacterDatasheet(e.datasheetId) && fits(i, e.attachTo)) join(i, e.attachTo)
+  })
+  list.units.forEach((e, i) => {
+    if (e.attachTo !== undefined || !isCharacterDatasheet(e.datasheetId)) return
+    const pick = list.units
+      .map((b, j) => ({ j, free: !busy(j), size: b.size }))
+      .filter((c) => fits(i, c.j))
+      .sort((a, b) => Number(b.free) - Number(a.free) || b.size - a.size || a.j - b.j)[0]
+    if (pick) join(i, pick.j)
+  })
+  return out
+}
+
+/** The list without entry `i`; the characters' choices keep pointing at the same units. */
+export function withoutEntry(list: ArmyList, i: number): ArmyList {
+  const units = list.units.filter((_, k) => k !== i).map((e) => {
+    if (typeof e.attachTo !== 'number') return e
+    const { attachTo, ...rest } = e
+    // its unit is gone: the game picks one again
+    if (attachTo === i) return rest
+    return { ...rest, attachTo: attachTo > i ? attachTo - 1 : attachTo }
+  })
+  return { ...list, units }
+}
+
 /** Everything that makes the list unplayable, in Russian; empty when it is fine. */
 export function listProblems(faction: PlayerId, list: ArmyList): string[] {
   const out: string[] = []
@@ -147,6 +195,14 @@ export function listProblems(faction: PlayerId, list: ArmyList): string[] {
     if (n > maxCopies(id)) out.push(tr('{shortName}: no more than {maxCopies} units (currently {n}).', { shortName: shortName(id), maxCopies: maxCopies(id), n }))
   const pts = listPoints(list)
   if (pts > list.limit) out.push(tr('Over the points limit: {pts} of {limit}.', { pts, limit: list.limit }))
+  const joined = attachments(list)
+  list.units.forEach((e, i) => {
+    if (!DATASHEETS[e.datasheetId] || !isCharacterDatasheet(e.datasheetId)) return
+    if (typeof e.attachTo === 'number' && joined[i] === null)
+      out.push(tr('{shortName} cannot join that unit: it is not on its list, or the unit already has a character of this kind.', { shortName: shortName(e.datasheetId) }))
+    else if (attachKind(e.datasheetId) === 'support' && joined[i] === null)
+      out.push(tr('{shortName} (Support) must join a unit: {list}.', { shortName: shortName(e.datasheetId), list: leadsOf(e.datasheetId).map(shortName).join(', ') }))
+  })
   return out
 }
 
@@ -166,7 +222,7 @@ export const PRESETS: Record<PlayerId, Record<PointsLimit, ListEntry[]>> = {
     1000: [...u('warboss', 1), ...u('boyz', 20, 2), ...u('boyz', 10), ...u('nobz', 5), ...u('kommandos', 10), ...u('gretchin', 20), ...u('deffDread', 1, 2)],
     1500: [...u('warboss', 1, 2), ...u('boyz', 20, 3), ...u('nobz', 10), ...u('nobz', 5), ...u('kommandos', 10), ...u('gretchin', 20), ...u('deffDread', 1, 2), ...u('battlewagon', 1)],
     2000: [...u('warboss', 1, 2), ...u('boyz', 20, 5), ...u('nobz', 10), ...u('nobz', 5), ...u('kommandos', 10), ...u('gretchin', 20, 2), ...u('deffDread', 1, 3), ...u('battlewagon', 1)],
-    2500: [...u('warboss', 1, 3), ...u('boyz', 20, 6), ...u('nobz', 10), ...u('nobz', 5), ...u('kommandos', 10, 2), ...u('gretchin', 20, 2), ...u('deffDread', 1, 3), ...u('battlewagon', 1, 2)],
+    2500: [...u('warboss', 1, 3), ...u('boyz', 20, 6), ...u('nobz', 10), ...u('nobz', 5), ...u('kommandos', 10, 2), ...u('gretchin', 20), ...u('gretchin', 10), ...u('deffDread', 1, 3), ...u('battlewagon', 1, 2)],
   },
   tyranids: {
     500: [...u('wingedPrime', 1), ...u('tyranidWarriors', 3), ...u('termagants', 20), ...u('zoanthropes', 3), ...u('carnifexes', 1), ...u('barbgaunts', 5)],
@@ -208,10 +264,11 @@ export function parseArmyList(raw: unknown): ArmyList | null {
   const units: ListEntry[] = []
   for (const e of r.units) {
     if (!e || typeof e !== 'object') return null
-    const { datasheetId, size, loadout } = e as { datasheetId?: unknown; size?: unknown; loadout?: unknown }
+    const { datasheetId, size, loadout, attachTo } = e as { datasheetId?: unknown; size?: unknown; loadout?: unknown; attachTo?: unknown }
     if (typeof datasheetId !== 'string' || !DATASHEETS[datasheetId] || typeof size !== 'number') return null
     const lo = parseLoadout(loadout)
-    units.push(lo && WARGEAR[datasheetId] ? { datasheetId, size, loadout: lo } : { datasheetId, size })
+    const at = attachTo === null || (typeof attachTo === 'number' && Number.isInteger(attachTo) && attachTo >= 0) ? { attachTo: attachTo as number | null } : {}
+    units.push({ ...(lo && WARGEAR[datasheetId] ? { datasheetId, size, loadout: lo } : { datasheetId, size }), ...at })
   }
   return { limit: r.limit as PointsLimit, units, ...((raw as { noDetachment?: unknown }).noDetachment === true ? { noDetachment: true as const } : {}) }
 }

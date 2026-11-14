@@ -102,7 +102,7 @@ describe('coach text layer', () => {
     expect(exact).not.toMatch(/По оценке|Возможно/)
     expect(exact).toContain('В среднем они могли снять')
     const est = mk('estimate').explanation
-    expect(est).toMatch(/^После движения отряд «Интерсессоры II» оказался в зоне огня противника/) // fact first, unhedged
+    expect(est).toMatch(/^После движения отряд «Интерсессоры II \+ Лейтенант» оказался в зоне огня противника/) // fact first, unhedged
     expect(est).toMatch(/\. По оценке, в среднем они могли снять 5,1\u00A0раны\./)
     const h = mk('heuristic')
     expect(h.explanation).toMatch(/\. Возможно, в среднем они могли снять/)
@@ -140,7 +140,7 @@ describe('coach text layer', () => {
     const names = namesFor('combat-patrol')
     const f = reportSample.mistakes.find((x) => x.kind === 'objective.swing')!
     const t = describeFinding(f, names)
-    expect(t.explanation).toContain('«Интерсессоры II»')
+    expect(t.explanation).toContain('«Интерсессоры II + Лейтенант»') // the Lieutenant leads Intercessors II
     expect(t.explanation).toContain('отряд «Бойз III»')
     expect(t.explanation).toContain('Цель №3')
     expect(t.explanation).toContain('около 10\u00A0ПО')

@@ -15,7 +15,7 @@ All documentation is in English. Translations of the app's interface are describ
 
 **Rules and armies**
 
-- [armies.md](armies.md), [stratagems.md](stratagems.md), [marines.md](marines.md), [orks.md](orks.md), [tyranids.md](tyranids.md), [necrons.md](necrons.md), [aeldari.md](aeldari.md), [mechanicus.md](mechanicus.md), [vehicles.md](vehicles.md), [transports.md](transports.md)
+- [armies.md](armies.md), [stratagems.md](stratagems.md), [marines.md](marines.md), [orks.md](orks.md), [tyranids.md](tyranids.md), [necrons.md](necrons.md), [aeldari.md](aeldari.md), [mechanicus.md](mechanicus.md), [vehicles.md](vehicles.md), [transports.md](transports.md), [leaders.md](leaders.md)
 
 **Player-facing features**
 

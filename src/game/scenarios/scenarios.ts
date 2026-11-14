@@ -4,6 +4,7 @@ import { DEFAULT_SIDES, newUnit, SCHEMA_VERSION, seats } from '../gameState'
 import type { GameState, PlayerId, PlayerState, Terrain, UnitState, Vec } from '../types'
 import type { ArmyList } from '../army/armyList'
 import { musterArmy } from '../army/placement'
+import { attachUnit } from '../rules/attached'
 import { tr } from '../../i18n/index'
 import { presetList } from '../army/armyList'
 import { newMission, pickPrimary } from '../rules/missions'
@@ -104,7 +105,9 @@ const boyzMob = (at: At, id: string, name: string, depth: number, y: number, spe
 
 const column5 = (at: At, profiles: string[], depth: number, y: number): [string, Vec][] => profiles.map((p, i) => [p, at(depth, y + i * 2)])
 
-/** Introductory-Set armies for the small 30″×22″ boards. `depth` = distance of the main line from the own edge. */
+/** Introductory-Set armies for the small 30″×22″ boards. `depth` = distance of the main line from the own edge.
+ * A training simplification: the Lieutenant stays a unit of its own here (the tutorial moves it on its own), although a
+ * Support character joins a unit in a real battle (rules/attached.ts). */
 const marinesDuel = (depth: number): Roster => (at) => [
   unit('lt', 'lieutenant', 'marines', tr('Lieutenant'), [['lieutenant', at(depth - 1.5, 11)]]),
   unit('int', 'intercessors', 'marines', tr('Intercessors'), [
@@ -126,11 +129,13 @@ const orksDuel = (depth: number): Roster => (at) => [
   ]),
 ]
 
-/** Combat Patrol armies for the 44″×30″ board. */
+/** Combat Patrol armies for the 44″×30″ board. Characters are inside the units they lead (rules/attached.ts). */
 const marinesPatrol: Roster = (at) => [
-  unit('lt', 'lieutenant', 'marines', tr('Lieutenant'), [['lieutenant', at(3, 16)]]),
   unit('int', 'intercessors', 'marines', tr('Intercessors I'), column5(at, ['intercessorSergeant', 'intercessor', 'intercessorGL', 'intercessor', 'intercessor'], 7, 5)),
-  unit('int2', 'intercessors', 'marines', tr('Intercessors II'), column5(at, ['intercessorSergeant', 'intercessor', 'intercessorGL', 'intercessor', 'intercessor'], 7, 17)),
+  attachUnit(
+    unit('int2', 'intercessors', 'marines', tr('Intercessors II'), column5(at, ['intercessorSergeant', 'intercessor', 'intercessorGL', 'intercessor', 'intercessor'], 7, 17)),
+    unit('lt', 'lieutenant', 'marines', tr('Lieutenant'), [['lieutenant', at(5.4, 17)]]),
+  ),
   unit('aint', 'assaultIntercessors', 'marines', tr('Assault Intercessors'), column5(at, ['assaultSergeant', 'assaultIntercessor', 'assaultIntercessor', 'assaultIntercessor', 'assaultIntercessor'], 3, 4)),
   unit('red', 'redemptor', 'marines', tr('Redemptor Dreadnought|short'), [['redemptor', at(4, 23)]]),
 ]
@@ -159,8 +164,10 @@ const tyranidsPatrol: Roster = (at) => [
 
 /** Necrons: 1 Overlord, 10 Necron Warriors, 3 Skorpekh Destroyers, 3 Canoptek Scarab Swarms. */
 const necronsPatrol: Roster = (at) => [
-  unit('overlord', 'overlord', 'necrons', tr('Overlord'), [['overlord', at(3, 15)]]),
-  unit('nwar', 'necronWarriors', 'necrons', tr('Necron Warriors|group'), formation(at, 10, () => 'necronWarrior', 8.6, 3.5, 1.7, 1.5)),
+  attachUnit(
+    unit('nwar', 'necronWarriors', 'necrons', tr('Necron Warriors|group'), formation(at, 10, () => 'necronWarrior', 8.6, 3.5, 1.7, 1.5)),
+    unit('overlord', 'overlord', 'necrons', tr('Overlord'), [['overlord', at(5.6, 6.9)]]),
+  ),
   unit('skorp', 'skorpekhDestroyers', 'necrons', tr('Skorpekh Destroyers|group'), [
     ['skorpekh', at(5.5, 12.8)],
     ['skorpekh', at(5.5, 15.2)],
@@ -175,11 +182,13 @@ const necronsPatrol: Roster = (at) => [
 
 /** Aeldari: 1 Farseer, 10 Guardian Defenders (+ the datasheet's Heavy Weapon Platform), 5 Dire Avengers, 3 Windriders. */
 const aeldariPatrol: Roster = (at) => [
-  unit('farseer', 'farseer', 'aeldari', tr('Farseer'), [['farseer', at(2.5, 15)]]),
-  unit('guardians', 'guardianDefenders', 'aeldari', tr('Guardian Defenders|group'), [
-    ...formation(at, 10, () => 'guardian', 8.6, 3.5, 1.5),
-    ['heavyPlatform', at(5.6, 6.5)],
-  ]),
+  attachUnit(
+    unit('guardians', 'guardianDefenders', 'aeldari', tr('Guardian Defenders|group'), [
+      ...formation(at, 10, () => 'guardian', 8.6, 3.5, 1.5),
+      ['heavyPlatform', at(5.6, 6.5)],
+    ]),
+    unit('farseer', 'farseer', 'aeldari', tr('Farseer'), [['farseer', at(6.1, 9.5)]]),
+  ),
   unit('avengers', 'direAvengers', 'aeldari', tr('Dire Avengers|group'), [
     ['exarch', at(6, 12.5)],
     ['direAvenger', at(6, 14)],
@@ -197,13 +206,17 @@ const aeldariPatrol: Roster = (at) => [
 /**
  * Adeptus Mechanicus: Tech-Priest Dominus, Tech-Priest Manipulus, 10 Skitarii Rangers, 10 Skitarii Vanguard,
  * 3 Kataphron Breachers, 3 Kataphron Destroyers, 5 Sicarian Infiltrators, 3 Kastelan Robots (docs/mechanicus.md).
- * The Tech-Priests stand within 3″ of the Rangers / Vanguard they escort.
+ * The Tech-Priests lead the Rangers and the Vanguard (attached units).
  */
 const mechanicusPatrol: Roster = (at) => [
-  unit('dominus', 'techDominus', 'adeptus_mechanicus', tr('Tech-Priest Dominus'), [['techDominus', at(5.2, 8)]]),
-  unit('manipulus', 'techManipulus', 'adeptus_mechanicus', tr('Tech-Priest Manipulus'), [['techManipulus', at(5.2, 22.5)]]),
-  unit('rangers', 'rangers', 'adeptus_mechanicus', tr('Skitarii Rangers|group'), formation(at, 10, (i) => (i === 0 ? 'rangerAlpha' : i === 3 ? 'rangerArc' : i === 6 ? 'rangerCaliver' : i === 8 ? 'rangerOmnispex' : 'ranger'), 8.6, 3.5, 1.4, 1.2)),
-  unit('vanguard', 'vanguard', 'adeptus_mechanicus', tr('Skitarii Vanguard|group'), formation(at, 10, (i) => (i === 0 ? 'vanguardAlpha' : i === 3 ? 'vanguardArc' : i === 6 ? 'vanguardCaliver' : 'vanguard'), 8.6, 19.5, 1.4, 1.2)),
+  attachUnit(
+    unit('rangers', 'rangers', 'adeptus_mechanicus', tr('Skitarii Rangers|group'), formation(at, 10, (i) => (i === 0 ? 'rangerAlpha' : i === 3 ? 'rangerArc' : i === 6 ? 'rangerCaliver' : i === 8 ? 'rangerOmnispex' : 'ranger'), 8.6, 3.5, 1.4, 1.2)),
+    unit('dominus', 'techDominus', 'adeptus_mechanicus', tr('Tech-Priest Dominus'), [['techDominus', at(5.2, 8)]]),
+  ),
+  attachUnit(
+    unit('vanguard', 'vanguard', 'adeptus_mechanicus', tr('Skitarii Vanguard|group'), formation(at, 10, (i) => (i === 0 ? 'vanguardAlpha' : i === 3 ? 'vanguardArc' : i === 6 ? 'vanguardCaliver' : 'vanguard'), 8.6, 19.5, 1.4, 1.2)),
+    unit('manipulus', 'techManipulus', 'adeptus_mechanicus', tr('Tech-Priest Manipulus'), [['techManipulus', at(5.2, 22.5)]]),
+  ),
   unit('breachers', 'breachers', 'adeptus_mechanicus', tr('Kataphron Breachers|group'), [
     ['breacher', at(5.5, 11.5)],
     ['breacherTorsion', at(5.5, 14.1)],

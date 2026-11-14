@@ -14,7 +14,8 @@ import { moveUnitTo } from './helpers'
 const MARINES: ArmyList = {
   limit: 1000,
   units: [
-    { datasheetId: 'captain', size: 1 },
+    // the Captain on its own: these tests are about his own datasheet (a character leading a unit: attached.test.ts)
+    { datasheetId: 'captain', size: 1, attachTo: null },
     { datasheetId: 'hellblasters', size: 5 },
     { datasheetId: 'infernus', size: 5 },
     { datasheetId: 'bladeguard', size: 3 },

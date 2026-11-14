@@ -1,13 +1,14 @@
 import { DATASHEETS } from '../data/datasheets'
-import { COHERENCY_ALL, hasAbility, newUnit, radiusOf, sidesOf } from '../gameState'
+import { COHERENCY_ALL, newUnit, radiusOf, sidesOf } from '../gameState'
+import { attachUnit } from '../rules/attached'
 import { deploymentProblem, deploymentZone } from '../rules/deployment'
 import type { GameState, PlayerId, UnitState, Vec } from '../types'
-import { composeUnit, shortName, type ArmyList } from './armyList'
+import { attachments, composeUnit, shortName, type ArmyList } from './armyList'
 import { tr } from '../../i18n/index'
 
 // Puts an army list on the board: every unit is set up legally inside its side's deployment zone
 // (the same check as the deployment step, rules/deployment.ts). Units fill the zone from the front
-// line backwards; characters go last, next to the unit they are most likely to lead.
+// line backwards. Characters join their units first (rules/attached.ts); one left on its own goes last.
 
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI']
 const GAP = 0.1 // between bases in a formation, inches
@@ -15,16 +16,23 @@ const STEP = 0.5 // anchor grid, inches
 
 const isCharacter = (u: UnitState) => DATASHEETS[u.datasheetId].keywords.includes('CHARACTER')
 
-/** The units of `list` with display names and ids, models not yet placed. */
+/** The units of `list` with display names and ids, models not yet placed. A character that joins a unit is inside it
+ * (an attached unit), not a unit of its own. */
 export function listUnits(faction: PlayerId, list: ArmyList): UnitState[] {
   const total: Record<string, number> = {}
   for (const e of list.units) total[e.datasheetId] = (total[e.datasheetId] ?? 0) + 1
   const seen: Record<string, number> = {}
-  return list.units.map((e) => {
+  const units = list.units.map((e) => {
     const n = (seen[e.datasheetId] = (seen[e.datasheetId] ?? 0) + 1)
     const name = total[e.datasheetId] > 1 ? `${shortName(e.datasheetId)} ${ROMAN[n - 1] ?? n}` : shortName(e.datasheetId)
     return newUnit(`${e.datasheetId}-${n}`, e.datasheetId, faction, name, composeUnit(e.datasheetId, e.size, e.loadout).map((p) => [p, { x: 0, y: 0 }]))
   })
+  const joins = attachments(list)
+  // Leaders before Support characters, so the name reads "Intercessors + Captain + Lieutenant"
+  const order = joins.map((j, i) => ({ i, j })).filter((x): x is { i: number; j: number } => x.j !== null)
+  order.sort((a, b) => Number(!!DATASHEETS[list.units[a.i].datasheetId].support) - Number(!!DATASHEETS[list.units[b.i].datasheetId].support) || a.i - b.i)
+  for (const { i, j } of order) attachUnit(units[j], units[i])
+  return units.filter((_, i) => joins[i] === null)
 }
 
 /**
@@ -115,9 +123,8 @@ export function musterArmy(s: GameState, faction: PlayerId, list: ArmyList): voi
     for (let a = r + 0.05; a <= depth - r; a += STEP)
       for (let y = minY + r + 0.05; y <= maxY - r; y += STEP) anchors.push({ x: front + back * a, y })
     if (isCharacter(u)) {
-      // next to the unit it would lead (a Leader-support unit if the army has one, else any)
-      const leadable = placed.filter((p) => !isCharacter(p) && hasAbility(p, 'ledUnit'))
-      const pool = leadable.length ? leadable : placed.filter((p) => !isCharacter(p))
+      // a character on its own stands behind one of the army's units
+      const pool = placed.filter((p) => !isCharacter(p))
       const partner = pool.length ? pool[charIndex++ % pool.length] : null
       if (partner) {
         const c = centre(partner.models.map((m) => m.pos))

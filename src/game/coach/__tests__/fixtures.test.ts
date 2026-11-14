@@ -31,6 +31,8 @@ const approx = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol
 function scenarioOf(r: CoachReport) {
   const s = SCENARIOS.find((x) => x.id === r.battle.scenarioId)!.build()
   const owner = new Map(s.units.map((u) => [u.id, u.owner]))
+  // the samples were recorded when the characters were units of their own ('lt'): their ids are their models' prefix
+  for (const u of s.units) for (const p of u.attached ?? []) owner.set(p.models[0].replace(/-\d+$/, ''), u.owner)
   return { s, owner, objectives: new Set(s.objectives.map((x) => x.id)), terrain: new Set(s.terrain.map((x) => x.id)) }
 }
 const otherSide = (p: PlayerId): PlayerId => (p === 'marines' ? 'orks' : 'marines')
@@ -273,7 +275,8 @@ describe('coach contract: report samples', () => {
       // the weapon of an own attack belongs to the primary unit
       const w = x.refs?.weaponId
       if (w && x.unitIds[0] && !(x.kind === 'luck.swing' && x.metrics.isOwnAttack === 0)) {
-        const unit = scenarioOf(r).s.units.find((u) => u.id === x.unitIds[0])!
+        // an old character id ('lt') is now the unit it leads
+        const unit = scenarioOf(r).s.units.find((u) => u.id === x.unitIds[0] || !!u.attached?.some((p) => p.models[0].startsWith(`${x.unitIds[0]}-`)))!
         const weapons = new Set(unit.models.flatMap((mm) => PROFILES[mm.profileId].weapons))
         expect(weapons.has(w), `${x.id}: ${unit.id} has no ${w}`).toBe(true)
       }

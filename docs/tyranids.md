@@ -46,7 +46,7 @@ Unit sizes: Prime 1; Zoanthropes 3 or 6; Carnifexes 1 or 2; Barbgaunts 5 or 10.
 | Rule | Unit | Status |
 |---|---|---|
 | Synapse, Shadow in the Warp | Prime, Zoanthropes | The Prime and the Zoanthropes have the SYNAPSE keyword, so they extend Synapse Range as the Hive Tyrant does. The Prime also carries Shadow in the Warp. |
-| Alpha Warrior | Prime | While the Prime leads Tyranid Warriors, their weapons have Sustained Hits 1. **Approximation**, the same one the Tech-Priests use: there is no leader attachment, so a Prime within 3″ of a Tyranid Warriors unit counts as leading it, and both the Prime and the Warriors get Sustained Hits 1. |
+| Alpha Warrior | Prime | While the Prime leads Tyranid Warriors, their weapons have Sustained Hits 1. The Prime must be inside the unit ([leaders.md](leaders.md)); its own weapons get it too. A Prime leading Tyranid Warriors cannot Deep Strike: the Warriors cannot. |
 | Warp Field | Zoanthropes | Aura: friendly Tyranid units within 6″ (and the Zoanthropes themselves) have a 6+ invulnerable save. The better save is always used. |
 | Disruption Bombardment | Barbgaunts | After shooting, an INFANTRY target they hit gets −2″ Move and −2 to Advance and Charge rolls until the end of its owner's next turn. MONSTER and VEHICLE targets are not affected. |
 | Deadly Demise 1 | Carnifexes | As for the other vehicles and monsters. |

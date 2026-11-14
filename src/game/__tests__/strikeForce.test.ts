@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { POINTS_LIMITS, presetList, type ArmyList } from '../army/armyList'
+import { attachments, POINTS_LIMITS, presetList, type ArmyList } from '../army/armyList'
 import { pointInPolygon } from '../geometry/geometry'
 import { deploymentProblem, deploymentZone } from '../rules/deployment'
 import { boardForLists, scenarioById, takesLists } from '../scenarios/scenarios'
@@ -54,7 +54,8 @@ describe('44″×60″ battlefield', () => {
         for (const pair of pairs) {
           const lists = Object.fromEntries(pair.map((f) => [f, presetList(f, limit)]))
           const s = scenarioById('strike-force').build(pair, lists, undefined, { mapId: id, layoutId: LAYOUT_IDS[i % LAYOUT_IDS.length] })
-          for (const f of pair) expect(s.units.filter((u) => u.owner === f), `${f} ${limit} ${id}`).toHaveLength(lists[f].units.length)
+          // a character that joins a unit is inside it
+          for (const f of pair) expect(s.units.filter((u) => u.owner === f), `${f} ${limit} ${id}`).toHaveLength(attachments(lists[f]).filter((j) => j === null).length)
           for (const u of s.units) expect(deploymentProblem(s, u, Object.fromEntries(u.models.map((m) => [m.id, m.pos]))), `${u.id} ${limit} ${id}`).toBeNull()
         }
       })
@@ -62,10 +63,12 @@ describe('44″×60″ battlefield', () => {
 
   it('a side without its own list plays the preset at its opponent’s limit (1000 points when neither has a list)', () => {
     const ids = (s: GameState, f: PlayerId) => s.units.filter((u) => u.owner === f).map((u) => u.datasheetId)
+    /** the units a list fields: its entries without the characters that join another unit */
+    const fielded = (l: ArmyList) => l.units.filter((_, i) => attachments(l)[i] === null).map((e) => e.datasheetId)
     const build = (lists: Partial<Record<PlayerId, ArmyList>>) => scenarioById('strike-force').build(['marines', 'orks'], lists, undefined, { mapId: 'hammerAnvil', layoutId: 'A' })
-    expect(ids(build({ orks: presetList('orks', 2000) }), 'marines')).toEqual(presetList('marines', 2000).units.map((e) => e.datasheetId))
-    expect(ids(build({ marines: presetList('marines', 1500) }), 'orks')).toEqual(presetList('orks', 1500).units.map((e) => e.datasheetId))
-    expect(ids(build({}), 'marines')).toEqual(presetList('marines', 1000).units.map((e) => e.datasheetId))
+    expect(ids(build({ orks: presetList('orks', 2000) }), 'marines')).toEqual(fielded(presetList('marines', 2000)))
+    expect(ids(build({ marines: presetList('marines', 1500) }), 'orks')).toEqual(fielded(presetList('orks', 1500)))
+    expect(ids(build({}), 'marines')).toEqual(fielded(presetList('marines', 1000)))
   })
 
   it('sets up a dense list in a narrow zone with a narrower formation instead of reporting no room', () => {
@@ -79,7 +82,7 @@ describe('44″×60″ battlefield', () => {
     }
     const s = scenarioById('strike-force').build(['orks', 'marines'], { orks: dense }, undefined, { mapId: 'sweeping', layoutId: 'A' })
     const orks = s.units.filter((u) => u.owner === 'orks')
-    expect(orks).toHaveLength(17)
+    expect(orks).toHaveLength(15) // the two Warbosses lead the two Boyz mobs
     for (const u of orks) expect(deploymentProblem(s, u, Object.fromEntries(u.models.map((m) => [m.id, m.pos]))), u.id).toBeNull()
   })
 

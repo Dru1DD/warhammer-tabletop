@@ -1,5 +1,5 @@
 import { meleePotential } from './ai/ai'
-import { alive, CHARGE_RANGE, datasheetOf, engagedUnits, enemiesOf, fmt, profileOf, unitDistance, unitsOf, weaponsOf } from './gameState'
+import { alive, CHARGE_RANGE, engagedUnits, enemiesOf, fmt, profileOf, unitDistance, unitKeywords, unitsOf, weaponsOf } from './gameState'
 import type { GameState, UnitState } from './types'
 import { profileVs, type Reference } from './weaponAdvice'
 import { tr } from '../i18n/index'
@@ -36,7 +36,7 @@ function asReference(u: UnitState): Reference {
     invuln: p.invuln,
     w: Math.max(1, Math.round(models.reduce((a, m) => a + profileOf(m).w, 0) / models.length)),
     models: models.length,
-    keywords: datasheetOf(u).keywords,
+    keywords: unitKeywords(u),
   }
 }
 
