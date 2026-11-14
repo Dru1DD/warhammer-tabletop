@@ -31,6 +31,21 @@ In the unit card, open “📷 Model photos” and choose “own photo” for an
 
 This is how to get the real Ultramarines and Orks from the box onto the board without redistributing Games Workshop's product photos.
 
+## Pictures of the units (your own folder)
+
+A big army is hard to tell apart on the board, so the unit card and the board tooltip can show a picture of each model type. The pictures come from **your own folder**, `public/unit-art/`. It is in `.gitignore`: the pictures are never committed, and the app ships none (`src/assets/unitArt.ts`).
+
+- Put the images (`.png`, `.jpg`, `.webp`, `.gif`, `.avif`) in `public/unit-art/`.
+- List them in `public/unit-art/index.json`. The key is a model profile id or a datasheet id from `src/game/data/`:
+  ```json
+  { "rangers": "rangers.jpg", "techDominus": "dominus.jpg", "onagerNeutron": "onager-neutron.jpg", "onager": "onager.jpg" }
+  ```
+- A model takes its profile's picture first, then its datasheet's. Each vehicle loadout is a profile of its own (`onager`, `onagerMissiles`, `onagerNeutron`, `onagerPhosphor`), so each loadout can have its own picture.
+- The unit card shows each different picture of the unit once, with the model's name (an attached unit shows its character too). The board tooltip shows the picture of the model under the pointer.
+- Without `index.json` nothing is shown.
+
+These are for your own screen. Do not commit pictures you do not own.
+
 ## Replacing tokens in code
 
 `src/assets/manifest.ts` resolves token art in this order: player photo → `image` in the manifest → built-in SVG portrait. To ship a default image with the app:

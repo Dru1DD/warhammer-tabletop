@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# your own unit pictures (src/assets/unitArt.ts): never committed, the app ships no Games Workshop images
+public/unit-art/

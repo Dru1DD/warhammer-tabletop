@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { FACTION_STYLE, TOKENS, tokenImageFor } from '../assets/manifest'
+import { artFor, useUnitArt } from '../assets/unitArt'
 import { ABILITY_TEXT, DATASHEETS, FACTION_NAME, PROFILES } from '../game/data/datasheets'
 import { fmtPoints, unitCost } from '../game/data/points'
 import { actor, moveAllowance, moveCommand, moveModeFor, PHASE_NAME, shootPlan, stratagemActions, unitActions, validate } from '../game/engine'
-import { alive, datasheetOf, engagedUnits, fmt, hasAbility, hasKeyword, isDestroyed, isMV, other, profileOf, sidesOf, unitKeywords, unitsOf, weaponsOf } from '../game/gameState'
+import { alive, datasheetOf, engagedUnits, fmt, hasAbility, hasKeyword, isDestroyed, isMV, modelDatasheetId, other, profileOf, sidesOf, unitKeywords, unitsOf, weaponsOf } from '../game/gameState'
 import { leadsOf } from '../game/rules/attached'
 import { hitRoll, invulnFor, saveTarget, toughness, woundTarget } from '../game/combat/attack'
 import { fmtRandom } from '../game/dice/dice'
@@ -178,6 +179,33 @@ function UnitStatus({ u }: { u: UnitState }) {
   return <div className="text-[11px] text-amber-300">{tags.join(' · ')}</div>
 }
 
+/** The unit's pictures from the player's folder (assets/unitArt.ts): each different picture once, captioned with the model
+ * it shows, or the unit when it is the datasheet's picture. Nothing when there are none. */
+function UnitPictures({ u }: { u: UnitState }) {
+  const art = useUnitArt()
+  const pics = new Map<string, string>()
+  // the unit's own picture first, then the pictures of single models and loadouts
+  const own = art[u.datasheetId]
+  if (own) pics.set(own, DATASHEETS[u.datasheetId].name)
+  for (const m of u.models) {
+    const ds = modelDatasheetId(u, m)
+    const url = artFor(art, m.profileId, ds)
+    if (url && !pics.has(url)) pics.set(url, art[m.profileId] ? PROFILES[m.profileId].name : DATASHEETS[ds].name)
+  }
+  if (!pics.size) return null
+  // one under the other, full width: the side panel is narrow
+  return (
+    <div className="mt-2 grid gap-1" aria-label={tr('Unit pictures')}>
+      {[...pics].map(([url, caption]) => (
+        <figure key={url} className="overflow-hidden rounded border border-stone-700 bg-black">
+          <img src={url} alt={caption} className="max-h-56 w-full object-contain" />
+          <figcaption className="px-1 py-0.5 text-[10px] text-stone-400">{caption}</figcaption>
+        </figure>
+      ))}
+    </div>
+  )
+}
+
 function UnitDetails({ u }: { u: UnitState }) {
   const ds = datasheetOf(u)
   const units = useStore((s) => s.game?.units)
@@ -194,6 +222,7 @@ function UnitDetails({ u }: { u: UnitState }) {
         <Avatar profileId={u.models[0].profileId} size={44} />
         <h3 className="text-sm font-semibold">{[ds, ...chars].map((d) => d.name).join(' + ')}</h3>
       </div>
+      <UnitPictures u={u} />
       <p className="text-stone-400">{FACTION_NAME[u.owner]} · {unitKeywords(u).join(', ')}</p>
       {ds.description && <p className="mt-1 text-stone-200">{ds.description}</p>}
       {(u.attached ?? []).map((p) => (

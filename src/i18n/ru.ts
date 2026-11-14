@@ -2296,6 +2296,7 @@ const catalog: Catalog = {
   "Unit card": "Карточка отряда",
   "Unit cost": "Стоимость отряда",
   "Unit leader": "Командир отряда",
+  "Unit pictures": "Картинки отряда",
   "Unit wargear": "Снаряжение отряда",
   "Unit “{datasheetId}” is not from this faction.": "Отряд «{datasheetId}» не из этой фракции.",
   "Unit “{name}” is destroyed!": "Отряд «{name}» уничтожен!",
