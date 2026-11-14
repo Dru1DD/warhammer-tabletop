@@ -133,7 +133,12 @@ describe('Adeptus Mechanicus army rule and abilities in the UI', () => {
     expect(st().finishDeployment()).toBe(true)
     for (let i = 0; i < 400; i++) {
       const g = st().game!
-      if (actor(g) === 'adeptus_mechanicus' && g.phase === 'command' && g.players.adeptus_mechanicus.imperative === null) return
+      if (actor(g) === 'adeptus_mechanicus' && g.phase === 'command' && g.players.adeptus_mechanicus.imperative === null) {
+        // when the opponent went first and a unit lost half its models, the turn first waits for the Insane Bravery
+        // reaction before the Battle-shock tests: pass it, as a player who keeps the CP would (the battle seed is random)
+        if (g.reaction) { expect(st().dispatch({ type: 'passReaction' })).toBe(true); continue }
+        return
+      }
       if (actor(g) === 'adeptus_mechanicus') expect(st().dispatch(decide(g, 'beginner')!.cmd)).toBe(true)
       else expect(st().aiStep()).toBe(true)
     }
