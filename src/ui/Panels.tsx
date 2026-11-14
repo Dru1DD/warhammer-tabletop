@@ -184,6 +184,9 @@ function UnitStatus({ u }: { u: UnitState }) {
 function UnitPictures({ u }: { u: UnitState }) {
   const art = useUnitArt()
   const pics = new Map<string, string>()
+  // the unit's own picture first, then the pictures of single models and loadouts
+  const own = art[u.datasheetId]
+  if (own) pics.set(own, DATASHEETS[u.datasheetId].name)
   for (const m of u.models) {
     const ds = modelDatasheetId(u, m)
     const url = artFor(art, m.profileId, ds)
