@@ -29,9 +29,9 @@ const GAMES: Record<string, Game> = {
 const RECORDED: Record<string, { actions: number; commands: string }> = {
   // re-recorded: the AI now spends CP on core and army (detachment) Stratagems, on reactions in the opponent's turn, on Command Re-rolls mid-attack and Insane Bravery before the test, and on faction reactions when attacked, and on the detachment rules (doctrines, Hyper-adaptations, Rad-bombardment), and aggressive armies value a charge next turn (melee swarms close in), and characters join units (attached units, #64)
   'patrol marines-orks standard': { actions: 100, commands: '5fba0e9d' },
-  'patrol aeldari-mechanicus beginner': { actions: 67, commands: '92063ce1' },
+  'patrol aeldari-mechanicus beginner': { actions: 67, commands: '8454b897' },
   '500 tyranids-necrons standard': { actions: 60, commands: '5d50a2d6' },
-  '1000 orks-aeldari standard': { actions: 40, commands: 'f90a9b5c' },
+  '1000 orks-aeldari standard': { actions: 40, commands: '2f8369a0' },
 }
 
 // The army lists these games were recorded with: the presets as of bfe917d. They are pinned here so that
