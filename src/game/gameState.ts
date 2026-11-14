@@ -258,7 +258,7 @@ const chittered = (s: GameState, u: UnitState) =>
   s.units.some((e) => e.owner !== u.owner && hasAbility(e, 'chitteringSwarm') && !isDestroyed(e) && unitDistance(u, e) <= ENGAGEMENT_RANGE + EPS)
 
 /** Rad-saturation (Skitarii Vanguard): models of enemy non-VEHICLE units within 3″ of the unit have OC reduced by 1. */
-const irradiated = (s: GameState, u: UnitState) =>
+export const irradiated = (s: GameState, u: UnitState) =>
   !hasKeyword(u, 'VEHICLE') && s.units.some((e) => e.owner !== u.owner && hasAbility(e, 'radSaturation') && !isDestroyed(e) && unitDistance(u, e) <= RAD_RANGE + EPS)
 
 export function objectiveLevels(s: GameState, o: Objective): Record<PlayerId, number> {

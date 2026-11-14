@@ -18,6 +18,7 @@ import { applySecondary, secondaryCommandStart, secondaryProblem, secondaryTurnE
 import { actionProblem, MISSION_ACTION, missionBattleEnd, missionCommandEnd, missionTurnEnd, missionTurnStart, PRIMARY } from './rules/missions'
 import { applyMortalWounds, resolveGroup, type AttackContext, type AttackGroup, type RerollHook, type RerollKind } from './combat/attack'
 import { moveProblem, planMove } from './rules/movement'
+import { DEADLY_DEMISE_RANGE, EMANATUS_RANGE } from './rules/zones'
 import { hasCover, nearestVisibleDistance, seesAny, unitCanSee } from './rules/visibility'
 import { DOCTRINE_NAME, DOCTRINE_TEXT, DOCTRINES, doctrineLeft, HYPER_ADAPTATIONS, HYPER_NAME, HYPER_TEXT, MARTIAL_GRACE_SWIFT, MARTIAL_GRACE_TOKENS, RAD_COVER_WOUNDS } from './rules/detachments'
 import { deploymentZone } from './rules/deployment'
@@ -165,14 +166,18 @@ function defenceMods(s: GameState, p: WeaponProfile, target: UnitState) {
 }
 
 /** Invulnerable save against ranged attacks: the general override, and the Rangers' 5+ (ranged attacks only). */
-/** Emanatus Force Field (Onager Dunecrawler): friendly ADEPTUS MECHANICUS BATTLELINE within 6″ of it. */
-export const EMANATUS_RANGE = 6
-const emanatus = (s: GameState, target: UnitState) =>
-  hasKeyword(target, 'BATTLELINE') && datasheetOf(target).faction === 'adeptus_mechanicus' &&
-  s.units.some((x) => x.owner === target.owner && x.id !== target.id && !isDestroyed(x) && hasAbility(x, 'emanatusForceField') && unitDistance(x, target) <= EMANATUS_RANGE + EPS)
+/** Ids of the models of `target` the Emanatus Force Field protects: every part of the base within 6″ of an Onager's base. */
+export function emanatusModels(s: GameState, target: UnitState): string[] {
+  if (!hasKeyword(target, 'BATTLELINE') || datasheetOf(target).faction !== 'adeptus_mechanicus') return []
+  const fields = s.units.filter((x) => x.owner === target.owner && x.id !== target.id && !isDestroyed(x) && hasAbility(x, 'emanatusForceField'))
+  if (!fields.length) return []
+  return alive(target)
+    .filter((m) => fields.some((f) => alive(f).some((o) => modelDistance(m, o) + 2 * radiusOf(m) <= EMANATUS_RANGE + EPS)))
+    .map((m) => m.id)
+}
 
 function rangedInvuln(s: GameState, target: UnitState): number | undefined {
-  const v = [invulnOverrideOf(s, target), hasAbility(target, 'cameleoline') ? 5 : undefined, hasBuff(target, 'bulwarkImperative') ? 4 : undefined, emanatus(s, target) ? 4 : undefined].filter((x): x is number => x !== undefined)
+  const v = [invulnOverrideOf(s, target), hasAbility(target, 'cameleoline') ? 5 : undefined, hasBuff(target, 'bulwarkImperative') ? 4 : undefined].filter((x): x is number => x !== undefined)
   return v.length ? Math.min(...v) : undefined
 }
 
@@ -357,6 +362,7 @@ export function shootPlan(
   const omnispex = hasWargear(unit, 'omnispex')
   const bolter = hasAbility(unit, 'boltDiscipline') && s.objectives.some((o) => unitNearObjective(unit, o) || unitNearObjective(target, o))
   const runts = !!opts.useAmmoRunts && hasAbility(unit, 'ammoRunts') && !unit.ammoRuntsUsed
+  const emanatusIds = emanatusModels(s, target)
   for (const g of byKey.values()) {
     const notes: string[] = []
     let hitMod = 0
@@ -401,6 +407,7 @@ export function shootPlan(
       lethalHits: lethalVs(g.profile, unit, target) || onslaught || bonus.galvanic || dosage || det.lethal,
       ...(det.critPrecision ? { critPrecision: true } : {}),
       invulnOverride: rangedInvuln(s, target),
+      ...(emanatusIds.length ? { invulnByModel: Object.fromEntries(emanatusIds.map((id) => [id, 4])) } : {}),
       ...(g.notes.includes(BLITZ_CRIT) ? { critHitOn: 5 } : {}),
       ...(g.profile.keywords.precision ? { precision: true } : {}),
       ...(rerollHits ? { rerollHits } : {}),
@@ -1233,7 +1240,7 @@ function deadlyDemise(s: GameState, before: Set<string>, r: Roller) {
         continue
       }
       const n = typeof x === 'string' ? rollDie(r, x) : x
-      const victims = s.units.filter((o) => !isDestroyed(o) && alive(o).some((om) => withinRange(modelDistance(m, om), 6)))
+      const victims = s.units.filter((o) => !isDestroyed(o) && alive(o).some((om) => withinRange(modelDistance(m, om), DEADLY_DEMISE_RANGE)))
       pushDice(s, `Deadly Demise: ${u.name}`, [{ label: 'D6', target: '6', dice: [{ value: v, success: true }], note: tr('Explosion: {n} mortal wounds to each unit within 6″.', { n }) }], tr('{name} explodes: {value}.', { name: u.name, value: victims.map((o) => o.name).join(', ') || tr('nobody nearby') }))
       for (const o of victims) applyMortalWounds(s, o, n, tr('explosion of {name} (Deadly Demise)', { name: u.name }))
     }

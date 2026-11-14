@@ -4,7 +4,7 @@ import { ABILITY_TEXT, FACTION_NAME, PROFILES } from '../game/data/datasheets'
 import { copyIndex, fmtPoints, pointsPerModel, unitPoints } from '../game/data/points'
 import { actor, moveAllowance, moveCommand, moveModeFor, PHASE_NAME, shootPlan, stratagemActions, unitActions, validate } from '../game/engine'
 import { alive, datasheetOf, engagedUnits, fmt, hasAbility, hasKeyword, isDestroyed, isMV, other, profileOf, sidesOf, unitsOf, weaponsOf } from '../game/gameState'
-import { hitRoll, saveTarget, toughness, woundTarget } from '../game/combat/attack'
+import { hitRoll, invulnFor, saveTarget, toughness, woundTarget } from '../game/combat/attack'
 import { fmtRandom } from '../game/dice/dice'
 import { deploymentIssues, deploymentZone } from '../game/rules/deployment'
 import { boxOf, fitBox, newPiece, TERRAIN_PRESETS, withBox, type TerrainPreset } from '../game/terrainLayout'
@@ -50,6 +50,8 @@ import { leaveRoom } from '../multiplayer/session'
 import { turnPlan, type PlanKind } from '../game/missionAdvice'
 import { quote, tr } from '../i18n/index'
 import { MISSION_ACTION, PRIMARY, PRIMARY_CAP, primaryTotal, ROUND_CAP } from '../game/rules/missions'
+import { unitsCovered, zonesOf, zonesOn } from '../game/rules/zones'
+import { badgeText } from '../view/zones'
 import { carryProblem, disembarkMode, disembarkSpot, disembarkWindow, embarkedOf, isTransport, passengersOf, placesOf, transportSpec } from '../game/rules/transports'
 import { aiArrivalTarget, arrivalSpot, canDeepStrike, ingressWindow, INGRESS_EDGE, INGRESS_ENEMY, RAPID_INGRESS_CP, RESERVE_DEADLINE, RESERVE_FROM_ROUND, reserveBudget, reservesOf } from '../game/rules/reserves'
 import { FIXED_CARD_CAP, SECONDARY, SECONDARY_CAP, SECONDARY_ROUND_CAP, secondaryTotal } from '../game/rules/secondaries'
@@ -228,6 +230,7 @@ function UnitDetails({ u }: { u: UnitState }) {
       <ul className="mt-2 list-disc pl-4 text-stone-300">
         {ds.abilities.map((a) => <li key={a}>{ABILITY_TEXT[a]}</li>)}
       </ul>
+      <ZoneLines u={u} />
       <details className="mt-2">
         <summary className="cursor-pointer text-stone-300">{tr('📷 Model photos')}</summary>
         <p className="my-1 text-[11px] text-stone-400">{tr('Photograph your miniatures from the set from above or the front — the photos replace the drawn tokens. Stored only in this browser.')}</p>
@@ -237,6 +240,33 @@ function UnitDetails({ u }: { u: UnitState }) {
         <p className="mt-1 text-[11px] text-amber-400">{tr('Introductory Set training configuration: in the official Boyz datasheet the minimum is 10 models and 1 special weapon per 10 models.')}</p>
       )}
     </section>
+  )
+}
+
+/** Auras and other zones: the ones the unit stands in, and whom its own zones cover now. */
+function ZoneLines({ u }: { u: UnitState }) {
+  const game = useStore((s) => s.game)
+  if (!game) return null
+  const unit = game.units.find((x) => x.id === u.id) ?? u
+  const on = zonesOn(game, unit)
+  const own = zonesOf(game, unit).filter((z) => z.kind !== 'explosion')
+  if (!on.length && !own.length) return null
+  return (
+    <div className="mt-2 text-[11px]" aria-label={tr('Zones')}>
+      {on.length > 0 && (
+        <p className="text-teal-300">
+          {tr('Affected by: {list}', { list: on.map((h) => tr('{zone} ({name}): {badge}', { zone: h.zone.name, name: h.source.name, badge: badgeText(h) })).join('; ') })}
+        </p>
+      )}
+      {own.map((z) => {
+        const list = unitsCovered(game, z, unit).filter((t) => t.id !== unit.id).map((t) => t.name)
+        return (
+          <p key={z.id} className="text-stone-300">
+            {list.length ? tr('Zone {zone} {radius}″ covers: {list}', { zone: z.name, radius: z.radius, list: list.join(', ') }) : tr('Zone {zone} {radius}″ covers nobody now', { zone: z.name, radius: z.radius })}
+          </p>
+        )
+      })}
+    </div>
   )
 }
 
@@ -781,7 +811,7 @@ function AttackPreview({ plan, attacker, target }: { plan: ReturnType<typeof sho
       </summary>
       {plan.groups.map((g) => {
         const hr = hitRoll(g.profile, g.ctx)
-        const needs = saves.map((m) => ({ need: saveTarget(m, g.profile.ap, g.ctx.invulnOverride).need, name: profileOf(m).name }))
+        const needs = saves.map((m) => ({ need: saveTarget(m, g.profile.ap, invulnFor(g.ctx, m)).need, name: profileOf(m).name }))
         const save = new Set(needs.map((x) => x.need)).size === 1 ? `${needs[0].need}+` : needs.map((x) => `${x.need}+ (${x.name})`).join(', ')
         return (
           <div key={g.weaponName + g.profile.name} className="mt-1 border-t border-stone-700 pt-1">

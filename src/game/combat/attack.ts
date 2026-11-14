@@ -25,6 +25,8 @@ export interface AttackContext {
   skillWorsen: number
   lethalHits: boolean
   invulnOverride?: number
+  /** invulnerable save of single models (Emanatus Force Field protects only the models wholly within its range) */
+  invulnByModel?: Record<string, number>
   /** wound-roll modifier (e.g. Duty Eternal −1) */
   woundMod?: number
   woundModNote?: string
@@ -72,6 +74,12 @@ export function pickModelForDamage(u: UnitState, precision = false): ModelState 
     return (p.character ? (precision ? -1000 : 1000) : 0) + (m.wounds < p.w ? 0 : 100) + p.w
   }
   return [...a].sort((x, y) => score(x) - score(y))[0]
+}
+
+/** The invulnerable save the attack context gives model `m`: the unit's own override and the model's, the better one. */
+export function invulnFor(ctx: Pick<AttackContext, 'invulnOverride' | 'invulnByModel'>, m: ModelState): number | undefined {
+  const v = [ctx.invulnOverride, ctx.invulnByModel?.[m.id]].filter((x): x is number => x !== undefined)
+  return v.length ? Math.min(...v) : undefined
 }
 
 export function saveTarget(m: ModelState, ap: number, invuln?: number): { need: number; kind: string } {
@@ -160,7 +168,7 @@ export function resolveGroup(
   const wins = (x: number) => x !== 1 && (x === 6 || x >= anti || x + wmod >= wt)
   /** expected damage of one more wound, one more hit, one more attack (against the model that would take it now) */
   const avgDmg = Math.max(1, p.d + avgDie(p.randomD) + (ctx.damageMod ?? 0))
-  const saveChance = (m: ModelState) => chance((x) => x !== 1 && x >= saveTarget(m, p.ap, ctx.invulnOverride).need)
+  const saveChance = (m: ModelState) => chance((x) => x !== 1 && x >= saveTarget(m, p.ap, invulnFor(ctx, m)).need)
   const perWound = () => {
     const m = isDestroyed(target) ? undefined : pickModelForDamage(target, ctx.precision)
     return m ? (1 - saveChance(m)) * Math.min(avgDmg, m.wounds) : 0
@@ -297,7 +305,7 @@ export function resolveGroup(
   }
   for (let i = 0; i < wounds && !isDestroyed(target); i++) {
     const m = pickModelForDamage(target, ctx.precision || (!!ctx.critPrecision && i < critWounds))!
-    const st = saveTarget(m, p.ap, ctx.invulnOverride)
+    const st = saveTarget(m, p.ap, invulnFor(ctx, m))
     saveNote = tr('Save {kind}: Sv {sv}+{value} → {need}+', { kind: st.kind, sv: profileOf(m).sv, value: p.ap ? `, AP ${p.ap}` : '', need: st.need })
     let v = roller.d6()
     let from: number | undefined
