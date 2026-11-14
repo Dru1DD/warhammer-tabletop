@@ -2,10 +2,11 @@ import Konva from 'konva'
 import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Circle, Ellipse, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from 'react-konva'
 import { BOARD_STYLE, FACTION_LINE, FACTION_STYLE, TERRAIN_STYLE, TOKENS, tokenImageFor } from '../assets/manifest'
+import { artFor, useUnitArt } from '../assets/unitArt'
 import { boxOf, fitBox, withBox, type Box } from '../game/terrainLayout'
 import { actor, moveAllowance, moveCommand, moveModeFor, shootPlan, validate } from '../game/engine'
 import { baseRadius, dist, edgeDistance, withinRange } from '../game/geometry/geometry'
-import { alive, CHARGE_RANGE, findUnit, fmt, hasAbility, isFlyer, leadingAbility, modelDistance, OBJECTIVE_MARKER_MM, OBJECTIVE_RANGE, profileOf, radiusOf, sidesOf, weaponsOf } from '../game/gameState'
+import { alive, CHARGE_RANGE, findUnit, fmt, hasAbility, isFlyer, leadingAbility, modelDatasheetId, modelDistance, OBJECTIVE_MARKER_MM, OBJECTIVE_RANGE, profileOf, radiusOf, sidesOf, weaponsOf } from '../game/gameState'
 import type { Command, GameState, ModelState, Terrain, UnitState, Vec } from '../game/types'
 import { useStore } from '../store'
 import { movePath } from '../game/rules/movement'
@@ -489,6 +490,7 @@ function DeployBar() {
 
 function ModelTooltip({ hover, view, width }: { hover: Hover; view: Viewport; width: number }) {
   const st = useStore()
+  const art = useUnitArt()
   const game = st.game!
   const u = findUnit(game, hover.unitId)
   const m = u?.models.find((x) => x.id === hover.modelId)
@@ -528,6 +530,9 @@ function ModelTooltip({ hover, view, width }: { hover: Hover; view: Viewport; wi
   }
   return (
     <div className="pointer-events-none absolute z-[2] w-60 rounded-lg border border-stone-600 bg-stone-950/95 p-2 text-xs shadow-xl" style={pos.x + r + 256 > width ? { left: Math.max(4, pos.x - r - 248), top: Math.max(pos.y - r, 4) } : { left: pos.x + r + 8, top: Math.max(pos.y - r, 4) }}>
+      {artFor(art, m.profileId, modelDatasheetId(u, m)) && (
+        <img src={artFor(art, m.profileId, modelDatasheetId(u, m))} alt="" className="mb-1 max-h-36 w-full rounded bg-black object-contain" />
+      )}
       <div className="font-semibold" style={{ color: FACTION_STYLE[u.owner].secondary }}>{p.name}</div>
       <div className="text-stone-400">{u.name}</div>
       <div className="mt-1">❤ {m.wounds}/{p.w} · M {p.m}″ · T {p.t} · Sv {p.sv}+{p.invuln ? ` · ${p.invuln}++` : ''} · OC {p.oc}</div>
