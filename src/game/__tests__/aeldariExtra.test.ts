@@ -23,7 +23,8 @@ import { moveUnitTo, place } from './helpers'
 const ELDAR: ArmyList = {
   limit: 1000,
   units: [
-    { datasheetId: 'farseer', size: 1 },
+    // the Farseer stays on its own (Psychic Guidance measures from it); the Autarch leads the Guardians
+    { datasheetId: 'farseer', size: 1, attachTo: null },
     { datasheetId: 'autarch', size: 1 },
     { datasheetId: 'aeldariRangers', size: 5 },
     { datasheetId: 'wraithguard', size: 5 },
@@ -91,15 +92,16 @@ describe('Aeldari datasheets (11th edition)', () => {
 })
 
 describe('Superlative Strategist (Autarch)', () => {
-  it('re-rolls an Advance roll; other Aeldari cannot', () => {
+  it('the unit the Autarch leads re-rolls an Advance roll; other Aeldari cannot', () => {
     const s = battle('movement')
-    const au = byDs(s, 'autarch')
+    const au = byDs(s, 'guardianDefenders')
+    expect(au.attached?.map((p) => p.datasheetId)).toEqual(['autarch'])
     const after = apply(s, { type: 'declareAdvance', unitId: au.id }, scriptedRoller([1]))
     expect(validate(after, { type: 'rerollAdvance', unitId: au.id })).toEqual({ ok: true })
     const re = apply(after, { type: 'rerollAdvance', unitId: au.id }, scriptedRoller([5]))
     expect(unitById(re, au.id).advanceRoll).toBe(5)
     expect(re.diceLog.at(-1)!.steps[0].note).toMatch(/Superlative Strategist/)
-    const gd = byDs(s, 'guardianDefenders')
+    const gd = byDs(s, 'aeldariRangers')
     const g2 = apply(s, { type: 'declareAdvance', unitId: gd.id }, scriptedRoller([1]))
     expect(validate(g2, { type: 'rerollAdvance', unitId: gd.id }).ok).toBe(false)
   })

@@ -4,7 +4,8 @@ import { pickModelForDamage } from '../combat/attack'
 import { ABILITY_TEXT, DATASHEETS, PROFILES, WEAPONS } from '../data/datasheets'
 import { scriptedRoller, seededRoller } from '../dice/dice'
 import { apply, meleePlan, shootPlan, startGame, validate } from '../engine'
-import { alive, feelNoPainOf, ledUnitOf, objectiveLevels, profileOf, unitDistance, unitsOf, updateObjectiveControl } from '../gameState'
+import { alive, bodyguardModels, feelNoPainOf, objectiveLevels, profileOf, unitDistance, unitsOf, updateObjectiveControl } from '../gameState'
+import { attachUnit } from '../rules/attached'
 import { rect } from '../geometry/geometry'
 import { deploymentIssues, deploymentProblem } from '../rules/deployment'
 import { deserialize, serialize } from '../persistence'
@@ -146,12 +147,15 @@ describe('Adeptus Mechanicus datasheets', () => {
 
 describe('Adeptus Mechanicus army (the requested training roster)', () => {
   const army = armyOf('combat-patrol', AM)!
-  const comp = (id: string) => army.find((u) => u.id === id)!.models.map((m) => m.profileId)
+  /** the unit's own models (without the Tech-Priest leading it) */
+  const comp = (id: string) => bodyguardModels(army.find((u) => u.id === id)!).map((m) => m.profileId)
+  /** the models of the character leading the unit */
+  const leader = (id: string) => army.find((u) => u.id === id)!.models.filter((m) => !bodyguardModels(army.find((u) => u.id === id)!).includes(m)).map((m) => m.profileId)
   const count = (id: string, p: string) => comp(id).filter((x) => x === p).length
 
-  it('has exactly the requested units and model counts (36 models)', () => {
+  it('has exactly the requested units and model counts (36 models; the Tech-Priests lead the Rangers and the Vanguard)', () => {
     expect(Object.fromEntries(army.map((u) => [u.id, u.models.length]))).toEqual({
-      dominus: 1, manipulus: 1, rangers: 10, vanguard: 10, breachers: 3, destroyers: 3, sicarians: 5, kastelans: 3,
+      rangers: 11, vanguard: 11, breachers: 3, destroyers: 3, sicarians: 5, kastelans: 3,
     })
   })
   it('respects the datasheet unit sizes and loadout limits', () => {
@@ -170,11 +174,11 @@ describe('Adeptus Mechanicus army (the requested training roster)', () => {
     expect(count('sicarians', 'sicarianPrinceps')).toBe(1)
     expect(comp('kastelans').length).toBeGreaterThanOrEqual(2)
     expect(comp('kastelans').length).toBeLessThanOrEqual(4)
-    expect(comp('dominus')).toEqual(['techDominus'])
-    expect(comp('manipulus')).toEqual(['techManipulus'])
+    expect(leader('rangers')).toEqual(['techDominus'])
+    expect(leader('vanguard')).toEqual(['techManipulus'])
   })
   it('every unit has its own role: different weapons, ranges and defences', () => {
-    const maxRange = (id: string) => Math.max(...alive(unit(scenarioById('combat-patrol').build([AM, 'marines']), id)).flatMap((m) => profileOf(m).weapons.flatMap((w) => WEAPONS[w].profiles.map((p) => (p.range === 'melee' ? 0 : p.range)))))
+    const maxRange = (id: string) => Math.max(...bodyguardModels(unit(scenarioById('combat-patrol').build([AM, 'marines']), id)).flatMap((m) => profileOf(m).weapons.flatMap((w) => WEAPONS[w].profiles.map((p) => (p.range === 'melee' ? 0 : p.range)))))
     const s = scenarioById('combat-patrol').build([AM, 'marines'])
     const range = (id: string) => maxRange(id)
     expect(range('rangers')).toBe(30) // galvanic / arc rifles
@@ -186,7 +190,7 @@ describe('Adeptus Mechanicus army (the requested training roster)', () => {
     expect(Math.min(...alive(unit(s, 'sicarians')).map((m) => 8 - profileOf(m).m))).toBe(0) // fastest infantry on the list
     expect(profileOf(unit(s, 'breachers').models[0]).t).toBe(7)
     expect(profileOf(unit(s, 'kastelans').models[0]).w).toBe(7)
-    // the weapon sets of the eight units are all different
+    // the weapon sets of the units are all different
     const kits = army.map((u) => [...new Set(u.models.flatMap((m) => profileOf(m).weapons))].sort().join())
     expect(new Set(kits).size).toBe(army.length)
   })
@@ -288,20 +292,24 @@ describe('Doctrina Imperatives', () => {
   })
 })
 
-describe('Tech-Priests lead the nearest Skitarii/Kataphron unit within 3″ (training approximation of attached units)', () => {
-  it('picks exactly one unit, deterministically, and none when out of reach', () => {
-    const s = mech()
-    expect(ledUnitOf(s, unit(s, 'dominus'))?.id).toBe('rangers') // default positions
-    expect(ledUnitOf(s, unit(s, 'manipulus'))?.id).toBe('vanguard')
-    moveUnitTo(s, 'dominus', { x: 20, y: 5 })
-    expect(ledUnitOf(s, unit(s, 'dominus'))).toBeNull()
+describe('Tech-Priests lead a unit from inside it (attached units, docs/leaders.md)', () => {
+  /** The Combat Patrol as it is played: the Dominus inside the Rangers, the Manipulus inside the Vanguard. */
+  const led = (phase: Parameters<typeof battle>[2] = 'movement', active: 'adeptus_mechanicus' | 'marines' = AM) => battle(AM, 'marines', phase, active, true)
+  const priest = (s: GameState, id: string) => unit(s, id).models.find((m) => profileOf(m).character)!
+  it('in the Combat Patrol the Dominus leads the Rangers and the Manipulus the Vanguard', () => {
+    const s = led()
+    expect(unit(s, 'rangers').attached?.map((p) => p.datasheetId)).toEqual(['techDominus'])
+    expect(unit(s, 'vanguard').attached?.map((p) => p.datasheetId)).toEqual(['techManipulus'])
+    expect(s.units.some((u) => u.id === 'dominus' || u.id === 'manipulus')).toBe(false)
   })
-  it('Lord of the Machine Cult: Feel No Pain 5+ for the led unit only', () => {
-    const s = mech()
+  it('Lord of the Machine Cult: Feel No Pain 5+ for the unit the Dominus leads, none for a Dominus on its own', () => {
+    const s = led()
     expect(feelNoPainOf(s, unit(s, 'rangers'))).toBe(5)
-    expect(feelNoPainOf(s, unit(s, 'dominus'))).toBe(5)
     expect(feelNoPainOf(s, unit(s, 'vanguard'))).toBeUndefined()
     expect(feelNoPainOf(s, unit(s, 'breachers'))).toBeUndefined()
+    const alone = mech()
+    expect(feelNoPainOf(alone, unit(alone, 'dominus'))).toBeUndefined()
+    expect(feelNoPainOf(alone, unit(alone, 'rangers'))).toBeUndefined()
   })
   it('Feel No Pain rolls are made per point of damage and shown in the dice log', () => {
     const run = (withDominus: boolean) => {
@@ -312,30 +320,35 @@ describe('Tech-Priests lead the nearest Skitarii/Kataphron unit within 3″ (tra
       unit(s, 'breachers').models.slice(1).forEach((m) => (m.destroyed = true))
       const b = at(s, 'breachers')
       unit(s, 'int').models[1].pos = { x: b.x + 15, y: b.y }
-      if (withDominus) moveUnitTo(s, 'dominus', { x: b.x - 1.5, y: b.y + 3.5 })
+      if (withDominus) {
+        moveUnitTo(s, 'dominus', { x: b.x - 1.5, y: b.y + 1.5 })
+        attachUnit(unit(s, 'breachers'), unit(s, 'dominus'))
+        s.units = s.units.filter((u) => u.id !== 'dominus')
+      }
       return apply(s, { type: 'shoot', unitId: 'int', targetId: 'breachers' }, scriptedRoller(withDominus ? [6, 6, 1, 5, 5] : [6, 6, 1]))
     }
     const protectedRun = run(true)
-    expect(unit(protectedRun, 'breachers').models[0].wounds).toBe(3) // damage 2: both points ignored (5 and 5)
+    // the Breacher takes the wound (the Dominus last); damage 2: both points ignored (5 and 5)
+    expect(unit(protectedRun, 'breachers').models[0].wounds).toBe(3)
     const e = protectedRun.diceLog.find((d) => d.title.includes('Интерсессоры'))!
     expect(e.steps.some((st) => st.label === 'Feel No Pain' && st.dice.length === 2 && st.dice.every((d) => d.success))).toBe(true)
     expect(unit(run(false), 'breachers').models[0].wounds).toBe(1) // no leader: both points of damage go through
   })
-  it('Galvanic Field (Manipulus): the led unit’s weapons have Lethal Hits', () => {
-    const s = mech('shooting')
+  it('Galvanic Field (Manipulus): the weapons of the unit it leads have Lethal Hits, until the Manipulus falls', () => {
+    const s = led('shooting')
     moveUnitTo(s, 'int', { x: at(s, 'vanguard').x + 12, y: at(s, 'vanguard').y })
     expect(shootPlan(s, unit(s, 'vanguard'), unit(s, 'int')).groups.every((g) => g.ctx.lethalHits)).toBe(true)
     expect(shootPlan(s, unit(s, 'rangers'), unit(s, 'int')).groups.some((g) => g.ctx.lethalHits)).toBe(false) // led by the Dominus
-    moveUnitTo(s, 'manipulus', { x: 20, y: 28 })
+    priest(s, 'vanguard').destroyed = true
     expect(shootPlan(s, unit(s, 'vanguard'), unit(s, 'int')).groups.some((g) => g.ctx.lethalHits)).toBe(false)
   })
-  it('Defend the Divine Work: once per battle, 4+ invulnerable save for the Manipulus and its unit through the enemy turn', () => {
-    let s = mech('command')
-    const cmd: Command = { type: 'divineWork', unitId: 'manipulus' }
+  it('Defend the Divine Work: once per battle, 4+ invulnerable save for the Manipulus’s unit through the enemy turn', () => {
+    let s = led('command')
+    const cmd: Command = { type: 'divineWork', unitId: 'vanguard' }
     ok(s, cmd)
-    expect(bad(s, { type: 'divineWork', unitId: 'dominus' })).toContain('нет способности')
+    expect(bad(s, { type: 'divineWork', unitId: 'rangers' })).toContain('нет способности')
     s = apply(s, cmd, scriptedRoller([]))
-    expect(unit(s, 'manipulus').warded && unit(s, 'vanguard').warded).toBe(true)
+    expect(unit(s, 'vanguard').warded).toBe(true)
     expect(unit(s, 'rangers').warded).toBeUndefined()
     expect(bad(s, cmd)).toContain('раз за битву')
     moveUnitTo(s, 'int', { x: at(s, 'vanguard').x + 12, y: at(s, 'vanguard').y })
@@ -647,37 +660,17 @@ describe('Adeptus Mechanicus AI', () => {
     const d = decide(mech('command'), 'standard')!
     expect(d.explanation).toMatch(/ожидаемый результат [\d,]+ против [\d,]+/)
   })
-  it('a Tech-Priest that has lost its unit moves back toward it', () => {
-    const s = scenarioById('combat-patrol').build([AM, 'marines']) // real objectives: the AI scores positions against them
-    s.phase = 'movement'
-    moveUnitTo(s, 'dominus', { x: at(s, 'dominus').x + 9, y: at(s, 'dominus').y + 2 })
-    expect(ledUnitOf(s, unit(s, 'dominus'))).toBeNull()
-    const nearest = (st: GameState) => Math.min(...unitsOf(st, AM).filter((u) => u.id !== 'dominus' && DATASHEETS[u.datasheetId].abilities.includes('ledUnit')).map((u) => unitDistance(unit(st, 'dominus'), u)))
-    let cur = s
-    let moved = false
-    for (let i = 0; i < 40 && !moved; i++) {
-      const d = decide(cur, 'standard')!
-      expect(d.cmd.type, 'the Dominus must move before the phase ends').not.toBe('endPhase')
-      if (d.cmd.type === 'move' && d.cmd.unitId === 'dominus') {
-        const before = nearest(cur)
-        cur = apply(cur, d.cmd, seededRoller(1))
-        expect(nearest(cur)).toBeLessThan(before)
-        moved = true
-      } else cur = apply(cur, d.cmd, seededRoller(1 + i))
-    }
-    expect(moved).toBe(true)
-  })
   it('uses Defend the Divine Work when the Manipulus’s unit is in melee (once)', () => {
-    const s = mech('movement')
+    const s = battle(AM, 'marines', 'movement', AM, true)
     moveUnitTo(s, 'int', { x: at(s, 'vanguard').x + 2.5, y: at(s, 'vanguard').y })
     for (const u of unitsOf(s, AM)) u.move = 'normal' // everybody has moved: the Movement phase is about to end
     const d = decide(s, 'standard')!
-    expect(d.cmd).toEqual({ type: 'divineWork', unitId: 'manipulus' })
+    expect(d.cmd).toEqual({ type: 'divineWork', unitId: 'vanguard' })
     expect(d.explanation).toContain('Защиту божественного труда')
     const after = apply(s, d.cmd, scriptedRoller([]))
     expect(decide(after, 'standard')!.cmd.type).toBe('endPhase') // once per battle
     // not when nobody threatens the unit
-    const calm = mech('movement')
+    const calm = battle(AM, 'marines', 'movement', AM, true)
     calm.units = calm.units.filter((u) => u.owner === AM) // nobody to fear
     for (const u of unitsOf(calm, AM)) u.move = 'normal'
     expect(decide(calm, 'standard')!.cmd.type).toBe('endPhase')

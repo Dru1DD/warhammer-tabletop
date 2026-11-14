@@ -36,7 +36,7 @@ All four requested units exist in 11th edition. Two compositions needed a transp
 
 Not taken (optional wargear): Aspect Shrine token, shimmershield, Plasmacyte, singing spear, resurrection orb. Their weapon profiles are in the data where they are weapons.
 
-Leaders are separate units, as the Lieutenant already was: *attached units are not implemented*.
+Leaders and Support characters join units before the battle ([leaders.md](leaders.md)).
 
 ## Datasheets as implemented
 
@@ -99,7 +99,7 @@ Interpretation choices (the transcription does not say, or the choice is the pla
 |---|---|
 | Skulking Horrors (Termagants), Fade Back, Opportunity Seized, Flitting Shadows, Sudden Strike, Star Engines (Battle Focus manoeuvres), Fleet of Foot | Reactive moves during the opponent's turn need an interrupt mechanism the engine does not have (same reason Fire Overwatch is missing). Swift as the Wind is a normal-turn effect and is implemented. |
 | Will of the Hive Mind, My Will Be Done | They reduce a stratagem's CP cost; there are no stratagems. |
-| Branching Fates, Leader attachments | Attached units are not implemented. |
+| Branching Fates | Not implemented yet; the Farseer does lead a unit ([leaders.md](leaders.md)). |
 | Shadow in the Warp in the *opponent's* Command phase | A command from the non-active player would break the "who owns the decision" rule; it is available in your own Command phase only. |
 | Plasmacyte, Aspect Shrine tokens, shimmershield, Resurrection Orb | Optional wargear that was not taken in the training lists. |
 
@@ -167,7 +167,7 @@ The start screen has an army builder for both sides (yours and the AI's). Each f
 | Preset | 500 | 1000 | 1500 | 2000 | 2500 |
 |---|---|---|---|---|---|
 | Space Marines | 480 | 980 | 1500 | 1985 | 2485 |
-| Orks | 495 | 975 | 1495 | 1995 | 2500 |
+| Orks | 495 | 975 | 1495 | 1995 | 2465 |
 | Tyranids | 480 | 1000 | 1480 | 2000 | 2500 |
 | Necrons | 495 | 990 | 1475 | 1985 | 2500 |
 | Aeldari | 480 | 980 | 1460 | 1985 | 2445 |
@@ -189,7 +189,7 @@ They play on the 44″×60″ board (see [strike-force.md](strike-force.md)). A 
 
 - **1500 (1495 points):** 2 × Warboss, 3 × Boyz (20), Nobz (10), Nobz (5), Kommandos (10), Gretchin (20), 2 × Deff Dread, Battlewagon.
 - **2000 (1995 points):** 2 × Warboss, 5 × Boyz (20), Nobz (10), Nobz (5), Kommandos (10), 2 × Gretchin (20), 3 × Deff Dread, Battlewagon.
-- **2500 (2500 points):** 3 × Warboss, 6 × Boyz (20), Nobz (10), Nobz (5), 2 × Kommandos (10), 2 × Gretchin (20), 3 × Deff Dread, 2 × Battlewagon.
+- **2500 (2465 points):** 3 × Warboss, 6 × Boyz (20), Nobz (10), Nobz (5), 2 × Kommandos (10), Gretchin (20), Gretchin (10), 3 × Deff Dread, 2 × Battlewagon. Each Warboss leads a Boyz mob, so the mobs take more room: the second Gretchin unit has 10 models, or the army does not fit the Crucible zone.
 
 **Tyranids**
 

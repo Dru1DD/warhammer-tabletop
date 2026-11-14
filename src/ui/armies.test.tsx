@@ -44,7 +44,7 @@ describe('faction selection screen', () => {
     render(<App />)
     const am = within(screen.getByLabelText('Состав: Адептус Механикус'))
     expect(am.getByText(/Стоимость армии: ≈ 865 очк\./)).toBeInTheDocument()
-    expect(am.getByText(/· 85 очк\./)).toBeInTheDocument() // Skitarii Rangers
+    expect(am.getAllByText(/· 150 очк\./).length).toBeGreaterThan(0) // Skitarii Rangers (85) led by the Tech-Priest Dominus (65)
     expect(within(screen.getByLabelText('Состав: Орки')).getByText(/Стоимость армии: 335 очк\./)).toBeInTheDocument()
     const matchup = screen.getByLabelText('Баланс армий по очкам')
     expect(matchup).toHaveTextContent(/≈ 865 очк\..*335 очк\./)
@@ -154,15 +154,15 @@ describe('Adeptus Mechanicus army rule and abilities in the UI', () => {
     expect(screen.queryByText(/Завоеватель: Assault/)).toBeNull()
   })
 
-  it('the Manipulus card offers Defend the Divine Work, which works once per battle', () => {
+  it('the card of the unit the Manipulus leads offers Defend the Divine Work, which works once per battle', () => {
     toCommand()
-    useStore.setState({ selectedUnitId: 'manipulus' })
+    useStore.setState({ selectedUnitId: 'vanguard' })
     render(<App />)
     const btn = screen.getByRole('button', { name: /Защита божественного труда/ })
     expect(btn).toBeEnabled()
     fireEvent.click(btn)
     expect(useStore.getState().game!.players.adeptus_mechanicus.divineUsed).toBe(true)
-    expect(useStore.getState().game!.units.find((u) => u.id === 'manipulus')!.warded).toBe(true)
+    expect(useStore.getState().game!.units.find((u) => u.id === 'vanguard')!.warded).toBe(true)
     expect(screen.getByRole('button', { name: /Защита божественного труда/ })).toBeDisabled()
   })
 
@@ -201,9 +201,10 @@ describe('army builder on the start screen', () => {
     fireEvent.click(screen.getByText('Быстрый старт'))
     const g = useStore.getState().game!
     expect(g.scenarioId).toBe('combat-patrol')
-    expect(g.units.filter((u) => u.owner === 'marines').map((u) => u.name)).toEqual(['Капитан', 'Лейтенант', 'Отделение интерсессоров', 'Отделение адских бластеров', 'Отделение Инфернус', 'Ветераны Bladeguard'])
-    expect(g.units.find((u) => u.name === 'Отделение интерсессоров')!.models).toHaveLength(10)
-    expect(g.units.filter((u) => u.owner === 'orks')).toHaveLength(5)
+    // the Captain leads the biggest squad, the Lieutenant the next free one; the Warboss leads the Boyz
+    expect(g.units.filter((u) => u.owner === 'marines').map((u) => u.name)).toEqual(['Отделение интерсессоров + Капитан', 'Отделение адских бластеров + Лейтенант', 'Отделение Инфернус', 'Ветераны Bladeguard'])
+    expect(g.units.find((u) => u.name === 'Отделение интерсессоров + Капитан')!.models).toHaveLength(11)
+    expect(g.units.filter((u) => u.owner === 'orks')).toHaveLength(4)
   })
 
   it('a preset over 1000 points moves the battle to the 44″×60″ board and says why', () => {

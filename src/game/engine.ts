@@ -5,10 +5,10 @@ import { FACTION_NAME } from './data/datasheets'
 import { rollDie, rollMany, type Roller } from './dice/dice'
 import { dist, withinRange, EPS, add, sub, scale, len, sweptCircleHits } from './geometry/geometry'
 import {
-  alphaWarrior, battlelineSupport, feelNoPainOf, nobleLeads, ENGRAMMATIC_RANGE, psychicGuidance, GRENADE_PACK_RANGE, hasWargear, holdScoutedObjectives, imperativeOf, invulnOverrideOf, ledUnitOf, leadersOf, neurostaticMod,
+  alphaWarrior, attackToughness, battlelineSupport, feelNoPainOf, nobleLeads, ENGRAMMATIC_RANGE, psychicGuidance, GRENADE_PACK_RANGE, hasWargear, holdScoutedObjectives, imperativeOf, invulnOverrideOf, isLed, leadingAbility, modelDatasheetId, modelHasAbility, neurostaticMod,
   addLog, alive, atHalfStrength, CHARGE_RANGE, checkCoherency, CONSOLIDATE, datasheetOf, engagedUnits, ENGAGEMENT_RANGE,
-  enemiesOf, findUnit, fmt, hasAbility, hasKeyword, inSynapseRange, isDestroyed, isEngaged, isFlyer, isMV, modelDistance, modelEngagedWith,
-  LEADER_RANGE, other, PILE_IN, profileOf, radiusOf, sidesOf, SYNAPSE_RANGE, unitDistance, unitNearObjective, unitsOf,
+  enemiesOf, findUnit, fmt, hasAbility, hasAbilityAll, hasKeyword, inSynapseRange, isDestroyed, isEngaged, isFlyer, isMV, modelDistance, modelEngagedWith,
+  other, PILE_IN, profileOf, radiusOf, sidesOf, SYNAPSE_RANGE, unitDistance, unitNearObjective, unitsOf,
   updateObjectiveControl, weaponsOf, OBJECTIVE_MARKER_MM,
 } from './gameState'
 import { healUnit } from './rules/heal'
@@ -109,7 +109,7 @@ function detachmentAttack(s: GameState, unit: UnitState, target: UnitState) {
   if (hyper === 'swarming' && hasKeyword(target, 'INFANTRY', 'SWARM')) { out.sustained = true; out.notes.push(tr('Swarming Instincts: Sustained Hits 1')) }
   if (hyper === 'aggression' && hasKeyword(target, 'MONSTER', 'VEHICLE')) { out.lethal = true; out.notes.push(tr('Hyper-aggression: Lethal Hits')) }
   if (hyper === 'predators' && hasKeyword(target, 'CHARACTER')) { out.critPrecision = true; out.notes.push(tr('Hive Predators: crits with Precision')) }
-  if (faction === 'necrons' && isLed(s, unit)) { out.hitMod++; out.hitNotes.push(tr('Command Protocols +1')) }
+  if (faction === 'necrons' && isLed(unit)) { out.hitMod++; out.hitNotes.push(tr('Command Protocols +1')) }
   return out
 }
 
@@ -124,16 +124,6 @@ const FUNGUS_BONUS = 2
 /** Extinction Order: the objective must be within this distance of the Tech-Priest */
 const EXTINCTION_RANGE = 24
 
-/** A CHARACTER of the same army leads this unit. */
-const isLed = (s: GameState, u: UnitState) =>
-  s.units.some((l) => l.owner === u.owner && !isDestroyed(l) && hasKeyword(l, 'CHARACTER') && ledUnitOf(s, l)?.id === u.id) || necronLed(s, u)
-
-/** Necrons have no leader attachment here: as for Guardian Protocols (docs/necrons.md), a friendly NECRONS CHARACTER
- * within 3″ of a non-CHARACTER Necrons unit counts as leading it. */
-const necronLed = (s: GameState, u: UnitState) =>
-  datasheetOf(u).faction === 'necrons' && !hasKeyword(u, 'CHARACTER') &&
-  s.units.some((l) => l.id !== u.id && l.owner === u.owner && !isDestroyed(l) && hasKeyword(l, 'CHARACTER') && datasheetOf(l).faction === 'necrons' && unitDistance(u, l) <= LEADER_RANGE + EPS)
-
 /** Lethal Hits marked "non-MONSTER/VEHICLE" (and Tactical Precision) don't work against M/V targets. */
 const lethalVs = (p: WeaponProfile, attacker: UnitState, target: UnitState) => {
   const k = p.keywords.lethalHits
@@ -143,7 +133,7 @@ const lethalVs = (p: WeaponProfile, attacker: UnitState, target: UnitState) => {
 
 /** Defensive abilities of the target that modify the wound roll / damage. */
 function defenceMods(s: GameState, p: WeaponProfile, target: UnitState) {
-  const t = Math.max(...alive(target).map((m) => profileOf(m).t))
+  const t = attackToughness(target)
   // Duty Eternal (Redemptor), Wave Serpent Shield (ranged attacks only): −1 to wound when Strength beats Toughness
   const duty = hasAbility(target, 'dutyEternal') && p.s > t
   const shield = !duty && hasAbility(target, 'waveSerpentShield') && p.range !== 'melee' && p.s > t
@@ -160,9 +150,16 @@ function defenceMods(s: GameState, p: WeaponProfile, target: UnitState) {
   return {
     woundMod: duty || shield || guard || halo ? -1 : 0,
     woundModNote: woundNotes.length ? woundNotes.join(', ') : undefined,
-    damageMod: hasAbility(target, 'dreadArd') || hasAbility(target, 'implacableResilience') || fortress ? -1 : 0,
+    damageMod: hasAbility(target, 'dreadArd') || fortress ? -1 : 0,
+    ...implacable(target),
     ...(fnp ? { fnp } : {}),
   }
+}
+
+/** Implacable Resilience (Overlord): −1 Damage for each attack allocated to that model, also inside the unit it leads. */
+function implacable(target: UnitState): { damageModByModel?: Record<string, number> } {
+  const ms = alive(target).filter((m) => modelHasAbility(target, m, 'implacableResilience'))
+  return ms.length ? { damageModByModel: Object.fromEntries(ms.map((m) => [m.id, -1])) } : {}
 }
 
 /** Invulnerable save against ranged attacks: the general override, and the Rangers' 5+ (ranged attacks only). */
@@ -221,7 +218,7 @@ function attackerBonuses(s: GameState, unit: UnitState) {
     /** Breaching Command: re-roll hit rolls of 1, or any failed hit near friendly BATTLELINE */
     rerollHits: hasAbility(unit, 'breachingCommand') ? (battlelineSupport(s, unit) ? 'all' as const : 'ones' as const) : undefined,
     /** Galvanic Field: a Manipulus leading the unit gives its weapons Lethal Hits */
-    galvanic: leadersOf(s, unit, 'galvanicField').length > 0,
+    galvanic: leadingAbility(unit, 'galvanicField'),
   }
 }
 
@@ -332,7 +329,7 @@ export function shootPlan(
           if (g.sustainedHits ?? p.keywords.sustainedHits) g.notes.push(BLITZ_CRIT)
           else { g.sustainedHits = 1; g.notes.push('Blitzing Firepower: Sustained Hits 1') }
         }
-        if (tyrant) g.notes.push(isLed(s, unit) ? TYRANT_ALL : TYRANT_ONES)
+        if (tyrant) g.notes.push(isLed(unit) ? TYRANT_ALL : TYRANT_ONES)
         byKey.set(key, g)
       }
       g.models++
@@ -358,7 +355,7 @@ export function shootPlan(
     return { ...plan, problem: plan.skipped.length && closest < Infinity ? tr('No weapon can shoot: the nearest visible target model is at {fmt}". {item}', { fmt: fmt(closest), item: plan.skipped[0] }) : tr('No suitable weapon.') }
 
   // Stealth: the target always has the benefit of cover against ranged attacks
-  plan.cover = hasCover(s, plan.firingModels, target) || hasAbility(target, 'stealth') || hasBuff(target, 'smokescreen')
+  plan.cover = hasCover(s, plan.firingModels, target) || hasAbilityAll(target, 'stealth') || hasBuff(target, 'smokescreen')
   const omnispex = hasWargear(unit, 'omnispex')
   const bolter = hasAbility(unit, 'boltDiscipline') && s.objectives.some((o) => unitNearObjective(unit, o) || unitNearObjective(target, o))
   const runts = !!opts.useAmmoRunts && hasAbility(unit, 'ammoRunts') && !unit.ammoRuntsUsed
@@ -428,10 +425,12 @@ export function shootPlan(
 
 // ---------------------------------------------------------------- melee
 
-/** Profile and context for one melee weapon of `unit` against `target` (shared by the engine and the AI). */
-export function meleeSetup(s: GameState, unit: UnitState, target: UnitState, p0: WeaponProfile) {
+/** Profile and context for one melee weapon of `unit` against `target` (shared by the engine and the AI). `m`: the model
+ * that swings it, for the abilities of "this model" (Finest Hour, Might Is Right; a character inside an attached unit). */
+export function meleeSetup(s: GameState, unit: UnitState, target: UnitState, p0: WeaponProfile, m?: ModelState) {
   const notes: string[] = []
   let p = p0
+  const own = (a: string) => (m ? modelHasAbility(unit, m, a) : hasAbility(unit, a))
   // Targeted Intercession: +1 S and +1 AP after charging
   if (hasAbility(unit, 'targetedIntercession') && unit.charged) {
     p = { ...p, s: p.s + 1, ap: p.ap - 1 }
@@ -443,18 +442,18 @@ export function meleeSetup(s: GameState, unit: UnitState, target: UnitState, p0:
     notes.push('Alpha Warrior: Sustained Hits 1')
   }
   // Finest Hour (Captain): +3 A and Devastating Wounds for this fight
-  if (unit.finestHour) {
+  if (unit.finestHour && own('finestHour')) {
     p = { ...p, attacks: p.attacks + 3, keywords: { ...p.keywords, devastatingWounds: true } }
     notes.push('Finest Hour +3 A, Devastating Wounds')
   }
   // Might Is Right (Warboss): +3 A and +2 S after charging
-  if (hasAbility(unit, 'mightIsRight') && unit.charged) {
+  if (own('mightIsRight') && unit.charged) {
     p = { ...p, attacks: p.attacks + 3, s: p.s + 2 }
     notes.push('Might Is Right +3 A, +2 S')
   }
   // Protocol of the Hungry Void: +1 S, and +1 AP when a CHARACTER leads the unit
   if (hasBuff(unit, 'hungryVoid')) {
-    const led = isLed(s, unit)
+    const led = isLed(unit)
     p = { ...p, s: p.s + 1, ap: led ? p.ap - 1 : p.ap }
     notes.push(led ? tr('Hungry Void +1 S, +1 AP') : tr('Hungry Void +1 S'))
   }
@@ -519,11 +518,13 @@ export function meleePlan(s: GameState, unit: UnitState, target: UnitState, mode
   for (const m of models) {
     if (!modelEngagedWith(m, target)) continue
     for (const w of meleeWeaponsOf(m)) {
-      const { profile: p, ctx, notes } = meleeSetup(s, unit, target, w.profiles[0])
-      let g = byKey.get(w.id)
+      const { profile: p, ctx, notes } = meleeSetup(s, unit, target, w.profiles[0], m)
+      // a character's own bonuses (Might Is Right) make its swings a group of their own
+      const key = `${w.id}:${modelDatasheetId(unit, m)}`
+      let g = byKey.get(key)
       if (!g) {
         g = { weaponName: w.name, profile: p, models: 0, attacks: 0, randomAttacks: 0, notes, ctx }
-        byKey.set(w.id, g)
+        byKey.set(key, g)
         groups.push(g)
       }
       g.models++
@@ -686,7 +687,7 @@ export function validate(s: GameState, cmd: Command): Validation {
     }
     case 'rerollAdvance':
       if (unit.advanceRoll === null || unit.move !== 'none') return fail(tr('There is no Advance roll to re-roll.'))
-      if (!hasAbility(unit, 'waaagh') && !hasAbility(unit, 'superlativeStrategist')) return fail(tr('Only Waaagh! and Superlative Strategist allow re-rolling an Advance.'))
+      if (!hasAbility(unit, 'waaagh') && !leadingAbility(unit, 'superlativeStrategist')) return fail(tr('Only Waaagh! and Superlative Strategist allow re-rolling an Advance.'))
       if (unit.advanceRerolled) return fail(tr('A die cannot be re-rolled more than once.'))
       return OK
     case 'startAction': {
@@ -943,13 +944,16 @@ function enterPhase(s: GameState, phase: Phase, r: Roller) {
   if (hints[phase]) addLog(s, hints[phase]!, 'beginner')
 }
 
+/** The unit's Leadership: the test passes on any of its models' Ld, so the best one counts (an attached unit, 08.03). */
+const unitLd = (u: UnitState) => Math.min(...alive(u).map((m) => profileOf(m).ld))
+
 /** Leadership roll: 2D6, or 3D6 for a TYRANIDS unit in Synapse Range (the total of all three dice, see docs). */
 function leadershipRoll(s: GameState, u: UnitState, r: Roller, mod = 0) {
   const synapse = inSynapseRange(s, u)
   const dice = rollMany(r, synapse ? 3 : 2)
   const interference = neurostaticMod(s, u)
   const total = dice.reduce((a, b) => a + b, 0) + mod + interference
-  const ld = psychicGuidance(s, u) ? Math.min(6, profileOf(alive(u)[0]).ld) : profileOf(alive(u)[0]).ld
+  const ld = psychicGuidance(s, u) ? Math.min(6, unitLd(u)) : unitLd(u)
   return { dice, total, ld, pass: total >= ld, label: `${synapse ? '3D6 (Synapse)' : '2D6'}${interference ? tr(' (interference {interference})', { interference }) : ''}` }
 }
 
@@ -957,7 +961,7 @@ function leadershipRoll(s: GameState, u: UnitState, r: Roller, mod = 0) {
 export function shockFailChance(s: GameState, u: UnitState): number {
   const n = inSynapseRange(s, u) ? 3 : 2
   const mod = neurostaticMod(s, u)
-  const ld = psychicGuidance(s, u) ? Math.min(6, profileOf(alive(u)[0]).ld) : profileOf(alive(u)[0]).ld
+  const ld = psychicGuidance(s, u) ? Math.min(6, unitLd(u)) : unitLd(u)
   let fails = 0
   for (let i = 0; i < 6 ** n; i++) {
     let sum = 0
@@ -1359,11 +1363,9 @@ export function apply(state: GameState, cmd: Command, r: Roller): GameState {
     }
     case 'divineWork': {
       const u = findUnit(s, cmd.unitId)!
-      const led = ledUnitOf(s, u)
       s.players[u.owner].divineUsed = true
       u.warded = true
-      if (led) led.warded = true
-      addLog(s, tr('{name}: Defend the Divine Work — {value} 4+ invulnerable save until the start of your next turn.', { name: u.name, value: led ? tr('“{name}” and the Tech-Priest get', { name: led.name }) : tr('the Tech-Priest gets') }), 'minimal')
+      addLog(s, tr('{name}: Defend the Divine Work — {value} 4+ invulnerable save until the start of your next turn.', { name: u.name, value: u.attached ? tr('every model of the unit gets') : tr('the Tech-Priest gets') }), 'minimal')
       break
     }
     case 'engrammatic': {
@@ -1755,7 +1757,7 @@ export function unitActions(s: GameState, unitId: string): ActionInfo[] {
         add(`finest:${e.id}`, tr('⭐ Fight “{name}” — Finest Hour (+3 A, Devastating Wounds, once per battle)', { name: e.name }), { type: 'fight', unitId, targetId: e.id, finestHour: true })
     }
   out.push(...stratagemActions(s, unitId))
-  return out.filter((a) => a.id !== 'reroll' || hasAbility(u, 'waaagh') || hasAbility(u, 'superlativeStrategist'))
+  return out.filter((a) => a.id !== 'reroll' || hasAbility(u, 'waaagh') || leadingAbility(u, 'superlativeStrategist'))
 }
 
 /** The Stratagems this unit can be the target of right now, one per target (listed only when usable). */
@@ -2079,7 +2081,7 @@ function applyStratagem(s: GameState, cmd: Extract<Command, { type: 'stratagem' 
       break
     }
     case 'undyingLegions':
-      reanimateUnit(s, u, r, isLed(s, u) ? 1 : 0, tr('“Immortal Legions Protocol”'))
+      reanimateUnit(s, u, r, isLed(u) ? 1 : 0, tr('“Immortal Legions Protocol”'))
       break
     case 'insaneBravery': {
       const was = u.battleShocked

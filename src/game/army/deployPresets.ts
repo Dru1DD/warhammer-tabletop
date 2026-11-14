@@ -1,5 +1,5 @@
 import { pointInPolygon, segmentCrossesPolygon } from '../geometry/geometry'
-import { alive, hasAbility, other, radiusOf, sidesOf, unitsOf } from '../gameState'
+import { alive, other, radiusOf, sidesOf, unitsOf } from '../gameState'
 import { deploymentProblem, deploymentZone } from '../rules/deployment'
 import type { GameState, PlayerId, UnitState, Vec } from '../types'
 import { footprint, formation } from './placement'
@@ -278,14 +278,13 @@ function solve(s: GameState, faction: PlayerId, doctrine: Doctrine, eyes: Vec[],
     if (!ok) return null
   }
 
-  // characters: next to the unit they would lead, by the doctrine's preference; one character per unit
+  // characters on their own (the others are inside the units they lead): behind a unit, by the doctrine's preference
   const taken = new Set<UnitState>()
   for (const x of units.filter((y) => y.p.role === 'character')) {
     const bodies = placed.filter((q) => q.role !== 'character')
-    const leadable = bodies.filter((q) => hasAbility(q.u, 'ledUnit'))
     const pick = (pool: typeof bodies) =>
       [...pool].sort((a, b) => doctrine.leads.indexOf(a.role) - doctrine.leads.indexOf(b.role)).find((q) => doctrine.leads.includes(q.role) && !taken.has(q.u)) ?? pool.find((q) => !taken.has(q.u))
-    const partner = pick(leadable) ?? pick(bodies) ?? bodies[0]
+    const partner = pick(bodies) ?? bodies[0]
     if (partner) taken.add(partner.u)
     const offs = formation(x.u, f.depth, 'deep')
     const r = Math.max(...x.u.models.map(radiusOf))

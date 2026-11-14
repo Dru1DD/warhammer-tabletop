@@ -14,7 +14,8 @@ import { moveUnitTo, unit } from './helpers'
 const LIST: ArmyList = {
   limit: 1000,
   units: [
-    { datasheetId: 'warboss', size: 1 },
+    // the Warboss on its own: these tests are about his own datasheet (a Warboss leading a unit: attached.test.ts)
+    { datasheetId: 'warboss', size: 1, attachTo: null },
     { datasheetId: 'nobz', size: 5 },
     { datasheetId: 'gretchin', size: 10 },
     { datasheetId: 'kommandos', size: 10 },

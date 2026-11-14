@@ -1,5 +1,5 @@
 import { unitProfile, ROLE_ICON, ROLE_NAME, type UnitRole } from './army/roles'
-import { alive, datasheetOf, enemiesOf, isMV, profileOf, weaponsOf } from './gameState'
+import { alive, enemiesOf, isMV, profileOf, unitKeywords, weaponsOf } from './gameState'
 import type { GameState, UnitState } from './types'
 import { profileVs, REFERENCE, type Reference, type TargetKind } from './weaponAdvice'
 import { tr } from '../i18n/index'
@@ -61,7 +61,7 @@ function asReference(u: UnitState): Reference {
     invuln: p.invuln,
     w: Math.max(1, Math.round(models.reduce((a, m) => a + profileOf(m).w, 0) / models.length)),
     models: models.length,
-    keywords: datasheetOf(u).keywords,
+    keywords: unitKeywords(u),
   }
 }
 

@@ -1,6 +1,6 @@
 import { expectedGroupDamage, meleePotential, p2d6AtLeast } from './ai/ai'
 import { meleePlan, reactionCommands, shockFailChance, shootPlan } from './engine'
-import { alive, findUnit, fmt, hasAbility, hasKeyword, ledUnitOf, profileOf, unitDistance, unitNearObjective } from './gameState'
+import { alive, findUnit, fmt, hasAbility, isLed, profileOf, unitDistance, unitNearObjective } from './gameState'
 import { LAST_STAND, STRATAGEMS } from './rules/stratagems'
 import type { Command, GameState, PendingReroll, StratagemId, UnitState } from './types'
 import { tr } from '../i18n/index'
@@ -92,7 +92,7 @@ export function reactionAdvice(s: GameState): ReactionOption[] {
     } else if (c.id === 'undyingLegions') {
       // each healed wound is a wound back or a model back on its feet (at 1 wound)
       const room = alive(u).reduce((a, m) => a + profileOf(m).w - m.wounds, 0) + u.models.filter((m) => m.destroyed && !profileOf(m).character).length
-      const led = s.units.some((l) => l.owner === u.owner && hasKeyword(l, 'CHARACTER') && alive(l).length > 0 && ledUnitOf(s, l)?.id === u.id)
+      const led = isLed(u)
       const healed = Math.min(room, led ? 3 : 2)
       out.push({ cmd: c, title, value: healed, worth: healed >= PER_CP * info.cost, why: tr('Reanimation will now return ≈ {fmt} wounds or models{value}, without waiting for your Command phase.', { fmt: fmt(healed), value: led ? tr(' (D3+1: a character leads the unit)') : '' }) })
     } else if (c.id === 'insaneBravery') {

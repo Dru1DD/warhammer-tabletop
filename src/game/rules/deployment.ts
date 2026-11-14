@@ -1,5 +1,5 @@
 import { basesOverlap, circlePolygonDistance, EPS, pointInPolygon, pointSegmentDistance } from '../geometry/geometry'
-import { alive, checkCoherency, enemiesOf, hasAbility, modelDistance, other, profileOf, radiusOf, sidesOf, unitsOf } from '../gameState'
+import { alive, checkCoherency, enemiesOf, hasAbilityAll, modelDistance, other, profileOf, radiusOf, sidesOf, unitsOf } from '../gameState'
 import { terrainBlock } from './movement'
 import { scenarioById } from '../scenarios/scenarios'
 import type { GameState, PlayerId, UnitState, Vec } from '../types'
@@ -27,7 +27,7 @@ export function deploymentProblem(s: GameState, unit: UnitState, positions: Reco
   const zone = deploymentZone(s, unit.owner)
   const final = alive(unit).map((m) => ({ m, pos: positions[m.id] ?? m.pos }))
   const others = s.units.flatMap((u) => (u.id === unit.id ? [] : alive(u)))
-  const infiltrates = hasAbility(unit, 'infiltrators')
+  const infiltrates = hasAbilityAll(unit, 'infiltrators')
   const foes = infiltrates ? enemiesOf(s, unit).flatMap(alive) : []
   for (const { m, pos } of final) {
     const r = radiusOf(m)

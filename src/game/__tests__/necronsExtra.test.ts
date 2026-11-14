@@ -7,15 +7,16 @@ import { apply, meleeSetup, shootPlan, unitActions, validate } from '../engine'
 import { alive } from '../gameState'
 import { scenarioById } from '../scenarios/scenarios'
 import type { GameState, Phase, PlayerId, UnitState } from '../types'
-import { moveUnitTo, place } from './helpers'
+import { detachAll, moveUnitTo, place } from './helpers'
 
 // Royal Warden, Immortals, Lychguard, Canoptek Wraiths (11th edition, Wahapedia), see docs/necrons.md.
 
 const CRONS: ArmyList = {
   limit: 1000,
   units: [
-    { datasheetId: 'overlord', size: 1 },
-    { datasheetId: 'royalWarden', size: 1 },
+    // the Overlord leads the Lychguard (Guardian Protocols); the Warden stays on its own
+    { datasheetId: 'overlord', size: 1, attachTo: 3 },
+    { datasheetId: 'royalWarden', size: 1, attachTo: null },
     { datasheetId: 'immortals', size: 5 },
     { datasheetId: 'lychguard', size: 5 },
     { datasheetId: 'canoptekWraiths', size: 3 },
@@ -24,7 +25,7 @@ const CRONS: ArmyList = {
 
 /** Marine training roster (west) against the Necrons (east), no terrain or objectives. */
 function battle(phase: Phase = 'shooting', active: PlayerId = 'necrons'): GameState {
-  const s = scenarioById('combat-patrol').build(['marines', 'necrons'], { necrons: CRONS })
+  const s = detachAll(scenarioById('combat-patrol').build(['marines', 'necrons'], { necrons: CRONS }), ['marines'])
   s.terrain = []
   s.objectives = []
   s.phase = phase
@@ -90,19 +91,19 @@ describe('Implacable Eradication (Immortals)', () => {
 })
 
 describe('Guardian Protocols (Lychguard)', () => {
-  it('−1 to wound for attacks with S above their T while a NOBLE is within 3″', () => {
+  it('−1 to wound for attacks with S above their T while a NOBLE leads them', () => {
     const s = battle('fight', 'marines')
     const lg = byDs(s, 'lychguard')
-    const ov = byDs(s, 'overlord')
+    expect(lg.attached?.map((p) => p.datasheetId)).toEqual(['overlord'])
+    const ov = lg.models.find((m) => m.profileId === 'overlord')!
     moveUnitTo(s, lg.id, { x: 30, y: 15 })
-    ov.models[0].pos = { x: 33.5, y: 15 }
     const red = unitById(s, 'red')
     const fist = WEAPONS.redemptorFist.profiles[0]
     expect(meleeSetup(s, red, lg, fist).ctx).toMatchObject({ woundMod: -1, woundModNote: 'Guardian Protocols: сила больше стойкости' })
     // S5 is not above T5
     expect(meleeSetup(s, unitById(s, 'int'), lg, WEAPONS.knivesAndFists.profiles[0]).ctx.woundMod).toBe(0)
-    // the Overlord walks away
-    ov.models[0].pos = { x: 40, y: 28 }
+    // the Overlord falls
+    ov.destroyed = true
     expect(meleeSetup(s, red, lg, fist).ctx.woundMod).toBe(0)
   })
 })

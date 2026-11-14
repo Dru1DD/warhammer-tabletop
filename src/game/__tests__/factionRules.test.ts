@@ -342,6 +342,7 @@ describe('Necrons: Implacable Resilience', () => {
     moveUnitTo(s, 'overlord', { x: pos(s, 'lt').x + 10, y: pos(s, 'lt').y })
     const plan = shootPlan(s, unit(s, 'lt'), unit(s, 'overlord'))
     expect(plan.problem).toBeNull()
-    expect(plan.groups.every((g) => g.ctx.damageMod === -1)).toBe(true)
+    const ov = unit(s, 'overlord').models[0].id
+    expect(plan.groups.every((g) => g.ctx.damageModByModel?.[ov] === -1)).toBe(true)
   })
 })

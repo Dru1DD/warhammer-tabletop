@@ -4,7 +4,7 @@
 import { FACTION_NAME } from '../data/datasheets'
 import { dist, withinRange } from '../geometry/geometry'
 import {
-  alive, CHARGE_RANGE, ENGAGEMENT_RANGE, OBJECTIVE_RANGE, datasheetOf, ledUnitOf, engagedUnits, enemiesOf, hasAbility, hasKeyword, inSynapseRange, isEngaged, isFlyer, isMV, modelInTerrain, objectiveLevels, other, profileOf,
+  alive, CHARGE_RANGE, ENGAGEMENT_RANGE, OBJECTIVE_RANGE, datasheetOf, engagedUnits, enemiesOf, hasAbility, hasKeyword, inSynapseRange, isEngaged, isFlyer, isMV, modelInTerrain, objectiveLevels, other, profileOf,
   sidesOf, unitDistance, unitNearObjective, unitsOf, unitsWithin, weaponsOf, fmt,
 } from '../gameState'
 import { actor, FLY_PENALTY, hyperPending, maxMove, meleePlan, meleeSetup, meleeWeaponsOf, shootPlan, swiftBonusOf, validate, moveModeFor } from '../engine'
@@ -22,7 +22,7 @@ import { reactionAdvice } from '../reactionAdvice'
 const SHOOTING_BUFFS: StratagemId[] = ['stormOfDevastation', 'closeRangeDakka', 'conqueringTyrant', 'blitzingFirepower', 'lethalDosage']
 const FIGHT_BUFFS: StratagemId[] = ['hitEmHarder', 'hungryVoid', 'adrenalSurge']
 import type { AttackContext, AttackGroup } from '../combat/attack'
-import { invulnFor, woundTarget } from '../combat/attack'
+import { damageModFor, invulnFor, toughness, woundTarget } from '../combat/attack'
 import { avgDie } from '../dice/dice'
 import type { CombatDoctrine, Command, GameState, HyperAdaptation, PlayerId, StratagemId, UnitState, Vec } from '../types'
 import { WEAPONS } from '../data/datasheets'
@@ -40,8 +40,6 @@ export interface AiWeights {
   positioning: number
   /** Tyranids: value of keeping a non-Synapse unit inside Synapse Range */
   synapse?: number
-  /** Adeptus Mechanicus: value of a Tech-Priest standing next to the unit it leads */
-  support?: number
 }
 
 export const AI_WEIGHTS: Record<PlayerId, AiWeights> = {
@@ -54,7 +52,7 @@ export const AI_WEIGHTS: Record<PlayerId, AiWeights> = {
   // Aeldari: fragile hit-and-run shooters: value survival and cover, avoid melee, fall back when losing a fight
   aeldari: { damageDealt: 1.0, damageTaken: 0.9, objective: 1.0, distance: 0.1, attackOpportunity: 0.3, survival: 1.1, positioning: 0.6 },
   // Adeptus Mechanicus: efficient ranged engagements, careful with expensive Kataphron and Tech-Priests, supports its escorts
-  adeptus_mechanicus: { damageDealt: 1.0, damageTaken: 0.85, objective: 1.1, distance: 0.1, attackOpportunity: 0.5, survival: 1.0, positioning: 0.6, support: 0.8 },
+  adeptus_mechanicus: { damageDealt: 1.0, damageTaken: 0.85, objective: 1.1, distance: 0.1, attackOpportunity: 0.5, survival: 1.0, positioning: 0.6 },
 }
 
 /** Faction temperament: `aggressive` closes the distance to the enemy (original Orks behaviour), `retreats` falls back from a lost melee. */
@@ -107,10 +105,10 @@ const pFace = (ok: (v: number) => boolean) => [1, 2, 3, 4, 5, 6].filter(ok).leng
 
 export function expectedGroupDamage(g: AttackGroup & { ctx: AttackContext }, target: UnitState): number {
   const p = g.profile
-  const t = Math.max(...alive(target).map((m) => profileOf(m).t))
+  const t = toughness(target)
   const wt = woundTarget(p.s, t)
   const wmod = g.ctx.woundMod ?? 0
-  const antiRoll = p.keywords.anti && datasheetOf(target).keywords.includes(p.keywords.anti.keyword) ? p.keywords.anti.roll : 7
+  const antiRoll = p.keywords.anti && hasKeyword(target, p.keywords.anti.keyword) ? p.keywords.anti.roll : 7
   let pw = pFace((v) => v !== 1 && (v === 6 || v >= antiRoll || v + wmod >= wt))
   if (p.keywords.twinLinked || g.ctx.rerollWounds === 'all') pw += (1 - pw) * pw // failed wound rolls are re-rolled
   else if (g.ctx.rerollWounds === 'ones') pw += pw / 6 // wound rolls of 1 are re-rolled
@@ -142,7 +140,7 @@ export function expectedGroupDamage(g: AttackGroup & { ctx: AttackContext }, tar
   const pFail = pFace((v) => v === 1 || v < need) * fnpLeft
   const avgW = alive(target).reduce((a, x) => a + profileOf(x).w, 0) / alive(target).length
   const attacks = g.attacks + (g.randomAttacks ?? 0) * avgDie(p.randomA)
-  const dmg = Math.max(1, p.d + avgDie(p.randomD) + (g.ctx.damageMod ?? 0))
+  const dmg = Math.max(1, p.d + avgDie(p.randomD) + damageModFor(g.ctx, m))
   if (p.keywords.devastatingWounds) {
     // critical wounds skip the save and deal D mortal wounds
     let pcw = pFace((v) => v !== 1 && (v === 6 || v >= antiRoll))
@@ -194,14 +192,14 @@ export function meleePotential(s: GameState, u: UnitState, t: UnitState, charged
   for (const m of alive(u)) {
     for (const w of meleeWeaponsOf(m)) {
       const base = w.profiles[0]
-      const setup = meleeSetup(s, hypo, t, base)
+      const setup = meleeSetup(s, hypo, t, base, m)
       const p = legacy ? base : setup.profile
       const ctx: AttackContext = legacy
         ? {
             hitMod: 0, hitModNotes: [], skillWorsen: 0,
             lethalHits: (hasAbility(u, 'tacticalPrecision') && !isMV(t)) || (hasAbility(u, 'tideOfMuscle') && charged),
             invulnOverride: t.owner === 'orks' && s.players.orks.riledTurns > 0 ? 5 : undefined,
-            damageMod: hasAbility(t, 'dreadArd') || hasAbility(t, 'implacableResilience') ? -1 : 0,
+            damageMod: hasAbility(t, 'dreadArd') || (hasAbility(t, 'implacableResilience') && !t.attached) ? -1 : 0,
           }
         : setup.ctx
       const g = {
@@ -290,12 +288,8 @@ function scorePosition(s: GameState, u: UnitState, level: AiLevel, mode: 'normal
 
   const distTerm = aggressive(u) ? nearestEnemy * 0.5 + nearestObj * 0.5 : nearestObj
   const synapse = w.synapse && datasheetOf(u).faction === 'tyranids' && inSynapseRange(hs, hypo) ? w.synapse : 0
-  // Tech-Priests keep close to the unit they lead (Lord of the Machine Cult, Galvanic Field)
-  const leader = hasAbility(u, 'lordOfMachineCult') || hasAbility(u, 'galvanicField')
-  const support = w.support && leader && ledUnitOf(hs, hypo) ? w.support : 0
   const score =
     synapse +
-    support +
     w.damageDealt * dealt +
     w.attackOpportunity * charge +
     w.attackOpportunity * NEXT_TURN_CHARGE * approach -
@@ -309,7 +303,6 @@ function scorePosition(s: GameState, u: UnitState, level: AiLevel, mode: 'normal
     charge <= 0.3 && approach > 0.3 ? tr('a charge next turn, with {fmt} damage', { fmt: fmt(approach) }) : '',
     obj ? tr('objective control') : '',
     synapse ? tr('stays in the Synapse zone') : '',
-    support ? tr('next to the led unit') : '',
     cover ? tr('cover') : '',
     taken > 0.5 ? tr('risk of taking {fmt} damage', { fmt: fmt(taken) }) : '',
   ].filter(Boolean)
@@ -319,11 +312,6 @@ function scorePosition(s: GameState, u: UnitState, level: AiLevel, mode: 'normal
 function candidateGoals(s: GameState, u: UnitState, level: AiLevel): { pos: Vec; label: string }[] {
   const enemies = enemiesOf(s, u)
   const goals: { pos: Vec; label: string }[] = []
-  if (hasAbility(u, 'lordOfMachineCult') || hasAbility(u, 'galvanicField')) {
-    const mates = unitsOf(s, u.owner).filter((x) => x.id !== u.id && hasAbility(x, 'ledUnit'))
-    const near = mates.sort((a, b) => unitDistance(u, a) - unitDistance(u, b))[0]
-    if (near) goals.push({ pos: alive(near)[0].pos, label: tr('toward the led unit') })
-  }
   const nearestEnemy = enemies.reduce((b, e) => (unitDistance(u, e) < unitDistance(u, b) ? e : b), enemies[0])
   if (nearestEnemy) goals.push({ pos: alive(nearestEnemy)[0].pos, label: tr('toward the enemy') })
   const objs = [...s.objectives].sort((a, b) => dist(alive(u)[0].pos, a.pos) - dist(alive(u)[0].pos, b.pos))
@@ -562,8 +550,7 @@ export function decide(s: GameState, level: AiLevel = 'standard'): AiDecision | 
       for (const u of mine) {
         const cmd: Command = { type: 'divineWork', unitId: u.id }
         if (!hasAbility(u, 'defendDivineWork') || !validate(s, cmd).ok) continue
-        const led = ledUnitOf(s, u)
-        const group = [u, ...(led ? [led] : [])]
+        const group = [u]
         const wounds = group.reduce((n, g) => n + alive(g).reduce((a, m) => a + m.wounds, 0), 0)
         const risk = group.reduce((n, g) => n + enemiesOf(s, g).reduce((a, e) => a + shootDamage(s, e, g) + (unitDistance(e, g) <= CHARGE_RANGE ? p2d6AtLeast(Math.ceil(unitDistance(e, g))) * meleePotential(s, e, g, true) * 0.5 : 0), 0), 0)
         const engaged = group.some((g) => engagedUnits(s, g).length > 0)

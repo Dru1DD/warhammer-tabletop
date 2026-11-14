@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { decide } from '../ai/ai'
 import { seededRoller } from '../dice/dice'
 import { apply, startGame, unitActions, validate } from '../engine'
-import { hasKeyword, updateObjectiveControl } from '../gameState'
+import { hasKeyword, profileOf, updateObjectiveControl } from '../gameState'
 import { missionBattleEnd, missionCommandEnd, missionTurnEnd, missionTurnStart, PRIMARY_CAP, primaryTotal, ROUND_CAP } from '../rules/missions'
 import { scenarioById } from '../scenarios/scenarios'
 import type { GameState, PlayerId, PrimaryId } from '../types'
@@ -27,7 +27,8 @@ const own = (s: GameState, ids: number[], p: PlayerId = 'marines') => {
 }
 const vp = (s: GameState, p: PlayerId = 'marines') => primaryTotal(s.mission!, p)
 /** an infantry unit of the side, not a character */
-const trooper = (s: GameState, p: PlayerId, n = 0) => s.units.filter((u) => u.owner === p && hasKeyword(u, 'INFANTRY') && !hasKeyword(u, 'CHARACTER'))[n]
+/** the n-th infantry unit of `p` that is not a character on its own (one led by a character counts) */
+const trooper = (s: GameState, p: PlayerId, n = 0) => s.units.filter((u) => u.owner === p && hasKeyword(u, 'INFANTRY') && !profileOf(u.models[0]).character)[n]
 
 describe('the 44″×60″ battle chooses a primary mission', () => {
   it('a random mission by default, the chosen one, or the training score', () => {

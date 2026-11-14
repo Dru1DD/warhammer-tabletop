@@ -3,7 +3,7 @@
 // that both agree. Checked against the 11th-edition datasheets on Wahapedia, 13.11.2026 (docs/zones.md).
 import { tr } from '../../i18n/index'
 import {
-  alive, BATTLELINE_RANGE, battlelineSupport, datasheetOf, hasAbility, hasKeyword, imperativeOf, isDestroyed, LEADER_RANGE, ledUnitOf,
+  alive, BATTLELINE_RANGE, battlelineSupport, datasheetOf, hasAbility, hasKeyword, imperativeOf, isDestroyed,
   modelDistance, NEUROSTATIC_RANGE, PSYCHIC_GUIDANCE_RANGE, RAD_RANGE, radiusOf, SYNAPSE_RANGE, unitDistance, WARP_FIELD_RANGE,
 } from '../gameState'
 import { EPS } from '../geometry/geometry'
@@ -16,15 +16,15 @@ export const DEADLY_DEMISE_RANGE = 6
 
 export type ZoneId =
   | 'radSaturation' | 'neurostaticInterference' | 'emanatusForceField' | 'onslaught' | 'warpField'
-  | 'synapse' | 'battleline' | 'psychicGuidance' | 'leader' | 'nobleLeader' | 'deadlyDemise'
+  | 'synapse' | 'battleline' | 'psychicGuidance' | 'deadlyDemise'
 
 export interface ZoneDef {
   id: ZoneId
   /** shown in the legend, the zone label and the unit card */
   name: string
-  /** aura: the Aura keyword; zone: works the same way without it; leader: the game's 3″ stand-in for an attached leader;
-   * explosion: Deadly Demise, drawn on hover only */
-  kind: 'aura' | 'zone' | 'leader' | 'explosion'
+  /** aura: the Aura keyword; zone: works the same way without it; explosion: Deadly Demise, drawn on hover only.
+   * A leader's bonus is no zone: the character is inside the unit it leads (rules/attached.ts). */
+  kind: 'aura' | 'zone' | 'explosion'
   radius: number
   /** edge: the closest bases are within the radius; wholly: a model counts only when its whole base is within */
   measure: 'edge' | 'wholly'
@@ -89,16 +89,6 @@ export const ZONES: ZoneDef[] = [
     id: 'psychicGuidance', name: tr('Psychic Guidance'), kind: 'zone', radius: PSYCHIC_GUIDANCE_RANGE, measure: 'edge', side: 'friends',
     source: (_, u) => hasKeyword(u, 'AELDARI') && hasKeyword(u, 'PSYKER'),
     effect: (_, __, t) => (hasAbility(t, 'psychicGuidance') ? tr('+1 to hit') : null),
-  },
-  {
-    id: 'leader', name: tr('Leads a unit'), kind: 'leader', radius: LEADER_RANGE, measure: 'edge', side: 'friends',
-    source: (_, u) => hasAbility(u, 'lordOfMachineCult') || hasAbility(u, 'galvanicField'),
-    effect: (s, src, t) => (ledUnitOf(s, src)?.id !== t.id ? null : hasAbility(src, 'lordOfMachineCult') ? 'FNP 5+' : 'Lethal Hits'),
-  },
-  {
-    id: 'nobleLeader', name: tr('Leads a unit'), kind: 'leader', radius: LEADER_RANGE, measure: 'edge', side: 'friends',
-    source: (_, u) => datasheetOf(u).faction === 'necrons' && hasKeyword(u, 'NOBLE'),
-    effect: (_, __, t) => (hasAbility(t, 'guardianProtocols') ? tr('−1 to wound') : null),
   },
   {
     id: 'deadlyDemise', name: tr('Deadly Demise'), kind: 'explosion', radius: DEADLY_DEMISE_RANGE, measure: 'edge', side: 'all',

@@ -42,7 +42,7 @@ A search snippet gave the Lieutenant **T4**, but the datasheet page itself says 
 2. **Boyz special weapons.** The datasheet allows one per 10 models. The box has two in 6 models (big shoota and rokkit). Both are used.
 3. **Nob loadout.** The datasheet's Big Choppa swap replaces both default weapons, and Big Shoota is not a Nob option. The slung big shoota is treated as decorative, so the Nob has only the Big Choppa.
 4. **Lieutenant.** The power sword is mapped to *Master-crafted Power Weapon* (the Ceramite Fists swap), and the plasma pistol to the Master-crafted Bolter swap. That leaves the default bolt pistol, which is kept. This loadout is legal.
-5. **Lieutenant attachment.** The Lieutenant is a *Support* character that can attach to the Intercessor Squad. In the simulator it is a **separate unit**. Attached units are an extension point.
+5. **Lieutenant attachment.** The Lieutenant is a *Support* character that can attach to the Intercessor Squad. It joins a unit in every battle except the Introductory duel, where the tutorial moves it on its own ([leaders.md](leaders.md)).
 
 ## Mechanics: implemented vs approximated
 
@@ -74,7 +74,7 @@ A search snippet gave the Lieutenant **T4**, but the datasheet page itself says 
 | Objective markers: 40 mm, range 3″; control = higher total OC, tie means uncontrolled | Implemented. The "secured" (sticky) rule exists in the rules but no unit here grants it. |
 | Abilities: Bolter Discipline, Tactical Precision, Ammo Runts, Tide of Muscle; Waaagh! army rule (advance re-roll; once-per-battle War Cry: riled up until end of next turn: 5+ invuln, ranged gain Assault, charge after advance) | Implemented |
 | Combat Doctrines (Space Marine army rule) | **Not implemented.** The doctrines' text wasn't available. Extension point. |
-| Hidden, attached units, vertical terrain, reserves/Ingress, and the Stratagems and Combat Doctrines listed as missing in [stratagems.md](stratagems.md) | Not implemented (extension points). The Stratagems implemented since this table was written are described in stratagems.md |
+| Hidden, vertical terrain, reserves/Ingress, and the Stratagems and Combat Doctrines listed as missing in [stratagems.md](stratagems.md) | Not implemented (extension points). The Stratagems implemented since this table was written are described in stratagems.md |
 | Random characteristics (D3/D6 attacks and damage) | **Approximation.** Rule 02.02.03 wasn't readable. Random attacks are rolled once per model per weapon; random damage once per unsaved attack. D3 = D6 halved, rounding up (01.05). |
 | MONSTER/VEHICLE: Lethal Hits "non-M/V" (also Tactical Precision) don't apply against them; benefit of cover from standing in terrain is INFANTRY-only (13.08); move through non-M/V models in normal/advance moves (17.01); close-quarters shooting with any non-Blast ranged weapon at −1 to hit vs the engaged unit (10.06) | Implemented |
 | Duty Eternal (−1 to wound if S > T), Dread 'Ard (−1 damage, min 1), Deadly Demise X (D6 = 6: X mortal wounds to every unit within 6″), Targeted Intercession (+1 S/AP in melee after charging) | Implemented. Deadly Demise doesn't chain. |

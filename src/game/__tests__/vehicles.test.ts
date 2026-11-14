@@ -8,11 +8,11 @@ import { rect } from '../geometry/geometry'
 import { alive, getUnit } from '../gameState'
 import { scenarioById } from '../scenarios/scenarios'
 import type { GameState, Terrain } from '../types'
-import { column, place } from './helpers'
+import { column, detachAll, place } from './helpers'
 
 /** Combat patrol with no terrain/objectives, at the given phase. */
 function patrol(phase: GameState['phase'] = 'shooting', active: 'marines' | 'orks' = 'marines'): GameState {
-  const s = scenarioById('combat-patrol').build()
+  const s = detachAll(scenarioById('combat-patrol').build())
   s.terrain = []
   s.objectives = []
   s.phase = phase

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { composeUnit } from '../army/armyList'
 import { emanatusModels, inOnslaught } from '../engine'
 import {
-  alive, battlelineSupport, inSynapseRange, irradiated, ledUnitOf, neurostaticMod, newUnit, nobleLeads, psychicGuidance, warpField,
+  alive, battlelineSupport, inSynapseRange, irradiated, neurostaticMod, newUnit, psychicGuidance, warpField,
 } from '../gameState'
 import { modelsInZone, unitsCovered, zoneById, ZONES, zonesOf, zonesOn, type ZoneId } from '../rules/zones'
 import type { GameState, PlayerId, UnitState, Vec } from '../types'
@@ -100,18 +100,6 @@ describe('zone registry agrees with the rules', () => {
     add(s, 'aeldari', 'farseer', [{ x: 3, y: 10 }], 'zFarseer')
     const guard = add(s, 'aeldari', 'wraithguard', column(10, 8, 5, 1.8), 'zWraithguard')
     sweep(s, guard, () => expect(!!hit(s, guard, 'psychicGuidance')).toBe(psychicGuidance(s, guard)))
-  })
-
-  it('leaders: the Tech-Priest leads the nearest unit within 3″, a NOBLE guards Lychguard within 3″', () => {
-    const s = empty('adeptus_mechanicus', 'orks')
-    const dominus = add(s, 'adeptus_mechanicus', 'techDominus', [{ x: 4, y: 10 }], 'zDominus')
-    const rangers = add(s, 'adeptus_mechanicus', 'rangers', column(10, 8, 10), 'zRangers')
-    sweep(s, rangers, () => expect(!!hit(s, rangers, 'leader')).toBe(ledUnitOf(s, dominus)?.id === rangers.id))
-
-    const n = empty('necrons', 'orks')
-    add(n, 'necrons', 'overlord', [{ x: 4, y: 10 }], 'zOverlord')
-    const guards = add(n, 'necrons', 'lychguard', column(10, 8, 5, 1.6), 'zLychguard')
-    sweep(n, guards, () => expect(!!hit(n, guards, 'nobleLeader')).toBe(nobleLeads(n, guards)))
   })
 })
 

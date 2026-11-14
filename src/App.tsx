@@ -3,7 +3,7 @@ import { OnlineBanner, OnlineHeader, OnlineScreen } from './multiplayer/OnlineSc
 import { joinRoom, leaveRoom, openOnlineMenu, parseRoomCode, savedGuestRoom, useMp } from './multiplayer/session'
 import { FACTION_EMBLEM, FACTION_STYLE, tokenImageFor } from './assets/manifest'
 import { FACTION_NAME } from './game/data/datasheets'
-import { armyPoints, copyIndex, fmtPoints, POINTS_SOURCE, unitPoints } from './game/data/points'
+import { armyPoints, fmtPoints, POINTS_SOURCE, unitCost } from './game/data/points'
 import { actor } from './game/engine'
 import { deserialize, readStorage } from './game/persistence'
 import { mapLine, SCENARIOS, takesLists } from './game/scenarios/scenarios'
@@ -80,7 +80,7 @@ function ArmyList({ faction, army }: { faction: PlayerId; army: UnitState[] }) {
   return (
     <ul className="mt-1 space-y-0.5 text-[11px] text-stone-300" aria-label={tr('Roster: {item}', { item: FACTION_NAME[faction] })}>
       {army.map((u) => {
-        const cost = unitPoints(u.datasheetId, u.startingModels, copyIndex(army, u))
+        const cost = unitCost(army, u)
         return (
           <li key={u.id}>
             {u.name} <span className="text-stone-400">× {u.models.length}</span>{' '}

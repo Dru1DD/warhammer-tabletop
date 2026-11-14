@@ -8,8 +8,8 @@ import { tr } from '../i18n/index'
 
 export interface ZoneCircle { x: number; y: number; r: number }
 
-/** How a zone is coloured: a bonus for the owner's units, a penalty for the enemy's, a leader link, an explosion. */
-export type ZoneTone = 'help' | 'harm' | 'leader' | 'explosion'
+/** How a zone is coloured: a bonus for the owner's units, a penalty for the enemy's, an explosion. */
+export type ZoneTone = 'help' | 'harm' | 'explosion'
 
 export interface ZoneShape {
   key: string
@@ -25,7 +25,7 @@ export interface ZoneShape {
 }
 
 export const zoneTone = (z: ZoneDef): ZoneTone =>
-  z.kind === 'explosion' ? 'explosion' : z.kind === 'leader' ? 'leader' : z.side === 'enemies' ? 'harm' : 'help'
+  z.kind === 'explosion' ? 'explosion' : z.side === 'enemies' ? 'harm' : 'help'
 
 /** The game with the dragged models at their planned places (a move draft), so zones and badges follow the ghost. */
 export function withDraft(s: GameState, draft: Record<string, Vec>): GameState {

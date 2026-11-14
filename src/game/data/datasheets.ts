@@ -204,6 +204,7 @@ const CORE_DATASHEETS: Record<string, Datasheet> = {
   lieutenant: {
     id: 'lieutenant', name: tr('Lieutenant|army'), faction: 'marines',
     keywords: ['INFANTRY', 'CHARACTER', 'EXPLOSIVES', 'IMPERIUM', 'TACTICUS'], abilities: ['tacticalPrecision'],
+    leads: ['intercessors', 'assaultIntercessors', 'hellblasters', 'infernus', 'bladeguard'], support: true,
   },
   intercessors: {
     id: 'intercessors', name: tr('Intercessor Squad'), faction: 'marines',

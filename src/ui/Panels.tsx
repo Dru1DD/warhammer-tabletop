@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { FACTION_STYLE, TOKENS, tokenImageFor } from '../assets/manifest'
-import { ABILITY_TEXT, FACTION_NAME, PROFILES } from '../game/data/datasheets'
-import { copyIndex, fmtPoints, pointsPerModel, unitPoints } from '../game/data/points'
+import { ABILITY_TEXT, DATASHEETS, FACTION_NAME, PROFILES } from '../game/data/datasheets'
+import { fmtPoints, unitCost } from '../game/data/points'
 import { actor, moveAllowance, moveCommand, moveModeFor, PHASE_NAME, shootPlan, stratagemActions, unitActions, validate } from '../game/engine'
-import { alive, datasheetOf, engagedUnits, fmt, hasAbility, hasKeyword, isDestroyed, isMV, other, profileOf, sidesOf, unitsOf, weaponsOf } from '../game/gameState'
+import { alive, datasheetOf, engagedUnits, fmt, hasAbility, hasKeyword, isDestroyed, isMV, other, profileOf, sidesOf, unitKeywords, unitsOf, weaponsOf } from '../game/gameState'
+import { leadsOf } from '../game/rules/attached'
 import { hitRoll, invulnFor, saveTarget, toughness, woundTarget } from '../game/combat/attack'
 import { fmtRandom } from '../game/dice/dice'
 import { deploymentIssues, deploymentZone } from '../game/rules/deployment'
@@ -180,21 +181,32 @@ function UnitStatus({ u }: { u: UnitState }) {
 function UnitDetails({ u }: { u: UnitState }) {
   const ds = datasheetOf(u)
   const units = useStore((s) => s.game?.units)
-  const copy = copyIndex(units ?? [u], units?.find((x) => x.id === u.id) ?? u)
+  const cost = unitCost(units ?? [u], units?.find((x) => x.id === u.id) ?? u)
+  const chars = (u.attached ?? []).map((p) => DATASHEETS[p.datasheetId])
+  // the characters of the army that could join this kind of unit (shown while none has)
+  const joiners = chars.length ? [] : Object.values(DATASHEETS).filter((d) => d.faction === ds.faction && leadsOf(d.id).includes(ds.id))
+  const abilities = [...new Set([ds, ...chars].flatMap((d) => d.abilities))]
   const profiles = [...new Set(u.models.map((m) => m.profileId))].map((id) => PROFILES[id])
   const weapons = [...new Map(u.models.flatMap((m) => weaponsOf(m)).map((w) => [w.id, w])).values()]
   return (
     <section className="rounded border border-stone-600 bg-stone-900 p-2 text-xs" aria-label={tr('Unit card')}>
       <div className="flex items-center gap-2">
         <Avatar profileId={u.models[0].profileId} size={44} />
-        <h3 className="text-sm font-semibold">{ds.name}</h3>
+        <h3 className="text-sm font-semibold">{[ds, ...chars].map((d) => d.name).join(' + ')}</h3>
       </div>
-      <p className="text-stone-400">{FACTION_NAME[u.owner]} · {ds.keywords.join(', ')}</p>
+      <p className="text-stone-400">{FACTION_NAME[u.owner]} · {unitKeywords(u).join(', ')}</p>
       {ds.description && <p className="mt-1 text-stone-200">{ds.description}</p>}
+      {(u.attached ?? []).map((p) => (
+        <p key={p.datasheetId} className="mt-1 text-amber-100" aria-label={tr('Attached character')}>
+          {p.kind === 'support' ? tr('{name} (Support) is in the unit.', { name: DATASHEETS[p.datasheetId].name }) : tr('{name} (Leader) leads the unit.', { name: DATASHEETS[p.datasheetId].name })}
+          {DATASHEETS[p.datasheetId].description ? ` ${DATASHEETS[p.datasheetId].description}` : ''}
+        </p>
+      ))}
+      {joiners.length > 0 && <p className="mt-1 text-stone-400">{tr('A character can join it in the army list: {list}', { list: joiners.map((d) => d.name).join(', ') })}</p>}
       <UnitRoleTips u={u} />
       <p className="mt-1 text-amber-200" aria-label={tr('Unit cost')}>
-        {tr('Cost: {fmtPoints}', { fmtPoints: fmtPoints(unitPoints(u.datasheetId, u.startingModels, copy)) })}
-        <span className="text-stone-400"> {tr('· {startingModels} models, ≈ {pointsPerModel} pts per model', { startingModels: u.startingModels, pointsPerModel: pointsPerModel(u.datasheetId, u.startingModels, copy) })}</span>
+        {tr('Cost: {fmtPoints}', { fmtPoints: fmtPoints(cost) })}
+        <span className="text-stone-400"> {tr('· {startingModels} models, ≈ {pointsPerModel} pts per model', { startingModels: u.startingModels, pointsPerModel: Math.round(cost.points / Math.max(1, u.startingModels)) })}</span>
       </p>
       <table className="mt-1 w-full text-center">
         <thead className="text-stone-400"><tr><th className="text-left">{tr('Model')}</th>{['M', 'T', 'Sv', 'W', 'Ld', 'OC'].map((k) => <StatTh key={k} k={k} />)}</tr></thead>
@@ -228,7 +240,7 @@ function UnitDetails({ u }: { u: UnitState }) {
       </table>
       <StatGlossary />
       <ul className="mt-2 list-disc pl-4 text-stone-300">
-        {ds.abilities.map((a) => <li key={a}>{ABILITY_TEXT[a]}</li>)}
+        {abilities.map((a) => <li key={a}>{ABILITY_TEXT[a]}</li>)}
       </ul>
       <ZoneLines u={u} />
       <details className="mt-2">

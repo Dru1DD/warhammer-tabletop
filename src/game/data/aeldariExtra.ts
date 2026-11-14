@@ -86,6 +86,7 @@ export const AELDARI_EXTRA_DATASHEETS: Record<string, Datasheet> = {
     id: 'autarch', name: tr('Autarch|army'), faction: 'aeldari',
     keywords: ['INFANTRY', 'CHARACTER', 'AELDARI', 'GRENADES', 'AUTARCH', 'ASURYANI', 'YNNARI'],
     abilities: ['battleFocus', 'superlativeStrategist', 'pathOfCommand'],
+    leads: ['direAvengers', 'guardianDefenders'],
     description: tr('Warlord of the Aspects: 4+ invulnerable save, star glaive D3 AP −3; re-rolls Advance rolls.'),
   },
   aeldariRangers: {
@@ -110,7 +111,7 @@ export const AELDARI_EXTRA_DATASHEETS: Record<string, Datasheet> = {
 
 export const AELDARI_EXTRA_ABILITY_TEXT: Record<string, string> = {
   superlativeStrategist:
-    tr('Superlative Strategist: the unit can re-roll an Advance roll. [Re-rolling Agile Manoeuvres rolls is not implemented; there are no leader attachments — the rule applies to the Autarch himself.]'),
+    tr('Superlative Strategist: while the Autarch leads a unit, it can re-roll its Advance rolls. [Re-rolling Agile Manoeuvres rolls is not implemented.]'),
   pathOfCommand: tr('Path of Command: makes a Stratagem cost 1 CP less. [Not implemented: the game has no such Stratagems.]'),
   cameleoline: tr('Chameleoline cloaks: 5+ invulnerable save against ranged attacks only.'),
   pathOfTheOutcast:

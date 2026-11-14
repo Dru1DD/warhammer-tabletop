@@ -1,6 +1,7 @@
 import {
-  datasheetsOf, entryCosts, listPoints, listProblems, maxCopies, POINTS_LIMITS, presetList, shortName, type ArmyList, type PointsLimit,
+  attachments, datasheetsOf, entryCosts, listPoints, listProblems, maxCopies, POINTS_LIMITS, presetList, shortName, withoutEntry, type ArmyList, type PointsLimit,
 } from '../game/army/armyList'
+import { attachKind, canLead, isCharacterDatasheet } from '../game/rules/attached'
 import { FACTION_NAME } from '../game/data/datasheets'
 import { legalSizes, listedCost } from '../game/data/points'
 import type { PlayerId } from '../game/types'
@@ -36,6 +37,7 @@ export function ArmyBuilder({ faction, role }: { faction: PlayerId; role: string
   const [open, setOpen] = useState<number | null>(null)
 
   const pts = list ? listPoints(list) : 0
+  const joins = list ? attachments(list) : []
   const costs = list ? entryCosts(list) : []
   const problems = list ? listProblems(faction, list) : []
   const copies = (id: string) => list?.units.filter((e) => e.datasheetId === id).length ?? 0
@@ -93,7 +95,7 @@ export function ArmyBuilder({ faction, role }: { faction: PlayerId; role: string
             {list.units.map((e, i) => (
               <li key={i} className="text-xs">
               <div className="flex items-center gap-2">
-                <span className="min-w-0 flex-1 truncate" title={shortName(e.datasheetId)}>{shortName(e.datasheetId)}{e.loadout ? ' ⚙' : ''}</span>
+                <span className="min-w-0 flex-1 truncate" title={shortName(e.datasheetId)}><span className="text-stone-500">{i + 1}.</span> {shortName(e.datasheetId)}{e.loadout ? ' ⚙' : ''}</span>
                 {WARGEAR[e.datasheetId] && (
                   <button type="button" className={`btn px-1.5 py-0 text-xs ${open === i ? 'btn-primary' : ''}`} aria-expanded={open === i} title={tr('Unit wargear')} aria-label={tr('Wargear of “{shortName}”', { shortName: shortName(e.datasheetId) })} onClick={() => setOpen(open === i ? null : i)}>
                     ⚙
@@ -112,12 +114,27 @@ export function ArmyBuilder({ faction, role }: { faction: PlayerId; role: string
                   <span className="text-stone-400">× {e.size}</span>
                 )}
                 <span className="w-14 text-right text-stone-300">{tr('{item} pts', { item: costs[i] })}</span>
-                <button className="text-stone-400 hover:text-rose-300" aria-label={tr('Remove “{shortName}”', { shortName: shortName(e.datasheetId) })} onClick={() => { setOpen(null); edit(list.units.filter((_, j) => j !== i)) }}>✕</button>
+                <button className="text-stone-400 hover:text-rose-300" aria-label={tr('Remove “{shortName}”', { shortName: shortName(e.datasheetId) })} onClick={() => { setOpen(null); setList(withoutEntry(list, i)) }}>✕</button>
               </div>
+              {isCharacterDatasheet(e.datasheetId) && (
+                <label className="mt-0.5 flex items-center gap-1 pl-3 text-[11px] text-stone-400">
+                  {attachKind(e.datasheetId) === 'support' ? tr('Support, joins:') : tr('Leader, joins:')}
+                  <select
+                    className="input w-auto py-0 text-[11px]"
+                    aria-label={tr('Unit “{shortName}” joins', { shortName: shortName(e.datasheetId) })}
+                    value={joins[i] ?? 'none'}
+                    onChange={(ev) => edit(list.units.map((x, j) => (j === i ? { ...x, attachTo: ev.target.value === 'none' ? null : Number(ev.target.value) } : x)))}
+                  >
+                    {attachKind(e.datasheetId) === 'leader' && <option value="none">{tr('nobody: on its own')}</option>}
+                    {joins[i] === null && attachKind(e.datasheetId) === 'support' && <option value="none">{tr('— choose a unit —')}</option>}
+                    {list.units.map((b, j) => (canLead(e.datasheetId, b.datasheetId) ? <option key={j} value={j}>{tr('{shortName} (no. {n})', { shortName: shortName(b.datasheetId), n: j + 1 })}</option> : null))}
+                  </select>
+                </label>
+              )}
               {open === i && (
                 <LoadoutEditor
                   entry={e}
-                  onChange={(loadout) => edit(list.units.map((x, j) => (j === i ? (loadout ? { ...x, loadout } : { datasheetId: x.datasheetId, size: x.size }) : x)))}
+                  onChange={(loadout) => edit(list.units.map((x, j) => (j === i ? (loadout ? { ...x, loadout } : (({ loadout: _l, ...rest }) => rest)(x)) : x)))}
                 />
               )}
               </li>

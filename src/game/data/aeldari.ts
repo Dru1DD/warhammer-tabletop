@@ -130,6 +130,7 @@ export const AELDARI_DATASHEETS: Record<string, Datasheet> = {
     id: 'farseer', name: tr('Farseer|alt'), faction: 'aeldari',
     keywords: ['INFANTRY', 'CHARACTER', 'AELDARI', 'PSYKER', 'FARSEER', 'ASURYANI', 'YNNARI'],
     abilities: ['battleFocus', 'guide', 'branchingFates'],
+    leads: ['guardianDefenders'],
   },
   guardianDefenders: {
     id: 'guardianDefenders', name: tr('Guardian Defenders'), faction: 'aeldari',
@@ -151,7 +152,7 @@ export const AELDARI_DATASHEETS: Record<string, Datasheet> = {
 export const AELDARI_ABILITY_TEXT: Record<string, string> = {
   battleFocus: tr('Battle Focus (Asuryani army rule): at the start of each round — 2 tokens (Incursion). The Swift as the Wind manoeuvre is implemented: a token gives +2″ to a normal move, Advance or Fall Back. [Reactive manoeuvres are not implemented: Fade Back, Opportunity Seized, Flitting Shadows, Sudden Strike, Star Engines.]'),
   guide: tr('Guide (Psychic): in your Movement phase pick an enemy unit within 18″ and in sight; friendly AELDARI models get +1 to hit against it until the start of your next Command phase.'),
-  branchingFates: tr('Branching Fates: while leading a unit, once per phase replaces a roll with a “6”. [Not implemented: leaders cannot join units.]'),
+  branchingFates: tr('Branching Fates: while the Farseer leads a unit, once per phase replaces a roll with a “6”. [Not implemented.]'),
   fleetOfFoot: tr('Fleet of Foot: the Fade Back manoeuvre without a token. [Not implemented: Fade Back is a reactive move the engine does not have.]'),
   crewedPlatform: tr('Crewed Platform: when the last Guardian Defender dies, the remaining heavy weapon platforms are destroyed.'),
   bladestorm: tr('Bladestorm: the unit’s ranged weapons get Sustained Hits 1 against a target within half range.'),

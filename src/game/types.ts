@@ -129,7 +129,6 @@ export type AbilityId =
   | 'fleetOfFoot'
   // Adeptus Mechanicus
   | 'doctrina'
-  | 'ledUnit'
   | 'lordOfMachineCult'
   | 'dataSpike'
   | 'galvanicField'
@@ -214,6 +213,18 @@ export interface Datasheet {
   description?: string
   /** TRANSPORT: what it carries (rules/transports.ts) */
   transport?: TransportSpec
+  /** Leader (24.22) or Support (24.34): the bodyguard datasheets of the game this character can join (rules/attached.ts) */
+  leads?: string[]
+  /** Support rather than Leader: it must join a unit (25.04) */
+  support?: true
+}
+
+/** A Leader or Support character that joined a bodyguard unit before the battle (core rules 19). */
+export interface AttachedPart {
+  datasheetId: string
+  kind: 'leader' | 'support'
+  /** ids of its models in the attached unit's `models` */
+  models: string[]
 }
 
 /** Transport capacity: how many models, which ones (every keyword in `keywords`, none in `exclude`), Firing Deck X. */
@@ -246,7 +257,10 @@ export interface UnitState {
   owner: PlayerId
   name: string
   models: ModelState[]
+  /** starting strength: every model of the unit, the attached characters included (01.02.01) */
   startingModels: number
+  /** attached unit: the characters that joined this (bodyguard) unit; `datasheetId` stays the bodyguard's (absent = none) */
+  attached?: AttachedPart[]
   battleShocked: boolean
   // per-turn flags, reset at start of each turn
   move: MoveKind

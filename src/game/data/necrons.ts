@@ -76,6 +76,7 @@ export const NECRON_DATASHEETS: Record<string, Datasheet> = {
     id: 'overlord', name: tr('Overlord|army'), faction: 'necrons',
     keywords: ['INFANTRY', 'CHARACTER', 'NOBLE', 'OVERLORD', 'NECRONS'],
     abilities: ['reanimation', 'implacableResilience', 'myWillBeDone'],
+    leads: ['necronWarriors', 'immortals', 'lychguard'],
   },
   necronWarriors: {
     id: 'necronWarriors', name: tr('Necron Warriors'), faction: 'necrons',

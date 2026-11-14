@@ -33,12 +33,12 @@ The requested roster is legal as listed. Points were not used (the project has n
 
 Choices that are mine, not the datasheet's:
 
-- **Transuranic arquebus is not taken.** It needs a 60×35 mm oval base (the engine has round bases only), and its *Precision* keyword has no effect while leaders are separate units. The Rangers keep their identity with the arc rifle, the plasma caliver and the omnispex.
+- **Transuranic arquebus is not taken.** It needs a 60×35 mm oval base (the engine has round bases only), and it would need its own base, and the Rangers have enough special weapons. The Rangers keep their identity with the arc rifle, the plasma caliver and the omnispex.
 - **Enhanced data-tether is not taken** (it pays CP; there are no stratagems).
 - **Base sizes** are the datasheet's (25 mm Skitarii, 50 mm Tech-Priests, 60 mm Kataphron and Kastelan, 40 mm Sicarians).
 - The Sicarian page gives one characteristics row for the whole unit, so the Princeps has the troopers' profile and stubcarbine + power weapon.
 - A unit with several melee weapons per model uses its first one listed (Alpha combat weapon before the close combat weapon), as everywhere in the engine.
-- Leaders (the two Tech-Priests) are **separate units** at the start; see *Leader approximation* below.
+- The two Tech-Priests join a Skitarii, Kataphron or Electro-Priest unit before the battle ([leaders.md](leaders.md)).
 
 ## Datasheets as implemented
 
@@ -119,7 +119,7 @@ Each is a reusable rule keyed on a datasheet ability, not a faction special case
 ### Approximations (all labelled “[Approximation: …]” in the unit card)
 
 1. **Doctrina Imperatives timing.** The rule chooses an Imperative at the **start of each battle round** for the whole round. The engine only lets the active player decide, so the Imperative is chosen **in your own Command phase** and lasts **until your next Command phase**. For the player who goes first this is exactly one battle round; the second player gets it from their own turn through the enemy's next turn. If it is not chosen, no Imperative applies. The AI always chooses; a human has two buttons in the Command phase (the action panel and the board toolbar).
-2. **Leader approximation.** Attached units are not implemented. A Tech-Priest *leads* the **nearest friendly Skitarii or Kataphron unit within 3″** (edge to edge; ties broken by unit id), exactly one unit, recomputed every time. Only the "while leading" abilities use it: Feel No Pain 5+ (Dominus), Lethal Hits (Manipulus), the unit protected by Defend the Divine Work. Data-spike uses the Dominus's own engagement, not the led unit's.
+2. **Leaders.** Until #64 a Tech-Priest led the nearest Skitarii or Kataphron unit within 3″. Now it joins a unit before the battle and is inside it ([leaders.md](leaders.md)): Feel No Pain 5+ (4+ for Electro-Priests) from the Dominus, Lethal Hits from the Manipulus, and Defend the Divine Work for the whole attached unit. Data-spike uses the engagement of the Dominus's unit.
 3. **Defend the Divine Work** is used in your own turn (the rule allows the start of *any* phase, but an out-of-turn command would break the "who owns the decision" rule, the same reason Shadow in the Warp is Command-phase only). The 4+ invulnerable save lasts until the start of your next turn (through the enemy's turn): longer than one phase, once per battle.
 4. **Feel No Pain** applies to normal and Devastating-Wounds damage, **not** to mortal wounds from Hazardous, Deadly Demise, Repulsor Grid or Data-spike.
 5. **Data-spike** and **Voices in the Code** are optional in the rules; the simulator uses them automatically at the start of every Fight phase (both players' turns). A unit that passes the Voices test keeps its current battle-shock status.
@@ -134,8 +134,7 @@ Each is a reusable rule keyed on a datasheet ability, not a faction special case
 | Scouts 6″ (Rangers) | There is no pre-battle move step; the default positions are used. |
 | Robotic Bodyguard (Kastelans) | Needs a Cybernetica Datasmith, who is not in the roster. |
 | Enhanced data-tether | Needs stratagems / CP spending. |
-| Attached units / Leader | See approximation 2. |
-| Transuranic arquebus, Precision on real targets | See "Choices". |
+| Transuranic arquebus | See "Choices". |
 | Vertical movement, Hidden, reserves, stratagems | Not modelled anywhere in the engine. |
 
 Each is marked “[Not implemented …]” in the unit card.
@@ -144,13 +143,13 @@ Each is marked “[Not implemented …]” in the unit card.
 
 The same utility AI (`ai/ai.ts`) with faction weights, both levels (**“Beginner”** and **“Standard”**). Every command goes through `validate()` / `apply()`; every explanation is in the interface language.
 
-- **Weights** `adeptus_mechanicus`: damageDealt 1.0, damageTaken 0.85, objective 1.1, distance 0.1, attackOpportunity 0.5, survival 1.0, positioning 0.6, **support 0.8**. Style: not aggressive, falls back from a lost melee. Efficient ranged engagements: it values expected shooting damage, cover and objectives, and avoids a charge unless the exchange favours it.
+- **Weights** `adeptus_mechanicus`: damageDealt 1.0, damageTaken 0.85, objective 1.1, distance 0.1, attackOpportunity 0.5, survival 1.0, positioning 0.6. Style: not aggressive, falls back from a lost melee. Efficient ranged engagements: it values expected shooting damage, cover and objectives, and avoids a charge unless the exchange favours it.
 - **Doctrina Imperative.** “Standard” compares the expected shooting + melee result of both Imperatives over the whole army (an army with no target within 24″ is assumed to move, so Heavy does not count) and says why. “Beginner” takes Conqueror when an enemy is within 12″ and Protector otherwise.
-- **Tech-Priests** get a goal toward the unit they could lead and a **support** bonus for staying within 3″ of it; their value (character, ×1.5) keeps them out of danger.
+- **Tech-Priests** are inside the units they lead. A Tech-Priest on its own keeps its character value (×1.5), which keeps it out of danger.
 - **Valuable platforms.** Kataphron Breachers, Destroyers and Kastelans have a ×1.3 loss weight (the AI protects them).
 - **Sicarians hunt** (they behave like the Skorpekh Destroyers: they move toward the enemy rather than the nearest objective).
-- **Defend the Divine Work** is used once, at the end of the Movement phase, when the Manipulus's group is engaged or the expected incoming damage is at least 60 % of its remaining wounds (“Standard”), or when engaged (“Beginner”).
-- Feel No Pain is included in the AI's expected damage, so enemies understand that the led unit is tougher.
+- **Defend the Divine Work** is used once, at the end of the Movement phase, when the Manipulus's unit is engaged or the expected incoming damage is at least 60 % of its remaining wounds (“Standard”), or when engaged (“Beginner”).
+- Feel No Pain is included in the AI's expected damage, so enemies understand that a unit led by the Dominus is tougher.
 
 ## Balance
 

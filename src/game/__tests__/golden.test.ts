@@ -107,12 +107,12 @@ const GOLDEN: Record<string, Golden> = {
   'ruined-alley|standard|1': {winner:'marines',round:1,marinesVp:0,orksVp:0,actions:10,stateHash:'6606228f',diceHash:'a834428e'},
   'ruined-alley|standard|2': {winner:'marines',round:1,marinesVp:0,orksVp:0,actions:30,stateHash:'5bb0b9c3',diceHash:'2e42e9a7'},
   'ruined-alley|standard|5': {winner:'marines',round:2,marinesVp:5,orksVp:5,actions:46,stateHash:'929aa957',diceHash:'3fff9c36'},
-  'combat-patrol|beginner|1': {winner:'marines',round:4,marinesVp:15,orksVp:0,actions:132,stateHash:'ed4ac151',diceHash:'432079f9'},
-  'combat-patrol|beginner|2': {winner:'marines',round:4,marinesVp:20,orksVp:5,actions:127,stateHash:'e32e1f8f',diceHash:'0b8f2963'},
-  'combat-patrol|beginner|5': {winner:'marines',round:4,marinesVp:10,orksVp:15,actions:127,stateHash:'669d52d8',diceHash:'f02c8ab1'},
-  'combat-patrol|standard|1': {winner:'marines',round:3,marinesVp:15,orksVp:5,actions:97,stateHash:'7e4dfe7a',diceHash:'86de316c'},
-  'combat-patrol|standard|2': {winner:'marines',round:3,marinesVp:15,orksVp:5,actions:104,stateHash:'b2cd7ad2',diceHash:'6d95540e'},
-  'combat-patrol|standard|5': {winner:'orks',round:4,marinesVp:0,orksVp:20,actions:133,stateHash:'c2d62412',diceHash:'0e816d09'},
+  'combat-patrol|beginner|1': {winner:'marines',round:4,marinesVp:15,orksVp:5,actions:115,stateHash:'28c7f9e8',diceHash:'a97f594c'},
+  'combat-patrol|beginner|2': {winner:'marines',round:3,marinesVp:10,orksVp:5,actions:96,stateHash:'1633c490',diceHash:'e1ff4aff'},
+  'combat-patrol|beginner|5': {winner:'marines',round:4,marinesVp:25,orksVp:10,actions:135,stateHash:'a0a944c2',diceHash:'c7d14b99'},
+  'combat-patrol|standard|1': {winner:'marines',round:4,marinesVp:20,orksVp:5,actions:121,stateHash:'c18f57b5',diceHash:'300ad98b'},
+  'combat-patrol|standard|2': {winner:'marines',round:3,marinesVp:15,orksVp:5,actions:85,stateHash:'0d0dd3f7',diceHash:'f99cb224'},
+  'combat-patrol|standard|5': {winner:'marines',round:3,marinesVp:5,orksVp:5,actions:98,stateHash:'8a999019',diceHash:'7d408b96'},
 }
 
 describe('golden master: engine + AI', () => {
