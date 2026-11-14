@@ -1,6 +1,6 @@
 import Konva from 'konva'
 import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Circle, Ellipse, Group, Image as KImage, Layer, Line, Rect, Stage, Text } from 'react-konva'
+import { Circle, Ellipse, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from 'react-konva'
 import { BOARD_STYLE, FACTION_LINE, FACTION_STYLE, TERRAIN_STYLE, TOKENS, tokenImageFor } from '../assets/manifest'
 import { boxOf, fitBox, withBox, type Box } from '../game/terrainLayout'
 import { actor, moveAllowance, moveCommand, moveModeFor, shootPlan, validate } from '../game/engine'
@@ -19,6 +19,11 @@ import { adviceLine, adviceWarnings, shotAdvice } from '../game/shotAdvice'
 import { chargeForecast, forecastLine } from '../game/chargeAdvice'
 import { tr } from '../i18n/index'
 import { casualties, moveSeconds, reducedMotion, type Casualty } from '../view/animation'
+import { dragZoneNotes, withDraft, zoneBadges, zoneShapes, type ZoneShape, type ZoneTone } from '../view/zones'
+import { zonesOf } from '../game/rules/zones'
+
+/** Colours of ability zones: a bonus, a penalty, a leader link, an explosion. */
+const ZONE_COLOR: Record<ZoneTone, string> = { help: '#2dd4bf', harm: '#f43f5e', leader: '#facc15', explosion: '#fb923c' }
 
 const flat = (pts: Vec[]) => pts.flatMap((p) => [p.x, p.y])
 
@@ -62,12 +67,14 @@ export function Board() {
   const size = useSize(ref)
   const [vp, setVp] = useState<Viewport | null>(null)
   const [hover, setHover] = useState<Hover | null>(null)
+  const [allZones, setAllZones] = useState(false)
   const view = vp ?? fitBoard(game.board, size.w, size.h, 32)
   const stageRef = useRef<Konva.Stage>(null)
   useKeyboard()
 
   const zoomBy = (f: number) => setVp(zoomAt(view, { x: size.w / 2, y: size.h / 2 }, f))
   const sight = useSightPreview()
+  const zoneNotes = useZoneNotes()
 
   return (
     <div ref={ref} className="relative h-full w-full overflow-hidden bg-stone-800" data-testid="board">
@@ -89,16 +96,16 @@ export function Board() {
           if (p) setVp(zoomAt(view, p, e.evt.deltaY < 0 ? 1.12 : 1 / 1.12))
         }}
       >
-        <BoardLayers game={game} view={view} stageRef={stageRef} setHover={setHover} sight={sight} />
+        <BoardLayers game={game} view={view} stageRef={stageRef} setHover={setHover} sight={sight} hoverUnitId={hover?.unitId ?? null} allZones={allZones} />
       </Stage>
       <GuideBanner />
-      {sight && <SightPanel sight={sight} />}
+      {sight && <SightPanel sight={sight} zoneNotes={zoneNotes} />}
       <div className="absolute right-2 top-14 flex flex-col gap-1">
         <button className="board-btn" onClick={() => zoomBy(1.25)} aria-label={tr('Zoom in')} title={tr('Zoom in (mouse wheel)')}>+</button>
         <button className="board-btn" onClick={() => zoomBy(0.8)} aria-label={tr('Zoom out')} title={tr('Zoom out')}>−</button>
         <button className="board-btn text-xs" onClick={() => setVp(null)} title={tr('Fit the field')}>⤢</button>
       </div>
-      <Legend />
+      <Legend allZones={allZones} setAllZones={setAllZones} />
       {hover && <ModelTooltip hover={hover} view={view} width={size.w} />}
       <ActionBar />
     </div>
@@ -126,7 +133,20 @@ function useSightPreview(): Sight | null {
   }, [game, human, selectedId, draft, deploying])
 }
 
-function SightPanel({ sight }: { sight: Sight }) {
+/** While the selected own unit is dragged: whom its zones will cover, and which zones it enters or leaves. */
+function useZoneNotes(): string[] {
+  const game = useStore((s) => s.game)!
+  const human = useStore((s) => s.settings.human)
+  const selectedId = useStore((s) => s.selectedUnitId)
+  const draft = useDeferredValue(useStore((s) => s.draft))
+  return useMemo(() => {
+    const u = selectedId ? findUnit(game, selectedId) : undefined
+    if (!u || u.owner !== human || !Object.keys(draft).length) return []
+    return dragZoneNotes(game, withDraft(game, draft), u.id)
+  }, [game, human, selectedId, draft])
+}
+
+function SightPanel({ sight, zoneNotes }: { sight: Sight; zoneNotes: string[] }) {
   const list = (rows: { name: string; extra?: string }[]) =>
     rows.length ? rows.map((r) => (r.extra ? `${r.name} (${r.extra})` : r.name)).join(', ') : tr('nobody')
   const pct = (p: number) => `${Math.round(p * 100)}%`
@@ -159,6 +179,7 @@ function SightPanel({ sight }: { sight: Sight }) {
           </li>
         )}
         {sight.note && <li className="text-stone-400">{sight.note}</li>}
+        {zoneNotes.map((n) => <li key={n} className="text-teal-300">◌ {n}</li>)}
       </ul>
       <p className="mt-1 text-[10px] text-stone-500">{tr('Wounds are averages. Threats — if the enemy stays in place; for a charge — after its move, not counting ruins in the way.')}</p>
     </details>
@@ -306,9 +327,10 @@ function TerrainShape({ t, editable, selected, onClick, onMove }: { t: Terrain; 
   )
 }
 
-function Legend() {
+function Legend({ allZones, setAllZones }: { allZones: boolean; setAllZones: (v: boolean) => void }) {
   const row = (mark: React.ReactNode, text: string) => <li className="flex items-center gap-2">{mark}<span>{text}</span></li>
   const ring = (cls: string) => <span className={`inline-block h-3.5 w-3.5 shrink-0 rounded-full border-2 ${cls}`} />
+  const zone = (tone: ZoneTone) => <span className="inline-block h-3.5 w-3.5 shrink-0 rounded-full border-2 border-dashed" style={{ borderColor: ZONE_COLOR[tone], background: `${ZONE_COLOR[tone]}33` }} />
   return (
     <details className="absolute left-2 top-14 z-[2] max-w-56 rounded bg-black/70 px-2 py-1 text-[11px] text-stone-200">
       <summary className="cursor-pointer">{tr('Legend')}</summary>
@@ -323,7 +345,16 @@ function Legend() {
         {row(ring('border-dotted border-amber-400'), tr('Movement phase: visible, but the weapon does not reach'))}
         {row(ring('border-dotted border-rose-500'), tr('Movement phase: dangerous to you (shooting or a charge)'))}
         {row(<span className="inline-block h-3 w-4 shrink-0 border-2 border-dashed border-yellow-400 bg-blue-800/50" />, tr('deployment zone'))}
+        {row(zone('help'), tr('aura or zone: a bonus for its side'))}
+        {row(zone('harm'), tr('aura: a penalty for the enemy'))}
+        {row(zone('leader'), tr('leader: the unit it leads (within 3″)'))}
+        {row(zone('explosion'), tr('explosion if destroyed (Deadly Demise)'))}
       </ul>
+      <label className="mt-1 flex cursor-pointer items-center gap-1.5">
+        <input type="checkbox" checked={allZones} onChange={(e) => setAllZones(e.target.checked)} />
+        {tr('Show all zones')}
+      </label>
+      <p className="mt-0.5 text-[10px] text-stone-400">{tr('A unit’s zones show when you select it or point at it.')}</p>
     </details>
   )
 }
@@ -558,7 +589,7 @@ function CasualtyGhost({ c, flip, img, setGhosts }: { c: Casualty; flip: boolean
   )
 }
 
-function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameState; view: Viewport; stageRef: React.RefObject<Konva.Stage | null>; setHover: (h: Hover | null) => void; sight: Sight | null }) {
+function BoardLayers({ game, view, stageRef, setHover, sight, hoverUnitId, allZones }: { game: GameState; view: Viewport; stageRef: React.RefObject<Konva.Stage | null>; setHover: (h: Hover | null) => void; sight: Sight | null; hoverUnitId: string | null; allZones: boolean }) {
   const st = useStore()
   // turn plan: primary VP at stake on each objective, for the human
   const stakes = useMemo(() => (game.mission && !st.deploying && !game.winner ? objectiveStakes(game, st.settings.human) : {}), [game, st.deploying, st.settings.human])
@@ -795,6 +826,57 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
     })
   })
 
+  // ability zones (auras and the like): of the selected unit, the unit under the pointer, or all of them
+  const zones = useMemo(() => {
+    const g = withDraft(game, st.draft)
+    const pick = (id: string | null) => (id ? g.units.find((u) => u.id === id) : undefined)
+    const sources = allZones ? g.units.filter((u) => zonesOf(g, u).length) : [pick(st.selectedUnitId), pick(hoverUnitId)].filter((u): u is UnitState => !!u)
+    const shapes = new Map<string, ZoneShape>()
+    for (const sh of zoneShapes(g, sources)) shapes.set(sh.key, sh)
+    const hovered = pick(hoverUnitId)
+    if (hovered) for (const sh of zoneShapes(g, [hovered], true)) shapes.set(sh.key, sh)
+    const list = [...shapes.values()]
+    return { shapes: list, badges: zoneBadges(g, new Set(list.map((x) => x.key))), game: g }
+  }, [game, st.draft, st.selectedUnitId, hoverUnitId, allZones])
+  const zoneNodes = deploying ? [] : zones.shapes.map((z) => (
+    <Group key={z.key} listening={false}>
+      <Shape
+        sceneFunc={(ctx, shape) => {
+          ctx.beginPath()
+          for (const c of z.circles) { ctx.moveTo(c.x + c.r, c.y); ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2, false) }
+          ctx.fillShape(shape)
+        }}
+        fill={ZONE_COLOR[z.tone]}
+        opacity={z.tone === 'explosion' ? 0.08 : 0.1}
+      />
+      {z.outline.map((pts, i) => <Line key={i} points={flat(pts)} stroke={ZONE_COLOR[z.tone]} strokeWidth={0.06} dash={z.tone === 'leader' ? [0.12, 0.12] : [0.35, 0.2]} opacity={0.8} />)}
+      <Text x={z.label.x - 4} y={z.label.y - 0.5} width={8} align="center" text={z.label.text} fontSize={0.36} fill={ZONE_COLOR[z.tone]} shadowColor="black" shadowBlur={0.1} />
+    </Group>
+  ))
+  // a badge above each unit a zone affects: "4++", "−1 Ld", "Synapse"
+  const badgeNodes = deploying ? [] : [...zones.badges].map(([unitId, list]) => {
+    const u = zones.game.units.find((x) => x.id === unitId)
+    const top = u && alive(u).reduce((a, m) => (m.pos.y - radiusOf(m) < a.pos.y - radiusOf(a) ? m : a), alive(u)[0])
+    if (!top) return null
+    const widths = list.map((b) => b.text.length * 0.17 + 0.3)
+    const total = widths.reduce((a, w) => a + w + 0.08, -0.08)
+    let x = top.pos.x - total / 2
+    return (
+      <Group key={`zb-${unitId}`} y={top.pos.y - radiusOf(top) - 0.62} listening={false}>
+        {list.map((b, i) => {
+          const node = (
+            <Group key={b.text} x={x}>
+              <Rect width={widths[i]} height={0.4} fill="#0c0a09" stroke={ZONE_COLOR[b.tone]} strokeWidth={0.04} cornerRadius={0.08} opacity={0.9} />
+              <Text width={widths[i]} y={0.07} align="center" text={b.text} fontSize={0.28} fill={ZONE_COLOR[b.tone]} />
+            </Group>
+          )
+          x += widths[i] + 0.08
+          return node
+        })}
+      </Group>
+    )
+  })
+
   // range overlays for the selected own unit
   const overlays: React.ReactNode[] = []
   if (mine && !game.winner) {
@@ -903,10 +985,13 @@ function BoardLayers({ game, view, stageRef, setHover, sight }: { game: GameStat
             </Group>
           )
         })}
+        {/* zones stop at the edge of the table */}
+        <Group clipX={0} clipY={0} clipWidth={game.board.width} clipHeight={game.board.height} listening={false}>{zoneNodes}</Group>
         {overlays}
       </Layer>
       <Layer>
         {unitsRendered}
+        {badgeNodes}
         {ghosts.map((c) => <CasualtyGhost key={c.model.id} c={c} flip={sidesOf(game)[1] === c.owner && !st.customTokens[c.model.profileId]} img={images[tokenImageFor(c.model.profileId, st.customTokens) ?? '']} setGhosts={setGhosts} />)}
         {measureNode}
       </Layer>

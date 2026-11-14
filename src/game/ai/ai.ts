@@ -22,7 +22,7 @@ import { reactionAdvice } from '../reactionAdvice'
 const SHOOTING_BUFFS: StratagemId[] = ['stormOfDevastation', 'closeRangeDakka', 'conqueringTyrant', 'blitzingFirepower', 'lethalDosage']
 const FIGHT_BUFFS: StratagemId[] = ['hitEmHarder', 'hungryVoid', 'adrenalSurge']
 import type { AttackContext, AttackGroup } from '../combat/attack'
-import { woundTarget } from '../combat/attack'
+import { invulnFor, woundTarget } from '../combat/attack'
 import { avgDie } from '../dice/dice'
 import type { CombatDoctrine, Command, GameState, HyperAdaptation, PlayerId, StratagemId, UnitState, Vec } from '../types'
 import { WEAPONS } from '../data/datasheets'
@@ -136,7 +136,7 @@ export function expectedGroupDamage(g: AttackGroup & { ctx: AttackContext }, tar
   if (sustained) woundsPerAttack += pCrit * sustained * pw
   const m = alive(target)[0]
   const pr = profileOf(m)
-  const need = Math.min(pr.sv - p.ap, pr.invuln ?? 99, g.ctx.invulnOverride ?? 99)
+  const need = Math.min(pr.sv - p.ap, pr.invuln ?? 99, invulnFor(g.ctx, m) ?? 99)
   // Feel No Pain: a fraction of the damage is ignored
   const fnpLeft = g.ctx.fnp ? 1 - pFace((v) => v >= g.ctx.fnp!) : 1
   const pFail = pFace((v) => v === 1 || v < need) * fnpLeft

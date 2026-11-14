@@ -444,7 +444,7 @@ export const MECHANICUS_ABILITY_TEXT: Record<string, string> = {
   firingDeck: tr('Firing Deck X: when this transport shoots, up to X embarked models each fire one ranged weapon with it, measured from the transport (Dunerider and Rhino 2, Battlewagon 11, Trukk 12).'),
   fireSupport: tr('Fire Support: after this transport shoots, units that disembarked from it this turn may re-roll wound rolls against a unit it hit. [Not implemented yet.]'),
   dataTether: tr('Broad Spectrum Data-tether: when a Stratagem is used on this unit, roll a D6; on a 5+ you get 1 CP.'),
-  emanatusForceField: tr('Emanatus Force Field (6″ aura): friendly Adeptus Mechanicus BATTLELINE models within 6″ get a 4+ invulnerable save against ranged attacks.'),
+  emanatusForceField: tr('Emanatus Force Field (6″ aura): each friendly Adeptus Mechanicus BATTLELINE model wholly within 6″ gets a 4+ invulnerable save against ranged attacks.'),
   scuttlingWalker: tr('Scuttling Walker: when making a Normal move, Advancing or falling back, it can move through friendly Monsters and Vehicles and through terrain up to 4″ high. [Not implemented: the game has no terrain heights.]'),
   damaged1to4: tr('Damaged (1–4 wounds): while the model has 4 wounds or fewer left, −1 to its hit rolls.'),
   feelNoPain5: tr('Feel No Pain 5+: the model cancels each lost wound on a 5+.'),

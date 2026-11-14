@@ -19,4 +19,4 @@ All documentation is in English. Translations of the app's interface are describ
 
 **Player-facing features**
 
-- [wargear.md](wargear.md), [deployment-presets.md](deployment-presets.md), [unit-roles.md](unit-roles.md), [shooting-advice.md](shooting-advice.md), [charge-forecast.md](charge-forecast.md), [move-preview.md](move-preview.md)
+- [wargear.md](wargear.md), [deployment-presets.md](deployment-presets.md), [unit-roles.md](unit-roles.md), [shooting-advice.md](shooting-advice.md), [charge-forecast.md](charge-forecast.md), [move-preview.md](move-preview.md), [zones.md](zones.md)
