@@ -13,7 +13,7 @@ import {
 } from './game/match/match'
 import type { ActionRecord, CommandEnvelope, MatchState, PlayerAssignments, SubmitResult } from './game/match/types'
 import { deserialize, readStorage, saveMatch, saveToStorage } from './game/persistence'
-import { scenarioById } from './game/scenarios/scenarios'
+import { boardForLists, scenarioById, takesLists } from './game/scenarios/scenarios'
 import { parseArmies, type ArmyList } from './game/army/armyList'
 import { applyPreset, deployWithPreset, recommendedPreset, type DeployPresetId } from './game/army/deployPresets'
 import { deploymentIssues, deploymentProblem } from './game/rules/deployment'
@@ -237,9 +237,9 @@ export function normalizeSettings(s: Settings): Settings {
   if (opponent === human) opponent = FACTIONS.find((f) => f !== human)!
   const armies = parseArmies(s.armies)
   const sc = scenarioById(s.scenarioId)
-  // own army lists play on a board that takes them (the Combat Patrol board)
-  const custom = !!(armies[human] || armies[opponent])
-  const scenarioId = sc.factions.includes(human) && sc.factions.includes(opponent) && (!custom || sc.customArmies) ? sc.id : 'combat-patrol'
+  // own army lists play on a board that takes them (Combat Patrol; lists over 1000 points on the 44″×60″ board)
+  const lists = [armies[human], armies[opponent]]
+  const scenarioId = sc.factions.includes(human) && sc.factions.includes(opponent) && takesLists(sc, lists) ? sc.id : boardForLists(human, opponent, lists)
   return { ...s, human, opponent, scenarioId, armies }
 }
 

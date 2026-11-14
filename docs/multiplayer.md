@@ -29,7 +29,7 @@ Host-authoritative. The host's browser owns the match and runs the **one** rules
    **Own army lists.** Each player builds a list beforehand in the army builder on the start screen, or pastes an army code there.
    - The host's list for its faction goes into the lobby when the room is created and whenever the host changes faction (`configureRoom`).
    - The guest's list goes with a faction pick and with “I’m ready” (`prefs.army`; `null` = the training roster).
-   - The host checks it: `parseMessage` rejects a malformed list; `normalizeLobby` drops a list of the wrong faction and moves the room to “Combat Patrol”, the board that takes own lists. A new list needs a new “I’m ready”.
+   - The host checks it: `parseMessage` rejects a malformed list; `normalizeLobby` drops a list of the wrong faction and moves the room to a board that takes own lists: “Combat Patrol”, or the 44″×60″ board for a list over 1000 points. A new list needs a new “I’m ready”.
    - `startProblem` names a list that breaks the rules (`listProblems`).
    - The lobby shows “Training roster” or “Own roster: 495 / 500 pts, 6 units” for each side.
 3. **Start**: host builds the battle (`startSharedHost`: host seed, both lists, `startGame`, the recommended deployment preset on “Combat Patrol” or the scenario's positions elsewhere, `mode: 'shared'`) and sends a full snapshot

@@ -38,6 +38,8 @@ export interface Scenario {
   build: (sides?: [PlayerId, PlayerId], armies?: Armies, terrain?: Terrain[], opts?: BuildOptions) => GameState
   /** true when the board takes army lists from the army builder (`armies` in `build`, set up around `terrain` if given) */
   customArmies?: boolean
+  /** the biggest points limit of a list the board has room for (absent = any) */
+  maxPoints?: number
 }
 
 /** Maps (depth from the side's own board edge, y) to board coordinates, so any faction can stand on either side. */
@@ -317,6 +319,8 @@ export const SCENARIOS: Scenario[] = [
     deployment: { west: rect(0, 0, 10, 30), east: rect(34, 0, 10, 30) },
     factions: ['marines', 'orks', 'tyranids', 'necrons', 'aeldari', 'adeptus_mechanicus'],
     customArmies: true,
+    // a 10″ zone on a 30″ edge: lists over 1000 points do not fit (they play on the 44″×60″ board)
+    maxPoints: 1000,
     build: (sides = DEFAULT_SIDES, armies = {}, layout, opts = {}) => {
       assertSides(['marines', 'orks', 'tyranids', 'necrons', 'aeldari', 'adeptus_mechanicus'], sides)
       // layout A (the original) unless another one is asked for; 'random' picks one of the three
@@ -351,7 +355,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'strike-force',
     name: tr('Battle 44″×60″ (11th edition maps)'),
     description:
-      tr('A full-size 11th edition board. The deployment map is one of the six cards of the 2026-27 Mission Deck (zones and five objectives: one “home” objective for each side, a central one and two on the flanks), the cover is one of three layouts. The armies are your own rosters; a side without its own roster plays a 1000-point preset. Positions on the maps are reconstructed from the 10th edition maps (on the cards they exist only as pictures).'),
+      tr('A full-size 11th edition board. The deployment map is one of the six cards of the 2026-27 Mission Deck (zones and five objectives: one “home” objective for each side, a central one and two on the flanks), the cover is one of three layouts. The armies are your own rosters; a side without its own roster plays the preset at its opponent’s points limit (1000 points if neither side has a roster). Positions on the maps are reconstructed from the 10th edition maps (on the cards they exist only as pictures).'),
     victory: VICTORY,
     deployment: MAPS.hammerAnvil.deployment,
     factions: ['marines', 'orks', 'tyranids', 'necrons', 'aeldari', 'adeptus_mechanicus'],
@@ -379,7 +383,8 @@ export const SCENARIOS: Scenario[] = [
           const cfg = sec?.[f]
           return [f, newSecondary(cfg?.mode ?? 'tactical', cfg?.fixed)]
         })) as GameState['secondary']
-      for (const f of sides) musterArmy(state, f, armies[f] ?? presetList(f, 1000))
+      // a side without its own list plays the preset at its opponent's limit, so the armies are the same size
+      for (const [f, foe] of [[sides[0], sides[1]], [sides[1], sides[0]]]) musterArmy(state, f, armies[f] ?? presetList(f, armies[foe]?.limit ?? 1000))
       // a pure custom list plays without its detachment
       for (const f of sides) if (armies[f]?.noDetachment) state.players[f].noDetachment = true
       return state
@@ -407,3 +412,13 @@ export function armyOf(scenarioId: string, faction: PlayerId): UnitState[] | nul
 }
 
 export const scenarioById = (id: string) => SCENARIOS.find((s) => s.id === id) ?? SCENARIOS[0]
+
+/** True when the board takes these own army lists: any board while there are none, else a board for lists that has room for the biggest. */
+export function takesLists(sc: Scenario, lists: (ArmyList | null | undefined)[]): boolean {
+  const biggest = Math.max(0, ...lists.map((l) => l?.limit ?? 0))
+  return !biggest || (!!sc.customArmies && biggest <= (sc.maxPoints ?? Infinity))
+}
+
+/** The first board for this pair that takes the lists: Combat Patrol, or the 44″×60″ board for lists over 1000 points. */
+export const boardForLists = (a: PlayerId, b: PlayerId, lists: (ArmyList | null | undefined)[]): string =>
+  (SCENARIOS.find((s) => s.factions.includes(a) && s.factions.includes(b) && s.customArmies && takesLists(s, lists)) ?? scenarioById('strike-force')).id

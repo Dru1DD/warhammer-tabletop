@@ -8,7 +8,7 @@ import { tr } from '../../i18n/index'
 // at a unit size the Munitorum Field Manual lists. Models and their loadouts come from
 // COMPOSITION, positions from army/placement.ts.
 
-export const POINTS_LIMITS = [500, 1000] as const
+export const POINTS_LIMITS = [500, 1000, 1500, 2000, 2500] as const
 export type PointsLimit = (typeof POINTS_LIMITS)[number]
 
 export interface ListEntry {
@@ -152,31 +152,49 @@ export function listProblems(faction: PlayerId, list: ArmyList): string[] {
 
 const u = (datasheetId: string, size: number, copies = 1): ListEntry[] => Array.from({ length: copies }, () => ({ datasheetId, size }))
 
-/** Ready-made lists for every faction at both limits (each one is legal and within its limit; see tests). */
+/** Ready-made lists for every faction at every limit (each one is legal, within its limit and fits every deployment map; see tests). */
 export const PRESETS: Record<PlayerId, Record<PointsLimit, ListEntry[]>> = {
   marines: {
     500: [...u('captain', 1), ...u('lieutenant', 1), ...u('intercessors', 5), ...u('hellblasters', 5), ...u('infernus', 5), ...u('bladeguard', 3)],
     1000: [...u('captain', 1), ...u('lieutenant', 1, 2), ...u('intercessors', 10), ...u('hellblasters', 10), ...u('infernus', 5), ...u('bladeguard', 6), ...u('redemptor', 1)],
+    1500: [...u('captain', 1), ...u('lieutenant', 1, 2), ...u('intercessors', 10, 2), ...u('assaultIntercessors', 10), ...u('hellblasters', 10), ...u('infernus', 5, 2), ...u('bladeguard', 6), ...u('redemptor', 1), ...u('predatorAnnihilator', 1)],
+    2000: [...u('captain', 1), ...u('lieutenant', 1, 3), ...u('intercessors', 10, 2), ...u('assaultIntercessors', 10), ...u('hellblasters', 10), ...u('hellblasters', 5), ...u('infernus', 10), ...u('bladeguard', 6), ...u('redemptor', 1, 2), ...u('predatorAnnihilator', 1, 2)],
+    2500: [...u('captain', 1, 2), ...u('lieutenant', 1, 2), ...u('intercessors', 10, 3), ...u('assaultIntercessors', 10, 2), ...u('hellblasters', 10), ...u('hellblasters', 5), ...u('infernus', 10), ...u('infernus', 5), ...u('bladeguard', 6), ...u('bladeguard', 3), ...u('redemptor', 1, 2), ...u('predatorAnnihilator', 1, 2)],
   },
   orks: {
     500: [...u('warboss', 1), ...u('boyz', 20), ...u('nobz', 5), ...u('kommandos', 10), ...u('gretchin', 10)],
     1000: [...u('warboss', 1), ...u('boyz', 20, 2), ...u('boyz', 10), ...u('nobz', 5), ...u('kommandos', 10), ...u('gretchin', 20), ...u('deffDread', 1, 2)],
+    1500: [...u('warboss', 1, 2), ...u('boyz', 20, 3), ...u('nobz', 10), ...u('nobz', 5), ...u('kommandos', 10), ...u('gretchin', 20), ...u('deffDread', 1, 2), ...u('battlewagon', 1)],
+    2000: [...u('warboss', 1, 2), ...u('boyz', 20, 5), ...u('nobz', 10), ...u('nobz', 5), ...u('kommandos', 10), ...u('gretchin', 20, 2), ...u('deffDread', 1, 3), ...u('battlewagon', 1)],
+    2500: [...u('warboss', 1, 3), ...u('boyz', 20, 6), ...u('nobz', 10), ...u('nobz', 5), ...u('kommandos', 10, 2), ...u('gretchin', 20, 2), ...u('deffDread', 1, 3), ...u('battlewagon', 1, 2)],
   },
   tyranids: {
     500: [...u('wingedPrime', 1), ...u('tyranidWarriors', 3), ...u('termagants', 20), ...u('zoanthropes', 3), ...u('carnifexes', 1), ...u('barbgaunts', 5)],
     1000: [...u('hiveTyrant', 1), ...u('wingedPrime', 1), ...u('tyranidWarriors', 6), ...u('termagants', 20), ...u('hormagaunts', 20), ...u('zoanthropes', 3), ...u('carnifexes', 2), ...u('barbgaunts', 10)],
+    1500: [...u('hiveTyrant', 1), ...u('wingedPrime', 1), ...u('tyranidWarriors', 6), ...u('termagants', 20), ...u('hormagaunts', 20, 2), ...u('zoanthropes', 3), ...u('carnifexes', 2), ...u('barbgaunts', 10), ...u('barbgaunts', 5), ...u('exocrine', 1), ...u('tyrannofex', 1)],
+    2000: [...u('hiveTyrant', 1, 2), ...u('wingedPrime', 1, 2), ...u('tyranidWarriors', 6), ...u('termagants', 20, 2), ...u('hormagaunts', 20), ...u('zoanthropes', 6), ...u('carnifexes', 2), ...u('barbgaunts', 10), ...u('barbgaunts', 5), ...u('exocrine', 1), ...u('tyrannofex', 1, 2)],
+    2500: [...u('hiveTyrant', 1, 2), ...u('wingedPrime', 1, 2), ...u('tyranidWarriors', 6, 2), ...u('termagants', 20, 2), ...u('hormagaunts', 20, 2), ...u('zoanthropes', 6), ...u('carnifexes', 2, 2), ...u('barbgaunts', 10), ...u('exocrine', 1, 2), ...u('tyrannofex', 1, 2)],
   },
   necrons: {
     500: [...u('overlord', 1), ...u('royalWarden', 1), ...u('immortals', 10), ...u('lychguard', 5), ...u('canoptekWraiths', 3), ...u('scarabSwarms', 3)],
     1000: [...u('overlord', 1), ...u('royalWarden', 1), ...u('necronWarriors', 20), ...u('immortals', 10, 2), ...u('lychguard', 10), ...u('canoptekWraiths', 3), ...u('skorpekhDestroyers', 3), ...u('scarabSwarms', 3)],
+    1500: [...u('overlord', 1), ...u('royalWarden', 1), ...u('necronWarriors', 20), ...u('immortals', 10, 2), ...u('lychguard', 10), ...u('canoptekWraiths', 3), ...u('skorpekhDestroyers', 6), ...u('scarabSwarms', 3), ...u('doomsdayArk', 1, 2)],
+    2000: [...u('overlord', 1, 2), ...u('royalWarden', 1), ...u('necronWarriors', 20, 2), ...u('immortals', 10, 2), ...u('immortals', 5), ...u('lychguard', 10, 2), ...u('canoptekWraiths', 3), ...u('skorpekhDestroyers', 6), ...u('scarabSwarms', 3), ...u('doomsdayArk', 1, 2)],
+    2500: [...u('overlord', 1, 2), ...u('royalWarden', 1, 2), ...u('necronWarriors', 20, 2), ...u('immortals', 10, 3), ...u('lychguard', 10, 2), ...u('canoptekWraiths', 6), ...u('skorpekhDestroyers', 6), ...u('scarabSwarms', 6), ...u('doomsdayArk', 1, 3)],
   },
   aeldari: {
     500: [...u('farseer', 1), ...u('autarch', 1), ...u('guardianDefenders', 11), ...u('aeldariRangers', 5), ...u('swoopingHawks', 5), ...u('direAvengers', 5)],
     1000: [...u('farseer', 1), ...u('autarch', 1), ...u('guardianDefenders', 11, 2), ...u('aeldariRangers', 10), ...u('aeldariRangers', 5), ...u('wraithguard', 5), ...u('swoopingHawks', 5), ...u('direAvengers', 10), ...u('windriders', 3)],
+    1500: [...u('farseer', 1), ...u('autarch', 1), ...u('guardianDefenders', 11, 3), ...u('aeldariRangers', 10), ...u('wraithguard', 5, 2), ...u('swoopingHawks', 5), ...u('direAvengers', 10), ...u('direAvengers', 5), ...u('windriders', 6), ...u('firePrism', 1)],
+    2000: [...u('farseer', 1, 2), ...u('autarch', 1), ...u('guardianDefenders', 11, 3), ...u('aeldariRangers', 10), ...u('aeldariRangers', 5), ...u('wraithguard', 5, 2), ...u('swoopingHawks', 10), ...u('direAvengers', 10, 2), ...u('windriders', 6), ...u('windriders', 3), ...u('firePrism', 1, 2)],
+    2500: [...u('farseer', 1, 2), ...u('autarch', 1, 2), ...u('guardianDefenders', 11, 4), ...u('aeldariRangers', 10), ...u('aeldariRangers', 5, 2), ...u('wraithguard', 5, 3), ...u('swoopingHawks', 10), ...u('direAvengers', 10, 2), ...u('windriders', 6, 2), ...u('firePrism', 1, 2)],
   },
   adeptus_mechanicus: {
     500: [...u('techDominus', 1), ...u('rangers', 10), ...u('vanguard', 10), ...u('breachers', 3), ...u('destroyers', 3)],
     1000: [...u('techDominus', 1), ...u('techManipulus', 1), ...u('rangers', 10, 2), ...u('vanguard', 10), ...u('breachers', 3), ...u('destroyers', 3, 2), ...u('sicarians', 5), ...u('kastelans', 2)],
+    1500: [...u('techDominus', 1), ...u('techManipulus', 1), ...u('rangers', 10, 2), ...u('vanguard', 10, 2), ...u('breachers', 3), ...u('destroyers', 3, 2), ...u('sicarians', 5), ...u('kastelans', 2), ...u('onager', 1, 2), ...u('ironstriders', 1), ...u('sulphurhounds', 3)],
+    2000: [...u('techDominus', 1), ...u('techManipulus', 1), ...u('rangers', 10, 3), ...u('vanguard', 10, 2), ...u('breachers', 3, 2), ...u('destroyers', 3, 2), ...u('sicarians', 5, 2), ...u('kastelans', 2), ...u('onager', 1, 2), ...u('ironstriders', 2), ...u('electroPriests', 5), ...u('sulphurhounds', 6)],
+    2500: [...u('techDominus', 1), ...u('techManipulus', 1, 2), ...u('rangers', 10, 4), ...u('vanguard', 10, 3), ...u('breachers', 3, 2), ...u('destroyers', 3, 3), ...u('sicarians', 5), ...u('kastelans', 2, 2), ...u('onager', 1, 2), ...u('ironstriders', 2), ...u('electroPriests', 10), ...u('sulphurhounds', 6)],
   },
 }
 

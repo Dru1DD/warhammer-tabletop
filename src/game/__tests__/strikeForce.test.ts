@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { presetList } from '../army/armyList'
+import { POINTS_LIMITS, presetList, type ArmyList } from '../army/armyList'
 import { pointInPolygon } from '../geometry/geometry'
 import { deploymentProblem, deploymentZone } from '../rules/deployment'
-import { scenarioById } from '../scenarios/scenarios'
+import { boardForLists, scenarioById, takesLists } from '../scenarios/scenarios'
 import { LAYOUT_IDS, layoutFor, MAP_IDS, MAPS } from '../scenarios/strikeForce'
-import { FACTIONS, type PlayerId } from '../types'
+import { FACTIONS, type GameState, type PlayerId } from '../types'
 
 const area = (poly: { x: number; y: number }[]) => Math.abs(poly.reduce((a, p, i) => { const q = poly[(i + 1) % poly.length]; return a + p.x * q.y - q.x * p.y }, 0)) / 2
 
@@ -45,6 +45,54 @@ describe('44″×60″ battlefield', () => {
       }
     }
     expect(FACTIONS).toHaveLength(6)
+  })
+
+  it('every preset over 1000 points (1500, 2000, 2500) fits in its zone on every map, legally', { timeout: 300_000 }, () => {
+    const pairs: [PlayerId, PlayerId][] = [['marines', 'orks'], ['tyranids', 'necrons'], ['aeldari', 'adeptus_mechanicus']]
+    for (const limit of POINTS_LIMITS.filter((l) => l > 1000))
+      MAP_IDS.forEach((id, i) => {
+        for (const pair of pairs) {
+          const lists = Object.fromEntries(pair.map((f) => [f, presetList(f, limit)]))
+          const s = scenarioById('strike-force').build(pair, lists, undefined, { mapId: id, layoutId: LAYOUT_IDS[i % LAYOUT_IDS.length] })
+          for (const f of pair) expect(s.units.filter((u) => u.owner === f), `${f} ${limit} ${id}`).toHaveLength(lists[f].units.length)
+          for (const u of s.units) expect(deploymentProblem(s, u, Object.fromEntries(u.models.map((m) => [m.id, m.pos]))), `${u.id} ${limit} ${id}`).toBeNull()
+        }
+      })
+  })
+
+  it('a side without its own list plays the preset at its opponent’s limit (1000 points when neither has a list)', () => {
+    const ids = (s: GameState, f: PlayerId) => s.units.filter((u) => u.owner === f).map((u) => u.datasheetId)
+    const build = (lists: Partial<Record<PlayerId, ArmyList>>) => scenarioById('strike-force').build(['marines', 'orks'], lists, undefined, { mapId: 'hammerAnvil', layoutId: 'A' })
+    expect(ids(build({ orks: presetList('orks', 2000) }), 'marines')).toEqual(presetList('marines', 2000).units.map((e) => e.datasheetId))
+    expect(ids(build({ marines: presetList('marines', 1500) }), 'orks')).toEqual(presetList('orks', 1500).units.map((e) => e.datasheetId))
+    expect(ids(build({}), 'marines')).toEqual(presetList('marines', 1000).units.map((e) => e.datasheetId))
+  })
+
+  it('sets up a dense list in a narrow zone with a narrower formation instead of reporting no room', () => {
+    // the biggest units of every Ork datasheet up to 2000 points; its densest formations left the Gretchin no room on Sweeping Engagement
+    const dense: ArmyList = {
+      limit: 2000,
+      units: ([
+        ['deffDread', 1], ['boyz', 20], ['warboss', 1], ['nobz', 10], ['gretchin', 20], ['kommandos', 10], ['trukk', 1], ['battlewagon', 1],
+        ['deffDread', 1], ['boyz', 20], ['warboss', 1], ['nobz', 10], ['gretchin', 20], ['kommandos', 10], ['trukk', 1], ['battlewagon', 1], ['trukk', 1],
+      ] as const).map(([datasheetId, size]) => ({ datasheetId, size })),
+    }
+    const s = scenarioById('strike-force').build(['orks', 'marines'], { orks: dense }, undefined, { mapId: 'sweeping', layoutId: 'A' })
+    const orks = s.units.filter((u) => u.owner === 'orks')
+    expect(orks).toHaveLength(17)
+    for (const u of orks) expect(deploymentProblem(s, u, Object.fromEntries(u.models.map((m) => [m.id, m.pos]))), u.id).toBeNull()
+  })
+
+  it('lists over 1000 points need this board: Combat Patrol takes up to 1000', () => {
+    const patrol = scenarioById('combat-patrol')
+    const strike = scenarioById('strike-force')
+    expect(takesLists(patrol, [presetList('orks', 1000), undefined])).toBe(true)
+    expect(takesLists(patrol, [presetList('orks', 1000), presetList('marines', 1500)])).toBe(false)
+    expect(takesLists(strike, [presetList('orks', 2500)])).toBe(true)
+    expect(takesLists(scenarioById('training-outpost'), [presetList('orks', 500)])).toBe(false)
+    expect(takesLists(scenarioById('training-outpost'), [null, undefined])).toBe(true)
+    expect(boardForLists('marines', 'orks', [presetList('orks', 500)])).toBe('combat-patrol')
+    expect(boardForLists('marines', 'orks', [presetList('orks', 2000)])).toBe('strike-force')
   })
 
   it('home objectives belong to the side whose zone holds them', () => {

@@ -62,6 +62,7 @@ The Ork presets in the army builder now use the new units:
 
 - **500 (495 points):** Warboss, 20 Boyz, 5 Nobz, 10 Kommandos, 10 Gretchin.
 - **1000 (975 points):** Warboss, 2 × 20 Boyz, 10 Boyz, 5 Nobz, 10 Kommandos, 20 Gretchin, 2 Deff Dreads.
+- **1500, 2000, 2500:** see [armies.md](armies.md#presets-over-1000-points).
 
 ## AI
 

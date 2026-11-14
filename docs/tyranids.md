@@ -61,6 +61,7 @@ The Tyranid presets in the army builder now use the new units:
 
 - **500 (480 points):** Winged Prime, 3 Tyranid Warriors, 20 Termagants, 3 Zoanthropes, 1 Carnifex, 5 Barbgaunts.
 - **1000 (1000 points):** Hive Tyrant, Winged Prime, 6 Tyranid Warriors, 20 Termagants, 20 Hormagaunts, 3 Zoanthropes, 2 Carnifexes, 10 Barbgaunts.
+- **1500, 2000, 2500:** see [armies.md](armies.md#presets-over-1000-points).
 
 ## AI
 

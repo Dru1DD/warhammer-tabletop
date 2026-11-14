@@ -6,7 +6,7 @@ import { FACTION_NAME } from './game/data/datasheets'
 import { armyPoints, copyIndex, fmtPoints, POINTS_SOURCE, unitPoints } from './game/data/points'
 import { actor } from './game/engine'
 import { deserialize, readStorage } from './game/persistence'
-import { mapLine, SCENARIOS } from './game/scenarios/scenarios'
+import { mapLine, SCENARIOS, takesLists } from './game/scenarios/scenarios'
 import { missionName, PRIMARY, PRIMARY_IDS } from './game/rules/missions'
 import { FIXED_IDS, SECONDARY } from './game/rules/secondaries'
 import type { SecondaryId } from './game/types'
@@ -122,8 +122,8 @@ function StartScreen() {
   const auto = deserialize(readStorage(AUTOSAVE_KEY))
   const manual = deserialize(readStorage(MANUAL_KEY))
   const both = (s: (typeof SCENARIOS)[number]) => s.factions.includes(human) && s.factions.includes(opponent)
-  const lists = !!(st.settings.armies?.[human] || st.settings.armies?.[opponent])
-  const playable = (s: (typeof SCENARIOS)[number]) => both(s) && (!lists || !!s.customArmies)
+  const lists = [st.settings.armies?.[human], st.settings.armies?.[opponent]]
+  const playable = (s: (typeof SCENARIOS)[number]) => both(s) && takesLists(s, lists)
   const listIssues = battleListProblems(st.settings)
   return (
     <div className="min-h-full bg-stone-900 p-4 text-stone-100">
@@ -185,7 +185,7 @@ function StartScreen() {
             <select className="input" value={scenarioId} onChange={(e) => st.setSettings({ scenarioId: e.target.value })}>
               {SCENARIOS.map((s) => (
                 <option key={s.id} value={s.id} disabled={!playable(s)}>
-                  {s.name}{!both(s) ? tr(' — no armies for this pair') : !playable(s) ? tr(' — own rosters only in “Combat Patrol”') : ''}
+                  {s.name}{!both(s) ? tr(' — no armies for this pair') : playable(s) ? '' : s.customArmies ? tr(' — rosters over {maxPoints} points need a bigger board', { maxPoints: s.maxPoints ?? 0 }) : tr(' — own rosters only in “Combat Patrol”')}
                 </option>
               ))}
             </select>
