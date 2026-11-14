@@ -250,6 +250,10 @@ export function shootPlan(
     /** AI scoring: skip the line of sight check for a model none of whose weapons reaches any target model. The
      * groups (and so the damage and Hazardous count) are unchanged; only `skipped` and the `problem` text may differ. */
     rangeFirst?: boolean
+    /** AI scoring: treat every target model as visible, as if the shooter had moved to a line of fire first */
+    assumeSight?: boolean
+    /** AI scoring: the shooter first moves this much toward the target */
+    assumeReach?: number
     /** Snap Shooting (Fire Overwatch): hits only on an unmodified 6, no modifiers or re-rolls */
     snap?: boolean
   } = {},
@@ -289,9 +293,9 @@ export function shootPlan(
       // a weapon fires only at a visible target model within its range, so no model in reach means nothing fires
       let reach = -Infinity
       for (const w of chosen) reach = Math.max(reach, w.profiles[Math.min(opts.profiles?.[w.id] ?? 0, w.profiles.length - 1)].range as number)
-      if (!alive(target).some((t) => withinRange(modelDistance(m, t), reach))) continue
+      if (!alive(target).some((t) => withinRange(modelDistance(m, t) - (opts.assumeReach ?? 0), reach))) continue
     }
-    const d = nearestVisibleDistance(s, m, target)
+    const d = Math.max(0, (opts.assumeSight ? Math.min(...alive(target).map((t) => modelDistance(m, t))) : nearestVisibleDistance(s, m, target)) - (opts.assumeReach ?? 0))
     if (d === Infinity) {
       if (chosen.length) plan.skipped.push(tr('{name}: no line of sight to the target.', { name: profileOf(m).name }))
       continue
