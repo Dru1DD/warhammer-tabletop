@@ -47,7 +47,7 @@ The new pieces stay between x 11″ and 33″, so the training rosters keep thei
 
 ## Armies
 
-Own lists from the army builder. A side without a list plays its 1000-point preset. Both armies start in the deployment preset that suits them, as on «Combat Patrol».
+Own lists from the army builder, up to 2500 points; lists over 1000 points play only on this board (they have no room on «Combat Patrol»). A side without a list plays its preset at the opponent's limit, so both armies are the same size; with no lists at all both sides play their 1000-point presets. Both armies start in the deployment preset that suits them, as on «Combat Patrol».
 
 ## Reserves
 
@@ -64,6 +64,9 @@ A primary mission of the 11th edition, both sides playing the same one (see [mis
 - zones inside the board and equal on both sides;
 - five objectives, with the homes in their zones;
 - no objective in a container or a barricade;
-- every army at 1000 points fits legally on every map and layout (54 builds).
+- every army at 1000 points fits legally on every map and layout (54 builds);
+- every preset at 1500, 2000 and 2500 points fits legally on every map (54 builds, the layouts in turn);
+- a side without a list gets the preset at its opponent's limit;
+- a dense 2000-point Ork list fits Sweeping Engagement (with the shallower formations of `musterArmy`).
 
 AI against AI: full games on «Crucible of Battle» and «Search and Destroy», 1–2 minutes each in Node.

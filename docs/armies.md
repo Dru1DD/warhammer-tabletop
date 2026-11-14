@@ -154,24 +154,66 @@ The Orks have four more units for army lists (Warboss, Nobz, Gretchin, Kommandos
 The start screen has an army builder for both sides (yours and the AI's). Each faction keeps its own list in this browser.
 
 - **Training roster**: the scenario's training roster, no points limit. This is the old behaviour and the default.
-- **Preset 500 / Preset 1000**: a ready-made list for the limit. A preset is loaded into the list and can then be edited: change a unit size, remove a unit, add one.
+- **Preset 500 … Preset 2500**: a ready-made list for the limit (500, 1000, 1500, 2000 or 2500 points). A preset is loaded into the list and can then be edited: change a unit size, remove a unit, add one.
 - **Rules checked** (`listProblems` in `src/game/army/armyList.ts`): only unit sizes the Field Manual lists, at most 3 copies of a datasheet (6 for BATTLELINE), total within the limit. Later copies of some units cost more (`POINTS_LATER` in `points.ts`). The start buttons stay disabled while a list breaks a rule.
-- **Board**: own lists play on “Combat Patrol”. Picking a preset switches to it, and the duel boards are disabled while a list is in use. Online battles take each player's own list too (see `docs/multiplayer.md`).
+- **Board**: own lists play on “Combat Patrol” (44″×30″) or on the 44″×60″ board. Picking a preset switches to Combat Patrol, and the duel boards are disabled while a list is in use. Combat Patrol has room for lists up to 1000 points (`maxPoints` in `scenarios.ts`): a bigger list moves the battle to the 44″×60″ board, and the builder says so. Online battles take each player's own list too (see `docs/multiplayer.md`).
 - **Loadouts** come from `COMPOSITION`: the leader model, then a repeating pattern, so a 10-model unit carries twice the special weapons of a 5-model one. Wargear choices are not in the builder yet.
 - **My rosters and army code** (`src/game/army/armyCode.ts`, `src/ui/ArmyCodes.tsx`):
   - **My rosters.** Named lists per faction, saved in this browser (`wh40k-training-saved-armies`). The same name overwrites, the newest comes first, ✕ deletes.
   - **📋 Army code.** Copies the list as text, `WH40K1.` + base64url of `{f, l, u: [[datasheetId, size, loadout?]…]}`, to send to a friend. The loadouts are included.
   - **📥 Paste code.** Loads such a code. Spaces and line breaks from a messenger are ignored. A code of another faction, a cut code, or one with units this version does not have is refused with the reason.
-- **Set-up** (`src/game/army/placement.ts`): every unit is placed legally in its deployment zone with the same check as the deployment step. The bulkiest units go first from the front line back. Characters go last, next to a unit they can lead. If a list does not fit, the start screen says which unit has no room.
+- **Set-up** (`src/game/army/placement.ts`): every unit is placed legally in its deployment zone with the same check as the deployment step. The bulkiest units go first from the front line back. Characters go last, next to a unit they can lead. Each unit first tries its densest formation; when that no longer fits the space left (big lists, narrow zones such as Sweeping Engagement), it tries shallower ones, down to a single line. If a list still does not fit, the start screen says which unit has no room.
 
-| Preset | 500 | 1000 |
-|---|---|---|
-| Space Marines | 480 | 980 |
-| Orks | 495 | 975 |
-| Tyranids | 480 | 1000 |
-| Necrons | 495 | 990 |
-| Aeldari | 480 | 980 |
-| Adeptus Mechanicus | 490 | 970 |
+| Preset | 500 | 1000 | 1500 | 2000 | 2500 |
+|---|---|---|---|---|---|
+| Space Marines | 480 | 980 | 1500 | 1985 | 2485 |
+| Orks | 495 | 975 | 1495 | 1995 | 2500 |
+| Tyranids | 480 | 1000 | 1480 | 2000 | 2500 |
+| Necrons | 495 | 990 | 1475 | 1985 | 2500 |
+| Aeldari | 480 | 980 | 1460 | 1985 | 2445 |
+| Adeptus Mechanicus | 490 | 970 | 1495 | 1985 | 2485 |
+
+**Points limits and the 11th edition rules.** The Core Rules (Muster Armies, 25.03, Wahapedia) have two battle sizes: Incursion, 1000 points, and Strike Force, 2000 points. The Mission Deck 2026-27 plays every mission on a 44″×60″ battlefield. 1500 and 2500 are not official sizes: 1500 is a common size for a shorter game, 2500 a bigger one for players with more models. The builder allows 3 units of a datasheet (6 BATTLELINE) at every limit, which is the Strike Force rule; Incursion allows 2 (4 BATTLELINE), which the builder does not check yet.
+
+### Presets over 1000 points
+
+They play on the 44″×60″ board (see [strike-force.md](strike-force.md)). A number in brackets is the unit size; “2 ×” means two units.
+
+**Space Marines**
+
+- **1500 (1500 points):** Captain, 2 × Lieutenant, 2 × Intercessor Squad (10), Assault Intercessor Squad (10), Hellblaster Squad (10), 2 × Infernus Squad (5), Bladeguard Veteran Squad (6), Redemptor Dreadnought, Predator Annihilator.
+- **2000 (1985 points):** Captain, 3 × Lieutenant, 2 × Intercessor Squad (10), Assault Intercessor Squad (10), Hellblaster Squad (10), Hellblaster Squad (5), Infernus Squad (10), Bladeguard Veteran Squad (6), 2 × Redemptor Dreadnought, 2 × Predator Annihilator.
+- **2500 (2485 points):** 2 × Captain, 2 × Lieutenant, 3 × Intercessor Squad (10), 2 × Assault Intercessor Squad (10), Hellblaster Squad (10), Hellblaster Squad (5), Infernus Squad (10), Infernus Squad (5), Bladeguard Veteran Squad (6), Bladeguard Veteran Squad (3), 2 × Redemptor Dreadnought, 2 × Predator Annihilator.
+
+**Orks**
+
+- **1500 (1495 points):** 2 × Warboss, 3 × Boyz (20), Nobz (10), Nobz (5), Kommandos (10), Gretchin (20), 2 × Deff Dread, Battlewagon.
+- **2000 (1995 points):** 2 × Warboss, 5 × Boyz (20), Nobz (10), Nobz (5), Kommandos (10), 2 × Gretchin (20), 3 × Deff Dread, Battlewagon.
+- **2500 (2500 points):** 3 × Warboss, 6 × Boyz (20), Nobz (10), Nobz (5), 2 × Kommandos (10), 2 × Gretchin (20), 3 × Deff Dread, 2 × Battlewagon.
+
+**Tyranids**
+
+- **1500 (1480 points):** Hive Tyrant, Winged Tyranid Prime, Tyranid Warriors With Ranged Bio-weapons (6), Termagants (20), 2 × Hormagaunts (20), Zoanthropes (3), Carnifexes (2), Barbgaunts (10), Barbgaunts (5), Exocrine, Tyrannofex.
+- **2000 (2000 points):** 2 × Hive Tyrant, 2 × Winged Tyranid Prime, Tyranid Warriors With Ranged Bio-weapons (6), 2 × Termagants (20), Hormagaunts (20), Zoanthropes (6), Carnifexes (2), Barbgaunts (10), Barbgaunts (5), Exocrine, 2 × Tyrannofex.
+- **2500 (2500 points):** 2 × Hive Tyrant, 2 × Winged Tyranid Prime, 2 × Tyranid Warriors With Ranged Bio-weapons (6), 2 × Termagants (20), 2 × Hormagaunts (20), Zoanthropes (6), 2 × Carnifexes (2), Barbgaunts (10), 2 × Exocrine, 2 × Tyrannofex.
+
+**Necrons**
+
+- **1500 (1475 points):** Overlord, Royal Warden, Necron Warriors (20), 2 × Immortals (10), Lychguard (10), Canoptek Wraiths (3), Skorpekh Destroyers (6), Canoptek Scarab Swarms (3), 2 × Doomsday Ark.
+- **2000 (1985 points):** 2 × Overlord, Royal Warden, 2 × Necron Warriors (20), 2 × Immortals (10), Immortals (5), 2 × Lychguard (10), Canoptek Wraiths (3), Skorpekh Destroyers (6), Canoptek Scarab Swarms (3), 2 × Doomsday Ark.
+- **2500 (2500 points):** 2 × Overlord, 2 × Royal Warden, 2 × Necron Warriors (20), 3 × Immortals (10), 2 × Lychguard (10), Canoptek Wraiths (6), Skorpekh Destroyers (6), Canoptek Scarab Swarms (6), 3 × Doomsday Ark.
+
+**Aeldari**
+
+- **1500 (1460 points):** Farseer, Autarch, 3 × Guardian Defenders (11), Rangers (10), 2 × Wraithguard (5), Swooping Hawks (5), Dire Avengers (10), Dire Avengers (5), Windriders (6), Fire Prism.
+- **2000 (1985 points):** 2 × Farseer, Autarch, 3 × Guardian Defenders (11), Rangers (10), Rangers (5), 2 × Wraithguard (5), Swooping Hawks (10), 2 × Dire Avengers (10), Windriders (6), Windriders (3), 2 × Fire Prism.
+- **2500 (2445 points):** 2 × Farseer, 2 × Autarch, 4 × Guardian Defenders (11), Rangers (10), 2 × Rangers (5), 3 × Wraithguard (5), Swooping Hawks (10), 2 × Dire Avengers (10), 2 × Windriders (6), 2 × Fire Prism.
+
+**Adeptus Mechanicus**
+
+- **1500 (1495 points):** Tech-Priest Dominus, Tech-Priest Manipulus, 2 × Skitarii Rangers (10), 2 × Skitarii Vanguard (10), Kataphron Breachers (3), 2 × Kataphron Destroyers (3), Sicarian Infiltrators (5), Kastelan Robots (2), 2 × Onager Dunecrawler, Ironstrider Ballistarii, Serberys Sulphurhounds (3).
+- **2000 (1985 points):** Tech-Priest Dominus, Tech-Priest Manipulus, 3 × Skitarii Rangers (10), 2 × Skitarii Vanguard (10), 2 × Kataphron Breachers (3), 2 × Kataphron Destroyers (3), 2 × Sicarian Infiltrators (5), Kastelan Robots (2), 2 × Onager Dunecrawler, Ironstrider Ballistarii (2), Corpuscarii Electro-Priests (5), Serberys Sulphurhounds (6).
+- **2500 (2485 points):** Tech-Priest Dominus, 2 × Tech-Priest Manipulus, 4 × Skitarii Rangers (10), 3 × Skitarii Vanguard (10), 2 × Kataphron Breachers (3), 3 × Kataphron Destroyers (3), Sicarian Infiltrators (5), 2 × Kastelan Robots (2), 2 × Onager Dunecrawler, Ironstrider Ballistarii (2), Corpuscarii Electro-Priests (10), Serberys Sulphurhounds (6).
 
 **Known limitation: AI speed.** The AI's movement planning and line-of-sight checks grow with the number of models. Measured in Node on the first round:
 
@@ -180,6 +222,8 @@ The start screen has an army builder for both sides (yours and the AI's). Each f
 | Training rosters | 0.5 s | 2.5 s |
 | 500-point presets | 1.8 s | 25 s |
 | 1000-point presets | 2.7 s | 15.6 s |
+
+At bigger limits a whole AI turn takes longer. Measured in Node on 2026-11-13, standard AI, Adeptus Mechanicus vs Orks on Hammer and Anvil, the first two battle rounds: an AI turn takes 8–13 s with the 1000-point presets, 20–49 s at about 2000 points and 14–50 s at about 2500 points; the slowest single decision is 2.9 s, 4.8 s and 6.0 s. The builder warns about it for lists over 1000 points.
 
 The browser freezes while the AI thinks. Speeding the AI up is separate work.
 

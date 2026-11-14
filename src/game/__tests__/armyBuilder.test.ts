@@ -74,7 +74,14 @@ describe('army list rules', () => {
       }
     // the table in docs/armies.md
     const totals = Object.fromEntries(FACTIONS.map((f) => [f, POINTS_LIMITS.map((l) => listPoints(presetList(f, l)))]))
-    expect(totals).toEqual({ marines: [480, 980], orks: [495, 975], tyranids: [480, 1000], necrons: [495, 990], aeldari: [480, 980], adeptus_mechanicus: [490, 970] })
+    expect(totals).toEqual({
+      marines: [480, 980, 1500, 1985, 2485],
+      orks: [495, 975, 1495, 1995, 2500],
+      tyranids: [480, 1000, 1480, 2000, 2500],
+      necrons: [495, 990, 1475, 1985, 2500],
+      aeldari: [480, 980, 1460, 1985, 2445],
+      adeptus_mechanicus: [490, 970, 1495, 1985, 2485],
+    })
   })
 
   it('reads lists back from storage and drops broken ones', () => {
@@ -92,7 +99,8 @@ describe('army list rules', () => {
 })
 
 describe('mustering an army list on the board', () => {
-  it.each(POINTS_LIMITS)('every pair of %i-point presets sets up legally on both sides', (limit) => {
+  // bigger lists play on the 44″×60″ board (strikeForce.test.ts)
+  it.each(POINTS_LIMITS.filter((l) => l <= (patrol.maxPoints ?? 0)))('every pair of %i-point presets sets up legally on both sides', (limit) => {
     for (const [a, b] of pairs) {
       const s = patrol.build([a, b], { [a]: presetList(a, limit), [b]: presetList(b, limit) })
       for (const f of [a, b]) {

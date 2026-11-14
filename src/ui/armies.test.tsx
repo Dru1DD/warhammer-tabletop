@@ -206,6 +206,20 @@ describe('army builder on the start screen', () => {
     expect(g.units.filter((u) => u.owner === 'orks')).toHaveLength(5)
   })
 
+  it('a preset over 1000 points moves the battle to the 44″×60″ board and says why', () => {
+    render(<App />)
+    const mine = within(screen.getByLabelText('Состав армии: Космодесант'))
+    fireEvent.click(mine.getByText('Пресет 2000'))
+    expect(useStore.getState().settings).toMatchObject({ scenarioId: 'strike-force', armies: { marines: { limit: 2000 } } })
+    expect(mine.getByLabelText('Очки армии')).toHaveTextContent('1985 / 2000')
+    expect(mine.getByText(/Больше 1000 очков: битва идёт на поле 44″×60″/)).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /составам больше 1000 очков нужно поле побольше/ })).toBeDisabled()
+    // back to 1000 points: Combat Patrol takes the list again
+    fireEvent.change(mine.getByDisplayValue('2000 очков'), { target: { value: '1000' } })
+    expect(screen.queryByText(/Больше 1000 очков/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /нужно поле побольше/ })).not.toBeInTheDocument()
+  })
+
   it('removing units and going back to the training roster', () => {
     render(<App />)
     const mine = within(screen.getByLabelText('Состав армии: Космодесант'))
